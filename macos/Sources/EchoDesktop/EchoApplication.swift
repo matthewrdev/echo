@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct EchoApplication: App {
+    @NSApplicationDelegateAdaptor(EchoApplicationDelegate.self) private var appDelegate
     @StateObject private var workspace: WorkspaceViewModel
     @StateObject private var artifacts: ArtifactViewModel
 
@@ -13,12 +14,14 @@ struct EchoApplication: App {
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
             featureMatches: FeatureMatchIndexer())
         let formatter = RunEventFormatter()
-        _workspace = StateObject(
-            wrappedValue: WorkspaceViewModel(
-                client: projects, project: options.project, logReader: RunLogReader(formatter: formatter),
-                eventFormatter: formatter, recentProjectStore: UserDefaultsRecentProjectStore(defaults: .standard),
-                clipboard: SystemTextClipboard()))
+        let workspace = WorkspaceViewModel(
+            client: projects, project: options.project, logReader: RunLogReader(formatter: formatter),
+            eventFormatter: formatter, recentProjectStore: UserDefaultsRecentProjectStore(defaults: .standard),
+            clipboard: SystemTextClipboard())
+        _workspace = StateObject(wrappedValue: workspace)
         _artifacts = StateObject(wrappedValue: ArtifactViewModel(reader: reader))
+        appDelegate.termination = ApplicationTerminationCoordinator(
+            work: workspace, confirmation: NativeQuitConfirmation())
     }
 
     var body: some Scene {

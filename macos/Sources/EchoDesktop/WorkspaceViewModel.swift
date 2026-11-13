@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class WorkspaceViewModel: ObservableObject {
+final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private let client: ProjectClient
     private let clipboard: TextClipboard
     private let recentProjectStore: RecentProjectStore
@@ -29,6 +29,7 @@ final class WorkspaceViewModel: ObservableObject {
     @Published var workingRun: RunData?
     @Published var cancelRequested = false
     @Published var busy = false
+    @Published private(set) var quitting = false
     @Published var status = "Open or create a project to begin."
     @Published var errorMessage: String?
     @Published var pendingChange: ProjectEditRequest?
@@ -52,7 +53,7 @@ final class WorkspaceViewModel: ObservableObject {
     }
 
     var activeRun: RunSummary? { runs.first { $0.status == "running" } }
-    var canEdit: Bool { !busy && activeRun == nil }
+    var canEdit: Bool { !quitting && !busy && activeRun == nil }
     var sets: [String] { ["All sets"] + Set(inspection?.project.images.flatMap(\.sets) ?? []).sorted() }
 
     var photoGroups: [PhotoGroup] {
@@ -310,6 +311,30 @@ final class WorkspaceViewModel: ObservableObject {
         }
     }
 
+    func stopForTermination() async throws {
+        quitting = true
+        defer { quitting = false }
+        status = "Stopping processing before quitting…"
+        var requested = Set<String>()
+        while true {
+            let active = root.isEmpty ? [] : try await client.runs(root: root).filter { $0.status == "running" }
+            for run in active where !requested.contains(run.id) {
+                do {
+                    try await client.command(root: root, arguments: ["run", "cancel", run.id], progress: { _ in })
+                    requested.insert(run.id)
+                    cancelRequested = true
+                } catch {
+                    // The job can finish between listing it and requesting cancellation.
+                    let current = try await client.runs(root: root)
+                    if current.contains(where: { $0.id == run.id && $0.status == "running" }) { throw error }
+                }
+            }
+            // busy covers startup before a run is saved, and waiting for our CLI process to exit.
+            if !busy && active.isEmpty { return }
+            try await Task.sleep(for: .milliseconds(250))
+        }
+    }
+
     func setEnabled(_ photo: Photo, enabled: Bool) {
         requestEdit("Change processing images?", from: .features) {
             self.execute("Updating image…", ["images", "enable", photo.id, "--value", String(enabled)])
@@ -391,7 +416,7 @@ final class WorkspaceViewModel: ObservableObject {
                 status = "Completed."
             } catch {
                 status = "Operation stopped. Completed artifacts are retained."
-                errorMessage = error.localizedDescription
+                if !quitting { errorMessage = error.localizedDescription }
             }
             busy = false
             await reload()
