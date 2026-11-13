@@ -1,6 +1,8 @@
 using System.ComponentModel.Composition;
+using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Imaging;
 using Echo.Projects;
 using SkiaSharp;
 
@@ -10,18 +12,33 @@ namespace Echo.Texturing;
 public sealed class TextureRasterizer : ITextureRasterizer
 {
     private readonly ICameraGeometry geometry;
+    private readonly IRasterImageService images;
 
     [ImportingConstructor]
-    public TextureRasterizer(ICameraGeometry geometry)
+    public TextureRasterizer(ICameraGeometry geometry, IRasterImageService images)
     {
         this.geometry = geometry;
+        this.images = images;
     }
 
     public double Paint(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
         TextureResult texture, IReadOnlyList<TexturePatch> patches, SKBitmap atlas, CancellationToken cancellation)
     {
         var size = texture.Size;
-        var target = new SKColor[size * size];
+        var byteColour = atlas.ColorType is SKColorType.Bgra8888 or SKColorType.Rgba8888;
+        var directLayout = BitConverter.IsLittleEndian
+            && byteColour
+            && atlas.RowBytes == size * sizeof(uint);
+        var swapTargetRedBlue = directLayout && atlas.ColorType == SKColorType.Rgba8888;
+        if (atlas.Width != size || atlas.Height != size)
+        {
+            throw new EchoException("Atlas dimensions do not match the texture layout.");
+        }
+
+        SKColor[]? managedTarget = directLayout ? null : new SKColor[checked(size * size)];
+        Span<SKColor> target = managedTarget != null
+            ? managedTarget : MemoryMarshal.Cast<byte, SKColor>(atlas.GetPixelSpan());
+        target.Clear();
         var photos = project.Images.ToDictionary(p => p.Id);
         var cameras = scene.Cameras.ToDictionary(c => c.ImageId);
         long painted = 0;
@@ -33,7 +50,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
             var camera = cameras[group.Key];
             var projection = new CameraProjector(geometry, photo, camera);
             using var source = SKBitmap.Decode(store.PathFor(photo.Source));
-            var pixels = source.Pixels;
+            var pixels = images.BorrowPixels(source, out var swapRedBlue);
             foreach (var index in group)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -45,25 +62,30 @@ public sealed class TextureRasterizer : ITextureRasterizer
                     var coordinate = texture.Uvs[face[corner]];
                     uv[corner] = new TextureCoordinate(coordinate[0], coordinate[1]);
                 }
-                painted += PaintTriangle(target, size, pixels, source.Width, source.Height, uv, projected);
+                painted += PaintTriangle(target, size, pixels, source.Width, source.Height, uv, projected, swapRedBlue);
             }
+            GC.KeepAlive(source);
         }
 
         Pad(target, size, project.Settings.TextureGutter, cancellation);
 
         for (var i = 0; i < target.Length; i++)
         {
-            if (target[i].Alpha == 0)
-            {
-                target[i] = new SKColor(48, 52, 58);
-            }
+            var colour = target[i].Alpha == 0 ? new SKColor(48, 52, 58) : target[i];
+            // Painting/padding use logical SKColor values; publish native channel order only
+            // once every pixel is opaque. Skia never reads the temporary padding alpha marks.
+            target[i] = swapTargetRedBlue ? new SKColor(colour.Blue, colour.Green, colour.Red) : colour;
         }
 
-        atlas.Pixels = target;
+        if (managedTarget != null)
+        {
+            atlas.Pixels = managedTarget;
+        }
+        GC.KeepAlive(atlas);
         return (double)painted / (size * size);
     }
 
-    private long PaintTriangle(SKColor[] target, int size, SKColor[] source, int width, int height, ReadOnlySpan<TextureCoordinate> uv, ReadOnlySpan<V3> projected)
+    private long PaintTriangle(Span<SKColor> target, int size, ReadOnlySpan<SKColor> source, int width, int height, ReadOnlySpan<TextureCoordinate> uv, ReadOnlySpan<V3> projected, bool swapRedBlue)
     {
         var x0 = uv[0].X * size;
         var y0 = uv[0].Y * size;
@@ -104,14 +126,15 @@ public sealed class TextureRasterizer : ITextureRasterizer
                     painted++;
                 }
 
-                target[index] = Sample(source, width, height, sx, sy);
+                var colour = Sample(source, width, height, sx, sy);
+                target[index] = swapRedBlue ? new SKColor(colour.Blue, colour.Green, colour.Red) : colour;
             }
         }
 
         return painted;
     }
 
-    private SKColor Sample(SKColor[] source, int width, int height, double x, double y)
+    private SKColor Sample(ReadOnlySpan<SKColor> source, int width, int height, double x, double y)
     {
         x = Math.Clamp(x, 0, width - 1.001);
         y = Math.Clamp(y, 0, height - 1.001);
@@ -128,7 +151,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
         return new SKColor(Blend(a.Red, b.Red, c.Red, d.Red), Blend(a.Green, b.Green, c.Green, d.Green), Blend(a.Blue, b.Blue, c.Blue, d.Blue));
     }
 
-    private void Pad(SKColor[] pixels, int size, int gutter, CancellationToken cancellation)
+    private void Pad(Span<SKColor> pixels, int size, int gutter, CancellationToken cancellation)
     {
         var left = 0;
         var top = 0;
@@ -165,7 +188,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
         }
     }
 
-    private SKColor Neighbour(SKColor[] pixels, int size, int x, int y, int left, int top, int right, int bottom)
+    private SKColor Neighbour(ReadOnlySpan<SKColor> pixels, int size, int x, int y, int left, int top, int right, int bottom)
     {
         for (var yy = Math.Max(top, y - 1); yy <= Math.Min(bottom, y + 1); yy++)
         {

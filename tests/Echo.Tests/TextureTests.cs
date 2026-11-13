@@ -14,14 +14,16 @@ public sealed class TextureTests
     private readonly IProjectStoreFactory stores;
     private readonly IRasterImageService images;
     private readonly ITexturePatchPacker packer;
+    private readonly ITextureRasterizer rasterizer;
 
     [ImportingConstructor]
-    public TextureTests(ITextureBaker baker, IProjectStoreFactory stores, IRasterImageService images, ITexturePatchPacker packer)
+    public TextureTests(ITextureBaker baker, IProjectStoreFactory stores, IRasterImageService images, ITexturePatchPacker packer, ITextureRasterizer rasterizer)
     {
         this.baker = baker;
         this.stores = stores;
         this.images = images;
         this.packer = packer;
+        this.rasterizer = rasterizer;
     }
 
     internal void Run(TestSuite tests)
@@ -134,6 +136,23 @@ public sealed class TextureTests
                 Check(result.ChartCount >= 2 && textured.Faces.Count == mesh.Faces.Count, "Multiple patches retain all faces");
                 Check(result.Uvs.Count == textured.Vertices.Count, "One UV per textured vertex");
                 Check(result.Uvs.All(uv => uv.All(v => v > 0 && v < 1)), "UVs retain border padding");
+                SKColor[]? expectedPixels = null;
+                foreach (var padding in new[] { 16, 0 })
+                {
+                    foreach (var colourType in new[] { SKColorType.Rgba8888, SKColorType.Bgra8888 })
+                    {
+                        foreach (var alphaType in new[] { SKAlphaType.Premul, SKAlphaType.Unpremul, SKAlphaType.Opaque })
+                        {
+                            var info = new SKImageInfo(256, 256, colourType, alphaType);
+                            using var nativeAtlas = new SKBitmap(info, info.RowBytes + padding);
+                            nativeAtlas.Erase(SKColors.Magenta);
+                            rasterizer.Paint(store, project, scene, textured, result, [], nativeAtlas, default);
+                            var actualPixels = nativeAtlas.Pixels;
+                            expectedPixels ??= actualPixels;
+                            Check(actualPixels.AsSpan().SequenceEqual(expectedPixels), "Borrowed atlas buffers match fallback pixels across channel orders, alpha layouts and row strides");
+                        }
+                    }
+                }
                 using var atlas = SKBitmap.Decode(output);
                 foreach (var face in textured.Faces)
                 {

@@ -36,7 +36,7 @@ public sealed class RasterImageService : IRasterImageService
         return result;
     }
 
-    private ReadOnlySpan<SKColor> BorrowPixels(SKBitmap source, out bool swapRedBlue)
+    public ReadOnlySpan<SKColor> BorrowPixels(SKBitmap source, out bool swapRedBlue)
     {
         var byteColour = source.ColorType is SKColorType.Bgra8888 or SKColorType.Rgba8888;
         var unpremultiplied = source.AlphaType is SKAlphaType.Opaque or SKAlphaType.Unpremul;

@@ -5,6 +5,8 @@ namespace Echo.Imaging;
 public interface IRasterImageService
 {
     RasterPixels ReadPixels(string path);
+    // Keep the bitmap alive and unmodified until the borrowed span has been consumed.
+    ReadOnlySpan<SKColor> BorrowPixels(SKBitmap bitmap, out bool swapRedBlue);
     GrayscaleImage ResizeGray(RasterPixels source, int width);
     GrayscaleImage ResizeGray(SKBitmap source, int width);
     SKBitmap Decode(string path);
