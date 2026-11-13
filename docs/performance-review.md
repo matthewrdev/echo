@@ -192,3 +192,23 @@ The sparse inspector now lets users select a track, browse its source photograph
 Export remains a local-coordinate GLB plus custom `cliff.geo.json` and `cliff.report.json` sidecars. The geo sidecar carries the origin, East/Up/South axis convention, row-major local-to-ECEF transform, cameras, horizontal/vertical datum labels and warnings. Georeferencing is not embedded in the GLB; the sidecar is not a GeoJSON FeatureCollection. Metric scale is intended for referenced scenes, but physical accuracy remains unverified.
 
 Automatic DEM retrieval is not implemented. A terrain DEM could help with context and weak elevation/depth bounds after datum reconciliation; a single-height terrain raster cannot represent cliff overhangs or establish that a second sparse layer is wrong. [Geoscience Australia's elevation portal](https://www.ga.gov.au/scientific-topics/national-location-information/elvis-elevation-information-system) distinguishes available terrain and LiDAR products.
+
+### Depth source-image ownership and phase profiling
+
+![Depth preparation comparison](performance/depth-native-pixels.png)
+
+The depth estimator was decoding each source into a native bitmap, copying the entire colour image into a managed `RasterPixels` array, then retaining that array for all pyramid levels. The new per-job `DepthSourceImages` owner retains the decoded native bitmap and passes borrowed pixel spans to the existing area-averaging resize routine. Disposal is scoped to the job, including cancellation and failure. No source pixels are copied into a second full-resolution managed colour buffer. Depth hypotheses, interpolation, costs and filtering are unchanged.
+
+Saved cliff run `f0ea8e71f64047f5a79e67193b520af0`, photo `0608`, 2048-pixel depth width, 12 neighbours, 192 initial samples, 18 refinement samples, one image with 16 row workers. Six passes per process; iteration zero excluded. Before/after/reference-repeat were measured separately. The graph uses the repeated reference run to avoid overstating the first reference timing while other development work was active.
+
+| Measurement | Managed colour copy | Borrowed native pixels |
+| --- | ---: | ---: |
+| Median compute time | 2.629 s | 2.596 s |
+| Managed allocations per pass | 713.08 MB | 237.55 MB |
+| Whole-process peak RSS | 917.44 MB | 900.10 MB |
+
+Managed allocation traffic fell **66.7%**. Peak resident memory fell only **1.9%** because the decoded native source bitmaps still have to exist. The timing difference is small and distributions overlap: this is not a demonstrated CPU speedup. The earlier reference median was 2.876 s, illustrating timing variability. All 18 before/after/repeat outputs had identical depth-and-confidence hash `f98f60cfcadbc4248b4364d7d5d8d0442c1ac9714ae1eac55ebb1472c52aa6ed` and 314,985 valid samples.
+
+The benchmark now separates image preparation, each depth-search level, filtering, and output serialization. This avoids attributing JPEG decode/resize or JSON saving to the stereo kernel. Output serialization still allocates about 33.5 MB per warm pass; that remains a separate optimization opportunity. The stereo search itself remains CPU code; this change does not add Metal/GPU execution or unsafe memory access.
+
+Raw warm-pass values and hashes are in [the CSV](performance/depth-native-pixels.csv). RSS includes startup, warm-up, managed and native memory; it is not interchangeable with cumulative allocation traffic. Absolute run duration depends on image count, content, overlap, resolution and search settings. These measurements do not establish full-project throughput.

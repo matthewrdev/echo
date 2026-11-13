@@ -31,7 +31,7 @@ public sealed class DepthEstimator : IDepthEstimator
         Action<string>? progress = null,
         Action<DepthLevelMetrics>? metrics = null)
     {
-        var sources = new Dictionary<string, RasterPixels>();
+        using var sources = new DepthSourceImages(rasterImageService, store);
         DepthMap? prior = null;
         var width = Math.Min(160, project.Settings.DepthWidth);
         var levelCount = 1;
@@ -61,7 +61,7 @@ public sealed class DepthEstimator : IDepthEstimator
         CameraPose camera,
         int levelWidth,
         DepthMap? prior,
-        Dictionary<string, RasterPixels> sources,
+        DepthSourceImages sources,
         int maxWorkers,
         CancellationToken cancellation,
         string levelLabel,
@@ -70,7 +70,7 @@ public sealed class DepthEstimator : IDepthEstimator
     {
         var preparationStart = Stopwatch.GetTimestamp();
         var photo = project.Images.Single(i => i.Id == camera.ImageId);
-        var reference = ReadLevel(store, photo, levelWidth, sources);
+        var reference = sources.ReadLevel(photo, levelWidth);
         var gray = reference.Pixels;
         var width = reference.Width;
         var height = reference.Height;
@@ -134,7 +134,7 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             cancellation.ThrowIfCancellationRequested();
             var otherPhoto = project.Images.Single(i => i.Id == other.ImageId);
-            var resized = ReadLevel(store, otherPhoto, levelWidth, sources);
+            var resized = sources.ReadLevel(otherPhoto, levelWidth);
             var inverse = cameraGeometry.Transpose(other.Rotation);
             views.Add(new StereoView
             {
@@ -249,17 +249,6 @@ public sealed class DepthEstimator : IDepthEstimator
             Stopwatch.GetElapsedTime(filterStart).TotalSeconds));
 
         return result;
-    }
-
-    private GrayscaleImage ReadLevel(IProjectStore store, Photo photo, int width, Dictionary<string, RasterPixels> sources)
-    {
-        if (!sources.TryGetValue(photo.Id, out var source))
-        {
-            source = rasterImageService.ReadPixels(store.PathFor(photo.Source));
-            sources.Add(photo.Id, source);
-        }
-
-        return rasterImageService.ResizeGray(source, width);
     }
 
     private int CreateHypotheses(DepthMap prior, int x, int y, int width, int height,
