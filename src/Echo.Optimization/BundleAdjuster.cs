@@ -133,17 +133,25 @@ public sealed class BundleAdjuster : IBundleAdjuster
         Span<double> cameraStep = stackalloc double[6];
         Span<double> pointRightHandSide = stackalloc double[3];
         Span<double> pointStep = stackalloc double[3];
+        var h = new double[checked(parameter * parameter)];
+        var b = new double[parameter];
+        var blocks = new PointBlock[tracks.Count];
+        for (var i = 0; i < blocks.Length; i++)
+        {
+            blocks[i] = new PointBlock();
+        }
+
         for (var iteration = 0; iteration < project.Settings.BundleIterations; iteration++)
         {
             cancellation.ThrowIfCancellationRequested();
-            var h = new double[parameter * parameter];
-            var b = new double[parameter];
-            var blocks = new List<PointBlock>();
-            foreach (var track in tracks)
+            h.AsSpan().Clear();
+            b.AsSpan().Clear();
+            for (var trackIndex = 0; trackIndex < tracks.Count; trackIndex++)
             {
                 cancellation.ThrowIfCancellationRequested();
-                var block = new PointBlock();
-                blocks.Add(block);
+                var track = tracks[trackIndex];
+                var block = blocks[trackIndex];
+                block.Reset();
                 foreach (var observation in track.Observations)
                 {
                     var ci = observation.Camera;
@@ -191,11 +199,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                         }
 
                         b[row] += weight * (ju[j] * ru + jv[j] * rv);
-                        if (!block.Cross.TryGetValue(row, out var cross))
-                        {
-                            cross = new double[3];
-                            block.Cross[row] = cross;
-                        }
+                        var cross = block.GetCross(row);
 
                         for (var k = 0; k < 3; k++)
                         {
@@ -248,7 +252,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                     block.H[i * 3 + i] += lambda * Math.Max(1e-5, block.H[i * 3 + i]);
                 }
 
-                block.Inverse = Inverse3(block.H);
+                Inverse3(block.H, block.Inverse);
                 foreach (var row in block.Cross)
                 {
                     Multiply(block.Inverse, row.Value, transformed);
@@ -594,15 +598,15 @@ public sealed class BundleAdjuster : IBundleAdjuster
         return true;
     }
 
-    private double Error(V3 point, Observation o, Photo[] photos, List<CameraPose> cameras)
+    private double Error(V3 point, Observation observation, Photo[] photos, List<CameraPose> cameras)
     {
-        var p = cameraGeometry.ProjectPoint(photos[o.Camera], cameras[o.Camera], point);
+        var p = cameraGeometry.ProjectPoint(photos[observation.Camera], cameras[observation.Camera], point);
         if (p == null)
         {
             return double.PositiveInfinity;
         }
 
-        return Math.Sqrt(Math.Pow(p.Value.X - o.Pixel[0], 2) + Math.Pow(p.Value.Y - o.Pixel[1], 2)) * 1000 / photos[o.Camera].Width;
+        return Math.Sqrt(Math.Pow(p.Value.X - observation.Pixel[0], 2) + Math.Pow(p.Value.Y - observation.Pixel[1], 2)) * 1000 / photos[observation.Camera].Width;
     }
 
     private double MedianError(List<Track> tracks, Photo[] photos, List<CameraPose> cameras)
@@ -637,7 +641,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
         }
     }
 
-    private double Dot(ReadOnlySpan<double> a, ReadOnlySpan<double> b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    private double Dot(ReadOnlySpan<double> leftVector, ReadOnlySpan<double> rightVector) => leftVector[0] * rightVector[0] + leftVector[1] * rightVector[1] + leftVector[2] * rightVector[2];
 
     private void Multiply(ReadOnlySpan<double> matrix, ReadOnlySpan<double> vector, Span<double> result)
     {
@@ -649,42 +653,45 @@ public sealed class BundleAdjuster : IBundleAdjuster
 
     private double[] Multiply(double[] matrix, double[] vector) => [matrix[0] * vector[0] + matrix[1] * vector[1] + matrix[2] * vector[2], matrix[3] * vector[0] + matrix[4] * vector[1] + matrix[5] * vector[2], matrix[6] * vector[0] + matrix[7] * vector[1] + matrix[8] * vector[2]];
 
-    private double[] Inverse3(double[] m)
+    private double[] Inverse3(double[] matrix)
     {
-        var determinant = m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6]);
+        var inverse = new double[9];
+        Inverse3(matrix, inverse);
+        return inverse;
+    }
+
+    private void Inverse3(ReadOnlySpan<double> matrix, Span<double> inverse)
+    {
+        var determinant = matrix[0] * (matrix[4] * matrix[8] - matrix[5] * matrix[7]) - matrix[1] * (matrix[3] * matrix[8] - matrix[5] * matrix[6]) + matrix[2] * (matrix[3] * matrix[7] - matrix[4] * matrix[6]);
         if (Math.Abs(determinant) < 1e-20)
         {
             throw new EchoException("Degenerate point geometry.", 5);
         }
 
-        var inverse = new[]
-        {
-            m[4] * m[8] - m[5] * m[7],
-            m[2] * m[7] - m[1] * m[8],
-            m[1] * m[5] - m[2] * m[4],
-            m[5] * m[6] - m[3] * m[8],
-            m[0] * m[8] - m[2] * m[6],
-            m[2] * m[3] - m[0] * m[5],
-            m[3] * m[7] - m[4] * m[6],
-            m[1] * m[6] - m[0] * m[7],
-            m[0] * m[4] - m[1] * m[3]
-        };
+        inverse[0] = matrix[4] * matrix[8] - matrix[5] * matrix[7];
+        inverse[1] = matrix[2] * matrix[7] - matrix[1] * matrix[8];
+        inverse[2] = matrix[1] * matrix[5] - matrix[2] * matrix[4];
+        inverse[3] = matrix[5] * matrix[6] - matrix[3] * matrix[8];
+        inverse[4] = matrix[0] * matrix[8] - matrix[2] * matrix[6];
+        inverse[5] = matrix[2] * matrix[3] - matrix[0] * matrix[5];
+        inverse[6] = matrix[3] * matrix[7] - matrix[4] * matrix[6];
+        inverse[7] = matrix[1] * matrix[6] - matrix[0] * matrix[7];
+        inverse[8] = matrix[0] * matrix[4] - matrix[1] * matrix[3];
         for (var index = 0; index < inverse.Length; index++)
         {
             inverse[index] /= determinant;
         }
-        return inverse;
     }
 
-    private double[] Exponential(V3 w)
+    private double[] Exponential(V3 rotationVector)
     {
-        var angle = w.Length;
+        var angle = rotationVector.Length;
         if (angle < 1e-12)
         {
             return [1, 0, 0, 0, 1, 0, 0, 0, 1];
         }
 
-        var n = w / angle;
+        var n = rotationVector / angle;
         var c = Math.Cos(angle);
         var s = Math.Sin(angle);
         var t = 1 - c;
