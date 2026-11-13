@@ -1,4 +1,5 @@
 enum ProcessingSettingsKey: String, CodingKey {
+    case frustumPairNeighbours, pairSearchDistance
     case detectLines, lineLimit, lineMinimumLength, lineGradientThreshold, lineSplitRegions
     case depthConcurrency, depthWorkerThreads, depthMemoryBudgetMb
     case cloudWorkerThreads, cloudBatchRows

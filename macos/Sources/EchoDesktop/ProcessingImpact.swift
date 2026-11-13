@@ -12,6 +12,8 @@ struct ProcessingImpact {
             old.pairWindow != new.pairWindow || old.matchAllPairs != new.matchAllPairs
             || old.gpsPairNeighbours != new.gpsPairNeighbours || old.matchRatioThreshold != new.matchRatioThreshold
             || old.matchDistanceThreshold != new.matchDistanceThreshold
+            || old.frustumPairNeighbours != new.frustumPairNeighbours
+            || old.pairSearchDistance != new.pairSearchDistance
         if matching { return .matching }
         if old.bundleIterations != new.bundleIterations { return .alignment }
         let depth =
@@ -51,7 +53,7 @@ struct ProcessingImpact {
             let before = old.hints.filter { $0.enabled && $0.type == type }.sorted { $0.id < $1.id }
             let after = new.hints.filter { $0.enabled && $0.type == type }.sorted { $0.id < $1.id }
             if (try? encoder.encode(before)) != (try? encoder.encode(after)) {
-                changes.append(type == "camera" ? .alignment : .matching)
+                changes.append(.matching)
             }
         }
         return PipelineStage.allCases.first { changes.contains($0) }

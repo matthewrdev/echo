@@ -34,6 +34,18 @@ struct StageSettingsEditor: View {
                 ).font(.callout).foregroundStyle(.secondary)
             case .matching:
                 Toggle("Compare every image pair", isOn: $settings.matchAllPairs)
+                IntegerSettingSlider(
+                    title: "Overlapping views per photo", value: $settings.frustumPairNeighbours, range: 0...100
+                )
+                .disabled(settings.matchAllPairs)
+                DecimalSettingSlider(
+                    title: "View search distance (metres)", value: $settings.pairSearchDistance,
+                    range: 1...5000, step: 1
+                ).disabled(settings.matchAllPairs)
+                Text(
+                    "Searches all captures using GPS, elevation, direction and field of view. Half the overlap shortlist is reserved for different elevations or tilts when available. Missing metadata falls back to GPS and sequence neighbours. Overlap is a guide; alignment still verifies the image matches."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 IntegerSettingSlider(title: "Following images to compare", value: $settings.pairWindow, range: 1...100)
                     .disabled(
                         settings.matchAllPairs)

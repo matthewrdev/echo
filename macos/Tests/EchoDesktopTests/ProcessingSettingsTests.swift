@@ -9,6 +9,9 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(settings.featureWidth, 800)
         XCTAssertEqual(settings.cloudNeighbours, 8)
         XCTAssertEqual(settings.textureChartFaces, 512)
+        XCTAssertEqual(settings.frustumPairNeighbours, 12)
+        settings.frustumPairNeighbours = 24
+        settings.pairSearchDistance = 350
         settings.detectLines = false
         settings.lineLimit = 1200
         settings.lineMinimumLength = 40
@@ -50,6 +53,8 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(restored.fusionDetailMultiplier, 2)
         XCTAssertEqual(restored.textureJpegQuality, 99)
         XCTAssertEqual(restored.textureGutter, 8)
+        XCTAssertEqual(restored.frustumPairNeighbours, 24)
+        XCTAssertEqual(restored.pairSearchDistance, 350)
     }
 
     func testDependencyWarningsStartAtTheEarliestAffectedStage() {
@@ -88,5 +93,11 @@ final class ProcessingSettingsTests: XCTestCase {
         changed = original
         changed.faceLimit = 2_000_000
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .fusion)
+        changed = original
+        changed.frustumPairNeighbours = 24
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .matching)
+        changed = original
+        changed.pairSearchDistance = 350
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .matching)
     }
 }

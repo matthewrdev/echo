@@ -33,6 +33,7 @@ public sealed class MatchingStage : IPipelineStage
         var cancellation = context.Cancellation;
         var featureUnits = context.ReadArtifact<Dictionary<string, string>>("features", "units.json");
         var wanted = pairSelector.Select(project, images, featureUnits);
+        context.ReportProgress("matching", $"Selected {wanted.Count:N0} image pairs using viewing overlap, spatial neighbours, capture sequence and hints.");
 
         var pairUnits = new List<string>();
         // Bounded cache: features are small but do not retain every decoded source image.
@@ -75,7 +76,21 @@ public sealed class MatchingStage : IPipelineStage
             });
         }
 
-        context.Publish("matching", context.Build("matching", pairUnits, d => fileOperations.AtomicJson(Path.Combine(d, "units.json"), pairUnits)));
+        context.Publish("matching", context.Build("matching", new
+        {
+            selectionVersion = 2,
+            pairUnits
+        }, directory =>
+        {
+            fileOperations.AtomicJson(Path.Combine(directory, "units.json"), pairUnits);
+            fileOperations.AtomicJson(Path.Combine(directory, "selection.json"), new
+            {
+                selectionVersion = 2,
+                project.Settings.FrustumPairNeighbours,
+                project.Settings.PairSearchDistance,
+                pairs = wanted
+            });
+        }));
     }
     private bool AppliesToPair(Hint hint, PairIdentity pair)
     {

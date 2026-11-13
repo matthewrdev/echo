@@ -12,6 +12,8 @@ struct ProcessingSettings: Codable {
     var pairWindow: Int = 5
     var matchAllPairs: Bool = false
     var gpsPairNeighbours: Int = 3
+    var frustumPairNeighbours: Int = 12
+    var pairSearchDistance: Double = 200
     var matchRatioThreshold: Double = 0.72
     var matchDistanceThreshold: Double = 0.65
     var depthConcurrency: Int = 2
@@ -54,6 +56,8 @@ struct ProcessingSettings: Codable {
         pairWindow = try values.decodeIfPresent(Int.self, forKey: .pairWindow) ?? 5
         matchAllPairs = try values.decodeIfPresent(Bool.self, forKey: .matchAllPairs) ?? false
         gpsPairNeighbours = try values.decodeIfPresent(Int.self, forKey: .gpsPairNeighbours) ?? 3
+        frustumPairNeighbours = try values.decodeIfPresent(Int.self, forKey: .frustumPairNeighbours) ?? 12
+        pairSearchDistance = try values.decodeIfPresent(Double.self, forKey: .pairSearchDistance) ?? 200
         matchRatioThreshold = try values.decodeIfPresent(Double.self, forKey: .matchRatioThreshold) ?? 0.72
         matchDistanceThreshold = try values.decodeIfPresent(Double.self, forKey: .matchDistanceThreshold) ?? 0.65
         depthConcurrency = try values.decodeIfPresent(Int.self, forKey: .depthConcurrency) ?? 2
@@ -97,6 +101,8 @@ struct ProcessingSettings: Codable {
         try values.encode(pairWindow, forKey: .pairWindow)
         try values.encode(matchAllPairs, forKey: .matchAllPairs)
         try values.encode(gpsPairNeighbours, forKey: .gpsPairNeighbours)
+        try values.encode(frustumPairNeighbours, forKey: .frustumPairNeighbours)
+        try values.encode(pairSearchDistance, forKey: .pairSearchDistance)
         try values.encode(matchRatioThreshold, forKey: .matchRatioThreshold)
         try values.encode(matchDistanceThreshold, forKey: .matchDistanceThreshold)
         try values.encode(depthConcurrency, forKey: .depthConcurrency)
@@ -132,7 +138,7 @@ struct ProcessingSettings: Codable {
                 "Up to \(featureLimit) points · \(detectLines ? "up to \(lineLimit) lines + junctions" : "lines off") · \(featureWidth) px"
         case .matching:
             return
-                "\(matchAllPairs ? "All image pairs" : "Next \(pairWindow) images + \(gpsPairNeighbours) GPS neighbours") · uniqueness \(matchRatioThreshold) · distance \(matchDistanceThreshold)"
+                "\(matchAllPairs ? "All image pairs" : "\(frustumPairNeighbours) overlapping views + \(gpsPairNeighbours) GPS neighbours + \(pairWindow) sequence neighbours") · uniqueness \(matchRatioThreshold) · distance \(matchDistanceThreshold)"
         case .alignment: return "Up to \(bundleIterations) bundle-adjustment iterations"
         case .depth:
             return

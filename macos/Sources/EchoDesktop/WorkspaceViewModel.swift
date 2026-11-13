@@ -348,7 +348,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     func save(hint: ImageHint) {
-        requestEdit("Change reconstruction hints?", from: hint.type == "camera" ? .alignment : .matching) {
+        requestEdit("Change reconstruction hints?", from: .matching) {
             self.perform("Saving image hint…") {
                 try await self.client.importValue(root: self.root, command: "hints", value: [hint])
             }
@@ -356,7 +356,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     func disable(hint: ImageHint) {
-        requestEdit("Disable this hint?", from: hint.type == "camera" ? .alignment : .matching) {
+        requestEdit("Disable this hint?", from: .matching) {
             self.execute("Disabling hint…", ["hints", "disable", hint.id])
         }
     }
