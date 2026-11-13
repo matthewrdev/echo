@@ -33,6 +33,7 @@ The final run's `artifacts.export` field identifies a directory inside the proje
 The native SwiftUI/AppKit app invokes CLI subprocesses through JSON/NDJSON. SceneKit uses Metal to display point clouds, camera frusta, captured image planes and meshes. Project edits and processing go through the CLI. The desktop can be rebuilt independently with `swift build --package-path macos`.
 
 - Getting-started screen with New/Open and persistent recent projects.
+- Quitting during work asks for confirmation. Keep Processing is the default; Stop and Quit requests cancellation and waits for work to stop. Completed checkpoints remain resumable.
 - Stage tabs stay above the artifact viewer. A global working bar and per-stage readable logs stay below it. Historical runs remain available from the project clock icon.
 - Scrolling thumbnail browsers for features, matched image pairs and depth maps. All matches are shown by default. Click correspondence endpoints to inspect matching scores and both image patches; scroll to zoom and drag to pan.
 - Separate viewers for sparse cameras/cloud, depth/confidence, dense cloud, fused volume, mesh, texture and exported GLB. Dense construction publishes sampled live previews; the complete point cloud is saved separately.
@@ -54,8 +55,9 @@ The native SwiftUI/AppKit app invokes CLI subprocesses through JSON/NDJSON. Scen
 | `Echo.Imaging` | Image decoding, orientation, area downsampling and image encoding |
 | `Echo.Projects` | Project revisions, copied originals, image sets, hints and file locks |
 | `Echo.Geometry` | WGS84/local transforms, camera projection, triangulation and essential-matrix estimation |
-| `Echo.Features` | Harris corners and normalised patch descriptors |
-| `Echo.Matching` | Mutual nearest-neighbour descriptor matching |
+| `Echo.Features` | Harris corners, line junctions and normalised patch descriptors |
+| `Echo.Lines` | Gradient-region line segments and junction detection |
+| `Echo.Matching` | Mutual nearest-neighbour point and reversible line descriptor matching |
 | `Echo.Reconstruction` | Metadata initialisation, limited orientation refinement, visual seed and camera registration |
 | `Echo.Optimization` | Robust joint camera, point and focal-length bundle adjustment |
 | `Echo.Depth` | Coarse-to-fine CPU stereo with warped patch correlation |
@@ -91,10 +93,10 @@ All controls are serialized in `project.json` and accepted by `config import`. S
 
 | Stage | Controls |
 | --- | --- |
-| Features | `featureWidth`, `featureLimit` |
+| Features | `featureWidth`, `featureLimit`, `detectLines`, `lineLimit`, `lineMinimumLength` |
 | Matching | `matchAllPairs`, `pairWindow`, `gpsPairNeighbours`, `matchRatioThreshold`, `matchDistanceThreshold` |
 | Alignment | `bundleIterations` |
-| Depth | `depthWidth`, `depthPlanes`, `depthRefinementSamples`, `depthNeighbours`, `depthNear`, `depthFar` |
+| Depth | `depthWidth`, `depthPlanes`, `depthRefinementSamples`, `depthNeighbours`, `depthNear`, `depthFar`, `depthConcurrency`, `depthWorkerThreads`, `depthMemoryBudgetMb` |
 | Dense cloud | `cloudNeighbours`, `cloudMinimumSupport`, `cloudDepthTolerance` |
 | Fusion | `fusionDetailMultiplier` |
 | Mesh | `faceLimit` (also informs fusion's grid budget) |
@@ -103,13 +105,13 @@ All controls are serialized in `project.json` and accepted by `config import`. S
 
 More work does not guarantee better reconstruction. A larger depth map increases possible point density; the distance range and sample count control the depth search. Higher matching thresholds admit more candidates and more false matches. The matching viewer displays all saved candidates; geometric verification happens in alignment. New matching artifacts include rejection counts. Resume uses saved settings; start a new run to apply edits. Existing artifacts remain immutable for inspection, while input fingerprints prevent incompatible reuse.
 
-Settings provide sliders and exact numeric entry. Depth maps can use up to 8192 pixels (capped to source width), 2048 initial search samples, 128 refinement samples and 32 stereo neighbours. Feature analysis supports up to 8192 pixels and 20,000 keypoints. These are limits, not accuracy guarantees; 1024-pixel depth is a preview setting for 4K photographs. The current detector is point-based; there is no line-segment alignment solver.
+Settings provide sliders and exact numeric entry. Depth maps can use up to 8192 pixels (capped to source width), 2048 initial search samples, 128 refinement samples and 32 stereo neighbours. Feature analysis supports up to 8192 pixels and 20,000 keypoints. These are limits, not accuracy guarantees; 1024-pixel depth is a preview setting for 4K photographs. The detector includes line segments and junctions. Junction point matches enter alignment; standalone line matches are currently inspection candidates, not 3D line constraints. Generic semantic shapes are not detected.
 
 To force fresh processing, use **More actions → Reset from this stage…**, then **Process**. The warning names all affected later stages. Reset adds a new cache revision for those stages and their per-image/per-pair checkpoints; it preserves photographs, earlier checkpoints, and every saved run. Resume still uses the saved run's original inputs. This does not reclaim disk space.
 
 ```bash
 ./scripts/echo-photo --project /tmp/my-cliff.echo pipeline reset --from depth
-./scripts/echo-photo --project /tmp/my-cliff.echo run --target export
+./scripts/echo-photo --project /tmp/my-cliff.echo run start --target export
 ```
 
 ## Hints and mixed cameras
@@ -135,6 +137,8 @@ JPEG, PNG and TIFF are supported; convert camera RAW files first. Import retains
 - Defaults target about **1.5 million triangles**, 1024-pixel depth maps and an **8192 × 8192** photographic atlas. A target does not manufacture detail: output may be smaller where observations are insufficient. Texture resolution is shared across surface charts.
 - This version has been exercised on a small real photo pack; 500+ photo quality, runtime and memory are not validated. Reconstruction runs on the CPU; the native viewer renders with Metal.
 - `compare-glb` reports structure, texture sizes and accessor bounds. It does not register two coordinate frames or measure geometric accuracy.
+
+See the [core performance review](docs/performance-review.md) for measurements, allocation fixes and remaining bottlenecks.
 
 See [validation notes](docs/validation.md) for the measured first-pass result and test commands.
 
