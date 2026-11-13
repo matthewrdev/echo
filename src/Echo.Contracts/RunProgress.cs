@@ -2,6 +2,7 @@ namespace Echo.Contracts;
 
 public sealed class RunProgress
 {
+    public string Phase { get; set; } = "processing";
     public string Stage { get; set; } = "";
     public string Message { get; set; } = "";
     public int? Completed

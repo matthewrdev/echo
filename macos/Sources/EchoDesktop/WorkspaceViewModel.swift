@@ -28,6 +28,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var logs: [RunLogEntry] = []
     @Published var workingRun: RunData?
     @Published var cancelRequested = false
+    @Published var cancellationRequestedAt: Date?
     @Published var busy = false
     @Published private(set) var quitting = false
     @Published var status = "Open or create a project to begin."
@@ -79,6 +80,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
     var progressTitle: String {
         if isWorking, let stage = workingRun?.progress.flatMap({ PipelineStage(rawValue: $0.stage) }) {
+            if workingRun?.progress?.phase == "checking" {
+                let target = workingRun.flatMap { PipelineStage(rawValue: $0.target) }?.title ?? "next stage"
+                return "Preparing \(target) · checking saved \(stage.title)"
+            }
             return "\(stage.title) · stage \((PipelineStage.allCases.firstIndex(of: stage) ?? 0) + 1) of 9"
         }
         if isWorking { return "Working…" }
@@ -90,7 +95,9 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         }
     }
     var progressMessage: String {
-        if cancelRequested { return "Stopping after the current operation. Saved artifacts will be retained." }
+        if cancelRequested {
+            return "Stop requested. Completed checkpoints are retained; unfinished work will be discarded."
+        }
         if isWorking { return workingRun?.progress?.message ?? status }
         if let error = inspection?.run?.error { return error }
         return inspection?.run == nil
@@ -201,6 +208,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             } else {
                 workingRun = nil
                 cancelRequested = false
+                cancellationRequestedAt = nil
             }
             if let run = result.1.run {
                 logs = try await logReader.read(root: requestedRoot, runID: run.id)
@@ -298,14 +306,17 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     func cancel() {
-        guard let run = activeRun, !cancelRequested else { return }
+        guard let run = activeRun else { return }
         cancelRequested = true
+        cancellationRequestedAt = Date()
         Task {
             do {
                 try await client.command(root: root, arguments: ["run", "cancel", run.id], progress: { _ in })
-                status = "Cancellation requested. Saving completed work…"
+                status = "Stop requested. Checking worker state…"
+                await reload()
             } catch {
                 cancelRequested = false
+                cancellationRequestedAt = nil
                 errorMessage = error.localizedDescription
             }
         }
@@ -323,6 +334,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
                     try await client.command(root: root, arguments: ["run", "cancel", run.id], progress: { _ in })
                     requested.insert(run.id)
                     cancelRequested = true
+                    cancellationRequestedAt = Date()
                 } catch {
                     // The job can finish between listing it and requesting cancellation.
                     let current = try await client.runs(root: root)

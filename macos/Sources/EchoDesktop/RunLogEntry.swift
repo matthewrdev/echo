@@ -8,7 +8,14 @@ struct RunLogEntry: Identifiable {
     var time: String {
         let parser = ISO8601DateFormatter()
         parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = parser.date(from: timestamp) else { return "" }
-        return date.formatted(date: .omitted, time: .standard)
+        var date = parser.date(from: timestamp)
+        if date == nil {
+            parser.formatOptions = [.withInternetDateTime]
+            date = parser.date(from: timestamp)
+        }
+        guard let date else { return "" }
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("jmmssSSS")
+        return formatter.string(from: date)
     }
 }

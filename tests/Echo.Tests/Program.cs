@@ -9,4 +9,6 @@ composition.Resolve<ScaleSpaceFeatureTests>().Run(scaleTests);
 composition.Resolve<GuidedMatchingTests>().Run(scaleTests);
 composition.Resolve<AlignmentVerificationTests>().Run(scaleTests);
 composition.Resolve<Matrix3InverterTests>().Run(scaleTests);
+composition.Resolve<RunRecoveryTests>().Run(scaleTests);
+composition.Resolve<DepthProgressTests>().Run(scaleTests);
 return Math.Max(scaleTests.Finish(), composition.Resolve<ReconstructionTests>().Run());

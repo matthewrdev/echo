@@ -59,9 +59,14 @@ public sealed class DepthStage : IPipelineStage
                 {
                     lock (progressGate)
                     {
-                        context.ReportProgress(Name, $"{photo.Name}: {message}", completed, scene.Cameras.Count);
+                        context.ReportProgress(Name, $"Image {index + 1}/{scene.Cameras.Count} · {photo.Name} · {message}", completed, scene.Cameras.Count);
                     }
                 });
+                cancellation.ThrowIfCancellationRequested();
+                lock (progressGate)
+                {
+                    context.ReportProgress(Name, $"Image {index + 1}/{scene.Cameras.Count} · {photo.Name} · saving depth and confidence maps", completed, scene.Cameras.Count);
+                }
                 fileOperations.AtomicJson(Path.Combine(directory, "depth.json"), map);
             });
             depthUnits[index] = depth;

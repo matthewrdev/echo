@@ -14,19 +14,22 @@ public sealed class RunCommand : ICliCommand
     private readonly IJsonCodec jsonCodec;
     private readonly IFileOperations fileOperations;
     private readonly IProcessor processor;
+    private readonly IRunStateRecovery runStateRecovery;
 
     [ImportingConstructor]
     public RunCommand(IProjectStoreFactory storeFactory,
         ICommandOutput output,
         IJsonCodec jsonCodec,
         IFileOperations fileOperations,
-        IProcessor processor)
+        IProcessor processor,
+        IRunStateRecovery runStateRecovery)
     {
         this.storeFactory = storeFactory;
         this.output = output;
         this.jsonCodec = jsonCodec;
         this.fileOperations = fileOperations;
         this.processor = processor;
+        this.runStateRecovery = runStateRecovery;
     }
 
     public IReadOnlyCollection<string> Names => ["run"];
@@ -47,9 +50,11 @@ public sealed class RunCommand : ICliCommand
                 ExecuteRun(store, args, args.RequiredWord(2));
                 break;
             case "status":
+                runStateRecovery.Recover(store);
                 output.Write(store.GetRun(args.Word(2, "latest")));
                 break;
             case "list":
+                runStateRecovery.Recover(store);
                 output.Write(ListRuns(store));
                 break;
             case "cancel":
@@ -123,6 +128,7 @@ public sealed class RunCommand : ICliCommand
         }
 
         fileOperations.AtomicBytes(store.PathFor($"runs/{run.Id}/cancel"), [1]);
+        runStateRecovery.Recover(store);
         output.Write(new
         {
             runId = run.Id,

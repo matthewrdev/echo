@@ -59,6 +59,7 @@ public sealed class Processor : IProcessor
         context.Start();
         try
         {
+            context.ReportProgress(run.Target, "Checking source photographs and reusable saved work before processing.");
             ValidateSources(context);
             foreach (var stage in stages)
             {

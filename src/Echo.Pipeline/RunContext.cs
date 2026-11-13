@@ -13,6 +13,7 @@ public sealed class RunContext
     private readonly Action<object>? output;
     private readonly JsonSerializerOptions eventOptions;
     private readonly object reportGate = new();
+    private readonly HashSet<string> processingStages = new(StringComparer.Ordinal);
     private long sequence;
 
     public RunContext(IProjectStore store,
@@ -201,6 +202,11 @@ public sealed class RunContext
                 "depth-image" => "depth",
                 _ => stage
             };
+            if (type == "stageStarted")
+            {
+                processingStages.Add(stage);
+            }
+            var checking = !processingStages.Contains(stage);
             var previous = Run.Progress?.Stage == stage ? Run.Progress : null;
             var completed = data.TryGetProperty("completed", out var done) && done.ValueKind == JsonValueKind.Number
                 ? done.GetInt32()
@@ -212,10 +218,12 @@ public sealed class RunContext
             Run.Progress = new RunProgress
             {
                 Stage = stage,
+                Phase = checking ? "checking" : "processing",
                 Completed = completed,
                 Total = total,
                 Message = data.TryGetProperty("message", out var message) ? message.GetString() ?? "" : completed.HasValue
-                    ? $"{completed:N0} / {total:N0} {unit} completed"
+                    ? checking ? $"Reusing saved {stage}: {completed:N0} of {total:N0} {unit} checked."
+                        : $"{completed:N0} / {total:N0} {unit} completed"
                     : "Processing saved inputs…"
             };
             SaveRun();

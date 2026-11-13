@@ -18,13 +18,34 @@ struct GlobalProgressView: View {
                     Text(workspace.progressTitle).font(.headline)
                     Text(workspace.progressMessage).font(.subheadline).foregroundStyle(.secondary).textSelection(
                         .enabled)
+                    if workspace.cancelRequested, let message = workspace.workingRun?.progress?.message {
+                        Text("Last operation: \(message)").font(.caption).foregroundStyle(.secondary)
+                    }
+                    if workspace.isWorking, let updated = workspace.workingRun?.progress?.updatedAt {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            let age = max(0, Int(context.date.timeIntervalSince(updated)))
+                            Text(age < 30 ? "Updated \(age)s ago" : "No progress update for \(age)s")
+                                .font(.caption).foregroundStyle(age < 30 ? Color.secondary : Color.orange)
+                        }
+                    }
                 }
                 Spacer(minLength: 10)
                 if workspace.activeRun != nil {
-                    Button(workspace.cancelRequested ? "Stopping…" : "Stop processing", systemImage: "stop.fill") {
-                        workspace.cancel()
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let waiting =
+                            workspace.cancelRequested
+                            && context.date.timeIntervalSince(workspace.cancellationRequestedAt ?? context.date) < 5
+                        Button(
+                            workspace.cancelRequested ? (waiting ? "Stopping…" : "Retry stop") : "Stop processing",
+                            systemImage: "stop.fill"
+                        ) {
+                            workspace.cancel()
+                        }
+                        .disabled(waiting)
+                        .help(
+                            "Stop the current run and retain completed checkpoints. Retry also checks whether the worker has exited."
+                        )
                     }
-                    .disabled(workspace.cancelRequested)
                 }
             }
             if workspace.isWorking, let progress = workspace.workingRun?.progress,
@@ -32,7 +53,9 @@ struct GlobalProgressView: View {
             {
                 ProgressView(value: Double(completed), total: Double(total))
                 HStack {
-                    Text("\(min(100, Int(Double(completed) / Double(total) * 100)))% of this step")
+                    Text(
+                        "\(completed) of \(total) work items saved · \(min(100, Int(Double(completed) / Double(total) * 100)))%"
+                    )
                     Spacer()
                     Text("\(workspace.savedStageCount) of 9 stages saved")
                 }.font(.caption).foregroundStyle(.secondary)

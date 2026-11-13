@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -27,16 +28,24 @@ public sealed class DepthEstimator : IDepthEstimator
         CameraPose camera,
         CancellationToken cancellation,
         int maxWorkers = 0,
-        Action<string>? progress = null)
+        Action<string>? progress = null,
+        Action<DepthLevelMetrics>? metrics = null)
     {
         var sources = new Dictionary<string, RasterPixels>();
         DepthMap? prior = null;
         var width = Math.Min(160, project.Settings.DepthWidth);
+        var levelCount = 1;
+        for (var levelWidth = width; levelWidth < project.Settings.DepthWidth; levelWidth = Math.Min(levelWidth * 2, project.Settings.DepthWidth))
+        {
+            levelCount++;
+        }
+        var level = 0;
         while (true)
         {
             cancellation.ThrowIfCancellationRequested();
-            progress?.Invoke($"estimating {width}px depth level");
-            prior = EstimateLevel(store, project, scene, camera, width, prior, sources, maxWorkers, cancellation);
+            var label = $"level {++level}/{levelCount}, {width}px";
+            progress?.Invoke($"{label}: loading reference and neighbouring images");
+            prior = EstimateLevel(store, project, scene, camera, width, prior, sources, maxWorkers, cancellation, label, progress, metrics);
             if (width == project.Settings.DepthWidth)
             {
                 return prior;
@@ -54,8 +63,12 @@ public sealed class DepthEstimator : IDepthEstimator
         DepthMap? prior,
         Dictionary<string, RasterPixels> sources,
         int maxWorkers,
-        CancellationToken cancellation)
+        CancellationToken cancellation,
+        string levelLabel,
+        Action<string>? progress,
+        Action<DepthLevelMetrics>? metrics)
     {
+        var preparationStart = Stopwatch.GetTimestamp();
         var photo = project.Images.Single(i => i.Id == camera.ImageId);
         var reference = ReadLevel(store, photo, levelWidth, sources);
         var gray = reference.Pixels;
@@ -119,6 +132,7 @@ public sealed class DepthEstimator : IDepthEstimator
         var views = new List<StereoView>();
         foreach (var other in neighbours.OrderBy(c => (new V3(c.Centre) - centre).Length).Take(project.Settings.DepthNeighbours))
         {
+            cancellation.ThrowIfCancellationRequested();
             var otherPhoto = project.Images.Single(i => i.Id == other.ImageId);
             var resized = ReadLevel(store, otherPhoto, levelWidth, sources);
             var inverse = cameraGeometry.Transpose(other.Rotation);
@@ -150,10 +164,17 @@ public sealed class DepthEstimator : IDepthEstimator
             CancellationToken = cancellation,
             MaxDegreeOfParallelism = maxWorkers > 0 ? maxWorkers : Math.Max(1, Environment.ProcessorCount / 2)
         };
+        var operation = prior == null ? "initial depth search" : "depth refinement";
+        var sampleCount = prior == null ? planeDepths.Length : project.Settings.DepthRefinementSamples;
+        var description = $"{levelLabel}, {operation}, {views.Count} neighbours, up to {sampleCount} samples/pixel";
+        progress?.Invoke(description);
+        var levelProgress = new DepthLevelProgress(progress, description, height - 6);
+        var searchStart = Stopwatch.GetTimestamp();
         Parallel.For(3, height - 3, options,
             () => new DepthRowScratch(project.Settings.DepthRefinementSamples, prior == null ? planeDepths.Length : project.Settings.DepthRefinementSamples),
             (y, _, scratch) =>
         {
+            cancellation.ThrowIfCancellationRequested();
             Span<double> patch = stackalloc double[25];
             var hypothesisBuffer = scratch.Hypotheses;
             var costBuffer = scratch.Costs;
@@ -179,6 +200,10 @@ public sealed class DepthEstimator : IDepthEstimator
                 var bestPlane = -1;
                 for (var plane = 0; plane < hypotheses.Length; plane++)
                 {
+                    if ((plane & 31) == 0)
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                    }
                     var depth = hypotheses[plane];
                     var world = centre + ray * depth;
                     costs[plane] = CalculateCost(CollectionsMarshal.AsSpan(views), world, depth, patch, norm);
@@ -212,9 +237,16 @@ public sealed class DepthEstimator : IDepthEstimator
                 result.Depth[y * width + x] = (float)selectedDepth;
                 result.Confidence[y * width + x] = (float)(1 - best);
             }
+            levelProgress.CompleteRow();
             return scratch;
         }, scratch => scratch.Dispose());
+        var filterStart = Stopwatch.GetTimestamp();
+        progress?.Invoke($"{levelLabel}: filtering unsupported depth samples");
         FilterUnsupportedSamples(result, cancellation);
+        metrics?.Invoke(new DepthLevelMetrics(photo.Id, width, height, views.Count,
+            Stopwatch.GetElapsedTime(preparationStart, searchStart).TotalSeconds,
+            Stopwatch.GetElapsedTime(searchStart, filterStart).TotalSeconds,
+            Stopwatch.GetElapsedTime(filterStart).TotalSeconds));
 
         return result;
     }

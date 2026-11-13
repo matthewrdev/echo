@@ -20,7 +20,7 @@ struct StageLogView: View {
                         }
                         ForEach(entries) { entry in
                             HStack(alignment: .top, spacing: 12) {
-                                Text(entry.time).monospacedDigit().foregroundStyle(.secondary)
+                                Text(entry.time).monospacedDigit().foregroundStyle(.secondary).fixedSize()
                                 Text(entry.message).textSelection(.enabled)
                             }.frame(maxWidth: .infinity, alignment: .leading).id(entry.id)
                         }

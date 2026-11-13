@@ -11,5 +11,6 @@ public interface IDepthEstimator
         CameraPose camera,
         CancellationToken cancellation,
         int maxWorkers = 0,
-        Action<string>? progress = null);
+        Action<string>? progress = null,
+        Action<DepthLevelMetrics>? metrics = null);
 }
