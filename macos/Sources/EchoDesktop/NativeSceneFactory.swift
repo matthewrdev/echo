@@ -1,0 +1,120 @@
+import AppKit
+import SceneKit
+
+final class NativeSceneFactory {
+    func make(
+        reconstruction: ReconstructionScene?, points: [CloudPoint], photos: [Photo], root: URL,
+        surface: Surface? = nil, uvs: [[Double]] = [], texture: NSImage? = nil,
+        wireframe: Bool = false, photoPlanes: Bool = false
+    ) -> SCNScene {
+        let scene = SCNScene()
+        scene.background.contents = NSColor.windowBackgroundColor
+
+        if !points.isEmpty {
+            let vertices = points.map { vector($0.position) }
+            let colors = points.flatMap { point -> [Float] in
+                let color = Array(point.colour ?? Data([83, 210, 185]))
+                return color.map { Float($0) / 255 } + [1]
+            }
+            let colorSource = SCNGeometrySource(
+                data: colors.withUnsafeBufferPointer { Data(buffer: $0) },
+                semantic: .color, vectorCount: vertices.count, usesFloatComponents: true,
+                componentsPerVector: 4, bytesPerComponent: 4, dataOffset: 0, dataStride: 16
+            )
+            let indices = Array(0..<UInt32(vertices.count))
+            let element = SCNGeometryElement(indices: indices, primitiveType: .point)
+            element.pointSize = 3
+            element.minimumPointScreenSpaceRadius = 1
+            element.maximumPointScreenSpaceRadius = 4
+            let geometry = SCNGeometry(
+                sources: [SCNGeometrySource(vertices: vertices), colorSource], elements: [element])
+            geometry.firstMaterial?.lightingModel = .constant
+            scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+        }
+
+        if let surface {
+            let vertices = surface.vertices.map(vector)
+            var sources = [SCNGeometrySource(vertices: vertices)]
+            if uvs.count == vertices.count {
+                // Saved atlas and GLB coordinates start at the top-left, as do SceneKit image textures.
+                sources.append(SCNGeometrySource(textureCoordinates: uvs.map { CGPoint(x: $0[0], y: $0[1]) }))
+            }
+            let indices = surface.faces.flatMap { $0.map(UInt32.init) }
+            let element = SCNGeometryElement(indices: indices, primitiveType: .triangles)
+            let geometry = SCNGeometry(sources: sources, elements: [element])
+            let material = SCNMaterial()
+            material.diffuse.contents = texture ?? NSColor(calibratedWhite: 0.72, alpha: 1)
+            material.isDoubleSided = true
+            material.fillMode = wireframe ? .lines : .fill
+            material.lightingModel = texture == nil ? .lambert : .constant
+            geometry.materials = [material]
+            scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+        }
+
+        for camera in reconstruction?.cameras ?? [] {
+            guard let photo = photos.first(where: { $0.id == camera.imageId }) else { continue }
+            let focal = camera.focalPixels > 0 ? camera.focalPixels : photo.focalPixels
+            let depth = 0.6
+            let halfWidth = Double(photo.width) / focal * depth / 2
+            let halfHeight = Double(photo.height) / focal * depth / 2
+            let corners = [
+                [-halfWidth, -halfHeight, depth], [halfWidth, -halfHeight, depth],
+                [halfWidth, halfHeight, depth], [-halfWidth, halfHeight, depth],
+            ].map { transform($0, camera: camera) }
+            let vertices = [vector(camera.centre)] + corners
+            let edges: [UInt32] = [0, 1, 0, 2, 0, 3, 0, 4, 1, 2, 2, 3, 3, 4, 4, 1]
+            let geometry = SCNGeometry(
+                sources: [SCNGeometrySource(vertices: vertices)],
+                elements: [SCNGeometryElement(indices: edges, primitiveType: .line)])
+            geometry.firstMaterial?.diffuse.contents = NSColor.systemOrange
+            geometry.firstMaterial?.lightingModel = .constant
+            let node = SCNNode(geometry: geometry)
+            node.name = camera.imageId
+            scene.rootNode.addChildNode(node)
+
+            if photoPlanes, let image = NSImage(contentsOf: root.appendingPathComponent(photo.preview)) {
+                let plane = SCNGeometry(
+                    sources: [
+                        SCNGeometrySource(vertices: corners),
+                        SCNGeometrySource(textureCoordinates: [
+                            CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0), CGPoint(x: 1, y: 1), CGPoint(x: 0, y: 1),
+                        ]),
+                    ],
+                    elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2, 0, 2, 3], primitiveType: .triangles)]
+                )
+                plane.firstMaterial?.diffuse.contents = image
+                plane.firstMaterial?.isDoubleSided = true
+                plane.firstMaterial?.lightingModel = .constant
+                let imageNode = SCNNode(geometry: plane)
+                imageNode.name = camera.imageId
+                scene.rootNode.addChildNode(imageNode)
+            }
+        }
+
+        let (minimum, maximum) = scene.rootNode.boundingBox
+        let centre = SCNVector3((minimum.x + maximum.x) / 2, (minimum.y + maximum.y) / 2, (minimum.z + maximum.z) / 2)
+        let span = max(3, max(maximum.x - minimum.x, max(maximum.y - minimum.y, maximum.z - minimum.z)))
+        let camera = SCNNode()
+        camera.name = "viewer-camera"
+        camera.camera = SCNCamera()
+        camera.camera?.zNear = 0.01
+        camera.camera?.zFar = 100_000
+        camera.position = SCNVector3(centre.x, centre.y + span * 0.2, centre.z + span * 1.6)
+        camera.look(at: centre)
+        scene.rootNode.addChildNode(camera)
+        return scene
+    }
+
+    private func vector(_ values: [Double]) -> SCNVector3 {
+        SCNVector3(values[0], values[1], values[2])
+    }
+
+    private func transform(_ point: [Double], camera: CameraPose) -> SCNVector3 {
+        let rotation = camera.rotation
+        return SCNVector3(
+            camera.centre[0] + rotation[0] * point[0] + rotation[1] * point[1] + rotation[2] * point[2],
+            camera.centre[1] + rotation[3] * point[0] + rotation[4] * point[1] + rotation[5] * point[2],
+            camera.centre[2] + rotation[6] * point[0] + rotation[7] * point[1] + rotation[8] * point[2]
+        )
+    }
+}
