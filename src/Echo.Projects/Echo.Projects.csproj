@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
+    <ProjectReference Include="../Echo.Imaging/Echo.Imaging.csproj" />
+    <ProjectReference Include="../Echo.Metadata/Echo.Metadata.csproj" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" /></ItemGroup>
+</Project>

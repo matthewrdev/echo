@@ -1,0 +1,74 @@
+using System.ComponentModel.Composition;
+using System.Diagnostics;
+using System.Text.Json;
+using Echo.Contracts;
+
+namespace Echo.Metadata;
+
+[Export(typeof(IMetadataReader)), PartCreationPolicy(CreationPolicy.Shared)]
+public sealed class MetadataReader : IMetadataReader
+{
+
+    [ImportingConstructor]
+    public MetadataReader()
+    {
+    }
+
+    public string? FindExifTool()
+    {
+        var configured = Environment.GetEnvironmentVariable("ECHO_EXIFTOOL");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return File.Exists(configured) ? configured : null;
+        }
+
+        var name = OperatingSystem.IsWindows() ? "exiftool.exe" : "exiftool";
+        return (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator).Concat(["/opt/homebrew/bin", "/usr/local/bin"]).Select(directory => Path.Combine(directory, name)).FirstOrDefault(File.Exists);
+    }
+
+    public Dictionary<string, JsonElement> Read(string path, bool includeAllGroups = false)
+    {
+        var start = new ProcessStartInfo(FindExifTool() ?? throw new EchoException("ExifTool is required for import. Install with: brew install exiftool"))
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        if (includeAllGroups)
+        {
+            start.ArgumentList.Add("-a");
+            start.ArgumentList.Add("-u");
+            start.ArgumentList.Add("-G1");
+        }
+
+        foreach (var arg in new[]
+        {
+            "-j",
+            "-n",
+            "--",
+            Path.GetFullPath(path)
+        }
+        )
+        {
+            start.ArgumentList.Add(arg);
+        }
+
+        try
+        {
+            using var process = Process.Start(start)!;
+            var error = process.StandardError.ReadToEndAsync();
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            if (process.ExitCode != 0)
+            {
+                throw new EchoException("ExifTool failed: " + error.GetAwaiter().GetResult());
+            }
+
+            return JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(output)![0];
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            throw new EchoException("ExifTool is required for import. Install with: brew install exiftool");
+        }
+    }
+}
