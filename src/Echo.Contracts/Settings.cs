@@ -5,6 +5,8 @@ public sealed class Settings
     public bool DetectLines { get; set; } = true;
     public int LineLimit { get; set; } = 500;
     public int LineMinimumLength { get; set; } = 24;
+    public double LineGradientThreshold { get; set; } = .015;
+    public bool LineSplitRegions { get; set; } = true;
     public int FeatureWidth { get; set; } = 1000;
     public int BundleIterations { get; set; } = 25;
     public int FeatureLimit { get; set; } = 800;
@@ -44,6 +46,7 @@ public sealed class Settings
     public void Validate()
     {
         var invalidLines = LineLimit is < 1 or > 5000 || LineMinimumLength is < 8 or > 1000;
+        var invalidLineThreshold = !double.IsFinite(LineGradientThreshold) || LineGradientThreshold is < .001 or > .2;
         var invalidAlignmentSettings = BundleIterations is < 1 or > 500
             || FeatureWidth is < 64 or > 8192
             || FeatureLimit is < 32 or > 20000
@@ -85,6 +88,7 @@ public sealed class Settings
             || TextureChartAngle is < 10 or > 80;
         var invalidSettings = invalidAlignmentSettings
             || invalidLines
+            || invalidLineThreshold
             || invalidMatchingSettings
             || invalidCloudExecution
             || invalidCloudSettings

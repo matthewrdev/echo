@@ -57,6 +57,8 @@ public sealed class ProcessingSettingsTests
         {
             foreach (var settings in new[]
             {
+                new Settings { LineGradientThreshold = double.NaN },
+                new Settings { LineGradientThreshold = 0 },
                 new Settings { MatchRatioThreshold = double.NaN },
                 new Settings { MatchDistanceThreshold = double.PositiveInfinity },
                 new Settings { CloudNeighbours = 2, CloudMinimumSupport = 3 },

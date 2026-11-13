@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.ComponentModel.Composition;
+using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Imaging;
 
@@ -16,9 +17,15 @@ public sealed class LineDetector : ILineDetector
         this.images = images;
     }
 
-    public List<LineFeature> Detect(float[] gray, int width, int height, int limit, double minimumLength, CancellationToken cancellation)
+    public List<LineFeature> Detect(float[] gray, int width, int height, int limit, double minimumLength, CancellationToken cancellation, LineDetectionOptions? options = null)
     {
         cancellation.ThrowIfCancellationRequested();
+        options ??= new LineDetectionOptions();
+        if (!double.IsFinite(options.GradientThreshold) || options.GradientThreshold <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "The line gradient threshold must be finite and positive.");
+        }
+        var threshold = (float)options.GradientThreshold;
         var pixelCount = gray.Length;
         var strengthOffset = pixelCount * 2;
         var buffer = ArrayPool<float>.Shared.Rent(pixelCount * 3 + width * 3);
@@ -52,7 +59,7 @@ public sealed class LineDetector : ILineDetector
                     gx[i] = (current[x + 1] - current[x - 1]) * .5f;
                     gy[i] = (following[x] - previous[x]) * .5f;
                     strength[i] = MathF.Sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
-                    if (strength[i] >= .025f)
+                    if (strength[i] >= threshold)
                     {
                         seeds.Add(i);
                     }
@@ -88,7 +95,7 @@ public sealed class LineDetector : ILineDetector
                         for (var dx = -1; dx <= 1; dx++)
                         {
                             var index = (y + dy) * width + x + dx;
-                            if (visited[index] || strength[index] < .025f)
+                            if (visited[index] || strength[index] < threshold)
                             {
                                 continue;
                             }
@@ -103,16 +110,8 @@ public sealed class LineDetector : ILineDetector
                     }
                 }
 
-                var line = Fit(region, strength, width, minimumLength);
-                if (line == null)
-                {
-                    continue;
-                }
-                line.Descriptor = Describe(gray, width, height, line);
-                if (line.Descriptor.Length > 0)
-                {
-                    RetainLine(lines, line, limit);
-                }
+                DetectSegments(CollectionsMarshal.AsSpan(region), strength, gray, width, height,
+                    minimumLength, limit, options.SplitRegions, lines, 0, cancellation);
             }
 
             return lines;
@@ -166,12 +165,62 @@ public sealed class LineDetector : ILineDetector
         }
     }
 
-    private LineFeature? Fit(List<int> region, ReadOnlySpan<float> strength, int width, double minimumLength)
+    private void DetectSegments(Span<int> region, ReadOnlySpan<float> strength, float[] gray, int width, int height,
+        double minimumLength, int limit, bool splitRegions, List<LineFeature> lines, int level, CancellationToken cancellation)
     {
-        if (region.Count < minimumLength * .7)
+        cancellation.ThrowIfCancellationRequested();
+        if (region.Length < minimumLength * .7)
         {
-            return null;
+            return;
         }
+        var fit = Fit(region, strength, width);
+        var isStraight = fit.SquaredError / fit.Weight <= 2.25;
+        var isSupported = fit.Length >= minimumLength && isStraight && region.Length / fit.Length >= .7;
+        if (isSupported)
+        {
+            var line = new LineFeature
+            {
+                Start = [fit.X + fit.TangentX * fit.Minimum, fit.Y + fit.TangentY * fit.Minimum],
+                End = [fit.X + fit.TangentX * fit.Maximum, fit.Y + fit.TangentY * fit.Maximum],
+                Strength = fit.Length * fit.Weight / region.Length
+            };
+            line.Descriptor = Describe(gray, width, height, line);
+            if (line.Descriptor.Length > 0)
+            {
+                RetainLine(lines, line, limit);
+            }
+            return;
+        }
+        var canSplit = splitRegions && level < 8 && region.Length >= minimumLength * 1.4;
+        if (!canSplit)
+        {
+            return;
+        }
+        // A curved or branching region need not discard its straight subsegments.
+        // Partition the existing pixel buffer; recursion owns disjoint spans.
+        var middle = (fit.Minimum + fit.Maximum) * .5;
+        var count = 0;
+        for (var index = 0; index < region.Length; index++)
+        {
+            var pixel = region[index];
+            var along = (pixel % width - fit.X) * fit.TangentX + (pixel / width - fit.Y) * fit.TangentY;
+            if (along < middle)
+            {
+                var previous = region[count];
+                region[count++] = pixel;
+                region[index] = previous;
+            }
+        }
+        if (count == 0 || count == region.Length)
+        {
+            return;
+        }
+        DetectSegments(region[..count], strength, gray, width, height, minimumLength, limit, splitRegions, lines, level + 1, cancellation);
+        DetectSegments(region[count..], strength, gray, width, height, minimumLength, limit, splitRegions, lines, level + 1, cancellation);
+    }
+
+    private LineRegionFit Fit(ReadOnlySpan<int> region, ReadOnlySpan<float> strength, int width)
+    {
         double x = 0;
         double y = 0;
         double weight = 0;
@@ -211,19 +260,7 @@ public sealed class LineDetector : ILineDetector
             maximum = Math.Max(maximum, along);
             squaredError += across * across * strength[index];
         }
-        var length = maximum - minimum;
-        var isStraight = squaredError / weight <= 2.25;
-        var isSupported = length >= minimumLength && isStraight && region.Count / length >= .7;
-        if (!isSupported)
-        {
-            return null;
-        }
-        return new LineFeature
-        {
-            Start = [x + tx * minimum, y + ty * minimum],
-            End = [x + tx * maximum, y + ty * maximum],
-            Strength = length * weight / region.Count
-        };
+        return new LineRegionFit(x, y, tx, ty, minimum, maximum, squaredError, weight);
     }
 
     private float[] Describe(float[] gray, int width, int height, LineFeature line)

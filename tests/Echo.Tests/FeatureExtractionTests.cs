@@ -44,7 +44,7 @@ public sealed class FeatureExtractionTests
                 using var bitmap = MakePattern(pattern);
                 images.Save(bitmap, store.PathFor("pattern.png"), SKEncodedImageFormat.Png);
                 var photo = new Photo { Id = pattern, Source = "pattern.png", Width = bitmap.Width, Height = bitmap.Height };
-                var settings = new Settings { FeatureWidth = width, FeatureLimit = 300, DetectLines = detectLines, LineMinimumLength = 12 };
+                var settings = new Settings { FeatureWidth = width, FeatureLimit = 300, DetectLines = detectLines, LineMinimumLength = 12, LineGradientThreshold = .025, LineSplitRegions = false };
                 var actual = files.Hash(extractor.Extract(store, photo, settings, default));
                 Check(actual == expectedHash, $"Baseline {pattern}: expected {expectedHash}, got {actual}");
                 Parallel.For(0, 6, new ParallelOptions { MaxDegreeOfParallelism = 2 }, iteration =>

@@ -6,6 +6,7 @@ struct ProcessingImpact {
             old.featureWidth != new.featureWidth || old.featureLimit != new.featureLimit
             || old.detectLines != new.detectLines || old.lineLimit != new.lineLimit
             || old.lineMinimumLength != new.lineMinimumLength
+            || old.lineGradientThreshold != new.lineGradientThreshold || old.lineSplitRegions != new.lineSplitRegions
         if features { return .features }
         let matching =
             old.pairWindow != new.pairWindow || old.matchAllPairs != new.matchAllPairs

@@ -38,6 +38,34 @@ public sealed class LineFeatureTests
             var junctions = detector.Junctions(lines, gray, 256, 192, 100, default);
             Check(junctions.Count >= 4 && junctions.All(point => point.Kind == "junction"), "Rectangle junctions available as point observations");
         });
+        tests.Run("Line sensitivity finds faint edges and splitting recovers curved-region segments", () =>
+        {
+            var faint = new float[256 * 192];
+            var curved = new float[512 * 192];
+            for (var y = 20; y < 165; y++)
+            {
+                for (var x = 30; x < 225; x++)
+                {
+                    faint[y * 256 + x] = .05f;
+                }
+            }
+            for (var y = 20; y < 165; y++)
+            {
+                for (var x = 30; x < 480; x++)
+                {
+                    var boundary = 65 + 12 * Math.Sin((x - 30) / 140.0);
+                    curved[y * 512 + x] = (float)(Math.Clamp(y - boundary, 0, 1) * .8);
+                }
+            }
+            var original = detector.Detect(faint, 256, 192, 100, 20, default);
+            var sensitive = detector.Detect(faint, 256, 192, 100, 20, default,
+                new LineDetectionOptions { GradientThreshold = .015, SplitRegions = true });
+            Check(sensitive.Count >= 4 && sensitive.Count > original.Count, "Faint rectangle edges survive the configurable threshold");
+            var unsplit = detector.Detect(curved, 512, 192, 100, 20, default);
+            var split = detector.Detect(curved, 512, 192, 100, 20, default,
+                new LineDetectionOptions { SplitRegions = true });
+            Check(split.Count > unsplit.Count, $"Straight subsegments recovered: {unsplit.Count} → {split.Count}");
+        });
         tests.Run("Line matching preserves segments without fabricating endpoint point matches", () =>
         {
             var a = new FeatureSet { ImageId = "a" };

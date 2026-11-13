@@ -38,7 +38,8 @@ public sealed class FeatureExtractor : IFeatureExtractor
         };
         if (settings.DetectLines)
         {
-            output.Lines = lines.Detect(gray, width, height, settings.LineLimit, settings.LineMinimumLength, cancellation);
+            output.Lines = lines.Detect(gray, width, height, settings.LineLimit, settings.LineMinimumLength, cancellation,
+                new LineDetectionOptions { GradientThreshold = settings.LineGradientThreshold, SplitRegions = settings.LineSplitRegions });
             var junctions = lines.Junctions(output.Lines, gray, width, height, Math.Max(1, settings.FeatureLimit / 4), cancellation);
             foreach (var point in junctions)
             {

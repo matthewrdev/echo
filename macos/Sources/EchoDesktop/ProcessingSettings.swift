@@ -4,6 +4,8 @@ struct ProcessingSettings: Codable {
     var detectLines: Bool = true
     var lineLimit: Int = 500
     var lineMinimumLength: Int = 24
+    var lineGradientThreshold: Double = 0.015
+    var lineSplitRegions: Bool = true
     var featureWidth: Int = 1000
     var bundleIterations: Int = 25
     var featureLimit: Int = 800
@@ -44,6 +46,8 @@ struct ProcessingSettings: Codable {
         detectLines = try values.decodeIfPresent(Bool.self, forKey: .detectLines) ?? true
         lineLimit = try values.decodeIfPresent(Int.self, forKey: .lineLimit) ?? 500
         lineMinimumLength = try values.decodeIfPresent(Int.self, forKey: .lineMinimumLength) ?? 24
+        lineGradientThreshold = try values.decodeIfPresent(Double.self, forKey: .lineGradientThreshold) ?? 0.015
+        lineSplitRegions = try values.decodeIfPresent(Bool.self, forKey: .lineSplitRegions) ?? true
         featureWidth = try values.decodeIfPresent(Int.self, forKey: .featureWidth) ?? 1000
         bundleIterations = try values.decodeIfPresent(Int.self, forKey: .bundleIterations) ?? 25
         featureLimit = try values.decodeIfPresent(Int.self, forKey: .featureLimit) ?? 800
@@ -85,6 +89,8 @@ struct ProcessingSettings: Codable {
         try values.encode(detectLines, forKey: .detectLines)
         try values.encode(lineLimit, forKey: .lineLimit)
         try values.encode(lineMinimumLength, forKey: .lineMinimumLength)
+        try values.encode(lineGradientThreshold, forKey: .lineGradientThreshold)
+        try values.encode(lineSplitRegions, forKey: .lineSplitRegions)
         try values.encode(featureWidth, forKey: .featureWidth)
         try values.encode(bundleIterations, forKey: .bundleIterations)
         try values.encode(featureLimit, forKey: .featureLimit)

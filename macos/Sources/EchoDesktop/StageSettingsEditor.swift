@@ -16,6 +16,16 @@ struct StageSettingsEditor: View {
                     title: "Minimum line length (analysis pixels)", value: $settings.lineMinimumLength, range: 8...1000
                 )
                 .disabled(!settings.detectLines)
+                DecimalSettingSlider(
+                    title: "Minimum edge contrast", value: $settings.lineGradientThreshold,
+                    range: 0.001...0.2, step: 0.001
+                ).disabled(!settings.detectLines)
+                Toggle("Recover straight sections from curved edge regions", isOn: $settings.lineSplitRegions)
+                    .disabled(!settings.detectLines)
+                Text(
+                    "Lower contrast detects fainter edges and more noise. Minimum length is measured at the analysis resolution. Line candidates are visible in the preview; full line constraints are not yet used in 3D alignment."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 IntegerSettingSlider(title: "Analysis width (pixels)", value: $settings.featureWidth, range: 64...8192)
                 IntegerSettingSlider(
                     title: "Maximum features per photo", value: $settings.featureLimit, range: 32...20000)

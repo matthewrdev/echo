@@ -93,11 +93,11 @@ All controls are serialized in `project.json` and accepted by `config import`. S
 
 | Stage | Controls |
 | --- | --- |
-| Features | `featureWidth`, `featureLimit`, `detectLines`, `lineLimit`, `lineMinimumLength` |
+| Features | `featureWidth`, `featureLimit`, `detectLines`, `lineLimit`, `lineMinimumLength`, `lineGradientThreshold`, `lineSplitRegions` |
 | Matching | `matchAllPairs`, `pairWindow`, `gpsPairNeighbours`, `matchRatioThreshold`, `matchDistanceThreshold` |
 | Alignment | `bundleIterations` |
 | Depth | `depthWidth`, `depthPlanes`, `depthRefinementSamples`, `depthNeighbours`, `depthNear`, `depthFar`, `depthConcurrency`, `depthWorkerThreads`, `depthMemoryBudgetMb` |
-| Dense cloud | `cloudNeighbours`, `cloudMinimumSupport`, `cloudDepthTolerance`, `cloudWorkerThreads`, `cloudBatchRows` |
+| Dense cloud | `cloudNeighbours`, `cloudMinimumSupport`, `cloudDepthTolerance`, `cloudReprojectionTolerancePixels`, `cloudMinimumParallaxDegrees`, `cloudWorkerThreads`, `cloudBatchRows` |
 | Fusion | `fusionDetailMultiplier` |
 | Mesh | `faceLimit` (also informs fusion's grid budget) |
 | Texture | `textureSize`, `textureChartFaces`, `textureChartAngle`, `textureGutter`, `textureJpegQuality` |
@@ -106,6 +106,10 @@ All controls are serialized in `project.json` and accepted by `config import`. S
 More work does not guarantee better reconstruction. A larger depth map increases possible point density; the distance range and sample count control the depth search. Higher matching thresholds admit more candidates and more false matches. The matching viewer displays all saved candidates; geometric verification happens in alignment. New matching artifacts include rejection counts. Resume uses saved settings; start a new run to apply edits. Existing artifacts remain immutable for inspection, while input fingerprints prevent incompatible reuse.
 
 Settings provide sliders and exact numeric entry. Depth maps can use up to 8192 pixels (capped to source width), 2048 initial search samples, 128 refinement samples and 32 stereo neighbours. Feature analysis supports up to 8192 pixels and 20,000 keypoints. These are limits, not accuracy guarantees; 1024-pixel depth is a preview setting for 4K photographs. The detector includes line segments and junctions. Junction point matches enter alignment; standalone line matches are currently inspection candidates, not 3D line constraints. Generic semantic shapes are not detected.
+
+Line sensitivity is controlled by `lineGradientThreshold` (lower includes fainter edges and more noise). `lineSplitRegions` recovers straight sections of curved/branching edge regions. Minimum line length is in **analysis pixels**, so 24 pixels at a 1000-pixel analysis width spans about 97 pixels in a 4032-pixel original.
+
+Dense support checks depth agreement, a return projection to the original depth-map pixel, and viewing-ray separation. `cloudReprojectionTolerancePixels` defaults to 1.5 pixels and `cloudMinimumParallaxDegrees` to 0.5 degrees. Requiring at least two supporting neighbours can reject more isolated surfaces, but may also remove areas with limited coverage. These filters cannot repair incorrect camera poses. The updated feature and cloud algorithms have new fingerprints; earlier saved artifacts remain available, and new processing rebuilds dependent results.
 
 To force fresh processing, use **More actions → Reset from this stage…**, then **Process**. The warning names all affected later stages. Reset adds a new cache revision for those stages and their per-image/per-pair checkpoints; it preserves photographs, earlier checkpoints, and every saved run. Resume still uses the saved run's original inputs. This does not reclaim disk space.
 

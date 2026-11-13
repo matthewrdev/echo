@@ -15,6 +15,10 @@ if (args.FirstOrDefault() == "compare-cloud")
 {
     return composition.Resolve<CloudComparison>().Run(args[1..]);
 }
+if (args.FirstOrDefault() == "feature-overlay")
+{
+    return composition.Resolve<FeatureOverlay>().Run(args[1..]);
+}
 if (args.FirstOrDefault() == "core")
 {
     return composition.Resolve<CoreBenchmark>().Run(args[1..]);
