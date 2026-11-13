@@ -9,11 +9,13 @@ namespace Echo.Reconstruction;
 public sealed class CameraRegistrar : ICameraRegistrar
 {
     private readonly ICameraGeometry cameraGeometry;
+    private readonly IRandomSampleSelector samples;
 
     [ImportingConstructor]
-    public CameraRegistrar(ICameraGeometry cameraGeometry)
+    public CameraRegistrar(ICameraGeometry cameraGeometry, IRandomSampleSelector samples)
     {
         this.cameraGeometry = cameraGeometry;
+        this.samples = samples;
     }
 
     public CameraPose? Register(Photo photo, List<ImagePair> pairs, List<CloudPoint> points)
@@ -32,8 +34,12 @@ public sealed class CameraRegistrar : ICameraRegistrar
         }
 
         var result = new Dictionary<string, Observation>();
-        foreach (var pair in pairs.Where(p => p.A == id || p.B == id))
+        foreach (var pair in pairs)
         {
+            if (pair.A != id && pair.B != id)
+            {
+                continue;
+            }
             foreach (var match in pair.Matches)
             {
                 var ownA = pair.A == id;
@@ -50,7 +56,12 @@ public sealed class CameraRegistrar : ICameraRegistrar
             }
         }
 
-        return result.Values.ToList();
+        var observations = new List<Observation>(result.Count);
+        foreach (var observation in result.Values)
+        {
+            observations.Add(observation);
+        }
+        return observations;
     }
 
     private CameraPose? Register(Photo photo, List<Observation> observations)
@@ -62,25 +73,34 @@ public sealed class CameraRegistrar : ICameraRegistrar
 
         var random = new Random(93);
         CameraPose? best = null;
-        List<Observation> bestInliers = [];
+        var bestInliers = new List<Observation>();
+        var inliers = new List<Observation>(observations.Count);
+        var sample = new Observation[8];
         for (var iteration = 0; iteration < 100; iteration++)
         {
-            var pose = FitPose(photo, observations.OrderBy(_ => random.Next()).Take(8).ToArray());
+            samples.Select<Observation>(observations, random, sample);
+            var pose = FitPose(photo, sample);
             if (pose == null)
             {
                 continue;
             }
 
             var projection = new CameraProjector(cameraGeometry, photo, pose);
-            var inliers = observations.Where(o =>
+            inliers.Clear();
+            foreach (var observation in observations)
             {
-                var p = projection.Project(new V3(o.Point));
-                return p.HasValue && Math.Sqrt(cameraGeometry.Square(p.Value.X - o.Pixel[0]) + cameraGeometry.Square(p.Value.Y - o.Pixel[1])) < 10;
-            }).ToList();
+                var p = projection.Project(new V3(observation.Point));
+                if (p.HasValue && Math.Sqrt(cameraGeometry.Square(p.Value.X - observation.Pixel[0]) + cameraGeometry.Square(p.Value.Y - observation.Pixel[1])) < 10)
+                {
+                    inliers.Add(observation);
+                }
+            }
             if (inliers.Count > bestInliers.Count)
             {
                 best = pose;
+                var previous = bestInliers;
                 bestInliers = inliers;
+                inliers = previous;
             }
         }
 
@@ -89,8 +109,18 @@ public sealed class CameraRegistrar : ICameraRegistrar
 
     private CameraPose? FitPose(Photo photo, IReadOnlyList<Observation> observations)
     {
-        var mean = observations.Select(o => new V3(o.Point)).Aggregate(new V3(), (a, b) => a + b) / observations.Count;
-        var scale = observations.Average(o => (new V3(o.Point) - mean).Length);
+        var mean = new V3();
+        foreach (var observation in observations)
+        {
+            mean += new V3(observation.Point);
+        }
+        mean /= observations.Count;
+        double scale = 0;
+        foreach (var observation in observations)
+        {
+            scale += (new V3(observation.Point) - mean).Length;
+        }
+        scale /= observations.Count;
         if (scale < 1e-8)
         {
             return null;
@@ -125,7 +155,7 @@ public sealed class CameraRegistrar : ICameraRegistrar
         }
 
         var svd = rot.Svd(true);
-        var magnitude = svd.S.Average();
+        var magnitude = (svd.S[0] + svd.S[1] + svd.S[2]) / 3;
         if (magnitude < 1e-10)
         {
             return null;
@@ -143,7 +173,7 @@ public sealed class CameraRegistrar : ICameraRegistrar
             ImageId = photo.Id,
             Source = "visual DLT registration",
             Rotation = r.Transpose().ToRowMajorArray(),
-            Centre = (new V3(centreNormal.ToArray()) * scale + mean).Array
+            Centre = (new V3(centreNormal[0], centreNormal[1], centreNormal[2]) * scale + mean).Array
         };
     }
 }

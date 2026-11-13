@@ -14,12 +14,15 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
     public DepthExecutionPlan Plan(ProjectData project, int cameraCount)
     {
         var settings = project.Settings;
-        var largestSource = project.Images.Select(photo => (long)photo.Width * photo.Height).DefaultIfEmpty(1).Max();
-        var largestMap = project.Images.Select(photo =>
+        long largestSource = 1;
+        long largestMap = 1;
+        foreach (var photo in project.Images)
         {
+            largestSource = Math.Max(largestSource, (long)photo.Width * photo.Height);
             var scale = Math.Min(1.0, (double)settings.DepthWidth / Math.Max(1, photo.Width));
-            return (long)Math.Ceiling(photo.Width * scale) * (long)Math.Ceiling(photo.Height * scale);
-        }).DefaultIfEmpty(1).Max();
+            var pixels = (long)Math.Ceiling(photo.Width * scale) * (long)Math.Ceiling(photo.Height * scale);
+            largestMap = Math.Max(largestMap, pixels);
+        }
         var neighbours = Math.Min(settings.DepthNeighbours, Math.Max(0, cameraCount - 1));
         // Decoded sources, transient decoder storage, pyramid levels and output arrays.
         // This is a scheduling estimate rather than a hard process-memory limit.

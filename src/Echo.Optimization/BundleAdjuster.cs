@@ -1,7 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
-using Echo.Infrastructure;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 
@@ -11,13 +10,11 @@ namespace Echo.Optimization;
 public sealed class BundleAdjuster : IBundleAdjuster
 {
     private readonly ICameraGeometry cameraGeometry;
-    private readonly IJsonCodec jsonCodec;
 
     [ImportingConstructor]
-    public BundleAdjuster(ICameraGeometry cameraGeometry, IJsonCodec jsonCodec)
+    public BundleAdjuster(ICameraGeometry cameraGeometry)
     {
         this.cameraGeometry = cameraGeometry;
-        this.jsonCodec = jsonCodec;
     }
 
     public void Refine(ProjectData project,
@@ -27,8 +24,19 @@ public sealed class BundleAdjuster : IBundleAdjuster
         Action<ReconstructionScene>? checkpoint = null)
     {
         var cameras = scene.Cameras;
-        var photos = cameras.Select(c => project.Images.Single(i => i.Id == c.ImageId)).ToArray();
-        var initial = cameras.Select(jsonCodec.Clone).ToArray();
+        var imageLookup = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
+        foreach (var photo in project.Images)
+        {
+            imageLookup.Add(photo.Id, photo);
+        }
+        var photos = new Photo[cameras.Count];
+        var initial = new CameraState[cameras.Count];
+        var oldCameras = new CameraState[cameras.Count];
+        for (var i = 0; i < cameras.Count; i++)
+        {
+            photos[i] = imageLookup[cameras[i].ImageId];
+            initial[i] = new CameraState(cameras[i]);
+        }
         for (var i = 0; i < cameras.Count; i++)
         {
             cameras[i].FocalPixels = photos[i].FocalPixels;
@@ -79,7 +87,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             {
                 foreach (var observation in track.Observations)
                 {
-                    var p = cameraGeometry.Project(photos[observation.Camera], cameras[observation.Camera], track.Point);
+                    var p = cameraGeometry.ProjectPoint(photos[observation.Camera], cameras[observation.Camera], track.Point);
                     if (p == null)
                     {
                         cost += 100000;
@@ -87,7 +95,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                     }
 
                     var scale = 1000.0 / photos[observation.Camera].Width;
-                    var error = Math.Sqrt(Math.Pow(p[0] - observation.Pixel[0], 2) + Math.Pow(p[1] - observation.Pixel[1], 2)) * scale;
+                    var error = Math.Sqrt(Math.Pow(p.Value.X - observation.Pixel[0], 2) + Math.Pow(p.Value.Y - observation.Pixel[1], 2)) * scale;
                     cost += error < 3 ? error * error : 6 * error - 9;
                 }
             }
@@ -121,6 +129,10 @@ public sealed class BundleAdjuster : IBundleAdjuster
         Span<double> pv = stackalloc double[3];
         Span<double> transformed = stackalloc double[3];
         var cost = Cost();
+        var oldPoints = new V3[tracks.Count];
+        Span<double> cameraStep = stackalloc double[6];
+        Span<double> pointRightHandSide = stackalloc double[3];
+        Span<double> pointStep = stackalloc double[3];
         for (var iteration = 0; iteration < project.Settings.BundleIterations; iteration++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -266,11 +278,22 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 continue;
             }
 
-            var oldCameras = cameras.Select(jsonCodec.Clone).ToArray();
-            var oldPoints = tracks.Select(t => t.Point).ToArray();
             for (var i = 0; i < cameras.Count; i++)
             {
-                var step = cameraIndices[i].Select(index => index < 0 ? 0 : delta[index]).ToArray();
+                oldCameras[i] = new CameraState(cameras[i]);
+            }
+            for (var i = 0; i < tracks.Count; i++)
+            {
+                oldPoints[i] = tracks[i].Point;
+            }
+            for (var i = 0; i < cameras.Count; i++)
+            {
+                var step = cameraStep;
+                for (var axis = 0; axis < 6; axis++)
+                {
+                    var index = cameraIndices[i][axis];
+                    step[axis] = index < 0 ? 0 : delta[index];
+                }
                 var translation = new V3(step[0], step[1], step[2]);
                 if (translation.Length > 3)
                 {
@@ -291,7 +314,8 @@ public sealed class BundleAdjuster : IBundleAdjuster
             for (var i = 0; i < tracks.Count; i++)
             {
                 var block = blocks[i];
-                var rhs = (double[])block.B.Clone();
+                var rhs = pointRightHandSide;
+                block.B.AsSpan().CopyTo(rhs);
                 foreach (var cross in block.Cross)
                 {
                     for (var j = 0; j < 3; j++)
@@ -300,7 +324,8 @@ public sealed class BundleAdjuster : IBundleAdjuster
                     }
                 }
 
-                var step = new V3(Multiply(block.Inverse, rhs));
+                Multiply(block.Inverse, rhs, pointStep);
+                var step = new V3(pointStep[0], pointStep[1], pointStep[2]);
                 if (step.Length > 5)
                 {
                     step = step.Unit * 5;
@@ -331,9 +356,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             {
                 for (var i = 0; i < cameras.Count; i++)
                 {
-                    cameras[i].Centre = oldCameras[i].Centre;
-                    cameras[i].Rotation = oldCameras[i].Rotation;
-                    cameras[i].FocalPixels = oldCameras[i].FocalPixels;
+                    oldCameras[i].Restore(cameras[i]);
                 }
 
                 for (var i = 0; i < tracks.Count; i++)
@@ -573,13 +596,13 @@ public sealed class BundleAdjuster : IBundleAdjuster
 
     private double Error(V3 point, Observation o, Photo[] photos, List<CameraPose> cameras)
     {
-        var p = cameraGeometry.Project(photos[o.Camera], cameras[o.Camera], point);
+        var p = cameraGeometry.ProjectPoint(photos[o.Camera], cameras[o.Camera], point);
         if (p == null)
         {
             return double.PositiveInfinity;
         }
 
-        return Math.Sqrt(Math.Pow(p[0] - o.Pixel[0], 2) + Math.Pow(p[1] - o.Pixel[1], 2)) * 1000 / photos[o.Camera].Width;
+        return Math.Sqrt(Math.Pow(p.Value.X - o.Pixel[0], 2) + Math.Pow(p.Value.Y - o.Pixel[1], 2)) * 1000 / photos[o.Camera].Width;
     }
 
     private double MedianError(List<Track> tracks, Photo[] photos, List<CameraPose> cameras)
@@ -634,7 +657,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             throw new EchoException("Degenerate point geometry.", 5);
         }
 
-        return new[]
+        var inverse = new[]
         {
             m[4] * m[8] - m[5] * m[7],
             m[2] * m[7] - m[1] * m[8],
@@ -645,7 +668,12 @@ public sealed class BundleAdjuster : IBundleAdjuster
             m[3] * m[7] - m[4] * m[6],
             m[1] * m[6] - m[0] * m[7],
             m[0] * m[4] - m[1] * m[3]
-        }.Select(v => v / determinant).ToArray();
+        };
+        for (var index = 0; index < inverse.Length; index++)
+        {
+            inverse[index] /= determinant;
+        }
+        return inverse;
     }
 
     private double[] Exponential(V3 w)

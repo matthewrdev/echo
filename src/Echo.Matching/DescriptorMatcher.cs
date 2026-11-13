@@ -1,4 +1,5 @@
 using System.ComponentModel.Composition;
+using System.Buffers;
 using Echo.Contracts;
 
 namespace Echo.Matching;
@@ -12,90 +13,103 @@ public sealed class DescriptorMatcher : IDescriptorMatcher
     {
     }
 
-    public DescriptorMatches Match(IReadOnlyList<float[]> a, IReadOnlyList<float[]> b, Settings settings, CancellationToken cancellation, bool reversible = false)
+    public DescriptorMatches Match<T>(ReadOnlySpan<T> a, ReadOnlySpan<T> b, Settings settings, CancellationToken cancellation, bool reversible = false) where T : IFeatureDescriptor
     {
         var diagnostics = new MatchingDiagnostics
         {
-            FeaturesA = a.Count,
-            FeaturesB = b.Count,
+            FeaturesA = a.Length,
+            FeaturesB = b.Length,
             RatioThreshold = settings.MatchRatioThreshold,
             DistanceThreshold = settings.MatchDistanceThreshold
         };
         var result = new DescriptorMatches([], diagnostics);
-        if (a.Count < 2 || b.Count < 2)
+        if (a.Length < 2 || b.Length < 2)
         {
-            diagnostics.RejectedAmbiguous = a.Count;
+            diagnostics.RejectedAmbiguous = a.Length;
             return result;
         }
 
-        var reverseBest = Enumerable.Repeat(double.PositiveInfinity, b.Count).ToArray();
-        var reverse = new int[b.Count];
-        var best = new int[a.Count];
-        var scores = new double[a.Count];
-        var seconds = new double[a.Count];
-        for (var i = 0; i < a.Count; i++)
+        var numbers = ArrayPool<double>.Shared.Rent(b.Length + a.Length * 2);
+        var indices = ArrayPool<int>.Shared.Rent(b.Length + a.Length);
+        try
         {
-            cancellation.ThrowIfCancellationRequested();
-            var descriptorA = a[i];
-            var first = double.PositiveInfinity;
-            var second = first;
-            for (var j = 0; j < b.Count; j++)
+            var reverseBest = numbers.AsSpan(0, b.Length);
+            reverseBest.Fill(double.PositiveInfinity);
+            var scores = numbers.AsSpan(b.Length, a.Length);
+            var seconds = numbers.AsSpan(b.Length + a.Length, a.Length);
+            var reverse = indices.AsSpan(0, b.Length);
+            var best = indices.AsSpan(b.Length, a.Length);
+            reverse.Clear();
+            best.Clear();
+            for (var i = 0; i < a.Length; i++)
             {
-                var descriptorB = b[j];
-                var distance = Distance(descriptorA, descriptorB, false);
-                if (reversible)
+                cancellation.ThrowIfCancellationRequested();
+                var descriptorA = a[i].Descriptor;
+                var first = double.PositiveInfinity;
+                var second = first;
+                for (var j = 0; j < b.Length; j++)
                 {
-                    distance = Math.Min(distance, Distance(descriptorA, descriptorB, true));
+                    var descriptorB = b[j].Descriptor;
+                    var distance = Distance(descriptorA, descriptorB, false);
+                    if (reversible)
+                    {
+                        distance = Math.Min(distance, Distance(descriptorA, descriptorB, true));
+                    }
+
+                    if (distance < reverseBest[j])
+                    {
+                        reverseBest[j] = distance;
+                        reverse[j] = i;
+                    }
+
+                    if (distance < first)
+                    {
+                        second = first;
+                        first = distance;
+                        best[i] = j;
+                    }
+                    else if (distance < second)
+                    {
+                        second = distance;
+                    }
                 }
 
-                if (distance < reverseBest[j])
-                {
-                    reverseBest[j] = distance;
-                    reverse[j] = i;
-                }
-
-                if (distance < first)
-                {
-                    second = first;
-                    first = distance;
-                    best[i] = j;
-                }
-                else if (distance < second)
-                {
-                    second = distance;
-                }
+                scores[i] = first;
+                seconds[i] = second;
             }
 
-            scores[i] = first;
-            seconds[i] = second;
-        }
+            for (var i = 0; i < a.Length; i++)
+            {
+                if (reverse[best[i]] != i)
+                {
+                    diagnostics.RejectedNonMutual++;
+                    continue;
+                }
 
-        for (var i = 0; i < a.Count; i++)
+                if (scores[i] >= seconds[i] * settings.MatchRatioThreshold)
+                {
+                    diagnostics.RejectedAmbiguous++;
+                    continue;
+                }
+
+                if (scores[i] > settings.MatchDistanceThreshold)
+                {
+                    diagnostics.RejectedDistance++;
+                    continue;
+                }
+
+                diagnostics.Accepted++;
+
+                result.Matches.Add(new DescriptorCorrespondence(i, best[i], scores[i]));
+            }
+
+            return result;
+        }
+        finally
         {
-            if (reverse[best[i]] != i)
-            {
-                diagnostics.RejectedNonMutual++;
-                continue;
-            }
-
-            if (scores[i] >= seconds[i] * settings.MatchRatioThreshold)
-            {
-                diagnostics.RejectedAmbiguous++;
-                continue;
-            }
-
-            if (scores[i] > settings.MatchDistanceThreshold)
-            {
-                diagnostics.RejectedDistance++;
-                continue;
-            }
-
-            diagnostics.Accepted++;
-
-            result.Matches.Add(new DescriptorCorrespondence(i, best[i], scores[i]));
+            ArrayPool<double>.Shared.Return(numbers);
+            ArrayPool<int>.Shared.Return(indices);
         }
-
-        return result;
     }
     private double Distance(ReadOnlySpan<float> a, ReadOnlySpan<float> b, bool reverse)
     {
@@ -104,10 +118,21 @@ public sealed class DescriptorMatcher : IDescriptorMatcher
             return double.PositiveInfinity;
         }
         double distance = 0;
-        for (var i = 0; i < a.Length; i++)
+        if (reverse)
         {
-            var difference = a[i] - b[reverse ? b.Length - 1 - i : i];
-            distance += difference * difference;
+            for (var i = 0; i < a.Length; i++)
+            {
+                var difference = a[i] - b[b.Length - 1 - i];
+                distance += difference * difference;
+            }
+        }
+        else
+        {
+            for (var i = 0; i < a.Length; i++)
+            {
+                var difference = a[i] - b[i];
+                distance += difference * difference;
+            }
         }
         return distance;
     }

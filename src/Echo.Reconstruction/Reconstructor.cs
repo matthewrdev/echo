@@ -1,7 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
-using Echo.Infrastructure;
 using Echo.Optimization;
 
 namespace Echo.Reconstruction;
@@ -11,16 +10,14 @@ public sealed class Reconstructor : IReconstructor
 {
     private readonly IBundleAdjuster bundleAdjuster;
     private readonly ICameraGeometry cameraGeometry;
-    private readonly IJsonCodec jsonCodec;
     private readonly ICameraRegistrar cameraRegistrar;
     private readonly IRotationRefiner rotationRefiner;
 
     [ImportingConstructor]
-    public Reconstructor(ICameraRegistrar cameraRegistrar, IRotationRefiner rotationRefiner, IBundleAdjuster bundleAdjuster, ICameraGeometry cameraGeometry, IJsonCodec jsonCodec)
+    public Reconstructor(ICameraRegistrar cameraRegistrar, IRotationRefiner rotationRefiner, IBundleAdjuster bundleAdjuster, ICameraGeometry cameraGeometry)
     {
         this.bundleAdjuster = bundleAdjuster;
         this.cameraGeometry = cameraGeometry;
-        this.jsonCodec = jsonCodec;
         this.cameraRegistrar = cameraRegistrar;
         this.rotationRefiner = rotationRefiner;
     }
@@ -30,32 +27,45 @@ public sealed class Reconstructor : IReconstructor
         CancellationToken cancellation,
         Action<ReconstructionScene>? checkpoint = null)
     {
-        var images = project.Images.Where(i => i.Enabled).ToDictionary(i => i.Id);
-        var effective = images.Values.Select(jsonCodec.Clone).ToDictionary(i => i.Id);
-        foreach (var hint in project.Hints.Where(h => h.Enabled && h.Type == "camera" && effective.ContainsKey(h.ImageId)))
+        var images = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
+        var priors = new Dictionary<string, CameraPrior>(project.Images.Count, StringComparer.Ordinal);
+        foreach (var image in project.Images)
         {
-            if (hint.Position != null)
+            if (!image.Enabled)
             {
-                effective[hint.ImageId].Gps = hint.Position;
+                continue;
             }
-
-            if (hint.Attitude != null)
+            images.Add(image.Id, image);
+            priors.Add(image.Id, new CameraPrior(image));
+        }
+        foreach (var hint in project.Hints)
+        {
+            var cameraHint = hint.Enabled && hint.Type == "camera";
+            if (!cameraHint || !priors.TryGetValue(hint.ImageId, out var prior))
             {
-                effective[hint.ImageId].Attitude = hint.Attitude;
+                continue;
             }
+            priors[hint.ImageId] = prior with
+            {
+                Position = hint.Position ?? prior.Position,
+                Attitude = hint.Attitude ?? prior.Attitude
+            };
         }
 
-        var result = new ReconstructionScene
+        var result = new ReconstructionScene();
+        foreach (var image in images.Values)
         {
-            Origin = effective.Values.FirstOrDefault(p => p.Gps != null && p.Attitude != null)?.Gps
-        };
-        foreach (var image in effective.Values.Where(p => p.Gps != null && p.Attitude != null))
-        {
+            var prior = priors[image.Id];
+            if (prior.Position == null || prior.Attitude == null)
+            {
+                continue;
+            }
+            result.Origin ??= prior.Position;
             result.Cameras.Add(new CameraPose
             {
                 ImageId = image.Id,
-                Centre = cameraGeometry.ToLocal(image.Gps!, result.Origin!).Array,
-                Rotation = cameraGeometry.AttitudeRotation(image.Attitude!)
+                Centre = cameraGeometry.ToLocal(prior.Position, result.Origin).Array,
+                Rotation = cameraGeometry.AttitudeRotation(prior.Attitude)
             });
         }
 
@@ -106,22 +116,31 @@ public sealed class Reconstructor : IReconstructor
             // Optimise only small rotation corrections: noisy GPS must not be disguised as precise visual poses.
             for (var pass = 0; pass < 3; pass++)
             {
-                foreach (var camera in result.Cameras.Skip(1))
+                for (var index = 1; index < result.Cameras.Count; index++)
                 {
                     cancellation.ThrowIfCancellationRequested();
-                    rotationRefiner.Refine(camera, result.Cameras, images, pairs);
+                    rotationRefiner.Refine(result.Cameras[index], result.Cameras, images, pairs);
                 }
             }
         }
 
         TriangulateAll(result, images, pairs, cancellation);
         checkpoint?.Invoke(result);
+        var registered = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var camera in result.Cameras)
+        {
+            registered.Add(camera.ImageId);
+        }
         // Register photographs without GPS against existing image-to-cloud observations using calibrated DLT + RANSAC.
         for (var pass = 0; pass < 3; pass++)
         {
             var added = false;
-            foreach (var image in images.Values.Where(i => result.Cameras.All(c => c.ImageId != i.Id)).ToArray())
+            foreach (var image in images.Values)
             {
+                if (registered.Contains(image.Id))
+                {
+                    continue;
+                }
                 cancellation.ThrowIfCancellationRequested();
                 var pose = cameraRegistrar.Register(image, pairs, result.Points);
                 if (pose == null)
@@ -130,6 +149,7 @@ public sealed class Reconstructor : IReconstructor
                 }
 
                 result.Cameras.Add(pose);
+                registered.Add(image.Id);
                 added = true;
             }
 
@@ -151,7 +171,13 @@ public sealed class Reconstructor : IReconstructor
             result.Warnings.Add("Only two cameras: joint multi-view refinement was unavailable.");
         }
 
-        result.Unplaced = images.Keys.Where(id => result.Cameras.All(c => c.ImageId != id)).ToList();
+        foreach (var id in images.Keys)
+        {
+            if (!registered.Contains(id))
+            {
+                result.Unplaced.Add(id);
+            }
+        }
         if (result.Points.Count < 12)
         {
             throw new EchoException($"Only {result.Points.Count} triangulated points. Check overlap, attitude conventions and focal estimates before generating surfaces.", 5);
@@ -166,7 +192,11 @@ public sealed class Reconstructor : IReconstructor
         CancellationToken cancellation)
     {
         scene.Points.Clear();
-        var cameras = scene.Cameras.ToDictionary(c => c.ImageId);
+        var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
+        foreach (var camera in scene.Cameras)
+        {
+            cameras.Add(camera.ImageId, camera);
+        }
         foreach (var pair in pairs)
         {
             cancellation.ThrowIfCancellationRequested();

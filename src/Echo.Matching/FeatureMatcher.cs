@@ -1,4 +1,5 @@
 using System.ComponentModel.Composition;
+using System.Runtime.InteropServices;
 using Echo.Contracts;
 
 namespace Echo.Matching;
@@ -16,8 +17,8 @@ public sealed class FeatureMatcher : IFeatureMatcher
 
     public ImagePair Match(FeatureSet a, FeatureSet b, Settings settings, CancellationToken cancellation)
     {
-        var points = descriptors.Match(a.Features.Select(feature => feature.Descriptor).ToArray(),
-            b.Features.Select(feature => feature.Descriptor).ToArray(), settings, cancellation);
+        var points = descriptors.Match<Feature>(CollectionsMarshal.AsSpan(a.Features),
+            CollectionsMarshal.AsSpan(b.Features), settings, cancellation);
         var result = new ImagePair { A = a.ImageId, B = b.ImageId, Diagnostics = points.Diagnostics };
         foreach (var match in points.Matches)
         {
@@ -32,8 +33,8 @@ public sealed class FeatureMatcher : IFeatureMatcher
             });
         }
 
-        var lines = descriptors.Match(a.Lines.Select(line => line.Descriptor).ToArray(),
-            b.Lines.Select(line => line.Descriptor).ToArray(), settings, cancellation, reversible: true);
+        var lines = descriptors.Match<LineFeature>(CollectionsMarshal.AsSpan(a.Lines),
+            CollectionsMarshal.AsSpan(b.Lines), settings, cancellation, reversible: true);
         foreach (var match in lines.Matches)
         {
             var first = a.Lines[match.A];

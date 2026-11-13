@@ -48,7 +48,8 @@ public sealed class TextureBaker : ITextureBaker
 
             foreach (var index in patch.Faces)
             {
-                surface.Faces.Add(mesh.Faces[index].Select(v => lookup[v]).ToArray());
+                var face = mesh.Faces[index];
+                surface.Faces.Add([lookup[face[0]], lookup[face[1]], lookup[face[2]]]);
                 surface.SourceImages.Add(mesh.SourceImages[index]);
             }
         }

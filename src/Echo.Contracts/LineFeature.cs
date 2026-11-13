@@ -1,6 +1,6 @@
 namespace Echo.Contracts;
 
-public sealed class LineFeature
+public sealed class LineFeature : IFeatureDescriptor
 {
     public double[] Start { get; set; } = [];
     public double[] End { get; set; } = [];

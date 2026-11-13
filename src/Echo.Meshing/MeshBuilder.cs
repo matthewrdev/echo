@@ -135,8 +135,22 @@ public sealed class MeshBuilder : IMeshBuilder
         Surface geometry,
         CancellationToken cancellation)
     {
-        var photos = project.Images.ToDictionary(p => p.Id);
-        var views = maps.Select(map => new DepthView(cameraGeometry, photos[map.ImageId], scene.Cameras.Single(c => c.ImageId == map.ImageId), map)).ToArray();
+        var photos = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
+        var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
+        foreach (var photo in project.Images)
+        {
+            photos.Add(photo.Id, photo);
+        }
+        foreach (var camera in scene.Cameras)
+        {
+            cameras.Add(camera.ImageId, camera);
+        }
+        var views = new DepthView[maps.Count];
+        for (var index = 0; index < maps.Count; index++)
+        {
+            var map = maps[index];
+            views[index] = new DepthView(cameraGeometry, photos[map.ImageId], cameras[map.ImageId], map);
+        }
         var result = new Surface();
         var vertices = new Dictionary<ChartVertex, int>();
         foreach (var face in geometry.Faces)

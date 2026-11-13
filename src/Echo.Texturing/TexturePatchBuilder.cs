@@ -21,8 +21,18 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         var minimumNormalAgreement = Math.Cos(project.Settings.TextureChartAngle * Math.PI / 180);
         var neighbours = Adjacency(mesh);
         var assigned = new bool[mesh.Faces.Count];
-        var points = mesh.Vertices.Select(v => new V3(v)).ToArray();
-        var normals = mesh.Faces.Select(f => (points[f[1]] - points[f[0]]).Cross(points[f[2]] - points[f[0]]).Unit).ToArray();
+        var points = new V3[mesh.Vertices.Count];
+        for (var index = 0; index < points.Length; index++)
+        {
+            points[index] = new V3(mesh.Vertices[index]);
+        }
+        var normals = new V3[mesh.Faces.Count];
+        for (var index = 0; index < normals.Length; index++)
+        {
+            var face = mesh.Faces[index];
+            normals[index] = (points[face[1]] - points[face[0]]).Cross(points[face[2]] - points[face[0]]).Unit;
+        }
+        var cells = new List<TextureCell>();
         var patches = new List<TexturePatch>();
         for (var seed = 0; seed < mesh.Faces.Count; seed++)
         {
@@ -51,14 +61,22 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
                 }
 
                 var vertices = mesh.Faces[index];
-                var projected = vertices.Select(v => new SKPoint((float)(points[v] - origin).Dot(right), (float)(points[v] - origin).Dot(down))).ToArray();
+                var projected = new SKPoint[3];
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var local = points[vertices[corner]] - origin;
+                    projected[corner] = new SKPoint((float)local.Dot(right), (float)local.Dot(down));
+                }
                 var triangle = new TextureTriangle
                 {
                     Points = projected,
-                    Bounds = new SKRect(projected.Min(p => p.X), projected.Min(p => p.Y), projected.Max(p => p.X), projected.Max(p => p.Y))
+                    Bounds = new SKRect(Math.Min(projected[0].X, Math.Min(projected[1].X, projected[2].X)),
+                        Math.Min(projected[0].Y, Math.Min(projected[1].Y, projected[2].Y)),
+                        Math.Max(projected[0].X, Math.Max(projected[1].X, projected[2].X)),
+                        Math.Max(projected[0].Y, Math.Max(projected[1].Y, projected[2].Y)))
                 };
-                var cells = Cells(triangle.Bounds, cellSize).ToArray();
-                if (cells.Any(cell => occupied.TryGetValue(cell, out var existing) && existing.Any(triangle.Overlaps)))
+                FillCells(triangle.Bounds, cellSize, cells);
+                if (Overlaps(cells, occupied, triangle))
                 {
                     continue;
                 }
@@ -116,7 +134,8 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
             welded[index] = id;
         }
 
-        var neighbours = Enumerable.Repeat(-1, mesh.Faces.Count * 3).ToArray();
+        var neighbours = new int[mesh.Faces.Count * 3];
+        Array.Fill(neighbours, -1);
         var edges = new Dictionary<TextureEdge, int>();
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
@@ -141,13 +160,33 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         return neighbours;
     }
 
-    private IEnumerable<TextureCell> Cells(SKRect bounds, double size)
+    private bool Overlaps(List<TextureCell> cells, Dictionary<TextureCell, List<TextureTriangle>> occupied, TextureTriangle triangle)
     {
+        foreach (var cell in cells)
+        {
+            if (!occupied.TryGetValue(cell, out var existing))
+            {
+                continue;
+            }
+            foreach (var candidate in existing)
+            {
+                if (triangle.Overlaps(candidate))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void FillCells(SKRect bounds, double size, List<TextureCell> cells)
+    {
+        cells.Clear();
         for (var y = (int)Math.Floor(bounds.Top / size); y <= (int)Math.Floor(bounds.Bottom / size); y++)
         {
             for (var x = (int)Math.Floor(bounds.Left / size); x <= (int)Math.Floor(bounds.Right / size); x++)
             {
-                yield return new TextureCell(x, y);
+                cells.Add(new TextureCell(x, y));
             }
         }
     }

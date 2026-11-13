@@ -1,6 +1,6 @@
 namespace Echo.Contracts;
 
-public sealed class Feature
+public sealed class Feature : IFeatureDescriptor
 {
     public string Kind { get; set; } = "corner";
     public double X

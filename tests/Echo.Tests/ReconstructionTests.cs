@@ -246,7 +246,11 @@ public sealed class ReconstructionTests
                 bg.Matches.Add(new Match { A = cameraGeometry.Project(b, cb, point)![..2], B = cameraGeometry.Project(ground, cg, point)![..2] });
             }
 
-            var result = reconstructor.Align(new ProjectData { Images = [a, b, ground] }, [ab, bg], default);
+            var project = new ProjectData { Images = [a, b, ground] };
+            var original = fileOperations.Hash(project);
+            var result = reconstructor.Align(project, [ab, bg], default);
+            Check(fileOperations.Hash(project) == original, "Alignment does not change input photos or priors");
+            Check(result.Origin != null && !ReferenceEquals(result.Origin, origin), "The output owns its geographic origin");
             var solved = result.Cameras.Single(c => c.ImageId == "ground");
             Check((new V3(solved.Centre) - new V3(cg.Centre)).Length < .001 && result.Unplaced.Count == 0, "Ground camera position");
             Check(solved.Source.StartsWith("visual DLT registration", StringComparison.Ordinal) && ground.Gps == null, "Registered from visual observations rather than GPS");

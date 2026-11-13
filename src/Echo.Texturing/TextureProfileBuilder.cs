@@ -16,8 +16,10 @@ public sealed class TextureProfileBuilder : ITextureProfileBuilder
         var height = rotated ? patch.Bounds.Width : patch.Bounds.Height;
         var padding = (int)Math.Ceiling((double)gutter / cellSize);
         var columns = Math.Max(1, (int)Math.Ceiling(width * scale / cellSize) + 1);
-        var top = Enumerable.Repeat(int.MaxValue, columns).ToArray();
-        var bottom = Enumerable.Repeat(-1, columns).ToArray();
+        var top = new int[columns];
+        Array.Fill(top, int.MaxValue);
+        var bottom = new int[columns];
+        Array.Fill(bottom, -1);
         Span<SkiaSharp.SKPoint> points = stackalloc SkiaSharp.SKPoint[3];
         foreach (var face in patch.Triangles)
         {
@@ -60,8 +62,10 @@ public sealed class TextureProfileBuilder : ITextureProfileBuilder
             }
         }
 
-        var paddedTop = Enumerable.Repeat(int.MaxValue, columns + padding * 2).ToArray();
-        var paddedBottom = Enumerable.Repeat(-1, paddedTop.Length).ToArray();
+        var paddedTop = new int[columns + padding * 2];
+        Array.Fill(paddedTop, int.MaxValue);
+        var paddedBottom = new int[paddedTop.Length];
+        Array.Fill(paddedBottom, -1);
         for (var x = 0; x < columns; x++)
         {
             if (bottom[x] < 0)
@@ -77,6 +81,11 @@ public sealed class TextureProfileBuilder : ITextureProfileBuilder
             }
         }
 
-        return new TextureProfile(paddedTop, paddedBottom, paddedBottom.Max(), quarterTurns);
+        var maximum = -1;
+        foreach (var value in paddedBottom)
+        {
+            maximum = Math.Max(maximum, value);
+        }
+        return new TextureProfile(paddedTop, paddedBottom, maximum, quarterTurns);
     }
 }

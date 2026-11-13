@@ -3,5 +3,5 @@ namespace Echo.Matching;
 
 public interface IDescriptorMatcher
 {
-    DescriptorMatches Match(IReadOnlyList<float[]> a, IReadOnlyList<float[]> b, Settings settings, CancellationToken cancellation, bool reversible = false);
+    DescriptorMatches Match<T>(ReadOnlySpan<T> a, ReadOnlySpan<T> b, Settings settings, CancellationToken cancellation, bool reversible = false) where T : IFeatureDescriptor;
 }

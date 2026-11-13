@@ -1,4 +1,5 @@
 using System.ComponentModel.Composition;
+using System.Buffers;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Imaging;
@@ -67,19 +68,27 @@ public sealed class DepthEstimator : IDepthEstimator
             Depth = new float[width * height],
             Confidence = new float[width * height]
         };
-        var depths = scene.Points
-            .Where(point => point.ImageA == photo.Id || point.ImageB == photo.Id)
-            .Select(point => cameraGeometry.Project(photo, camera, new V3(point.Position)))
-            .Where(point => point != null && point[2] > 0)
-            .Select(point => point![2])
-            .Order()
-            .ToArray();
+        var depths = new List<double>();
+        var projection = new CameraProjector(cameraGeometry, photo, camera);
+        foreach (var point in scene.Points)
+        {
+            if (point.ImageA != photo.Id && point.ImageB != photo.Id)
+            {
+                continue;
+            }
+            var projected = projection.Project(new V3(point.Position));
+            if (projected.HasValue && projected.Value.Z > 0)
+            {
+                depths.Add(projected.Value.Z);
+            }
+        }
+        depths.Sort();
         var near = project.Settings.DepthNear;
         var far = project.Settings.DepthFar;
-        if (depths.Length >= 10)
+        if (depths.Count >= 10)
         {
-            near = Math.Max(near, depths[depths.Length / 5] * .75);
-            far = Math.Min(far, depths[depths.Length * 4 / 5] * 1.25);
+            near = Math.Max(near, depths[depths.Count / 5] * .75);
+            far = Math.Min(far, depths[depths.Count * 4 / 5] * 1.25);
             if (far <= near)
             {
                 near = project.Settings.DepthNear;
@@ -89,7 +98,7 @@ public sealed class DepthEstimator : IDepthEstimator
 
         var focal = cameraGeometry.Focal(photo, camera) * width / photo.Width;
         var centre = new V3(camera.Centre);
-        var median = depths.Length == 0 ? (near + far) * .5 : depths[depths.Length / 2];
+        var median = depths.Count == 0 ? (near + far) * .5 : depths[depths.Count / 2];
         var minimumBaseline = Math.Clamp(median * .06, .75, 3);
         var forward = cameraGeometry.Rotate(camera.Rotation, new V3(0, 0, 1));
         var candidates = scene.Cameras.Where(candidate =>
@@ -130,27 +139,33 @@ public sealed class DepthEstimator : IDepthEstimator
             throw new EchoException($"No suitable stereo neighbour for {photo.Name}.", 5);
         }
 
-        var planeDepths = Enumerable.Range(0, project.Settings.DepthPlanes).Select(p => 1 / (1 / near + (1 / far - 1 / near) * p / (project.Settings.DepthPlanes - 1))).ToArray();
+        var planeDepths = new double[project.Settings.DepthPlanes];
+        for (var plane = 0; plane < planeDepths.Length; plane++)
+        {
+            planeDepths[plane] = 1 / (1 / near + (1 / far - 1 / near) * plane / (project.Settings.DepthPlanes - 1));
+        }
         var options = new ParallelOptions
         {
             CancellationToken = cancellation,
             MaxDegreeOfParallelism = maxWorkers > 0 ? maxWorkers : Math.Max(1, Environment.ProcessorCount / 2)
         };
-        Parallel.For(3, height - 3, options, y =>
+        Parallel.For(3, height - 3, options,
+            () => new DepthRowScratch(project.Settings.DepthRefinementSamples, prior == null ? planeDepths.Length : project.Settings.DepthRefinementSamples),
+            (y, _, scratch) =>
         {
             Span<double> patch = stackalloc double[25];
-            var hypothesisBuffer = new double[project.Settings.DepthRefinementSamples];
-            var costBuffer = new double[prior == null ? planeDepths.Length : hypothesisBuffer.Length];
+            var hypothesisBuffer = scratch.Hypotheses;
+            var costBuffer = scratch.Costs;
             for (var x = 3; x < width - 3; x++)
             {
                 ReadOnlySpan<double> hypotheses = prior == null ? planeDepths
-                    : hypothesisBuffer.AsSpan(0, CreateHypotheses(prior, x, y, width, height, near, far, hypothesisBuffer));
+                    : hypothesisBuffer.Slice(0, CreateHypotheses(prior, x, y, width, height, near, far, hypothesisBuffer));
                 if (hypotheses.Length == 0)
                 {
                     continue;
                 }
 
-                var costs = costBuffer.AsSpan(0, hypotheses.Length);
+                var costs = costBuffer[..hypotheses.Length];
                 cancellation.ThrowIfCancellationRequested();
                 var norm = NormalizePatch(gray, width, x, y, patch);
                 if (norm < .0008)
@@ -196,8 +211,9 @@ public sealed class DepthEstimator : IDepthEstimator
                 result.Depth[y * width + x] = (float)selectedDepth;
                 result.Confidence[y * width + x] = (float)(1 - best);
             }
-        });
-        FilterUnsupportedSamples(result);
+            return scratch;
+        }, scratch => scratch.Dispose());
+        FilterUnsupportedSamples(result, cancellation);
 
         return result;
     }
@@ -357,49 +373,58 @@ public sealed class DepthEstimator : IDepthEstimator
         return selectedDepth;
     }
 
-    private void FilterUnsupportedSamples(DepthMap result)
+    private void FilterUnsupportedSamples(DepthMap result, CancellationToken cancellation)
     {
         var width = result.Width;
         var height = result.Height;
         // Reject isolated samples and stabilise supported local patches without filling unseen pixels.
-        var rawDepth = (float[])result.Depth.Clone();
-        Span<float> support = stackalloc float[9];
-        for (var y = 1; y < height - 1; y++)
+        var rawDepth = ArrayPool<float>.Shared.Rent(result.Depth.Length);
+        try
         {
-            for (var x = 1; x < width - 1; x++)
+            result.Depth.AsSpan().CopyTo(rawDepth);
+            Span<float> support = stackalloc float[9];
+            for (var y = 1; y < height - 1; y++)
             {
-                var index = y * width + x;
-                var depth = rawDepth[index];
-                if (depth <= 0)
+                cancellation.ThrowIfCancellationRequested();
+                for (var x = 1; x < width - 1; x++)
                 {
-                    continue;
-                }
-
-                var supportCount = 0;
-                for (var dy = -1; dy <= 1; dy++)
-                {
-                    for (var dx = -1; dx <= 1; dx++)
+                    var index = y * width + x;
+                    var depth = rawDepth[index];
+                    if (depth <= 0)
                     {
-                        var other = rawDepth[(y + dy) * width + x + dx];
-                        if (other > 0 && Math.Abs(other - depth) < depth * .05)
+                        continue;
+                    }
+
+                    var supportCount = 0;
+                    for (var dy = -1; dy <= 1; dy++)
+                    {
+                        for (var dx = -1; dx <= 1; dx++)
                         {
-                            support[supportCount++] = other;
+                            var other = rawDepth[(y + dy) * width + x + dx];
+                            if (other > 0 && Math.Abs(other - depth) < depth * .05)
+                            {
+                                support[supportCount++] = other;
+                            }
                         }
                     }
-                }
 
-                if (supportCount < 4)
-                {
-                    result.Depth[index] = 0;
-                    result.Confidence[index] = 0;
-                }
-                else
-                {
-                    var neighbours = support[..supportCount];
-                    neighbours.Sort();
-                    result.Depth[index] = neighbours[supportCount / 2];
+                    if (supportCount < 4)
+                    {
+                        result.Depth[index] = 0;
+                        result.Confidence[index] = 0;
+                    }
+                    else
+                    {
+                        var neighbours = support[..supportCount];
+                        neighbours.Sort();
+                        result.Depth[index] = neighbours[supportCount / 2];
+                    }
                 }
             }
+        }
+        finally
+        {
+            ArrayPool<float>.Shared.Return(rawDepth);
         }
     }
 }

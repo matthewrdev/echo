@@ -77,56 +77,59 @@ public sealed class RasterImageService : IRasterImageService
     public SKBitmap Decode(string path)
     {
         using var codec = SKCodec.Create(path) ?? throw new EchoException($"Cannot decode image: {path}");
-        using var raw = SKBitmap.Decode(codec) ?? throw new EchoException($"Cannot decode image: {path}");
+        var raw = SKBitmap.Decode(codec) ?? throw new EchoException($"Cannot decode image: {path}");
         var orientation = (int)codec.EncodedOrigin;
         if (orientation == 1)
         {
-            return raw.Copy();
+            return raw;
         }
 
-        var swapped = orientation >= 5;
-        var output = new SKBitmap(swapped ? raw.Height : raw.Width, swapped ? raw.Width : raw.Height);
-        for (var y = 0; y < raw.Height; y++)
+        using (raw)
         {
-            for (var x = 0; x < raw.Width; x++)
+            var swapped = orientation >= 5;
+            var output = new SKBitmap(swapped ? raw.Height : raw.Width, swapped ? raw.Width : raw.Height);
+            for (var y = 0; y < raw.Height; y++)
             {
-                var dx = x;
-                var dy = y;
-                switch (orientation)
+                for (var x = 0; x < raw.Width; x++)
                 {
-                    case 2:
-                        dx = raw.Width - 1 - x;
-                        break;
-                    case 3:
-                        dx = raw.Width - 1 - x;
-                        dy = raw.Height - 1 - y;
-                        break;
-                    case 4:
-                        dy = raw.Height - 1 - y;
-                        break;
-                    case 5:
-                        dx = y;
-                        dy = x;
-                        break;
-                    case 6:
-                        dx = raw.Height - 1 - y;
-                        dy = x;
-                        break;
-                    case 7:
-                        dx = raw.Height - 1 - y;
-                        dy = raw.Width - 1 - x;
-                        break;
-                    case 8:
-                        dx = y;
-                        dy = raw.Width - 1 - x;
-                        break;
+                    var dx = x;
+                    var dy = y;
+                    switch (orientation)
+                    {
+                        case 2:
+                            dx = raw.Width - 1 - x;
+                            break;
+                        case 3:
+                            dx = raw.Width - 1 - x;
+                            dy = raw.Height - 1 - y;
+                            break;
+                        case 4:
+                            dy = raw.Height - 1 - y;
+                            break;
+                        case 5:
+                            dx = y;
+                            dy = x;
+                            break;
+                        case 6:
+                            dx = raw.Height - 1 - y;
+                            dy = x;
+                            break;
+                        case 7:
+                            dx = raw.Height - 1 - y;
+                            dy = raw.Width - 1 - x;
+                            break;
+                        case 8:
+                            dx = y;
+                            dy = raw.Width - 1 - x;
+                            break;
+                    }
+
+                    output.SetPixel(dx, dy, raw.GetPixel(x, y));
                 }
-
-                output.SetPixel(dx, dy, raw.GetPixel(x, y));
             }
-        }
 
-        return output;
+            return output;
+        }
     }
 
     public SKBitmap Resize(SKBitmap source, int width)
@@ -188,13 +191,17 @@ public sealed class RasterImageService : IRasterImageService
 
     public float[] Gray(SKBitmap bitmap)
     {
-        var pixels = bitmap.Pixels;
+        var pixels = BorrowPixels(bitmap, out var swapRedBlue);
         var result = new float[pixels.Length];
         for (var i = 0; i < result.Length; i++)
         {
-            result[i] = (.299f * pixels[i].Red + .587f * pixels[i].Green + .114f * pixels[i].Blue) / 255;
+            var colour = pixels[i];
+            var red = swapRedBlue ? colour.Blue : colour.Red;
+            var blue = swapRedBlue ? colour.Red : colour.Blue;
+            result[i] = (.299f * red + .587f * colour.Green + .114f * blue) / 255;
         }
 
+        GC.KeepAlive(bitmap);
         return result;
     }
 

@@ -24,8 +24,13 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
             throw new EchoException("Texture atlas is too small for its patches. Increase atlas size or the maximum triangles per chart.", 5);
         }
 
+        double area = 0;
+        foreach (var patch in ordered)
+        {
+            area += Math.Max(1e-12, patch.Bounds.Width * patch.Bounds.Height);
+        }
         var lower = 0.0;
-        var upper = Math.Sqrt((double)size * size / ordered.Sum(p => Math.Max(1e-12, p.Bounds.Width * p.Bounds.Height)));
+        var upper = Math.Sqrt((double)size * size / area);
         for (var iteration = 0; iteration < 16; iteration++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -42,7 +47,7 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
 
         var rectangularScale = lower;
         var silhouetteLower = lower;
-        var silhouetteUpper = Math.Sqrt((double)size * size / ordered.Sum(p => Math.Max(1e-12, p.Bounds.Width * p.Bounds.Height))) * 1.5;
+        var silhouetteUpper = Math.Sqrt((double)size * size / area) * 1.5;
         if (profiles.TryPack(ordered, size, gutter, silhouetteLower, cancellation))
         {
             for (var iteration = 0; iteration < 8; iteration++)

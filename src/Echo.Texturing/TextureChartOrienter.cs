@@ -13,8 +13,14 @@ public sealed class TextureChartOrienter : ITextureChartOrienter
 
     public void Orient(TexturePatch patch)
     {
-        var points = patch.Coordinates.Values.Select(p => new SKPoint((float)p[0], (float)p[1])).Distinct()
-            .OrderBy(p => p.X).ThenBy(p => p.Y).ToArray();
+        var unique = new HashSet<SKPoint>();
+        foreach (var point in patch.Coordinates.Values)
+        {
+            unique.Add(new SKPoint((float)point[0], (float)point[1]));
+        }
+        var points = new SKPoint[unique.Count];
+        unique.CopyTo(points);
+        Array.Sort(points, (a, b) => a.X != b.X ? a.X.CompareTo(b.X) : a.Y.CompareTo(b.Y));
         var hull = Hull(points);
         var bestArea = double.PositiveInfinity;
         var cosine = 1.0;
@@ -26,8 +32,21 @@ public sealed class TextureChartOrienter : ITextureChartOrienter
             var angle = Math.Atan2(end.Y - start.Y, end.X - start.X);
             var c = Math.Cos(angle);
             var s = Math.Sin(angle);
-            var width = hull.Max(p => p.X * c + p.Y * s) - hull.Min(p => p.X * c + p.Y * s);
-            var height = hull.Max(p => -p.X * s + p.Y * c) - hull.Min(p => -p.X * s + p.Y * c);
+            var left = double.PositiveInfinity;
+            var top = double.PositiveInfinity;
+            var right = double.NegativeInfinity;
+            var bottom = double.NegativeInfinity;
+            foreach (var point in hull)
+            {
+                var x = point.X * c + point.Y * s;
+                var y = -point.X * s + point.Y * c;
+                left = Math.Min(left, x);
+                right = Math.Max(right, x);
+                top = Math.Min(top, y);
+                bottom = Math.Max(bottom, y);
+            }
+            var width = right - left;
+            var height = bottom - top;
             if (width * height < bestArea)
             {
                 bestArea = width * height;
@@ -36,15 +55,22 @@ public sealed class TextureChartOrienter : ITextureChartOrienter
             }
         }
 
-        foreach (var key in patch.Coordinates.Keys.ToArray())
+        var minimumX = double.PositiveInfinity;
+        var minimumY = double.PositiveInfinity;
+        var maximumX = double.NegativeInfinity;
+        var maximumY = double.NegativeInfinity;
+        foreach (var point in patch.Coordinates.Values)
         {
-            var point = patch.Coordinates[key];
-            patch.Coordinates[key] = [point[0] * cosine + point[1] * sine, -point[0] * sine + point[1] * cosine];
+            var x = point[0] * cosine + point[1] * sine;
+            var y = -point[0] * sine + point[1] * cosine;
+            point[0] = x;
+            point[1] = y;
+            minimumX = Math.Min(minimumX, x);
+            minimumY = Math.Min(minimumY, y);
+            maximumX = Math.Max(maximumX, x);
+            maximumY = Math.Max(maximumY, y);
         }
-
-        var values = patch.Coordinates.Values;
-        patch.Bounds = new SKRect((float)values.Min(p => p[0]), (float)values.Min(p => p[1]),
-            (float)values.Max(p => p[0]), (float)values.Max(p => p[1]));
+        patch.Bounds = new SKRect((float)minimumX, (float)minimumY, (float)maximumX, (float)maximumY);
     }
 
     private List<SKPoint> Hull(SKPoint[] points)
@@ -56,9 +82,9 @@ public sealed class TextureChartOrienter : ITextureChartOrienter
             Append(lower, point);
         }
 
-        foreach (var point in points.Reverse())
+        for (var index = points.Length - 1; index >= 0; index--)
         {
-            Append(upper, point);
+            Append(upper, points[index]);
         }
 
         lower.RemoveAt(lower.Count - 1);

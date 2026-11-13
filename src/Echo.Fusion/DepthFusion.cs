@@ -21,7 +21,22 @@ public sealed class DepthFusion : IDepthFusion
         DenseCloudData cloud,
         CancellationToken cancellation)
     {
-        var views = maps.Select(map => new DepthView(cameraGeometry, project.Images.Single(i => i.Id == map.ImageId), scene.Cameras.Single(c => c.ImageId == map.ImageId), map)).ToArray();
+        var photos = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
+        var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
+        foreach (var photo in project.Images)
+        {
+            photos.Add(photo.Id, photo);
+        }
+        foreach (var camera in scene.Cameras)
+        {
+            cameras.Add(camera.ImageId, camera);
+        }
+        var views = new DepthView[maps.Count];
+        for (var index = 0; index < maps.Count; index++)
+        {
+            var map = maps[index];
+            views[index] = new DepthView(cameraGeometry, photos[map.ImageId], cameras[map.ImageId], map);
+        }
         var depthCount = 0;
         foreach (var view in views)
         {
@@ -96,7 +111,8 @@ public sealed class DepthFusion : IDepthFusion
             }
         }
 
-        var keys = candidates.ToArray();
+        var keys = new Grid[candidates.Count];
+        candidates.CopyTo(keys);
         Array.Sort(keys, (a, b) =>
         {
             var order = a.X.CompareTo(b.X);
@@ -145,7 +161,22 @@ public sealed class DepthFusion : IDepthFusion
                         };
                     }
                 });
-        result.Samples = samples.OfType<VolumeSample>().ToList();
+        var retained = 0;
+        foreach (var sample in samples)
+        {
+            if (sample != null)
+            {
+                retained++;
+            }
+        }
+        result.Samples.EnsureCapacity(retained);
+        foreach (var sample in samples)
+        {
+            if (sample != null)
+            {
+                result.Samples.Add(sample);
+            }
+        }
         if (result.Samples.Count < 100)
         {
             throw new EchoException("Too little jointly observed volume to reconstruct a surface.", 5);

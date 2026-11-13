@@ -20,8 +20,16 @@ public sealed class EdgeCollapse : IEdgeCollapse
             return input;
         }
 
-        var vertices = input.Vertices.Select(p => new Vertex { Position = new V3(p) }).ToArray();
-        var faces = input.Faces.Select(f => (int[])f.Clone()).ToArray();
+        var vertices = new Vertex[input.Vertices.Count];
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            vertices[index] = new Vertex { Position = new V3(input.Vertices[index]) };
+        }
+        var faces = new int[input.Faces.Count][];
+        for (var index = 0; index < faces.Length; index++)
+        {
+            faces[index] = (int[])input.Faces[index].Clone();
+        }
         var removed = new bool[faces.Length];
         var remaining = faces.Length;
         Span<double> plane = stackalloc double[4];
@@ -52,8 +60,44 @@ public sealed class EdgeCollapse : IEdgeCollapse
         }
 
         var queue = new PriorityQueue<Candidate, double>();
-        HashSet<int> Neighbours(int v) => vertices[v].Faces.SelectMany(f => faces[f]).Where(i => i != v).ToHashSet();
-        bool Boundary(int v) => Neighbours(v).Any(n => vertices[v].Faces.Count(f => faces[f].Contains(n)) == 1);
+        var edgeCounts = new Dictionary<int, int>();
+        void Neighbours(int vertex, HashSet<int> result)
+        {
+            result.Clear();
+            foreach (var face in vertices[vertex].Faces)
+            {
+                foreach (var neighbour in faces[face])
+                {
+                    if (neighbour != vertex)
+                    {
+                        result.Add(neighbour);
+                    }
+                }
+            }
+        }
+        bool Boundary(int vertex)
+        {
+            edgeCounts.Clear();
+            foreach (var face in vertices[vertex].Faces)
+            {
+                foreach (var neighbour in faces[face])
+                {
+                    if (neighbour != vertex)
+                    {
+                        edgeCounts.TryGetValue(neighbour, out var count);
+                        edgeCounts[neighbour] = count + 1;
+                    }
+                }
+            }
+            foreach (var count in edgeCounts.Values)
+            {
+                if (count == 1)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
         void Offer(int a, int b)
         {
             if (a == b || vertices[a].Removed || vertices[b].Removed)
@@ -135,13 +179,22 @@ public sealed class EdgeCollapse : IEdgeCollapse
         // patch, face quadrics alone have zero cost for cutting away its corners.
         foreach (var edge in edges)
         {
-            var shared = vertices[edge.A].Faces.Intersect(vertices[edge.B].Faces).ToArray();
-            if (shared.Length != 1)
+            var sharedCount = 0;
+            var sharedFace = -1;
+            foreach (var face in vertices[edge.A].Faces)
+            {
+                if (vertices[edge.B].Faces.Contains(face))
+                {
+                    sharedCount++;
+                    sharedFace = face;
+                }
+            }
+            if (sharedCount != 1)
             {
                 continue;
             }
 
-            var f = faces[shared[0]];
+            var f = faces[sharedFace];
             var a = vertices[edge.A].Position;
             var b = vertices[edge.B].Position;
             var faceNormal = (vertices[f[1]].Position - vertices[f[0]].Position).Cross(vertices[f[2]].Position - vertices[f[0]].Position).Unit;
@@ -168,6 +221,13 @@ public sealed class EdgeCollapse : IEdgeCollapse
             Offer(edge.A, edge.B);
         }
 
+        var commonFaces = new List<int>(3);
+        var neighboursA = new HashSet<int>();
+        var neighboursB = new HashSet<int>();
+        var affected = new List<int>();
+        var affectedSet = new HashSet<int>();
+        var touched = new HashSet<int>();
+        var updatedNeighbours = new HashSet<int>();
         Span<V3> old = stackalloc V3[3];
         Span<V3> next = stackalloc V3[3];
         while (remaining > target && queue.TryDequeue(out var edge, out _))
@@ -180,25 +240,53 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 continue;
             }
 
-            var commonFaces = a.Faces.Intersect(b.Faces).ToArray();
-            if (commonFaces.Length is < 1 or > 2)
+            commonFaces.Clear();
+            foreach (var face in a.Faces)
+            {
+                if (b.Faces.Contains(face))
+                {
+                    commonFaces.Add(face);
+                }
+            }
+            if (commonFaces.Count is < 1 or > 2)
             {
                 continue;
             }
 
-            var neighboursA = Neighbours(edge.A);
-            var neighboursB = Neighbours(edge.B);
-            if (neighboursA.Intersect(neighboursB).Count() != commonFaces.Length)
+            Neighbours(edge.A, neighboursA);
+            Neighbours(edge.B, neighboursB);
+            var sharedNeighbours = 0;
+            foreach (var neighbour in neighboursA)
+            {
+                if (neighboursB.Contains(neighbour))
+                {
+                    sharedNeighbours++;
+                }
+            }
+            if (sharedNeighbours != commonFaces.Count)
             {
                 continue;
             }
 
-            if (Boundary(edge.A) && Boundary(edge.B) && commonFaces.Length != 1)
+            if (Boundary(edge.A) && Boundary(edge.B) && commonFaces.Count != 1)
             {
                 continue;
             }
 
-            var affected = a.Faces.Union(b.Faces).ToArray();
+            affected.Clear();
+            affectedSet.Clear();
+            foreach (var face in a.Faces)
+            {
+                affected.Add(face);
+                affectedSet.Add(face);
+            }
+            foreach (var face in b.Faces)
+            {
+                if (affectedSet.Add(face))
+                {
+                    affected.Add(face);
+                }
+            }
             var valid = true;
             foreach (var fi in affected)
             {
@@ -228,7 +316,14 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 continue;
             }
 
-            var touched = affected.SelectMany(f => faces[f]).ToHashSet();
+            touched.Clear();
+            foreach (var face in affected)
+            {
+                foreach (var vertex in faces[face])
+                {
+                    touched.Add(vertex);
+                }
+            }
             foreach (var fi in affected)
             {
                 foreach (var vi in faces[fi])
@@ -269,9 +364,14 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 vertices[vi].Revision++;
             }
 
-            foreach (var vi in touched.Where(v => !vertices[v].Removed))
+            foreach (var vi in touched)
             {
-                foreach (var n in Neighbours(vi))
+                if (vertices[vi].Removed)
+                {
+                    continue;
+                }
+                Neighbours(vi, updatedNeighbours);
+                foreach (var n in updatedNeighbours)
                 {
                     if (vi < n || !touched.Contains(n))
                     {

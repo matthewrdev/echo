@@ -31,8 +31,18 @@ public sealed class GlbWriter : IGlbWriter
         var indexOffset = checked(uvOffset + uvs.Count * 8);
         var imageOffset = checked(indexOffset + mesh.Faces.Count * 12);
         var binaryLength = checked((imageOffset + texture.Length + 3L) / 4 * 4);
-        var minimum = Enumerable.Range(0, 3).Select(axis => mesh.Vertices.Min(v => (float)v[axis])).ToArray();
-        var maximum = Enumerable.Range(0, 3).Select(axis => mesh.Vertices.Max(v => (float)v[axis])).ToArray();
+        var first = mesh.Vertices[0];
+        var minimum = new float[] { (float)first[0], (float)first[1], (float)first[2] };
+        var maximum = (float[])minimum.Clone();
+        foreach (var vertex in mesh.Vertices)
+        {
+            for (var axis = 0; axis < 3; axis++)
+            {
+                var value = (float)vertex[axis];
+                minimum[axis] = Math.Min(minimum[axis], value);
+                maximum[axis] = Math.Max(maximum[axis], value);
+            }
+        }
         var document = new
         {
             asset = new

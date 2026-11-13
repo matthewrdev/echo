@@ -28,8 +28,16 @@ internal sealed class TextureTriangle
             }
         }
 
-        return Points.Any(other.Contains) || other.Points.Any(Contains)
-            || Contains(new SKPoint(other.Points.Average(p => p.X), other.Points.Average(p => p.Y)));
+        for (var corner = 0; corner < 3; corner++)
+        {
+            if (other.Contains(Points[corner]) || Contains(other.Points[corner]))
+            {
+                return true;
+            }
+        }
+        var centreX = (float)(((double)other.Points[0].X + other.Points[1].X + other.Points[2].X) / 3);
+        var centreY = (float)(((double)other.Points[0].Y + other.Points[1].Y + other.Points[2].Y) / 3);
+        return Contains(new SKPoint(centreX, centreY));
     }
 
     private bool Contains(SKPoint point)

@@ -18,19 +18,37 @@ public sealed class ProcessingEfficiencyTests
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
     private readonly ICameraGeometry geometry;
+    private readonly IRandomSampleSelector samples;
 
     [ImportingConstructor]
-    public ProcessingEfficiencyTests(IRasterImageService images, IDepthExecutionPlanner planner, IJsonCodec json, IFileOperations files, ICameraGeometry geometry)
+    public ProcessingEfficiencyTests(IRasterImageService images, IDepthExecutionPlanner planner, IJsonCodec json, IFileOperations files, ICameraGeometry geometry, IRandomSampleSelector samples)
     {
         this.images = images;
         this.planner = planner;
         this.json = json;
         this.files = files;
         this.geometry = geometry;
+        this.samples = samples;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Bounded RANSAC sampling preserves seeded stable random-key selection", () =>
+        {
+            foreach (var count in new[] { 8, 19, 600, 3000 })
+            {
+                var source = Enumerable.Range(0, count).ToArray();
+                var expectedRandom = new Random(817);
+                var actualRandom = new Random(817);
+                var selected = new int[8];
+                for (var iteration = 0; iteration < 160; iteration++)
+                {
+                    var expected = source.OrderBy(_ => expectedRandom.Next()).Take(8).ToArray();
+                    samples.Select<int>(source, actualRandom, selected);
+                    Check(selected.SequenceEqual(expected), "Same observations, ordering and random draw count");
+                }
+            }
+        });
         tests.Run("Grayscale pyramid spans preserve area averaging and channel rounding exactly", () =>
         {
             using var bitmap = new SKBitmap(173, 117);

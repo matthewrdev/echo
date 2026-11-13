@@ -28,12 +28,20 @@ public sealed class RotationRefiner : IRotationRefiner
     public void Refine(CameraPose camera, List<CameraPose> cameras, Dictionary<string, Photo> images, List<ImagePair> pairs)
     {
         var observations = new List<RotationObservation>();
-        foreach (var pair in pairs.Where(p => p.A == camera.ImageId || p.B == camera.ImageId))
+        var cameraLookup = new Dictionary<string, CameraPose>(cameras.Count, StringComparer.Ordinal);
+        foreach (var candidate in cameras)
         {
+            cameraLookup.Add(candidate.ImageId, candidate);
+        }
+        foreach (var pair in pairs)
+        {
+            if (pair.A != camera.ImageId && pair.B != camera.ImageId)
+            {
+                continue;
+            }
             var ownA = pair.A == camera.ImageId;
             var otherId = ownA ? pair.B : pair.A;
-            var other = cameras.Find(c => c.ImageId == otherId);
-            if (other == null || (new V3(other.Centre) - new V3(camera.Centre)).Length < .1)
+            if (!cameraLookup.TryGetValue(otherId, out var other) || (new V3(other.Centre) - new V3(camera.Centre)).Length < .1)
             {
                 continue;
             }
@@ -56,6 +64,9 @@ public sealed class RotationRefiner : IRotationRefiner
 
         Matrix<double> normal = DenseMatrix.CreateIdentity(3) * .02;
         Vector<double> rhs = DenseVector.Create(3, 0);
+        Span<double> jacobian = stackalloc double[3];
+        var rotations = new[] { SmallRotation(0, 1e-5), SmallRotation(1, 1e-5), SmallRotation(2, 1e-5) };
+        var perturbed = new double[9];
         foreach (var o in observations)
         {
             var residual = Residual(camera, o);
@@ -65,17 +76,28 @@ public sealed class RotationRefiner : IRotationRefiner
             }
 
             var original = camera.Rotation;
-            var jacobian = DenseVector.Create(3, 0);
-            for (var axis = 0; axis < 3; axis++)
+            try
             {
-                camera.Rotation = cameraGeometry.Multiply(SmallRotation(axis, 1e-5), original);
-                jacobian[axis] = (Residual(camera, o) - residual) / 1e-5;
+                for (var axis = 0; axis < 3; axis++)
+                {
+                    cameraGeometry.Multiply(rotations[axis], original, perturbed);
+                    camera.Rotation = perturbed;
+                    jacobian[axis] = (Residual(camera, o) - residual) / 1e-5;
+                }
             }
-
-            camera.Rotation = original;
+            finally
+            {
+                camera.Rotation = original;
+            }
             var weight = Math.Min(1, .006 / Math.Max(1e-10, Math.Abs(residual)));
-            normal += jacobian.OuterProduct(jacobian) * weight;
-            rhs -= jacobian * (weight * residual);
+            for (var row = 0; row < 3; row++)
+            {
+                for (var column = 0; column < 3; column++)
+                {
+                    normal[row, column] += jacobian[row] * jacobian[column] * weight;
+                }
+                rhs[row] -= jacobian[row] * (weight * residual);
+            }
         }
 
         var step = normal.Solve(rhs);
