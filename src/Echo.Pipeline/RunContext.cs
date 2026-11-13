@@ -154,7 +154,8 @@ public sealed class RunContext
         SaveRun();
         Report("runFailed", new
         {
-            error = error.Message
+            error = error.Message,
+            details = error.ToString()
         });
     }
 

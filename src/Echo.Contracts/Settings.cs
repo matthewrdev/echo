@@ -21,6 +21,8 @@ public sealed class Settings
     public int CloudNeighbours { get; set; } = 8;
     public int CloudMinimumSupport { get; set; } = 1;
     public double CloudDepthTolerance { get; set; } = .01;
+    public double CloudReprojectionTolerancePixels { get; set; } = 1.5;
+    public double CloudMinimumParallaxDegrees { get; set; } = .5;
     public double FusionDetailMultiplier { get; set; } = 1;
     public int TextureJpegQuality { get; set; } = 92;
     public int TextureChartFaces { get; set; } = 512;
@@ -56,6 +58,10 @@ public sealed class Settings
             || CloudMinimumSupport < 1 || CloudMinimumSupport > CloudNeighbours
             || !double.IsFinite(CloudDepthTolerance)
             || CloudDepthTolerance < .001 || CloudDepthTolerance > .1;
+        var invalidCloudGeometry = !double.IsFinite(CloudReprojectionTolerancePixels)
+            || CloudReprojectionTolerancePixels is < .1 or > 10
+            || !double.IsFinite(CloudMinimumParallaxDegrees)
+            || CloudMinimumParallaxDegrees is < 0 or > 10;
         var invalidFusionSettings = !double.IsFinite(FusionDetailMultiplier)
             || FusionDetailMultiplier < .25 || FusionDetailMultiplier > 16;
         var invalidDepthExecution = DepthConcurrency is < 1 or > 16
@@ -82,6 +88,7 @@ public sealed class Settings
             || invalidMatchingSettings
             || invalidCloudExecution
             || invalidCloudSettings
+            || invalidCloudGeometry
             || invalidFusionSettings
             || invalidDepthExecution
             || invalidDepthResolution

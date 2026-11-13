@@ -21,6 +21,8 @@ struct ProcessingImpact {
         let cloud =
             old.cloudNeighbours != new.cloudNeighbours || old.cloudMinimumSupport != new.cloudMinimumSupport
             || old.cloudDepthTolerance != new.cloudDepthTolerance
+            || old.cloudReprojectionTolerancePixels != new.cloudReprojectionTolerancePixels
+            || old.cloudMinimumParallaxDegrees != new.cloudMinimumParallaxDegrees
         if cloud { return .cloud }
         if old.fusionDetailMultiplier != new.fusionDetailMultiplier || old.faceLimit != new.faceLimit { return .fusion }
         if old.textureSize != new.textureSize || old.textureJpegQuality != new.textureJpegQuality

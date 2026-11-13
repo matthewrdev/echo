@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.DenseCloud;
 using Echo.Imaging;
+using Echo.Geometry;
 using Echo.Projects;
 using SkiaSharp;
 
@@ -14,18 +15,59 @@ public sealed class CloudProcessingTests
     private readonly ICloudExecutionPlanner planner;
     private readonly IProjectStoreFactory stores;
     private readonly IRasterImageService images;
+    private readonly ICameraGeometry geometry;
 
     [ImportingConstructor]
-    public CloudProcessingTests(ICloudBuilder builder, ICloudExecutionPlanner planner, IProjectStoreFactory stores, IRasterImageService images)
+    public CloudProcessingTests(ICloudBuilder builder, ICloudExecutionPlanner planner, IProjectStoreFactory stores, IRasterImageService images, ICameraGeometry geometry)
     {
         this.builder = builder;
         this.planner = planner;
         this.stores = stores;
         this.images = images;
+        this.geometry = geometry;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Depth projection rejects points outside the image before integer conversion", () =>
+        {
+            var photo = new Photo { Width = 64, Height = 48, FocalPixels = 64 };
+            var depths = new float[64 * 48];
+            Array.Fill(depths, 10);
+            var map = new DepthMap { Width = 64, Height = 48, Depth = depths };
+            var view = new DepthView(geometry, photo, new CameraPose(), map);
+            foreach (var point in new[]
+            {
+                new V3(1, 0, 1e-300), new V3(0, 1, 1e-300),
+                new V3(-1, 0, 1e-300), new V3(0, -1, 1e-300),
+                new V3(double.NaN, 0, 1), new V3(double.PositiveInfinity, 0, 1),
+                new V3(0, 0, -1), new V3(0, 0, 0)
+            })
+            {
+                Check(double.IsNaN(view.Difference(point)), "Unprojectable points have no supporting depth");
+            }
+            Check(view.Difference(new V3(0, 0, 10)) == 0, "Valid projections keep their depth difference");
+        });
+        tests.Run("Cloud support rejects depth-edge interpolation and inconsistent return projections", () =>
+        {
+            var photo = new Photo { Width = 64, Height = 48, FocalPixels = 64 };
+            var depths = new float[64 * 48];
+            Array.Fill(depths, 10);
+            var map = new DepthMap { Width = 64, Height = 48, Depth = depths };
+            var reference = new DepthView(geometry, photo, new CameraPose(), map);
+            var point = new V3(0, 0, 10);
+            Check(reference.TrySurfacePoint(point, .01, out var surface), "A continuous plane supplies support");
+            Check(reference.ReprojectsTo(surface, 32, 24, .01), "Consistent support returns to the source pixel");
+            depths[24 * 64 + 32] = 5;
+            depths[24 * 64 + 33] = 15;
+            var edge = new V3(10.0 / 128, 0, 10);
+            Check(Math.Abs(reference.Difference(edge)) < 1e-8, "Legacy interpolation invents a depth between surfaces");
+            Check(!reference.TrySurfacePoint(edge, .01, out _), "The invented surface is not accepted as support");
+            Array.Fill(depths, 10.08f);
+            var neighbour = new DepthView(geometry, photo, new CameraPose { Centre = [2, 0, 0] }, map);
+            Check(neighbour.TrySurfacePoint(point, .01, out surface), "Depth tolerance alone accepts this sample");
+            Check(!reference.ReprojectsTo(surface, 32, 24, .01), "Round-trip consistency rejects its pixel mismatch");
+        });
         tests.Run("Cloud batch planning bounds pooled scratch for large images and worker counts", () =>
         {
             var settings = new Settings { CloudWorkerThreads = 256, CloudBatchRows = 128 };
@@ -87,6 +129,18 @@ public sealed class CloudProcessingTests
                 Check(callbacks == 1, "No more progress callbacks after cancellation");
                 var afterCancellation = builder.Build(store, project, scene, maps, default);
                 Check(reference.Samples.SequenceEqual(afterCancellation.Samples), "Returned worker buffers remain safe to reuse");
+                foreach (var camera in scene.Cameras)
+                {
+                    camera.Centre = [0, 0, 0];
+                }
+                try
+                {
+                    builder.Build(store, project, scene, maps, default);
+                    throw new InvalidOperationException("Co-located cameras must not support a surface without parallax");
+                }
+                catch (EchoException error) when (error.ExitCode == 5)
+                {
+                }
             }
             finally
             {

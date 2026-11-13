@@ -79,8 +79,12 @@ public sealed class CloudBuilder : ICloudBuilder
                 cancellation.ThrowIfCancellationRequested();
                 var view = views[index];
                 using var original = SKBitmap.Decode(store.PathFor(photos[view.Map.ImageId].Source));
-                var colours = rasterImageService.ResizePixels(original, view.Map.Width).Pixels;
-                ProcessImage(view, neighbours[index], index, colours, project.Settings, plan, batches, cloud, status, options);
+                var colours = rasterImageService.ResizePixels(original, view.Map.Width);
+                if (colours.Width != view.Map.Width || colours.Height != view.Map.Height)
+                {
+                    throw new EchoException($"Depth-map dimensions do not match the source photograph: {photos[view.Map.ImageId].Name}.", 5);
+                }
+                ProcessImage(view, neighbours[index], index, colours.Pixels, project.Settings, plan, batches, cloud, status, options);
             }
         }
         finally
@@ -172,6 +176,8 @@ public sealed class CloudBuilder : ICloudBuilder
         var accepted = 0;
         var input = 0;
         Span<DenseSample> samples = batch.Samples;
+        var minimumSine = Math.Sin(settings.CloudMinimumParallaxDegrees * Math.PI / 180);
+        var minimumSineSquared = minimumSine * minimumSine;
         for (var y = firstRow; y < lastRow; y++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -181,17 +187,26 @@ public sealed class CloudBuilder : ICloudBuilder
             for (var x = 0; x < depths.Length; x++)
             {
                 var depth = depths[x];
-                if (depth <= 0)
+                if (!(depth > 0) || !float.IsFinite(depth))
                 {
                     continue;
                 }
                 input++;
                 var point = view.Point(x, y, depth);
-                var tolerance = Math.Max(depth / view.Focal * 2, depth * settings.CloudDepthTolerance);
+                var referenceRay = point - view.Centre;
+                var referenceLengthSquared = referenceRay.Dot(referenceRay);
                 var support = 0;
                 foreach (var other in neighbours)
                 {
-                    if (Math.Abs(other.Difference(point)) < tolerance)
+                    var otherRay = point - other.Centre;
+                    var cross = referenceRay.Cross(otherRay);
+                    var sufficientParallax = cross.Dot(cross) >= minimumSineSquared * referenceLengthSquared * otherRay.Dot(otherRay);
+                    if (!sufficientParallax)
+                    {
+                        continue;
+                    }
+                    var consistentDepth = other.TrySurfacePoint(point, settings.CloudDepthTolerance, out var surface);
+                    if (consistentDepth && view.ReprojectsTo(surface, x, y, settings.CloudReprojectionTolerancePixels))
                     {
                         support++;
                     }

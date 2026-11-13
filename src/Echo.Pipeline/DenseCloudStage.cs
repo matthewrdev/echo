@@ -32,10 +32,12 @@ public sealed class DenseCloudStage : IPipelineStage
         {
             depthUnits,
             alignment,
-            cloudVersion = 2,
+            cloudVersion = 3,
             settings.CloudNeighbours,
             settings.CloudMinimumSupport,
-            settings.CloudDepthTolerance
+            settings.CloudDepthTolerance,
+            settings.CloudReprojectionTolerancePixels,
+            settings.CloudMinimumParallaxDegrees
         };
         var cloudPath = context.Build(Name, inputs, directory =>
         {

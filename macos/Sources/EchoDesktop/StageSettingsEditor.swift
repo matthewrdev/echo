@@ -90,6 +90,17 @@ struct StageSettingsEditor: View {
                 Text(
                     "0.01 means 1% depth agreement; a two-pixel projected footprint is the minimum tolerance. More required supporting views remove isolated noise but can remove thin or sparsely photographed surfaces. Source depth resolution is set in Depth maps. Viewer support buttons only filter the preview."
                 ).foregroundStyle(.secondary)
+                DecimalSettingSlider(
+                    title: "Round-trip projection tolerance (depth-map pixels)",
+                    value: $settings.cloudReprojectionTolerancePixels,
+                    range: 0.1...10, step: 0.1)
+                DecimalSettingSlider(
+                    title: "Minimum viewing-ray angle (degrees)", value: $settings.cloudMinimumParallaxDegrees,
+                    range: 0...10, step: 0.1)
+                Text(
+                    "Support must agree in depth and project back to the same source pixel. For stronger rejection of floating surfaces, require at least two supporting neighbours. These checks cannot repair incorrect camera alignment."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             case .fusion:
                 DecimalSettingSlider(
                     title: "Detail budget multiplier", value: $settings.fusionDetailMultiplier, range: 0.25...16,

@@ -16,6 +16,8 @@ final class ProcessingSettingsTests: XCTestCase {
         settings.depthWorkerThreads = 12
         settings.cloudWorkerThreads = 4
         settings.cloudBatchRows = 16
+        settings.cloudReprojectionTolerancePixels = 0.8
+        settings.cloudMinimumParallaxDegrees = 1.2
         settings.depthMemoryBudgetMb = 2048
         settings.depthWidth = 4096
         settings.depthRefinementSamples = 32
@@ -33,6 +35,8 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(restored.depthWorkerThreads, 12)
         XCTAssertEqual(restored.cloudWorkerThreads, 4)
         XCTAssertEqual(restored.cloudBatchRows, 16)
+        XCTAssertEqual(restored.cloudReprojectionTolerancePixels, 0.8)
+        XCTAssertEqual(restored.cloudMinimumParallaxDegrees, 1.2)
         XCTAssertEqual(restored.depthMemoryBudgetMb, 2048)
         XCTAssertEqual(restored.depthWidth, 4096)
         XCTAssertEqual(restored.depthRefinementSamples, 32)
@@ -53,6 +57,12 @@ final class ProcessingSettingsTests: XCTestCase {
         changed.cloudNeighbours = 12
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .cloud)
         XCTAssertEqual(impact.stages(from: .cloud), [.cloud, .fusion, .mesh, .texture, .export])
+        changed = original
+        changed.cloudReprojectionTolerancePixels = 0.8
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .cloud)
+        changed = original
+        changed.cloudMinimumParallaxDegrees = 1.2
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .cloud)
         changed = original
         changed.depthRefinementSamples = 32
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .depth)

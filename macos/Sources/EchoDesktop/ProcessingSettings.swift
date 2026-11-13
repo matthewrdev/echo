@@ -26,6 +26,8 @@ struct ProcessingSettings: Codable {
     var cloudNeighbours: Int = 8
     var cloudMinimumSupport: Int = 1
     var cloudDepthTolerance: Double = 0.01
+    var cloudReprojectionTolerancePixels: Double = 1.5
+    var cloudMinimumParallaxDegrees: Double = 0.5
     var fusionDetailMultiplier: Double = 1
     var textureSize: Int = 8192
     var textureJpegQuality: Int = 92
@@ -64,6 +66,10 @@ struct ProcessingSettings: Codable {
         cloudNeighbours = try values.decodeIfPresent(Int.self, forKey: .cloudNeighbours) ?? 8
         cloudMinimumSupport = try values.decodeIfPresent(Int.self, forKey: .cloudMinimumSupport) ?? 1
         cloudDepthTolerance = try values.decodeIfPresent(Double.self, forKey: .cloudDepthTolerance) ?? 0.01
+        cloudReprojectionTolerancePixels =
+            try values.decodeIfPresent(Double.self, forKey: .cloudReprojectionTolerancePixels) ?? 1.5
+        cloudMinimumParallaxDegrees =
+            try values.decodeIfPresent(Double.self, forKey: .cloudMinimumParallaxDegrees) ?? 0.5
         fusionDetailMultiplier = try values.decodeIfPresent(Double.self, forKey: .fusionDetailMultiplier) ?? 1
         textureSize = try values.decodeIfPresent(Int.self, forKey: .textureSize) ?? 8192
         textureJpegQuality = try values.decodeIfPresent(Int.self, forKey: .textureJpegQuality) ?? 92
@@ -101,6 +107,8 @@ struct ProcessingSettings: Codable {
         try values.encode(cloudNeighbours, forKey: .cloudNeighbours)
         try values.encode(cloudMinimumSupport, forKey: .cloudMinimumSupport)
         try values.encode(cloudDepthTolerance, forKey: .cloudDepthTolerance)
+        try values.encode(cloudReprojectionTolerancePixels, forKey: .cloudReprojectionTolerancePixels)
+        try values.encode(cloudMinimumParallaxDegrees, forKey: .cloudMinimumParallaxDegrees)
         try values.encode(fusionDetailMultiplier, forKey: .fusionDetailMultiplier)
         try values.encode(textureSize, forKey: .textureSize)
         try values.encode(textureJpegQuality, forKey: .textureJpegQuality)

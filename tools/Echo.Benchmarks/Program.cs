@@ -11,6 +11,10 @@ if (args.FirstOrDefault() == "cloud")
 {
     return composition.Resolve<CloudBenchmark>().Run(args[1..]);
 }
+if (args.FirstOrDefault() == "compare-cloud")
+{
+    return composition.Resolve<CloudComparison>().Run(args[1..]);
+}
 if (args.FirstOrDefault() == "core")
 {
     return composition.Resolve<CoreBenchmark>().Run(args[1..]);
