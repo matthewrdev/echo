@@ -15,15 +15,15 @@ public sealed class FeatureMatcher : IFeatureMatcher
         this.descriptors = descriptors;
     }
 
-    public ImagePair Match(FeatureSet a, FeatureSet b, Settings settings, CancellationToken cancellation)
+    public ImagePair Match(FeatureSet leftFeatures, FeatureSet rightFeatures, Settings settings, CancellationToken cancellation)
     {
-        var points = descriptors.Match<Feature>(CollectionsMarshal.AsSpan(a.Features),
-            CollectionsMarshal.AsSpan(b.Features), settings, cancellation);
-        var result = new ImagePair { A = a.ImageId, B = b.ImageId, Diagnostics = points.Diagnostics };
+        var points = descriptors.Match<Feature>(CollectionsMarshal.AsSpan(leftFeatures.Features),
+            CollectionsMarshal.AsSpan(rightFeatures.Features), settings, cancellation);
+        var result = new ImagePair { A = leftFeatures.ImageId, B = rightFeatures.ImageId, Diagnostics = points.Diagnostics };
         foreach (var match in points.Matches)
         {
-            var first = a.Features[match.A];
-            var second = b.Features[match.B];
+            var first = leftFeatures.Features[match.A];
+            var second = rightFeatures.Features[match.B];
             result.Matches.Add(new Match
             {
                 A = [first.X, first.Y],
@@ -33,12 +33,12 @@ public sealed class FeatureMatcher : IFeatureMatcher
             });
         }
 
-        var lines = descriptors.Match<LineFeature>(CollectionsMarshal.AsSpan(a.Lines),
-            CollectionsMarshal.AsSpan(b.Lines), settings, cancellation, reversible: true);
+        var lines = descriptors.Match<LineFeature>(CollectionsMarshal.AsSpan(leftFeatures.Lines),
+            CollectionsMarshal.AsSpan(rightFeatures.Lines), settings, cancellation, allowReversedDescriptor: true);
         foreach (var match in lines.Matches)
         {
-            var first = a.Lines[match.A];
-            var second = b.Lines[match.B];
+            var first = leftFeatures.Lines[match.A];
+            var second = rightFeatures.Lines[match.B];
             result.LineMatches.Add(new LineMatch
             {
                 IndexA = match.A,

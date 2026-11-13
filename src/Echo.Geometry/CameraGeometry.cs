@@ -17,18 +17,18 @@ public sealed class CameraGeometry : ICameraGeometry
         this.samples = samples;
     }
 
-    public V3 Rotate(double[] r, V3 p) => new(r[0] * p.X + r[1] * p.Y + r[2] * p.Z, r[3] * p.X + r[4] * p.Y + r[5] * p.Z, r[6] * p.X + r[7] * p.Y + r[8] * p.Z);
+    public V3 Rotate(double[] rotation, V3 vector) => new(rotation[0] * vector.X + rotation[1] * vector.Y + rotation[2] * vector.Z, rotation[3] * vector.X + rotation[4] * vector.Y + rotation[5] * vector.Z, rotation[6] * vector.X + rotation[7] * vector.Y + rotation[8] * vector.Z);
 
-    public double[] Transpose(double[] r) => [r[0], r[3], r[6], r[1], r[4], r[7], r[2], r[5], r[8]];
+    public double[] Transpose(double[] rotation) => [rotation[0], rotation[3], rotation[6], rotation[1], rotation[4], rotation[7], rotation[2], rotation[5], rotation[8]];
 
-    public double[] Multiply(double[] a, double[] b)
+    public double[] Multiply(double[] leftMatrix, double[] rightMatrix)
     {
         var r = new double[9];
-        Multiply(a, b, r);
+        Multiply(leftMatrix, rightMatrix, r);
         return r;
     }
 
-    public void Multiply(ReadOnlySpan<double> a, ReadOnlySpan<double> b, Span<double> result)
+    public void Multiply(ReadOnlySpan<double> leftMatrix, ReadOnlySpan<double> rightMatrix, Span<double> result)
     {
         result.Clear();
         for (var i = 0; i < 3; i++)
@@ -37,17 +37,17 @@ public sealed class CameraGeometry : ICameraGeometry
             {
                 for (var k = 0; k < 3; k++)
                 {
-                    result[i * 3 + j] += a[i * 3 + k] * b[k * 3 + j];
+                    result[i * 3 + j] += leftMatrix[i * 3 + k] * rightMatrix[k * 3 + j];
                 }
             }
         }
     }
 
-    public double[] AttitudeRotation(Attitude a)
+    public double[] AttitudeRotation(Attitude attitude)
     {
-        var yaw = a.Yaw * Math.PI / 180;
-        var pitch = a.Pitch * Math.PI / 180;
-        var roll = a.Roll * Math.PI / 180;
+        var yaw = attitude.Yaw * Math.PI / 180;
+        var pitch = attitude.Pitch * Math.PI / 180;
+        var roll = attitude.Roll * Math.PI / 180;
         var forward = new V3(Math.Sin(yaw) * Math.Cos(pitch), Math.Sin(pitch), -Math.Cos(yaw) * Math.Cos(pitch));
         var right = new V3(Math.Cos(yaw), 0, Math.Sin(yaw));
         var down = (forward).Cross(right);
@@ -76,13 +76,13 @@ public sealed class CameraGeometry : ICameraGeometry
         return [-Math.Sin(lon), Math.Cos(lat) * Math.Cos(lon), Math.Sin(lat) * Math.Cos(lon), p.X, Math.Cos(lon), Math.Cos(lat) * Math.Sin(lon), Math.Sin(lat) * Math.Sin(lon), p.Y, 0, Math.Sin(lat), -Math.Cos(lat), p.Z, 0, 0, 0, 1];
     }
 
-    public V3 Ecef(GeoPosition p)
+    public V3 Ecef(GeoPosition position)
     {
         const double a = 6378137;
         const double e2 = 6.69437999014e-3;
-        var lat = p.Latitude * Math.PI / 180;
-        var lon = p.Longitude * Math.PI / 180;
-        var h = p.Altitude ?? 0;
+        var lat = position.Latitude * Math.PI / 180;
+        var lon = position.Longitude * Math.PI / 180;
+        var h = position.Altitude ?? 0;
         var n = a / Math.Sqrt(1 - e2 * Math.Sin(lat) * Math.Sin(lat));
         return new V3((n + h) * Math.Cos(lat) * Math.Cos(lon), (n + h) * Math.Cos(lat) * Math.Sin(lon), (n * (1 - e2) + h) * Math.Sin(lat));
     }
@@ -104,11 +104,11 @@ public sealed class CameraGeometry : ICameraGeometry
         return p.Z > 1e-8 ? new V3(Focal(photo, pose) * p.X / p.Z + photo.Width * .5, Focal(photo, pose) * p.Y / p.Z + photo.Height * .5, p.Z) : null;
     }
 
-    public Triangulated? Triangulate(Photo a, Photo b, CameraPose ca, CameraPose cb, Match match, double maxError = 12)
+    public Triangulated? Triangulate(Photo leftPhoto, Photo rightPhoto, CameraPose leftCamera, CameraPose rightCamera, Match match, double maximumReprojectionErrorPixels = 12)
     {
-        var da = Rotate(ca.Rotation, Ray(a, match.A, ca)).Unit;
-        var db = Rotate(cb.Rotation, Ray(b, match.B, cb)).Unit;
-        var baseline = new V3(cb.Centre) - new V3(ca.Centre);
+        var da = Rotate(leftCamera.Rotation, Ray(leftPhoto, match.A, leftCamera)).Unit;
+        var db = Rotate(rightCamera.Rotation, Ray(rightPhoto, match.B, rightCamera)).Unit;
+        var baseline = new V3(rightCamera.Centre) - new V3(leftCamera.Centre);
         var dot = (da).Dot(db);
         var det = 1 - dot * dot;
         if (det < .000025)
@@ -123,16 +123,16 @@ public sealed class CameraGeometry : ICameraGeometry
             return null;
         }
 
-        var point = (new V3(ca.Centre) + da * ta + new V3(cb.Centre) + db * tb) * .5;
-        var pa = ProjectPoint(a, ca, point);
-        var pb = ProjectPoint(b, cb, point);
+        var point = (new V3(leftCamera.Centre) + da * ta + new V3(rightCamera.Centre) + db * tb) * .5;
+        var pa = ProjectPoint(leftPhoto, leftCamera, point);
+        var pb = ProjectPoint(rightPhoto, rightCamera, point);
         if (pa == null || pb == null)
         {
             return null;
         }
 
         var error = Math.Sqrt((Square(pa.Value.X - match.A[0]) + Square(pa.Value.Y - match.A[1]) + Square(pb.Value.X - match.B[0]) + Square(pb.Value.Y - match.B[1])) * .5);
-        return error <= maxError ? new Triangulated
+        return error <= maximumReprojectionErrorPixels ? new Triangulated
         {
             Point = point,
             Error = error
@@ -143,13 +143,13 @@ public sealed class CameraGeometry : ICameraGeometry
 
     public double Square(double x) => x * x;
 
-    private Matrix<double> Essential(Photo a, Photo b, IReadOnlyList<Match> matches)
+    private Matrix<double> Essential(Photo leftPhoto, Photo rightPhoto, IReadOnlyList<Match> matches)
     {
         var design = DenseMatrix.Create(matches.Count, 9, 0);
         for (var i = 0; i < matches.Count; i++)
         {
-            var p = Ray(a, matches[i].A);
-            var q = Ray(b, matches[i].B);
+            var p = Ray(leftPhoto, matches[i].A);
+            var q = Ray(rightPhoto, matches[i].B);
             design[i, 0] = q.X * p.X;
             design[i, 1] = q.X * p.Y;
             design[i, 2] = q.X;
@@ -167,10 +167,10 @@ public sealed class CameraGeometry : ICameraGeometry
         return svd.U * DenseMatrix.OfDiagonalArray([1.0, 1.0, 0.0]) * svd.VT;
     }
 
-    private double EpipolarError(Matrix<double> e, Photo a, Photo b, Match match, EpipolarWorkspace workspace)
+    private double EpipolarError(Matrix<double> essentialMatrix, Photo leftPhoto, Photo rightPhoto, Match match, EpipolarWorkspace workspace)
     {
-        var first = Ray(a, match.A);
-        var second = Ray(b, match.B);
+        var first = Ray(leftPhoto, match.A);
+        var second = Ray(rightPhoto, match.B);
         var p = workspace.First;
         var q = workspace.Second;
         p[0] = first.X;
@@ -181,13 +181,13 @@ public sealed class CameraGeometry : ICameraGeometry
         q[2] = second.Z;
         var ep = workspace.Forward;
         var etq = workspace.Reverse;
-        e.Multiply(p, ep);
-        e.TransposeThisAndMultiply(q, etq);
+        essentialMatrix.Multiply(p, ep);
+        essentialMatrix.TransposeThisAndMultiply(q, etq);
         var numerator = q.DotProduct(ep);
         return numerator * numerator / Math.Max(1e-15, ep[0] * ep[0] + ep[1] * ep[1] + etq[0] * etq[0] + etq[1] * etq[1]);
     }
 
-    public RelativePose? EstimateRelative(Photo a, Photo b, List<Match> matches)
+    public RelativePose? EstimateRelative(Photo leftPhoto, Photo rightPhoto, List<Match> matches)
     {
         if (matches.Count < 12)
         {
@@ -199,15 +199,15 @@ public sealed class CameraGeometry : ICameraGeometry
         var inliers = new List<Match>(matches.Count);
         var sample = new Match[8];
         var workspace = new EpipolarWorkspace();
-        var threshold = Square(3.0 * Math.Max(a.Width, b.Width) / 1000 / Math.Min(a.FocalPixels, b.FocalPixels));
+        var threshold = Square(3.0 * Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000 / Math.Min(leftPhoto.FocalPixels, rightPhoto.FocalPixels));
         for (var iteration = 0; iteration < 160; iteration++)
         {
             samples.Select<Match>(matches, random, sample);
-            var e = Essential(a, b, sample);
+            var e = Essential(leftPhoto, rightPhoto, sample);
             inliers.Clear();
             foreach (var match in matches)
             {
-                if (EpipolarError(e, a, b, match, workspace) < threshold)
+                if (EpipolarError(e, leftPhoto, rightPhoto, match, workspace) < threshold)
                 {
                     inliers.Add(match);
                 }
@@ -225,7 +225,7 @@ public sealed class CameraGeometry : ICameraGeometry
             return null;
         }
 
-        var final = Essential(a, b, best).Svd(true);
+        var final = Essential(leftPhoto, rightPhoto, best).Svd(true);
         var u = final.U;
         var vt = final.VT;
         if (u.Determinant() < 0)
@@ -267,7 +267,7 @@ public sealed class CameraGeometry : ICameraGeometry
                 var count = 0;
                 foreach (var match in best)
                 {
-                    if (Triangulate(a, b, poseA, poseB, match, 20) != null)
+                    if (Triangulate(leftPhoto, rightPhoto, poseA, poseB, match, 20) != null)
                     {
                         count++;
                     }

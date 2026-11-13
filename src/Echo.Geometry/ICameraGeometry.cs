@@ -4,19 +4,19 @@ namespace Echo.Geometry;
 
 public interface ICameraGeometry
 {
-    V3 Rotate(double[] r, V3 p);
-    double[] Transpose(double[] r);
-    double[] Multiply(double[] a, double[] b);
-    void Multiply(ReadOnlySpan<double> a, ReadOnlySpan<double> b, Span<double> result);
-    double[] AttitudeRotation(Attitude a);
+    V3 Rotate(double[] rotation, V3 vector);
+    double[] Transpose(double[] rotation);
+    double[] Multiply(double[] leftMatrix, double[] rightMatrix);
+    void Multiply(ReadOnlySpan<double> leftMatrix, ReadOnlySpan<double> rightMatrix, Span<double> result);
+    double[] AttitudeRotation(Attitude attitude);
     V3 ToLocal(GeoPosition position, GeoPosition origin);
     double[] LocalToEcefMatrix(GeoPosition origin);
-    V3 Ecef(GeoPosition p);
+    V3 Ecef(GeoPosition position);
     double Focal(Photo photo, CameraPose? camera = null);
     V3 Ray(Photo photo, double[] pixel, CameraPose? camera = null);
     V3? ProjectPoint(Photo photo, CameraPose pose, V3 point);
     double[]? Project(Photo photo, CameraPose pose, V3 point);
-    Triangulated? Triangulate(Photo a, Photo b, CameraPose ca, CameraPose cb, Match match, double maxError = 12);
+    Triangulated? Triangulate(Photo leftPhoto, Photo rightPhoto, CameraPose leftCamera, CameraPose rightCamera, Match match, double maximumReprojectionErrorPixels = 12);
     double Square(double x);
-    RelativePose? EstimateRelative(Photo a, Photo b, List<Match> matches);
+    RelativePose? EstimateRelative(Photo leftPhoto, Photo rightPhoto, List<Match> matches);
 }

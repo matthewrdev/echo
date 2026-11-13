@@ -4,5 +4,5 @@ namespace Echo.Matching;
 
 public interface IFeatureMatcher
 {
-    ImagePair Match(FeatureSet a, FeatureSet b, Settings settings, CancellationToken cancellation);
+    ImagePair Match(FeatureSet leftFeatures, FeatureSet rightFeatures, Settings settings, CancellationToken cancellation);
 }

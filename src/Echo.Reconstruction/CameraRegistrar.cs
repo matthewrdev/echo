@@ -23,7 +23,7 @@ public sealed class CameraRegistrar : ICameraRegistrar
         return Register(photo, CollectObservations(photo.Id, pairs, points));
     }
 
-    private List<Observation> CollectObservations(string id, List<ImagePair> pairs, List<CloudPoint> points)
+    private List<Observation> CollectObservations(string imageId, List<ImagePair> pairs, List<CloudPoint> points)
     {
         var lookup = new Dictionary<string, double[]>();
         string Key(string image, double[] pixel) => $"{image}:{Math.Round(pixel[0], 1)}:{Math.Round(pixel[1], 1)}";
@@ -36,18 +36,18 @@ public sealed class CameraRegistrar : ICameraRegistrar
         var result = new Dictionary<string, Observation>();
         foreach (var pair in pairs)
         {
-            if (pair.A != id && pair.B != id)
+            if (pair.A != imageId && pair.B != imageId)
             {
                 continue;
             }
             foreach (var match in pair.Matches)
             {
-                var ownA = pair.A == id;
+                var ownA = pair.A == imageId;
                 var own = ownA ? match.A : match.B;
                 var other = ownA ? match.B : match.A;
                 if (lookup.TryGetValue(Key(ownA ? pair.B : pair.A, other), out var point))
                 {
-                    result.TryAdd(Key(id, own), new Observation
+                    result.TryAdd(Key(imageId, own), new Observation
                     {
                         Pixel = own,
                         Point = point

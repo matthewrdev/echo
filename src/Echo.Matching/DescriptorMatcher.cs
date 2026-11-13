@@ -13,86 +13,86 @@ public sealed class DescriptorMatcher : IDescriptorMatcher
     {
     }
 
-    public DescriptorMatches Match<T>(ReadOnlySpan<T> a, ReadOnlySpan<T> b, Settings settings, CancellationToken cancellation, bool reversible = false) where T : IFeatureDescriptor
+    public DescriptorMatches Match<T>(ReadOnlySpan<T> leftFeatures, ReadOnlySpan<T> rightFeatures, Settings settings, CancellationToken cancellation, bool allowReversedDescriptor = false) where T : IFeatureDescriptor
     {
         var diagnostics = new MatchingDiagnostics
         {
-            FeaturesA = a.Length,
-            FeaturesB = b.Length,
+            FeaturesA = leftFeatures.Length,
+            FeaturesB = rightFeatures.Length,
             RatioThreshold = settings.MatchRatioThreshold,
             DistanceThreshold = settings.MatchDistanceThreshold
         };
         var result = new DescriptorMatches([], diagnostics);
-        if (a.Length < 2 || b.Length < 2)
+        if (leftFeatures.Length < 2 || rightFeatures.Length < 2)
         {
-            diagnostics.RejectedAmbiguous = a.Length;
+            diagnostics.RejectedAmbiguous = leftFeatures.Length;
             return result;
         }
 
-        var numbers = ArrayPool<double>.Shared.Rent(b.Length + a.Length * 2);
-        var indices = ArrayPool<int>.Shared.Rent(b.Length + a.Length);
+        var numbers = ArrayPool<double>.Shared.Rent(rightFeatures.Length + leftFeatures.Length * 2);
+        var indices = ArrayPool<int>.Shared.Rent(rightFeatures.Length + leftFeatures.Length);
         try
         {
-            var reverseBest = numbers.AsSpan(0, b.Length);
-            reverseBest.Fill(double.PositiveInfinity);
-            var scores = numbers.AsSpan(b.Length, a.Length);
-            var seconds = numbers.AsSpan(b.Length + a.Length, a.Length);
-            var reverse = indices.AsSpan(0, b.Length);
-            var best = indices.AsSpan(b.Length, a.Length);
-            reverse.Clear();
-            best.Clear();
-            for (var i = 0; i < a.Length; i++)
+            var rightBestDistances = numbers.AsSpan(0, rightFeatures.Length);
+            rightBestDistances.Fill(double.PositiveInfinity);
+            var leftBestDistances = numbers.AsSpan(rightFeatures.Length, leftFeatures.Length);
+            var leftSecondBestDistances = numbers.AsSpan(rightFeatures.Length + leftFeatures.Length, leftFeatures.Length);
+            var rightToLeftIndices = indices.AsSpan(0, rightFeatures.Length);
+            var leftToRightIndices = indices.AsSpan(rightFeatures.Length, leftFeatures.Length);
+            rightToLeftIndices.Clear();
+            leftToRightIndices.Clear();
+            for (var leftIndex = 0; leftIndex < leftFeatures.Length; leftIndex++)
             {
                 cancellation.ThrowIfCancellationRequested();
-                var descriptorA = a[i].Descriptor;
-                var first = double.PositiveInfinity;
-                var second = first;
-                for (var j = 0; j < b.Length; j++)
+                var leftDescriptor = leftFeatures[leftIndex].Descriptor;
+                var bestDistance = double.PositiveInfinity;
+                var secondBestDistance = bestDistance;
+                for (var rightIndex = 0; rightIndex < rightFeatures.Length; rightIndex++)
                 {
-                    var descriptorB = b[j].Descriptor;
-                    var distance = Distance(descriptorA, descriptorB, false);
-                    if (reversible)
+                    var rightDescriptor = rightFeatures[rightIndex].Descriptor;
+                    var distance = Distance(leftDescriptor, rightDescriptor, false);
+                    if (allowReversedDescriptor)
                     {
-                        distance = Math.Min(distance, Distance(descriptorA, descriptorB, true));
+                        distance = Math.Min(distance, Distance(leftDescriptor, rightDescriptor, true));
                     }
 
-                    if (distance < reverseBest[j])
+                    if (distance < rightBestDistances[rightIndex])
                     {
-                        reverseBest[j] = distance;
-                        reverse[j] = i;
+                        rightBestDistances[rightIndex] = distance;
+                        rightToLeftIndices[rightIndex] = leftIndex;
                     }
 
-                    if (distance < first)
+                    if (distance < bestDistance)
                     {
-                        second = first;
-                        first = distance;
-                        best[i] = j;
+                        secondBestDistance = bestDistance;
+                        bestDistance = distance;
+                        leftToRightIndices[leftIndex] = rightIndex;
                     }
-                    else if (distance < second)
+                    else if (distance < secondBestDistance)
                     {
-                        second = distance;
+                        secondBestDistance = distance;
                     }
                 }
 
-                scores[i] = first;
-                seconds[i] = second;
+                leftBestDistances[leftIndex] = bestDistance;
+                leftSecondBestDistances[leftIndex] = secondBestDistance;
             }
 
-            for (var i = 0; i < a.Length; i++)
+            for (var leftIndex = 0; leftIndex < leftFeatures.Length; leftIndex++)
             {
-                if (reverse[best[i]] != i)
+                if (rightToLeftIndices[leftToRightIndices[leftIndex]] != leftIndex)
                 {
                     diagnostics.RejectedNonMutual++;
                     continue;
                 }
 
-                if (scores[i] >= seconds[i] * settings.MatchRatioThreshold)
+                if (leftBestDistances[leftIndex] >= leftSecondBestDistances[leftIndex] * settings.MatchRatioThreshold)
                 {
                     diagnostics.RejectedAmbiguous++;
                     continue;
                 }
 
-                if (scores[i] > settings.MatchDistanceThreshold)
+                if (leftBestDistances[leftIndex] > settings.MatchDistanceThreshold)
                 {
                     diagnostics.RejectedDistance++;
                     continue;
@@ -100,7 +100,7 @@ public sealed class DescriptorMatcher : IDescriptorMatcher
 
                 diagnostics.Accepted++;
 
-                result.Matches.Add(new DescriptorCorrespondence(i, best[i], scores[i]));
+                result.Matches.Add(new DescriptorCorrespondence(leftIndex, leftToRightIndices[leftIndex], leftBestDistances[leftIndex]));
             }
 
             return result;
@@ -111,26 +111,26 @@ public sealed class DescriptorMatcher : IDescriptorMatcher
             ArrayPool<int>.Shared.Return(indices);
         }
     }
-    private double Distance(ReadOnlySpan<float> a, ReadOnlySpan<float> b, bool reverse)
+    private double Distance(ReadOnlySpan<float> leftDescriptor, ReadOnlySpan<float> rightDescriptor, bool reverseRightDescriptor)
     {
-        if (a.Length == 0 || a.Length != b.Length)
+        if (leftDescriptor.Length == 0 || leftDescriptor.Length != rightDescriptor.Length)
         {
             return double.PositiveInfinity;
         }
         double distance = 0;
-        if (reverse)
+        if (reverseRightDescriptor)
         {
-            for (var i = 0; i < a.Length; i++)
+            for (var i = 0; i < leftDescriptor.Length; i++)
             {
-                var difference = a[i] - b[b.Length - 1 - i];
+                var difference = leftDescriptor[i] - rightDescriptor[rightDescriptor.Length - 1 - i];
                 distance += difference * difference;
             }
         }
         else
         {
-            for (var i = 0; i < a.Length; i++)
+            for (var i = 0; i < leftDescriptor.Length; i++)
             {
-                var difference = a[i] - b[i];
+                var difference = leftDescriptor[i] - rightDescriptor[i];
                 distance += difference * difference;
             }
         }

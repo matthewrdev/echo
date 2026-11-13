@@ -50,9 +50,9 @@ internal sealed class TextureTriangle
         return positive || negative;
     }
 
-    private bool Crosses(SKPoint a, SKPoint b, SKPoint c, SKPoint d)
+    private bool Crosses(SKPoint firstStart, SKPoint firstEnd, SKPoint secondStart, SKPoint secondEnd)
     {
-        return Cross(a, b, c) * Cross(a, b, d) < -1e-12 && Cross(c, d, a) * Cross(c, d, b) < -1e-12;
+        return Cross(firstStart, firstEnd, secondStart) * Cross(firstStart, firstEnd, secondEnd) < -1e-12 && Cross(secondStart, secondEnd, firstStart) * Cross(secondStart, secondEnd, firstEnd) < -1e-12;
     }
 
     private double Cross(SKPoint a, SKPoint b, SKPoint c)

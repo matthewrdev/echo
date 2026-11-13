@@ -13,22 +13,22 @@ public sealed class EdgeCollapse : IEdgeCollapse
     {
     }
 
-    public Surface Reduce(Surface input, int target, CancellationToken cancellation)
+    public Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation)
     {
-        if (input.Faces.Count <= target)
+        if (sourceMesh.Faces.Count <= targetFaceCount)
         {
-            return input;
+            return sourceMesh;
         }
 
-        var vertices = new Vertex[input.Vertices.Count];
+        var vertices = new Vertex[sourceMesh.Vertices.Count];
         for (var index = 0; index < vertices.Length; index++)
         {
-            vertices[index] = new Vertex { Position = new V3(input.Vertices[index]) };
+            vertices[index] = new Vertex { Position = new V3(sourceMesh.Vertices[index]) };
         }
-        var faces = new int[input.Faces.Count][];
+        var faces = new int[sourceMesh.Faces.Count][];
         for (var index = 0; index < faces.Length; index++)
         {
-            faces[index] = (int[])input.Faces[index].Clone();
+            faces[index] = (int[])sourceMesh.Faces[index].Clone();
         }
         var removed = new bool[faces.Length];
         var remaining = faces.Length;
@@ -230,7 +230,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
         var updatedNeighbours = new HashSet<int>();
         Span<V3> old = stackalloc V3[3];
         Span<V3> next = stackalloc V3[3];
-        while (remaining > target && queue.TryDequeue(out var edge, out _))
+        while (remaining > targetFaceCount && queue.TryDequeue(out var edge, out _))
         {
             cancellation.ThrowIfCancellationRequested();
             var a = vertices[edge.A];
