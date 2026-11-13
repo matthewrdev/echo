@@ -1,6 +1,8 @@
 import Foundation
 
 struct ProcessingSettings: Codable {
+    var scaleInvariantFeatures: Bool = true
+    var guidedAlignmentPass: Bool = true
     var detectLines: Bool = true
     var lineLimit: Int = 500
     var lineMinimumLength: Int = 24
@@ -45,6 +47,8 @@ struct ProcessingSettings: Codable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: ProcessingSettingsKey.self)
+        scaleInvariantFeatures = try values.decodeIfPresent(Bool.self, forKey: .scaleInvariantFeatures) ?? true
+        guidedAlignmentPass = try values.decodeIfPresent(Bool.self, forKey: .guidedAlignmentPass) ?? true
         detectLines = try values.decodeIfPresent(Bool.self, forKey: .detectLines) ?? true
         lineLimit = try values.decodeIfPresent(Int.self, forKey: .lineLimit) ?? 500
         lineMinimumLength = try values.decodeIfPresent(Int.self, forKey: .lineMinimumLength) ?? 24
@@ -90,6 +94,8 @@ struct ProcessingSettings: Codable {
 
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: ProcessingSettingsKey.self)
+        try values.encode(scaleInvariantFeatures, forKey: .scaleInvariantFeatures)
+        try values.encode(guidedAlignmentPass, forKey: .guidedAlignmentPass)
         try values.encode(detectLines, forKey: .detectLines)
         try values.encode(lineLimit, forKey: .lineLimit)
         try values.encode(lineMinimumLength, forKey: .lineMinimumLength)
@@ -135,11 +141,13 @@ struct ProcessingSettings: Codable {
         switch stage {
         case .features:
             return
-                "Up to \(featureLimit) points · \(detectLines ? "up to \(lineLimit) lines + junctions" : "lines off") · \(featureWidth) px"
+                "\(scaleInvariantFeatures ? "Scale-space" : "Harris") · Up to \(featureLimit) points · \(detectLines ? "up to \(lineLimit) lines + junctions" : "lines off") · \(featureWidth) px"
         case .matching:
             return
                 "\(matchAllPairs ? "All image pairs" : "\(frustumPairNeighbours) overlapping views + \(gpsPairNeighbours) GPS neighbours + \(pairWindow) sequence neighbours") · uniqueness \(matchRatioThreshold) · distance \(matchDistanceThreshold)"
-        case .alignment: return "Up to \(bundleIterations) bundle-adjustment iterations"
+        case .alignment:
+            return
+                "Up to \(bundleIterations) iterations per solve · guided second pass \(guidedAlignmentPass ? "on" : "off")"
         case .depth:
             return
                 "\(depthWidth) px · \(depthPlanes) initial samples · \(depthRefinementSamples) refinement samples · \(depthNeighbours) stereo views · \(depthNear)–\(depthFar) m range"

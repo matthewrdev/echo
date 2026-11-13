@@ -2,6 +2,10 @@ namespace Echo.Contracts;
 
 public sealed class Match
 {
+    public bool? GeometricInlier
+    {
+        get; set;
+    }
     public string Kind { get; set; } = "corner";
     public double[] A { get; set; } = [];
     public double[] B { get; set; } = [];

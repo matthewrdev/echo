@@ -9,12 +9,12 @@ namespace Echo.Geometry;
 public sealed class CameraGeometry : ICameraGeometry
 {
 
-    private readonly IRandomSampleSelector samples;
+    private readonly IFundamentalEstimator fundamental;
 
     [ImportingConstructor]
-    public CameraGeometry(IRandomSampleSelector samples)
+    public CameraGeometry(IFundamentalEstimator fundamental)
     {
-        this.samples = samples;
+        this.fundamental = fundamental;
     }
 
     public V3 Rotate(double[] rotation, V3 vector) => new(rotation[0] * vector.X + rotation[1] * vector.Y + rotation[2] * vector.Z, rotation[3] * vector.X + rotation[4] * vector.Y + rotation[5] * vector.Z, rotation[6] * vector.X + rotation[7] * vector.Y + rotation[8] * vector.Z);
@@ -143,89 +143,18 @@ public sealed class CameraGeometry : ICameraGeometry
 
     public double Square(double x) => x * x;
 
-    private Matrix<double> Essential(Photo leftPhoto, Photo rightPhoto, IReadOnlyList<Match> matches)
-    {
-        var design = DenseMatrix.Create(matches.Count, 9, 0);
-        for (var i = 0; i < matches.Count; i++)
-        {
-            var p = Ray(leftPhoto, matches[i].A);
-            var q = Ray(rightPhoto, matches[i].B);
-            design[i, 0] = q.X * p.X;
-            design[i, 1] = q.X * p.Y;
-            design[i, 2] = q.X;
-            design[i, 3] = q.Y * p.X;
-            design[i, 4] = q.Y * p.Y;
-            design[i, 5] = q.Y;
-            design[i, 6] = p.X;
-            design[i, 7] = p.Y;
-            design[i, 8] = 1;
-        }
-
-        var vector = design.Svd(true).VT.Row(8);
-        var e = DenseMatrix.Create(3, 3, (r, c) => vector[r * 3 + c]);
-        var svd = e.Svd(true);
-        return svd.U * DenseMatrix.OfDiagonalArray([1.0, 1.0, 0.0]) * svd.VT;
-    }
-
-    private double EpipolarError(Matrix<double> essentialMatrix, Photo leftPhoto, Photo rightPhoto, Match match, EpipolarWorkspace workspace)
-    {
-        var first = Ray(leftPhoto, match.A);
-        var second = Ray(rightPhoto, match.B);
-        var p = workspace.First;
-        var q = workspace.Second;
-        p[0] = first.X;
-        p[1] = first.Y;
-        p[2] = first.Z;
-        q[0] = second.X;
-        q[1] = second.Y;
-        q[2] = second.Z;
-        var ep = workspace.Forward;
-        var etq = workspace.Reverse;
-        essentialMatrix.Multiply(p, ep);
-        essentialMatrix.TransposeThisAndMultiply(q, etq);
-        var numerator = q.DotProduct(ep);
-        return numerator * numerator / Math.Max(1e-15, ep[0] * ep[0] + ep[1] * ep[1] + etq[0] * etq[0] + etq[1] * etq[1]);
-    }
-
     public RelativePose? EstimateRelative(Photo leftPhoto, Photo rightPhoto, List<Match> matches)
     {
-        if (matches.Count < 12)
+        var verified = fundamental.Estimate(matches, Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000.0, default);
+        if (verified == null)
         {
             return null;
         }
-
-        var random = new Random(817);
-        var best = new List<Match>();
-        var inliers = new List<Match>(matches.Count);
-        var sample = new Match[8];
-        var workspace = new EpipolarWorkspace();
-        var threshold = Square(3.0 * Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000 / Math.Min(leftPhoto.FocalPixels, rightPhoto.FocalPixels));
-        for (var iteration = 0; iteration < 160; iteration++)
-        {
-            samples.Select<Match>(matches, random, sample);
-            var e = Essential(leftPhoto, rightPhoto, sample);
-            inliers.Clear();
-            foreach (var match in matches)
-            {
-                if (EpipolarError(e, leftPhoto, rightPhoto, match, workspace) < threshold)
-                {
-                    inliers.Add(match);
-                }
-            }
-            if (inliers.Count > best.Count)
-            {
-                var previous = best;
-                best = inliers;
-                inliers = previous;
-            }
-        }
-
-        if (best.Count < 12)
-        {
-            return null;
-        }
-
-        var final = Essential(leftPhoto, rightPhoto, best).Svd(true);
+        var best = verified.Inliers;
+        var matrix = DenseMatrix.Create(3, 3, (row, column) => verified.Matrix[row * 3 + column]);
+        var leftCalibration = Calibration(leftPhoto);
+        var rightCalibration = Calibration(rightPhoto);
+        var final = (rightCalibration.Transpose() * matrix * leftCalibration).Svd(true);
         var u = final.U;
         var vt = final.VT;
         if (u.Determinant() < 0)
@@ -287,4 +216,14 @@ public sealed class CameraGeometry : ICameraGeometry
 
         return most >= 10 ? result : null;
     }
+    private Matrix<double> Calibration(Photo photo)
+    {
+        return DenseMatrix.OfArray(new[,]
+        {
+            { photo.FocalPixels, 0, photo.Width * .5 },
+            { 0, photo.FocalPixels, photo.Height * .5 },
+            { 0, 0, 1.0 }
+        });
+    }
+
 }

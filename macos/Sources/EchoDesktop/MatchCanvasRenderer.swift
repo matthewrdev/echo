@@ -48,7 +48,9 @@ final class MatchCanvasRenderer: CanvasRenderer {
             let color =
                 match.manual
                 ? NSColor.systemOrange
-                : NSColor(calibratedHue: CGFloat(index % 19) / 19, saturation: 0.8, brightness: 1, alpha: 1)
+                : match.geometricInlier == false
+                    ? NSColor.systemGray
+                    : NSColor(calibratedHue: CGFloat(index % 19) / 19, saturation: 0.8, brightness: 1, alpha: 1)
             for second in [false, true] {
                 if let line = second ? match.lineB : match.lineA, line.count == 2 {
                     let start = point(line[0], second: second)

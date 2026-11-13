@@ -32,7 +32,7 @@ struct FeatureViewer: View {
                             Text("Full-resolution pixel: \(feature.x.formatted()), \(feature.y.formatted())").font(
                                 .caption)
                             Text(
-                                "\(feature.kind == "junction" ? "Line junction" : "Harris corner") · \(feature.descriptor.count)-value normalized intensity descriptor"
+                                "\(feature.kind == "junction" ? "Line junction" : feature.kind == "scale-space" ? "Scale-space point" : "Harris corner") · \(feature.descriptor.count)-value normalized descriptor"
                             )
                             .font(.caption).foregroundStyle(.secondary)
                             MatchPatchView(

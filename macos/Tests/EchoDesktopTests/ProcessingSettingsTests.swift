@@ -10,6 +10,10 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(settings.cloudNeighbours, 8)
         XCTAssertEqual(settings.textureChartFaces, 512)
         XCTAssertEqual(settings.frustumPairNeighbours, 12)
+        XCTAssertTrue(settings.scaleInvariantFeatures)
+        XCTAssertTrue(settings.guidedAlignmentPass)
+        settings.scaleInvariantFeatures = false
+        settings.guidedAlignmentPass = false
         settings.frustumPairNeighbours = 24
         settings.pairSearchDistance = 350
         settings.detectLines = false
@@ -34,6 +38,8 @@ final class ProcessingSettingsTests: XCTestCase {
         settings.textureGutter = 8
         let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(settings))
         XCTAssertFalse(restored.detectLines)
+        XCTAssertFalse(restored.scaleInvariantFeatures)
+        XCTAssertFalse(restored.guidedAlignmentPass)
         XCTAssertEqual(restored.lineLimit, 1200)
         XCTAssertEqual(restored.lineMinimumLength, 40)
         XCTAssertEqual(restored.lineGradientThreshold, 0.04)
@@ -62,6 +68,12 @@ final class ProcessingSettingsTests: XCTestCase {
         var changed = original
         changed.textureJpegQuality = 99
         let impact = ProcessingImpact()
+        var algorithmChanged = original
+        algorithmChanged.scaleInvariantFeatures = false
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: algorithmChanged), .features)
+        algorithmChanged = original
+        algorithmChanged.guidedAlignmentPass = false
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: algorithmChanged), .alignment)
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .texture)
         changed.cloudNeighbours = 12
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .cloud)

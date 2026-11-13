@@ -2,6 +2,8 @@ namespace Echo.Contracts;
 
 public sealed class Settings
 {
+    public bool ScaleInvariantFeatures { get; set; } = true;
+    public bool GuidedAlignmentPass { get; set; } = true;
     public bool DetectLines { get; set; } = true;
     public int LineLimit { get; set; } = 500;
     public int LineMinimumLength { get; set; } = 24;

@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Matching;
+using Echo.Geometry;
 
 namespace Echo.Pipeline;
 
@@ -12,14 +13,16 @@ public sealed class MatchingStage : IPipelineStage
     private readonly IJsonCodec jsonCodec;
     private readonly IFeatureMatcher featureMatcher;
     private readonly IImagePairSelector pairSelector;
+    private readonly IImagePairVerifier pairVerifier;
 
     [ImportingConstructor]
-    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IJsonCodec jsonCodec, IFeatureMatcher featureMatcher)
+    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IJsonCodec jsonCodec, IFeatureMatcher featureMatcher, IImagePairVerifier pairVerifier)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
         this.featureMatcher = featureMatcher;
         this.pairSelector = pairSelector;
+        this.pairVerifier = pairVerifier;
     }
 
     public string Name => "matching";
@@ -33,6 +36,11 @@ public sealed class MatchingStage : IPipelineStage
         var cancellation = context.Cancellation;
         var featureUnits = context.ReadArtifact<Dictionary<string, string>>("features", "units.json");
         var wanted = pairSelector.Select(project, images, featureUnits);
+        var photos = new Dictionary<string, Photo>(images.Count, StringComparer.Ordinal);
+        foreach (var photo in images)
+        {
+            photos.Add(photo.Id, photo);
+        }
         context.ReportProgress("matching", $"Selected {wanted.Count:N0} image pairs using viewing overlap, spatial neighbours, capture sequence and hints.");
 
         var pairUnits = new List<string>();
@@ -45,7 +53,7 @@ public sealed class MatchingStage : IPipelineStage
                 a = featureUnits[pair.A],
                 b = featureUnits[pair.B],
                 hints,
-                matcherVersion = 3,
+                matcherVersion = 5,
                 project.Settings.MatchRatioThreshold,
                 project.Settings.MatchDistanceThreshold
             }, dir =>
@@ -63,6 +71,7 @@ public sealed class MatchingStage : IPipelineStage
                                 });
                             }
 
+                            pairVerifier.Verify(photos[pair.A], photos[pair.B], matches, cancellation);
                             fileOperations.AtomicJson(Path.Combine(dir, "pair.json"), matches);
                         });
             pairUnits.Add(unit);

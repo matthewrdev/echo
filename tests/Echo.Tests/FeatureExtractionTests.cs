@@ -44,13 +44,13 @@ public sealed class FeatureExtractionTests
                 using var bitmap = MakePattern(pattern);
                 images.Save(bitmap, store.PathFor("pattern.png"), SKEncodedImageFormat.Png);
                 var photo = new Photo { Id = pattern, Source = "pattern.png", Width = bitmap.Width, Height = bitmap.Height };
-                var settings = new Settings { FeatureWidth = width, FeatureLimit = 300, DetectLines = detectLines, LineMinimumLength = 12, LineGradientThreshold = .025, LineSplitRegions = false };
+                var settings = new Settings { ScaleInvariantFeatures = false, FeatureWidth = width, FeatureLimit = 300, DetectLines = detectLines, LineMinimumLength = 12, LineGradientThreshold = .025, LineSplitRegions = false };
                 var actual = files.Hash(extractor.Extract(store, photo, settings, default));
                 Check(actual == expectedHash, $"Baseline {pattern}: expected {expectedHash}, got {actual}");
                 Parallel.For(0, 6, new ParallelOptions { MaxDegreeOfParallelism = 2 }, iteration =>
                 {
                     // Alternate dimensions to exercise dirty pooled rows and borders.
-                    var alternate = new Settings { FeatureWidth = 64 + iteration * 16, FeatureLimit = 32, DetectLines = true };
+                    var alternate = new Settings { ScaleInvariantFeatures = false, FeatureWidth = 64 + iteration * 16, FeatureLimit = 32, DetectLines = true };
                     extractor.Extract(store, photo, alternate, default);
                     var repeated = files.Hash(extractor.Extract(store, photo, settings, default));
                     Check(repeated == expectedHash, "Each extraction owns its scratch storage");

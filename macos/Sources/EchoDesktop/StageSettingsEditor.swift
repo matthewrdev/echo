@@ -9,6 +9,11 @@ struct StageSettingsEditor: View {
         Form {
             switch stage {
             case .features:
+                Toggle("Scale and rotation invariant points", isOn: $settings.scaleInvariantFeatures)
+                Text(
+                    "Uses gradients across image scales to connect photos taken at different distances and angles. For cross-pass recovery, try 2000 px and 4000 features or higher; the saved feature budget also limits the second alignment pass."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 Toggle("Detect line segments and junctions", isOn: $settings.detectLines)
                 IntegerSettingSlider(title: "Maximum line segments", value: $settings.lineLimit, range: 1...5000)
                     .disabled(!settings.detectLines)
@@ -65,6 +70,11 @@ struct StageSettingsEditor: View {
                     "Higher thresholds accept more candidates, including more false matches. Matches must still be mutual nearest neighbours. These thresholds use squared distances between normalized descriptors. Alignment checks geometry afterwards."
                 ).font(.callout).foregroundStyle(.secondary)
             case .alignment:
+                Toggle("Guided matching and second alignment pass", isOn: $settings.guidedAlignmentPass)
+                Text(
+                    "Uses verified image geometry to search for additional correspondences, verifies them again, then jointly refines cameras and points. Each pair is checkpointed. Frustum overlap alone never counts as a visual match."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 IntegerSettingSlider(
                     title: "Bundle-adjustment iterations", value: $settings.bundleIterations, range: 1...500)
                 Text(

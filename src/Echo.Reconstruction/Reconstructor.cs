@@ -12,14 +12,16 @@ public sealed class Reconstructor : IReconstructor
     private readonly ICameraGeometry cameraGeometry;
     private readonly ICameraRegistrar cameraRegistrar;
     private readonly IRotationRefiner rotationRefiner;
+    private readonly IImagePairVerifier pairVerifier;
 
     [ImportingConstructor]
-    public Reconstructor(ICameraRegistrar cameraRegistrar, IRotationRefiner rotationRefiner, IBundleAdjuster bundleAdjuster, ICameraGeometry cameraGeometry)
+    public Reconstructor(ICameraRegistrar cameraRegistrar, IRotationRefiner rotationRefiner, IBundleAdjuster bundleAdjuster, ICameraGeometry cameraGeometry, IImagePairVerifier pairVerifier)
     {
         this.bundleAdjuster = bundleAdjuster;
         this.cameraGeometry = cameraGeometry;
         this.cameraRegistrar = cameraRegistrar;
         this.rotationRefiner = rotationRefiner;
+        this.pairVerifier = pairVerifier;
     }
 
     public ReconstructionScene Align(ProjectData project,
@@ -51,6 +53,18 @@ public sealed class Reconstructor : IReconstructor
                 Attitude = hint.Attitude ?? prior.Attitude
             };
         }
+
+        // Reject descriptor aliases before they can bias any camera or point estimate.
+        // Recheck legacy artifacts too; serialized display flags are not solver authority.
+        var verifiedPairs = new List<ImagePair>(pairs.Count);
+        foreach (var pair in pairs)
+        {
+            if (images.TryGetValue(pair.A, out var left) && images.TryGetValue(pair.B, out var right))
+            {
+                verifiedPairs.Add(pairVerifier.Verify(left, right, pair, cancellation));
+            }
+        }
+        pairs = verifiedPairs;
 
         var result = new ReconstructionScene();
         foreach (var image in images.Values)
@@ -125,7 +139,10 @@ public sealed class Reconstructor : IReconstructor
         }
 
         TriangulateAll(result, images, pairs, cancellation);
-        checkpoint?.Invoke(result);
+        if (result.Cameras.Count == 2)
+        {
+            checkpoint?.Invoke(result);
+        }
         var registered = new HashSet<string>(StringComparer.Ordinal);
         foreach (var camera in result.Cameras)
         {
@@ -159,7 +176,6 @@ public sealed class Reconstructor : IReconstructor
             }
 
             TriangulateAll(result, images, pairs, cancellation);
-            checkpoint?.Invoke(result);
         }
 
         if (result.Cameras.Count >= 3)

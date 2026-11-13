@@ -4,10 +4,17 @@ struct MatchingViewer: View {
     let data: MatchPresentation
     @Binding var selected: Int?
     @StateObject private var controller = CanvasViewportController()
+    private var summary: String {
+        let verified = data.matches.filter { $0.geometricInlier == true }.count
+        let rejected = data.matches.filter { $0.geometricInlier == false }.count
+        let unverified = data.matches.filter { $0.geometricInlier == nil && !$0.manual }.count
+        return
+            "All \(data.matches.count) candidates · \(verified) passed geometry · \(rejected) rejected (grey) · \(unverified) unverified"
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("All \(data.matches.count) matches · click a point or line to inspect")
+                Text(summary)
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if let diagnostics = data.diagnostics {
@@ -45,12 +52,10 @@ struct MatchingViewer: View {
                             }.labelStyle(.iconOnly)
                         }
                         let match = data.matches[selected]
-                        if match.kind == "line" {
-                            Text("Line candidate · descriptor match only. Not a geometrically verified 3D line.")
-                                .font(.caption).foregroundStyle(.orange)
-                        } else if match.kind == "junction" {
-                            Text("Line-junction point candidate").font(.caption)
-                        }
+                        Text(match.verificationLabel)
+                            .font(.caption).fontWeight(.semibold)
+                            .foregroundStyle(match.geometricInlier == false ? .red : .primary)
+                            .fixedSize(horizontal: false, vertical: true)
                         if match.manual {
                             Text("Manual tie point").font(.caption).foregroundStyle(.orange)
                         } else {
@@ -65,8 +70,8 @@ struct MatchingViewer: View {
                         }
                         Text("Coordinates refer to full-resolution, orientation-normalized photographs.")
                             .font(.caption2).foregroundStyle(.secondary)
-                    }.frame(width: 170)
-                }.frame(height: 170)
+                    }.frame(width: 220)
+                }.frame(minHeight: 230, idealHeight: 250, maxHeight: 280)
             }
         }
     }

@@ -29,7 +29,7 @@ public sealed class FeatureMatcher : IFeatureMatcher
                 A = [first.X, first.Y],
                 B = [second.X, second.Y],
                 Score = match.Distance,
-                Kind = first.Kind == "junction" || second.Kind == "junction" ? "junction" : "corner"
+                Kind = first.Kind == "junction" || second.Kind == "junction" ? "junction" : first.Kind
             });
         }
 

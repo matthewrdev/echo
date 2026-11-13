@@ -4,4 +4,9 @@ using Echo.Tests;
 using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(ReconstructionTests).Assembly, typeof(Processor).Assembly, typeof(CommandApplication).Assembly);
-return composition.Resolve<ReconstructionTests>().Run();
+var scaleTests = new TestSuite();
+composition.Resolve<ScaleSpaceFeatureTests>().Run(scaleTests);
+composition.Resolve<GuidedMatchingTests>().Run(scaleTests);
+composition.Resolve<AlignmentVerificationTests>().Run(scaleTests);
+composition.Resolve<Matrix3InverterTests>().Run(scaleTests);
+return Math.Max(scaleTests.Finish(), composition.Resolve<ReconstructionTests>().Run());

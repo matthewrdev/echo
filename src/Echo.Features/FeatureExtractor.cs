@@ -14,12 +14,14 @@ public sealed class FeatureExtractor : IFeatureExtractor
 {
     private readonly IRasterImageService rasterImageService;
     private readonly ILineDetector lines;
+    private readonly IScaleSpaceFeatures scaleFeatures;
 
     [ImportingConstructor]
-    public FeatureExtractor(IRasterImageService rasterImageService, ILineDetector lines)
+    public FeatureExtractor(IRasterImageService rasterImageService, ILineDetector lines, IScaleSpaceFeatures scaleFeatures)
     {
         this.rasterImageService = rasterImageService;
         this.lines = lines;
+        this.scaleFeatures = scaleFeatures;
     }
 
     public FeatureSet Extract(IProjectStore store, Photo photo, Settings settings, CancellationToken cancellation)
@@ -50,7 +52,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
         var candidates = new FeatureCandidates();
         if (!settings.DetectLines)
         {
-            candidates.Corners = DetectCorners(gray, width, height, cancellation);
+            DetectPoints(candidates, gray, width, height, settings, cancellation);
             return candidates;
         }
 
@@ -63,7 +65,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
                 CancellationToken = cancellation,
                 MaxDegreeOfParallelism = Math.Min(2, Environment.ProcessorCount)
             },
-                () => candidates.Corners = DetectCorners(gray, width, height, cancellation),
+                () => DetectPoints(candidates, gray, width, height, settings, cancellation),
                 () =>
                 {
                     candidates.Lines = lines.Detect(gray, width, height, settings.LineLimit, settings.LineMinimumLength, cancellation,
@@ -81,6 +83,18 @@ public sealed class FeatureExtractor : IFeatureExtractor
         }
 
         return candidates;
+    }
+
+    private void DetectPoints(FeatureCandidates candidates, float[] gray, int width, int height, Settings settings, CancellationToken cancellation)
+    {
+        if (settings.ScaleInvariantFeatures)
+        {
+            candidates.ScaleFeatures = scaleFeatures.Detect(gray, width, height, settings.FeatureLimit, cancellation);
+        }
+        else
+        {
+            candidates.Corners = DetectCorners(gray, width, height, cancellation);
+        }
     }
 
     private FeatureSet SelectFeatures(Photo photo, Settings settings, float[] gray, int width, int height,
@@ -108,6 +122,21 @@ public sealed class FeatureExtractor : IFeatureExtractor
                 line.Start[1] *= (double)photo.Height / height;
                 line.End[1] *= (double)photo.Height / height;
             }
+        }
+
+        if (settings.ScaleInvariantFeatures)
+        {
+            foreach (var feature in candidates.ScaleFeatures)
+            {
+                if (output.Features.Count >= settings.FeatureLimit)
+                {
+                    break;
+                }
+                feature.X *= (double)photo.Width / width;
+                feature.Y *= (double)photo.Height / height;
+                output.Features.Add(feature);
+            }
+            return output;
         }
 
         // Match the previous stable score ordering, including equal-score corners.

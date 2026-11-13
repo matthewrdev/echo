@@ -3,7 +3,8 @@ import Foundation
 struct ProcessingImpact {
     func firstChangedStage(from old: ProcessingSettings, to new: ProcessingSettings) -> PipelineStage? {
         let features =
-            old.featureWidth != new.featureWidth || old.featureLimit != new.featureLimit
+            old.scaleInvariantFeatures != new.scaleInvariantFeatures || old.featureWidth != new.featureWidth
+            || old.featureLimit != new.featureLimit
             || old.detectLines != new.detectLines || old.lineLimit != new.lineLimit
             || old.lineMinimumLength != new.lineMinimumLength
             || old.lineGradientThreshold != new.lineGradientThreshold || old.lineSplitRegions != new.lineSplitRegions
@@ -15,7 +16,9 @@ struct ProcessingImpact {
             || old.frustumPairNeighbours != new.frustumPairNeighbours
             || old.pairSearchDistance != new.pairSearchDistance
         if matching { return .matching }
-        if old.bundleIterations != new.bundleIterations { return .alignment }
+        if old.guidedAlignmentPass != new.guidedAlignmentPass || old.bundleIterations != new.bundleIterations {
+            return .alignment
+        }
         let depth =
             old.depthWidth != new.depthWidth || old.depthPlanes != new.depthPlanes
             || old.depthRefinementSamples != new.depthRefinementSamples || old.depthNeighbours != new.depthNeighbours

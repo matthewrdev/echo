@@ -10,11 +10,15 @@ namespace Echo.Optimization;
 public sealed class BundleAdjuster : IBundleAdjuster
 {
     private readonly ICameraGeometry cameraGeometry;
+    private readonly IFundamentalEstimator fundamental;
+    private readonly IMatrix3Inverter matrixInverter;
 
     [ImportingConstructor]
-    public BundleAdjuster(ICameraGeometry cameraGeometry)
+    public BundleAdjuster(ICameraGeometry cameraGeometry, IFundamentalEstimator fundamental, IMatrix3Inverter matrixInverter)
     {
         this.cameraGeometry = cameraGeometry;
+        this.fundamental = fundamental;
+        this.matrixInverter = matrixInverter;
     }
 
     public void Refine(ProjectData project,
@@ -36,10 +40,29 @@ public sealed class BundleAdjuster : IBundleAdjuster
         {
             photos[i] = imageLookup[cameras[i].ImageId];
             initial[i] = new CameraState(cameras[i]);
+            var position = photos[i].Gps;
+            foreach (var hint in project.Hints)
+            {
+                var applies = hint.Enabled && hint.Type == "camera" && hint.ImageId == photos[i].Id;
+                if (applies)
+                {
+                    position = hint.Position ?? position;
+                }
+            }
+            if (scene.Origin != null && position != null)
+            {
+                initial[i] = initial[i] with
+                {
+                    Centre = cameraGeometry.ToLocal(position, scene.Origin).Array
+                };
+            }
         }
         for (var i = 0; i < cameras.Count; i++)
         {
-            cameras[i].FocalPixels = photos[i].FocalPixels;
+            if (cameras[i].FocalPixels <= 0)
+            {
+                cameras[i].FocalPixels = photos[i].FocalPixels;
+            }
         }
 
         var tracks = BuildTracks(photos, cameras, pairs, cancellation);
@@ -413,7 +436,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 continue;
             }
 
-            var relative = cameraGeometry.EstimateRelative(photos[a], photos[b], pair.Matches);
+            var relative = fundamental.Estimate(pair.Matches, Math.Max(photos[a].Width, photos[b].Width) / 1000.0, cancellation);
             var matches = relative?.Inliers ?? pair.Matches.Where(m => m.Manual).ToList();
             foreach (var match in matches)
             {
@@ -618,16 +641,26 @@ public sealed class BundleAdjuster : IBundleAdjuster
     private void UpdateScene(ReconstructionScene scene, List<Track> tracks, Photo[] photos)
     {
         scene.Points.Clear();
+        var visible = new List<Observation>();
         foreach (var track in tracks)
         {
-            if (track.Observations.Count < 2)
+            visible.Clear();
+            foreach (var observation in track.Observations)
+            {
+                if (Error(track.Point, observation, photos, scene.Cameras) < 4)
+                {
+                    visible.Add(observation);
+                }
+            }
+            if (visible.Count < 3)
             {
                 continue;
             }
 
-            var a = track.Observations[0];
-            foreach (var b in track.Observations.Skip(1))
+            var a = visible[0];
+            for (var index = 1; index < visible.Count; index++)
             {
+                var b = visible[index];
                 scene.Points.Add(new CloudPoint
                 {
                     Position = track.Point.Array,
@@ -662,25 +695,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
 
     private void Inverse3(ReadOnlySpan<double> matrix, Span<double> inverse)
     {
-        var determinant = matrix[0] * (matrix[4] * matrix[8] - matrix[5] * matrix[7]) - matrix[1] * (matrix[3] * matrix[8] - matrix[5] * matrix[6]) + matrix[2] * (matrix[3] * matrix[7] - matrix[4] * matrix[6]);
-        if (Math.Abs(determinant) < 1e-20)
-        {
-            throw new EchoException("Degenerate point geometry.", 5);
-        }
-
-        inverse[0] = matrix[4] * matrix[8] - matrix[5] * matrix[7];
-        inverse[1] = matrix[2] * matrix[7] - matrix[1] * matrix[8];
-        inverse[2] = matrix[1] * matrix[5] - matrix[2] * matrix[4];
-        inverse[3] = matrix[5] * matrix[6] - matrix[3] * matrix[8];
-        inverse[4] = matrix[0] * matrix[8] - matrix[2] * matrix[6];
-        inverse[5] = matrix[2] * matrix[3] - matrix[0] * matrix[5];
-        inverse[6] = matrix[3] * matrix[7] - matrix[4] * matrix[6];
-        inverse[7] = matrix[1] * matrix[6] - matrix[0] * matrix[7];
-        inverse[8] = matrix[0] * matrix[4] - matrix[1] * matrix[3];
-        for (var index = 0; index < inverse.Length; index++)
-        {
-            inverse[index] /= determinant;
-        }
+        matrixInverter.Invert(matrix, inverse);
     }
 
     private double[] Exponential(V3 rotationVector)

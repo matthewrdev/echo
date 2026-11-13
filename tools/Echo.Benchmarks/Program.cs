@@ -3,6 +3,18 @@ using Echo.Composition;
 using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(DepthBenchmark).Assembly, typeof(Processor).Assembly);
+if (args.FirstOrDefault() == "align")
+{
+    return composition.Resolve<AlignmentBenchmark>().Run(args[1..]);
+}
+if (args.FirstOrDefault() == "verify-pair")
+{
+    return composition.Resolve<PairVerificationBenchmark>().Run(args[1..]);
+}
+if (args.FirstOrDefault() == "cross-pass")
+{
+    return composition.Resolve<CrossPassBenchmark>().Run(args[1..]);
+}
 if (args.FirstOrDefault() == "pairs")
 {
     return composition.Resolve<PairSelectionBenchmark>().Run(args[1..]);

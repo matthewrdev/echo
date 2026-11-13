@@ -78,6 +78,8 @@ public sealed class RunContext
             "match-pair" => "matching",
             "depth-image" => "depth",
             "alignment-preview" => "alignment",
+            "alignment-initial" => "alignment",
+            "alignment-guided-pair" => "alignment",
             "cloud-preview" => "cloud",
             _ => stage
         };
@@ -194,6 +196,8 @@ public sealed class RunContext
                 "feature-image" => "features",
                 "match-pair" => "matching",
                 "alignment-preview" => "alignment",
+                "alignment-initial" => "alignment",
+                "alignment-guided-pair" => "alignment",
                 "depth-image" => "depth",
                 _ => stage
             };

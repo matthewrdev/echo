@@ -33,7 +33,8 @@ public sealed class FeatureStage : IPipelineStage
             {
                 image.Id,
                 image.SourceHash,
-                detectorVersion = 4,
+                detectorVersion = 5,
+                project.Settings.ScaleInvariantFeatures,
                 project.Settings.DetectLines,
                 project.Settings.LineLimit,
                 project.Settings.LineMinimumLength,
