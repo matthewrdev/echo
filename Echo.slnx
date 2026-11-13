@@ -1,0 +1,32 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Echo.Infrastructure/Echo.Infrastructure.csproj" />
+    <Project Path="src/Echo.Composition/Echo.Composition.csproj" />
+    <Project Path="src/Echo.Cli/Echo.Cli.csproj" />
+    <Project Path="src/Echo.Contracts/Echo.Contracts.csproj" />
+    <Project Path="src/Echo.Depth/Echo.Depth.csproj" />
+    <Project Path="src/Echo.DenseCloud/Echo.DenseCloud.csproj" />
+    <Project Path="src/Echo.Export/Echo.Export.csproj" />
+    <Project Path="src/Echo.Features/Echo.Features.csproj" />
+    <Project Path="src/Echo.Fusion/Echo.Fusion.csproj" />
+    <Project Path="src/Echo.Geometry/Echo.Geometry.csproj" />
+    <Project Path="src/Echo.Imaging/Echo.Imaging.csproj" />
+    <Project Path="src/Echo.Lines/Echo.Lines.csproj" />
+    <Project Path="src/Echo.Matching/Echo.Matching.csproj" />
+    <Project Path="src/Echo.Meshing/Echo.Meshing.csproj" />
+    <Project Path="src/Echo.Metadata/Echo.Metadata.csproj" />
+    <Project Path="src/Echo.Optimization/Echo.Optimization.csproj" />
+    <Project Path="src/Echo.Pipeline/Echo.Pipeline.csproj" />
+    <Project Path="src/Echo.Projects/Echo.Projects.csproj" />
+    <Project Path="src/Echo.Reconstruction/Echo.Reconstruction.csproj" />
+    <Project Path="src/Echo.Simplification/Echo.Simplification.csproj" />
+    <Project Path="src/Echo.Texturing/Echo.Texturing.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Echo.Tests/Echo.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Echo.Benchmarks/Echo.Benchmarks.csproj" />
+    <Project Path="tools/Echo.CodeStyle/Echo.CodeStyle.csproj" />
+  </Folder>
+</Solution>
