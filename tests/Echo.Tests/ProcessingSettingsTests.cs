@@ -61,6 +61,8 @@ public sealed class ProcessingSettingsTests
                 new Settings { MatchDistanceThreshold = double.PositiveInfinity },
                 new Settings { CloudNeighbours = 2, CloudMinimumSupport = 3 },
                 new Settings { CloudDepthTolerance = 0 },
+                new Settings { CloudWorkerThreads = 257 },
+                new Settings { CloudBatchRows = 0 },
                 new Settings { FusionDetailMultiplier = 17 },
                 new Settings { TextureJpegQuality = 101 },
                 new Settings { TextureGutter = 0 },

@@ -30,22 +30,26 @@ public sealed class RasterImageService : IRasterImageService
 
     public GrayscaleImage ResizeGray(SKBitmap source, int width)
     {
+        var pixels = BorrowPixels(source, out var swapRedBlue);
+        var result = ResizeGray(pixels, source.Width, source.Height, width, swapRedBlue);
+        GC.KeepAlive(source);
+        return result;
+    }
+
+    private ReadOnlySpan<SKColor> BorrowPixels(SKBitmap source, out bool swapRedBlue)
+    {
         var byteColour = source.ColorType is SKColorType.Bgra8888 or SKColorType.Rgba8888;
         var unpremultiplied = source.AlphaType is SKAlphaType.Opaque or SKAlphaType.Unpremul;
         var packedPixels = BitConverter.IsLittleEndian && source.RowBytes == source.Width * sizeof(uint);
         var nativeLayout = byteColour && packedPixels;
         if (nativeLayout && unpremultiplied)
         {
-            // SKColor is an unpremultiplied ARGB uint. Borrow native pixels for
-            // this call; RGBA sources swap the accumulated red and blue channels.
-            // No full-resolution managed pixel copy is made.
-            var pixels = MemoryMarshal.Cast<byte, SKColor>(source.GetPixelSpan());
-            return ResizeGray(pixels, source.Width, source.Height, width, source.ColorType == SKColorType.Rgba8888);
+            // The caller keeps the bitmap alive until this borrowed span is consumed.
+            swapRedBlue = source.ColorType == SKColorType.Rgba8888;
+            return MemoryMarshal.Cast<byte, SKColor>(source.GetPixelSpan());
         }
-
-        // Skia converts other formats, padded rows and premultiplied alpha to
-        // the same colours as the existing bitmap-based resizing path.
-        return ResizeGray(source.Pixels, source.Width, source.Height, width);
+        swapRedBlue = false;
+        return source.Pixels;
     }
 
     private GrayscaleImage ResizeGray(ReadOnlySpan<SKColor> pixels, int sourceWidth, int sourceHeight, int width, bool swapRedBlue = false)
@@ -62,26 +66,8 @@ public sealed class RasterImageService : IRasterImageService
             {
                 var x0 = x * sourceWidth / targetWidth;
                 var x1 = (x + 1) * sourceWidth / targetWidth;
-                long red = 0;
-                long green = 0;
-                long blue = 0;
-                var count = (x1 - x0) * (y1 - y0);
-                for (var sy = y0; sy < y1; sy++)
-                {
-                    var row = pixels.Slice(sy * sourceWidth + x0, x1 - x0);
-                    foreach (var color in row)
-                    {
-                        red += color.Red;
-                        green += color.Green;
-                        blue += color.Blue;
-                    }
-                }
-
-                // Keep the same byte rounding as Resize followed by Gray.
-                var redChannel = (byte)((swapRedBlue ? blue : red) / count);
-                var blueChannel = (byte)((swapRedBlue ? red : blue) / count);
-                output[y * targetWidth + x] = (.299f * redChannel
-                    + .587f * (byte)(green / count) + .114f * blueChannel) / 255;
+                var colour = AveragePixel(pixels, sourceWidth, x0, x1, y0, y1, swapRedBlue);
+                output[y * targetWidth + x] = (.299f * colour.Red + .587f * colour.Green + .114f * colour.Blue) / 255;
             }
         }
 
@@ -145,41 +131,52 @@ public sealed class RasterImageService : IRasterImageService
 
     public SKBitmap Resize(SKBitmap source, int width)
     {
-        var scale = Math.Min(1.0, (double)width / source.Width);
-        var bitmap = new SKBitmap(Math.Max(1, (int)Math.Round(source.Width * scale)), Math.Max(1, (int)Math.Round(source.Height * scale)));
-        // Area averaging prevents aliasing when a full-resolution photograph becomes a
-        // small stereo image. Point sampling destroys correspondence at these scale ratios.
-        var input = source.Pixels;
-        var output = new SKColor[bitmap.Width * bitmap.Height];
-        for (var y = 0; y < bitmap.Height; y++)
-        {
-            for (var x = 0; x < bitmap.Width; x++)
-            {
-                var x0 = x * source.Width / bitmap.Width;
-                var x1 = (x + 1) * source.Width / bitmap.Width;
-                var y0 = y * source.Height / bitmap.Height;
-                var y1 = (y + 1) * source.Height / bitmap.Height;
-                long red = 0;
-                long green = 0;
-                long blue = 0;
-                var count = (x1 - x0) * (y1 - y0);
-                for (var sy = y0; sy < y1; sy++)
-                {
-                    for (var sx = x0; sx < x1; sx++)
-                    {
-                        var color = input[sy * source.Width + sx];
-                        red += color.Red;
-                        green += color.Green;
-                        blue += color.Blue;
-                    }
-                }
+        var resized = ResizePixels(source, width);
+        var bitmap = new SKBitmap(resized.Width, resized.Height);
+        bitmap.Pixels = resized.Pixels;
+        return bitmap;
+    }
 
-                output[y * bitmap.Width + x] = new SKColor((byte)(red / count), (byte)(green / count), (byte)(blue / count));
+    public RasterPixels ResizePixels(SKBitmap source, int width)
+    {
+        var scale = Math.Min(1.0, (double)width / source.Width);
+        var targetWidth = Math.Max(1, (int)Math.Round(source.Width * scale));
+        var targetHeight = Math.Max(1, (int)Math.Round(source.Height * scale));
+        var input = BorrowPixels(source, out var swapRedBlue);
+        var output = new SKColor[targetWidth * targetHeight];
+        for (var y = 0; y < targetHeight; y++)
+        {
+            var y0 = y * source.Height / targetHeight;
+            var y1 = (y + 1) * source.Height / targetHeight;
+            for (var x = 0; x < targetWidth; x++)
+            {
+                var x0 = x * source.Width / targetWidth;
+                var x1 = (x + 1) * source.Width / targetWidth;
+                output[y * targetWidth + x] = AveragePixel(input, source.Width, x0, x1, y0, y1, swapRedBlue);
             }
         }
+        GC.KeepAlive(source);
+        return new RasterPixels(targetWidth, targetHeight, output);
+    }
 
-        bitmap.Pixels = output;
-        return bitmap;
+    private SKColor AveragePixel(ReadOnlySpan<SKColor> pixels, int sourceWidth, int x0, int x1, int y0, int y1, bool swapRedBlue)
+    {
+        long red = 0;
+        long green = 0;
+        long blue = 0;
+        var count = (x1 - x0) * (y1 - y0);
+        for (var y = y0; y < y1; y++)
+        {
+            var row = pixels.Slice(y * sourceWidth + x0, x1 - x0);
+            foreach (var colour in row)
+            {
+                red += colour.Red;
+                green += colour.Green;
+                blue += colour.Blue;
+            }
+        }
+        return new SKColor((byte)((swapRedBlue ? blue : red) / count), (byte)(green / count),
+            (byte)((swapRedBlue ? red : blue) / count));
     }
 
     public void Save(SKBitmap bitmap, string path, SKEncodedImageFormat format, int quality = 92)

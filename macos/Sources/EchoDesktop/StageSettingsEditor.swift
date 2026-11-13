@@ -73,6 +73,13 @@ struct StageSettingsEditor: View {
                 ).foregroundStyle(.secondary)
             case .cloud:
                 IntegerSettingSlider(
+                    title: "CPU workers (0 = automatic)", value: $settings.cloudWorkerThreads, range: 0...256)
+                IntegerSettingSlider(
+                    title: "Rows per worker batch", value: $settings.cloudBatchRows, range: 1...128)
+                Text(
+                    "Rows are checked in parallel and merged in image order. Worker buffers are capped at 64 MB; loaded depth maps and the complete cloud use additional memory. These execution settings do not invalidate saved results."
+                ).font(.caption).foregroundStyle(.secondary)
+                IntegerSettingSlider(
                     title: "Neighbouring views to check", value: $settings.cloudNeighbours, range: 1...64)
                 IntegerSettingSlider(
                     title: "Minimum supporting neighbours", value: $settings.cloudMinimumSupport,

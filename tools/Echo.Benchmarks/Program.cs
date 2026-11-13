@@ -7,4 +7,8 @@ if (args.FirstOrDefault() == "features")
 {
     return composition.Resolve<FeatureBenchmark>().Run(args[1..]);
 }
+if (args.FirstOrDefault() == "cloud")
+{
+    return composition.Resolve<CloudBenchmark>().Run(args[1..]);
+}
 return composition.Resolve<DepthBenchmark>().Run(args);

@@ -1,5 +1,5 @@
 using System.ComponentModel.Composition;
-using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Globalization;
 using System.Text;
 using Echo.Contracts;
@@ -15,12 +15,14 @@ public sealed class CloudBuilder : ICloudBuilder
 {
     private readonly ICameraGeometry cameraGeometry;
     private readonly IRasterImageService rasterImageService;
+    private readonly ICloudExecutionPlanner executionPlanner;
 
     [ImportingConstructor]
-    public CloudBuilder(ICameraGeometry cameraGeometry, IRasterImageService rasterImageService)
+    public CloudBuilder(ICameraGeometry cameraGeometry, IRasterImageService rasterImageService, ICloudExecutionPlanner executionPlanner)
     {
         this.cameraGeometry = cameraGeometry;
         this.rasterImageService = rasterImageService;
+        this.executionPlanner = executionPlanner;
     }
 
     public DenseCloudData Build(IProjectStore store,
@@ -31,78 +33,61 @@ public sealed class CloudBuilder : ICloudBuilder
         Action<DenseCloudProgress>? progress = null,
         Action<DenseCloudReport>? preview = null)
     {
-        var views = maps.Select(map => new DepthView(cameraGeometry, project.Images.Single(i => i.Id == map.ImageId), scene.Cameras.Single(c => c.ImageId == map.ImageId), map)).ToArray();
-        var cloud = new DenseCloudData
+        cancellation.ThrowIfCancellationRequested();
+        var photos = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
+        foreach (var photo in project.Images)
         {
-            ImageIds = maps.Select(m => m.ImageId).ToList()
-        };
-        var totalRows = maps.Sum(map => map.Height);
-        var completedRows = 0;
-        var progressClock = Stopwatch.StartNew();
-        var previewClock = Stopwatch.StartNew();
+            photos.Add(photo.Id, photo);
+        }
+        var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
+        foreach (var camera in scene.Cameras)
+        {
+            cameras.Add(camera.ImageId, camera);
+        }
+        var views = new DepthView[maps.Count];
+        var cloud = new DenseCloudData();
+        cloud.ImageIds.EnsureCapacity(maps.Count);
+        var totalRows = 0;
+        var maximumWidth = 1;
+        var maximumHeight = 1;
+        for (var index = 0; index < maps.Count; index++)
+        {
+            var map = maps[index];
+            views[index] = new DepthView(cameraGeometry, photos[map.ImageId], cameras[map.ImageId], map);
+            cloud.ImageIds.Add(map.ImageId);
+            totalRows += map.Height;
+            maximumWidth = Math.Max(maximumWidth, map.Width);
+            maximumHeight = Math.Max(maximumHeight, map.Height);
+        }
+        var neighbours = new DepthView[views.Length][];
         for (var index = 0; index < views.Length; index++)
         {
-            cancellation.ThrowIfCancellationRequested();
-            var view = views[index];
-            var neighbours = views.Where(v => v != view).OrderBy(v => (v.Centre - view.Centre).Length).Take(project.Settings.CloudNeighbours).ToArray();
-            using var original = SKBitmap.Decode(store.PathFor(project.Images.Single(i => i.Id == view.Map.ImageId).Source));
-            using var image = rasterImageService.Resize(original, view.Map.Width);
-            var colours = image.Pixels;
-            for (var y = 0; y < view.Map.Height; y++)
+            neighbours[index] = SelectNeighbours(views, index, project.Settings.CloudNeighbours);
+        }
+        var plan = executionPlanner.Plan(project.Settings, maximumWidth, maximumHeight);
+        var batches = new CloudRowBatch[plan.Workers];
+        var status = new CloudBuildProgress(views.Length, totalRows, progress, preview, Report);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = plan.Workers, CancellationToken = cancellation };
+        try
+        {
+            for (var slot = 0; slot < batches.Length; slot++)
+            {
+                batches[slot] = new CloudRowBatch(maximumWidth * plan.RowsPerBatch);
+            }
+            for (var index = 0; index < views.Length; index++)
             {
                 cancellation.ThrowIfCancellationRequested();
-                for (var x = 0; x < view.Map.Width; x++)
-                {
-                    var pixel = y * view.Map.Width + x;
-                    var depth = view.Map.Depth[pixel];
-                    if (depth <= 0)
-                    {
-                        continue;
-                    }
-
-                    cloud.InputSamples++;
-                    var point = view.Point(x, y, depth);
-                    var support = 0;
-                    foreach (var other in neighbours)
-                    {
-                        if (Math.Abs(other.Difference(point)) < Math.Max(depth / view.Focal * 2, depth * project.Settings.CloudDepthTolerance))
-                        {
-                            support++;
-                        }
-                    }
-
-                    if (support < project.Settings.CloudMinimumSupport)
-                    {
-                        continue;
-                    }
-
-                    var colour = colours[pixel];
-                    cloud.Samples.Add(new DenseSample((float)point.X, (float)point.Y, (float)point.Z, colour.Red, colour.Green, colour.Blue, index, (float)support / neighbours.Length));
-                }
-
-                completedRows++;
-                if (progressClock.ElapsedMilliseconds >= 500 || y == view.Map.Height - 1)
-                {
-                    progress?.Invoke(new DenseCloudProgress
-                    {
-                        ImageId = view.Map.ImageId,
-                        ImageNumber = index + 1,
-                        TotalImages = views.Length,
-                        CompletedRows = completedRows,
-                        TotalRows = totalRows,
-                        RetainedPoints = cloud.Samples.Count
-                    });
-                    progressClock.Restart();
-                }
-
-                var shouldPublishPreview = preview != null
-                    && cloud.Samples.Count > 0
-                    && (previewClock.ElapsedMilliseconds >= 3000 || completedRows == totalRows);
-                if (shouldPublishPreview)
-                {
-                    preview!(Report(cloud));
-                    previewClock.Restart();
-                }
+                var view = views[index];
+                using var original = SKBitmap.Decode(store.PathFor(photos[view.Map.ImageId].Source));
+                var colours = rasterImageService.ResizePixels(original, view.Map.Width).Pixels;
+                ProcessImage(view, neighbours[index], index, colours, project.Settings, plan, batches, cloud, status, options);
+            }
+        }
+        finally
+        {
+            foreach (var batch in batches)
+            {
+                batch?.Dispose();
             }
         }
 
@@ -110,8 +95,119 @@ public sealed class CloudBuilder : ICloudBuilder
         {
             throw new EchoException("Fewer than 30 depth samples agree between views. Inspect alignment and depth before meshing.", 5);
         }
-
         return cloud;
+    }
+
+    private DepthView[] SelectNeighbours(DepthView[] views, int imageIndex, int limit)
+    {
+        var count = Math.Min(limit, Math.Max(0, views.Length - 1));
+        var result = new DepthView[count];
+        var distances = new double[count];
+        var filled = 0;
+        for (var candidate = 0; candidate < views.Length; candidate++)
+        {
+            if (candidate == imageIndex)
+            {
+                continue;
+            }
+            var distance = (views[candidate].Centre - views[imageIndex].Centre).Length;
+            var position = filled;
+            while (position > 0 && distance.CompareTo(distances[position - 1]) < 0)
+            {
+                position--;
+            }
+            if (position >= count)
+            {
+                continue;
+            }
+            for (var move = Math.Min(filled, count - 1); move > position; move--)
+            {
+                distances[move] = distances[move - 1];
+                result[move] = result[move - 1];
+            }
+            distances[position] = distance;
+            result[position] = views[candidate];
+            filled = Math.Min(count, filled + 1);
+        }
+        return result;
+    }
+
+    private void ProcessImage(DepthView view, DepthView[] neighbours, int imageIndex, SKColor[] colours,
+        Settings settings, CloudExecutionPlan plan, CloudRowBatch[] batches, DenseCloudData cloud,
+        CloudBuildProgress status, ParallelOptions options)
+    {
+        var waveRows = plan.Workers * plan.RowsPerBatch;
+        for (var firstRow = 0; firstRow < view.Map.Height; firstRow += waveRows)
+        {
+            options.CancellationToken.ThrowIfCancellationRequested();
+            var activeBatches = Math.Min(plan.Workers, (view.Map.Height - firstRow + plan.RowsPerBatch - 1) / plan.RowsPerBatch);
+            Parallel.For(0, activeBatches, options, slot =>
+            {
+                var start = firstRow + slot * plan.RowsPerBatch;
+                var end = Math.Min(view.Map.Height, start + plan.RowsPerBatch);
+                ProcessRows(view, neighbours, imageIndex, colours, settings, start, end, batches[slot], options.CancellationToken);
+            });
+            options.CancellationToken.ThrowIfCancellationRequested();
+            var completedRows = 0;
+            for (var slot = 0; slot < activeBatches; slot++)
+            {
+                var batch = batches[slot];
+                var offset = cloud.Samples.Count;
+                cloud.Samples.EnsureCapacity(offset + batch.Count);
+                CollectionsMarshal.SetCount(cloud.Samples, offset + batch.Count);
+                batch.Samples.AsSpan(0, batch.Count).CopyTo(CollectionsMarshal.AsSpan(cloud.Samples).Slice(offset));
+                cloud.InputSamples += batch.InputSamples;
+                completedRows += batch.Rows;
+            }
+            // Only the caller merges samples and invokes callbacks. Workers never
+            // mutate the cloud, so previews observe complete, ordered batches.
+            var finished = firstRow + completedRows == view.Map.Height;
+            status.Advance(view.Map.ImageId, imageIndex, completedRows, finished, cloud);
+        }
+    }
+
+    private void ProcessRows(DepthView view, DepthView[] neighbours, int imageIndex, SKColor[] colours,
+        Settings settings, int firstRow, int lastRow, CloudRowBatch batch, CancellationToken cancellation)
+    {
+        var accepted = 0;
+        var input = 0;
+        Span<DenseSample> samples = batch.Samples;
+        for (var y = firstRow; y < lastRow; y++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var offset = y * view.Map.Width;
+            ReadOnlySpan<float> depths = view.Map.Depth.AsSpan(offset, view.Map.Width);
+            ReadOnlySpan<SKColor> rowColours = colours.AsSpan(offset, view.Map.Width);
+            for (var x = 0; x < depths.Length; x++)
+            {
+                var depth = depths[x];
+                if (depth <= 0)
+                {
+                    continue;
+                }
+                input++;
+                var point = view.Point(x, y, depth);
+                var tolerance = Math.Max(depth / view.Focal * 2, depth * settings.CloudDepthTolerance);
+                var support = 0;
+                foreach (var other in neighbours)
+                {
+                    if (Math.Abs(other.Difference(point)) < tolerance)
+                    {
+                        support++;
+                    }
+                }
+                if (support < settings.CloudMinimumSupport)
+                {
+                    continue;
+                }
+                var colour = rowColours[x];
+                samples[accepted++] = new DenseSample((float)point.X, (float)point.Y, (float)point.Z,
+                    colour.Red, colour.Green, colour.Blue, imageIndex, (float)support / neighbours.Length);
+            }
+        }
+        batch.Count = accepted;
+        batch.InputSamples = input;
+        batch.Rows = lastRow - firstRow;
     }
 
     public DenseCloudReport Report(DenseCloudData cloud)

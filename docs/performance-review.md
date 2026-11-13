@@ -45,6 +45,25 @@ dotnet tools/Echo.Benchmarks/bin/Release/net10.0/Echo.Benchmarks.dll features PR
 
 Local comparison outputs and timing logs are under `local-results/feature-optimization/` (ignored).
 
+## Dense-cloud batching follow-up
+
+All 48 saved Quiet Place depth maps were loaded before timing. Three builds per configuration; medians of the last two warm builds. Colour-image decoding is included; PLY writing/hashing is excluded. A separate user processing job overlapped these measurements, so timings are indicative. Managed allocations are cumulative, not peak resident memory.
+
+| Configuration | Elapsed | Managed allocations |
+| --- | ---: | ---: |
+| Previous serial builder | 17.396 s | 2385.2 MB |
+| Batched builder, one worker | 3.651 s | 419.9 MB |
+| Batched builder, four workers | 3.215 s | 416.5 MB |
+| Batched builder, automatic workers | 2.975 s | 415.6 MB |
+
+Every configuration retained exactly 4,457,016 of 4,800,564 input samples, in the same order, with byte-identical PLY output (`0b20994fe72231caa7b0c7cf95b68882b08c08a8e1b249d52247b2dcfad0465b`). These are performance/parity checks, not proof of reconstruction quality.
+
+The builder indexes photos/cameras once, keeps a bounded nearest-neighbour selection, reads colour pixels without a full-resolution managed copy, and processes row batches into pooled private buffers. Only the caller merges results and publishes progress/previews. Worker scratch is capped at 64 MiB including pool rounding; depth maps and the final cloud are additional memory. CPU worker count and batch rows are execution settings, exposed in the native app without invalidating compatible artifacts. Synthetic tests cover deterministic serial/parallel output, cancellation, callback ownership and buffer reuse.
+
+```sh
+dotnet tools/Echo.Benchmarks/bin/Release/net10.0/Echo.Benchmarks.dll cloud PROJECT RUN 3 local-results/cloud.ply 4 8
+```
+
 ## Allocation and concurrency findings
 
 | Routine | Changes made | Remaining concerns |
@@ -55,7 +74,7 @@ Local comparison outputs and timing logs are under `local-results/feature-optimi
 | Descriptor matching | Span-based distance calculation without per-comparison arrays; separate point and reversible line descriptors. | Exhaustive comparisons remain quadratic in feature counts. No approximate index or GPU matcher yet. |
 | Camera projection and registration | Remove the transpose allocation in general projection; cache camera projection for repeated registration, mesh and texture samples. Reuse DLT scratch storage. | RANSAC samples still sort the observation collection. Essential-matrix scoring still allocates small MathNet vectors per match; both deserve a dedicated numerical regression before replacement. |
 | Bundle adjustment | Reuse observation evaluation, Jacobian, index and Schur-product buffers. Eliminate per-observation LINQ concatenation and array copies. | Camera Hessian and solve remain dense. Dense camera algebra and stored point cross-blocks become the principal scaling limit. Sparse/block solving is a larger algorithm change. |
-| Dense cloud | Existing per-sample structure is a value type. Reserve exact capacity when loading validated binary PLY. | All depth maps and accepted samples remain resident. Growing the construction list and generating previews still allocate. |
+| Dense cloud | Indexed camera/photo lookup, bounded neighbour selection, pooled parallel row batches, deterministic merges and direct colour resizing. Reserve exact capacity when loading validated binary PLY. | All depth maps and accepted samples remain resident. Growing the construction list and generating previews still allocate. |
 | Fusion | Fill one footprint array, sort in place, and sort candidate keys in place. | Voxel candidate expansion and candidate-by-view traversal can dominate time and memory. Spatial indexing and chunked volume processing are still needed for large scenes. |
 | Surface extraction | Reuse corner values, quad indices and signs; cache source-camera projection. | Geometry is stored as jagged vertex/face arrays. This retains many small objects even after temporary allocations are removed. |
 | Edge collapse | Reuse plane, candidate-position and affected-triangle buffers. Preserve candidate order, arithmetic and topology checks. | Repeated neighbour sets, boundary scans and stale priority-queue entries remain expensive. A revision-aware adjacency cache needs separate topology validation. |

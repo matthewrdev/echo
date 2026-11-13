@@ -97,7 +97,7 @@ All controls are serialized in `project.json` and accepted by `config import`. S
 | Matching | `matchAllPairs`, `pairWindow`, `gpsPairNeighbours`, `matchRatioThreshold`, `matchDistanceThreshold` |
 | Alignment | `bundleIterations` |
 | Depth | `depthWidth`, `depthPlanes`, `depthRefinementSamples`, `depthNeighbours`, `depthNear`, `depthFar`, `depthConcurrency`, `depthWorkerThreads`, `depthMemoryBudgetMb` |
-| Dense cloud | `cloudNeighbours`, `cloudMinimumSupport`, `cloudDepthTolerance` |
+| Dense cloud | `cloudNeighbours`, `cloudMinimumSupport`, `cloudDepthTolerance`, `cloudWorkerThreads`, `cloudBatchRows` |
 | Fusion | `fusionDetailMultiplier` |
 | Mesh | `faceLimit` (also informs fusion's grid budget) |
 | Texture | `textureSize`, `textureChartFaces`, `textureChartAngle`, `textureGutter`, `textureJpegQuality` |

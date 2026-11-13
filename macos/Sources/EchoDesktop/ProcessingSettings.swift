@@ -21,6 +21,8 @@ struct ProcessingSettings: Codable {
     var depthNeighbours: Int = 3
     var depthNear: Double = 2
     var depthFar: Double = 100
+    var cloudWorkerThreads: Int = 0
+    var cloudBatchRows: Int = 8
     var cloudNeighbours: Int = 8
     var cloudMinimumSupport: Int = 1
     var cloudDepthTolerance: Double = 0.01
@@ -57,6 +59,8 @@ struct ProcessingSettings: Codable {
         depthNeighbours = try values.decodeIfPresent(Int.self, forKey: .depthNeighbours) ?? 3
         depthNear = try values.decodeIfPresent(Double.self, forKey: .depthNear) ?? 2
         depthFar = try values.decodeIfPresent(Double.self, forKey: .depthFar) ?? 100
+        cloudWorkerThreads = try values.decodeIfPresent(Int.self, forKey: .cloudWorkerThreads) ?? 0
+        cloudBatchRows = try values.decodeIfPresent(Int.self, forKey: .cloudBatchRows) ?? 8
         cloudNeighbours = try values.decodeIfPresent(Int.self, forKey: .cloudNeighbours) ?? 8
         cloudMinimumSupport = try values.decodeIfPresent(Int.self, forKey: .cloudMinimumSupport) ?? 1
         cloudDepthTolerance = try values.decodeIfPresent(Double.self, forKey: .cloudDepthTolerance) ?? 0.01
@@ -92,6 +96,8 @@ struct ProcessingSettings: Codable {
         try values.encode(depthNeighbours, forKey: .depthNeighbours)
         try values.encode(depthNear, forKey: .depthNear)
         try values.encode(depthFar, forKey: .depthFar)
+        try values.encode(cloudWorkerThreads, forKey: .cloudWorkerThreads)
+        try values.encode(cloudBatchRows, forKey: .cloudBatchRows)
         try values.encode(cloudNeighbours, forKey: .cloudNeighbours)
         try values.encode(cloudMinimumSupport, forKey: .cloudMinimumSupport)
         try values.encode(cloudDepthTolerance, forKey: .cloudDepthTolerance)

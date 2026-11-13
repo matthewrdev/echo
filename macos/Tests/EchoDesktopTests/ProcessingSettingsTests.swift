@@ -14,6 +14,8 @@ final class ProcessingSettingsTests: XCTestCase {
         settings.lineMinimumLength = 40
         settings.depthConcurrency = 4
         settings.depthWorkerThreads = 12
+        settings.cloudWorkerThreads = 4
+        settings.cloudBatchRows = 16
         settings.depthMemoryBudgetMb = 2048
         settings.depthWidth = 4096
         settings.depthRefinementSamples = 32
@@ -29,6 +31,8 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(restored.lineMinimumLength, 40)
         XCTAssertEqual(restored.depthConcurrency, 4)
         XCTAssertEqual(restored.depthWorkerThreads, 12)
+        XCTAssertEqual(restored.cloudWorkerThreads, 4)
+        XCTAssertEqual(restored.cloudBatchRows, 16)
         XCTAssertEqual(restored.depthMemoryBudgetMb, 2048)
         XCTAssertEqual(restored.depthWidth, 4096)
         XCTAssertEqual(restored.depthRefinementSamples, 32)
@@ -55,6 +59,8 @@ final class ProcessingSettingsTests: XCTestCase {
         changed = original
         changed.depthConcurrency = 4
         changed.depthWorkerThreads = 12
+        changed.cloudWorkerThreads = 4
+        changed.cloudBatchRows = 16
         changed.depthMemoryBudgetMb = 2048
         XCTAssertNil(impact.firstChangedStage(from: original, to: changed))
         changed.detectLines = false

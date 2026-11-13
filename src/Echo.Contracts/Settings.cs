@@ -16,6 +16,8 @@ public sealed class Settings
     public int GpsPairNeighbours { get; set; } = 3;
     public double MatchRatioThreshold { get; set; } = .72;
     public double MatchDistanceThreshold { get; set; } = .65;
+    public int CloudWorkerThreads { get; set; } = 0;
+    public int CloudBatchRows { get; set; } = 8;
     public int CloudNeighbours { get; set; } = 8;
     public int CloudMinimumSupport { get; set; } = 1;
     public double CloudDepthTolerance { get; set; } = .01;
@@ -49,6 +51,7 @@ public sealed class Settings
             || MatchRatioThreshold <= 0 || MatchRatioThreshold > 1
             || !double.IsFinite(MatchDistanceThreshold)
             || MatchDistanceThreshold <= 0 || MatchDistanceThreshold > 4;
+        var invalidCloudExecution = CloudWorkerThreads is < 0 or > 256 || CloudBatchRows is < 1 or > 128;
         var invalidCloudSettings = CloudNeighbours is < 1 or > 64
             || CloudMinimumSupport < 1 || CloudMinimumSupport > CloudNeighbours
             || !double.IsFinite(CloudDepthTolerance)
@@ -77,6 +80,7 @@ public sealed class Settings
         var invalidSettings = invalidAlignmentSettings
             || invalidLines
             || invalidMatchingSettings
+            || invalidCloudExecution
             || invalidCloudSettings
             || invalidFusionSettings
             || invalidDepthExecution

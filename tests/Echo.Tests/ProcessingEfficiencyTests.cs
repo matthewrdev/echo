@@ -43,7 +43,7 @@ public sealed class ProcessingEfficiencyTests
             bitmap.Pixels = pixels;
             foreach (var width in new[] { 32, 80, 173, 256 })
             {
-                using var reference = images.Resize(bitmap, width);
+                using var reference = ReferenceResize(bitmap, width);
                 var direct = images.ResizeGray(new RasterPixels(173, 117, pixels), width);
                 Check(direct.Width == reference.Width && direct.Height == reference.Height, "Same rounded dimensions");
                 Check(direct.Pixels.SequenceEqual(images.Gray(reference)), "Identical grayscale samples");
@@ -69,8 +69,9 @@ public sealed class ProcessingEfficiencyTests
                         bitmap.Pixels = pixels;
                         foreach (var width in new[] { 32, 80, 173, 256 })
                         {
-                            using var reference = images.Resize(bitmap, width);
+                            using var reference = ReferenceResize(bitmap, width);
                             var direct = images.ResizeGray(bitmap, width);
+                            Check(images.ResizePixels(bitmap, width).Pixels.SequenceEqual(reference.Pixels), "Identical resized colours");
                             Check(direct.Pixels.SequenceEqual(images.Gray(reference)), $"Identical pixels for {colorType}, {alphaType}, padding {padding}, width {width}");
                         }
                     }
@@ -132,6 +133,42 @@ public sealed class ProcessingEfficiencyTests
                 }
             }
         });
+    }
+
+    private SKBitmap ReferenceResize(SKBitmap source, int width)
+    {
+        // Independent pre-optimisation area-average implementation.
+        var scale = Math.Min(1.0, (double)width / source.Width);
+        var result = new SKBitmap(Math.Max(1, (int)Math.Round(source.Width * scale)), Math.Max(1, (int)Math.Round(source.Height * scale)));
+        var input = source.Pixels;
+        var output = new SKColor[result.Width * result.Height];
+        for (var y = 0; y < result.Height; y++)
+        {
+            for (var x = 0; x < result.Width; x++)
+            {
+                var x0 = x * source.Width / result.Width;
+                var x1 = (x + 1) * source.Width / result.Width;
+                var y0 = y * source.Height / result.Height;
+                var y1 = (y + 1) * source.Height / result.Height;
+                long red = 0;
+                long green = 0;
+                long blue = 0;
+                var count = (x1 - x0) * (y1 - y0);
+                for (var sy = y0; sy < y1; sy++)
+                {
+                    for (var sx = x0; sx < x1; sx++)
+                    {
+                        var colour = input[sy * source.Width + sx];
+                        red += colour.Red;
+                        green += colour.Green;
+                        blue += colour.Blue;
+                    }
+                }
+                output[y * result.Width + x] = new SKColor((byte)(red / count), (byte)(green / count), (byte)(blue / count));
+            }
+        }
+        result.Pixels = output;
+        return result;
     }
 
     private void Check(bool condition, string message)
