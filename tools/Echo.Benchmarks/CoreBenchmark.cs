@@ -47,11 +47,12 @@ public sealed class CoreBenchmark
 
     public int Run(string[] args)
     {
-        if (args.Length != 1)
+        if (args.Length is < 1 or > 2)
         {
-            Console.Error.WriteLine("Usage: Echo.Benchmarks core OUTPUT_DIRECTORY");
+            Console.Error.WriteLine("Usage: Echo.Benchmarks core OUTPUT_DIRECTORY [TEXTURE_SIZE]");
             return 2;
         }
+        var textureSize = args.Length == 2 ? int.Parse(args[1]) : 512;
         var store = stores.Open(Path.GetFullPath(args[0]));
         store.Init();
         var a = new FeatureSet { ImageId = "a" };
@@ -112,7 +113,7 @@ public sealed class CoreBenchmark
         }
         source.Pixels = pixels;
         images.Save(source, store.PathFor(photo.Source), SKEncodedImageFormat.Png);
-        var project = new ProjectData { Images = [photo], Settings = new Settings { TextureSize = 512 } };
+        var project = new ProjectData { Images = [photo], Settings = new Settings { TextureSize = textureSize } };
         var scene = new ReconstructionScene { Cameras = [cameraA] };
         Measure("texture-export", () =>
         {
@@ -153,7 +154,7 @@ public sealed class CoreBenchmark
 
     private void Measure(string stage, Func<string> execute)
     {
-        for (var iteration = 0; iteration < 3; iteration++)
+        for (var iteration = 0; iteration < 6; iteration++)
         {
             GC.Collect();
             var allocated = GC.GetTotalAllocatedBytes(true);

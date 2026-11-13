@@ -3,6 +3,14 @@ using Echo.Composition;
 using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(DepthBenchmark).Assembly, typeof(Processor).Assembly);
+if (args.FirstOrDefault() == "pairs")
+{
+    return composition.Resolve<PairSelectionBenchmark>().Run(args[1..]);
+}
+if (args.FirstOrDefault() == "bundle")
+{
+    return composition.Resolve<BundleBenchmark>().Run();
+}
 if (args.FirstOrDefault() == "features")
 {
     return composition.Resolve<FeatureBenchmark>().Run(args[1..]);

@@ -76,7 +76,7 @@ The `core` benchmark runs the same fixture with the previous app's assemblies an
 | Mesh simplification | 146.5 → 35.7 ms | 114.066 → 3.393 MB |
 | Texture baking and GLB export | 77.3 → 58.1 ms | 6.235 → 3.382 MB |
 
-All five serialized output hashes are identical before/after; the exported GLB is byte-identical. The eight-camera real depth benchmark also retains its complete reference hash (`f0850c381ce6363df840b34174d47d83484584d57183815f2aed3629067d24ba`, 745,017 valid samples) after pooling worker hypothesis/cost buffers and median-filter scratch. Its latest warm median was 2.295 s and 2,363 MB allocated; full image decoding still dominates allocations.
+All five serialized output hashes are identical before/after; the exported GLB is byte-identical. The eight-camera real depth benchmark also retains its complete reference hash (`f0850c381ce6363df840b34174d47d83484584d57183815f2aed3629067d24ba`, 745,017 valid samples) after pooling worker hypothesis/cost buffers and median-filter scratch. Its latest warm median was 2.295 s and 2,363 MB allocated; remaining allocations include image decoding and, as the later review below identified, boxed neighbour enumeration inside depth hypotheses.
 
 ```sh
 # Use a fresh disposable output directory; this creates its own fixture project.
@@ -125,3 +125,70 @@ The sensitivity/region-splitting follow-up found 134 line candidates across the 
 The previously inspected real model still contains holes and fragments; it has not become a correct final model because the code runs faster. The approximately 1.5-million-triangle target and survey-accurate scale remain unvalidated. Geometry quality, robust descriptors, missing-depth support, sparse bundle solving and a real line-constrained reconstruction should be addressed before claiming production quality.
 
 A future Metal depth implementation should operate on batches of resident image pyramids, with the current CPU path retained for numerical comparison. No GPU processing backend is implemented in this change.
+
+
+## Second critical review: measured changes and unresolved mathematics
+
+![Measured core changes](performance/core-review.png)
+
+The chart and per-iteration CSVs in `docs/performance/` distinguish **allocation traffic** from **peak resident memory**. Five warm passes follow one discarded warm-up; before/after output hashes match. Bundle and feature comparisons disable tiered compilation in both processes so JIT promotion does not masquerade as an algorithm improvement. These short runs occurred on a workstation also used interactively; changes around 1–2% are inconclusive. The peak-RSS comparison is a single whole-process sample per version, including native memory, warm-up and six core-fixture iterations. It is not the peak RAM of a complete Cliff reconstruction.
+
+| This pass | Before → after median seconds | Before → after managed MB | Interpretation |
+| --- | ---: | ---: | --- |
+| Eight-camera depth, 1024 px | 2.461 → 1.907 | 2407.8 → 1386.9 | 22.5% less time; 42.4% less allocation |
+| 8K atlas + GLB, 2,400 triangles | 1.463 → 1.432 | 274.7 → 6.3 | 97.7% less allocation; no meaningful speed claim |
+| 12-camera, 120-track bundle | 0.0598 → 0.0588 | 106.5 → 96.7 | 9.2% less allocation; no meaningful speed claim |
+| Three-photo points + lines, 2000 px | 1.264 → 1.281 | 211.5 → 217.2 | Concurrent branches did **not** improve this whole-extraction measurement |
+
+Whole-core-fixture peak RSS fell from 1,117 MB to 849 MB (24.0%). The 268 MB difference is consistent with eliminating one managed 8192² four-byte atlas buffer, but one process comparison does not establish a general memory ratio.
+
+Implemented changes:
+
+- **Depth:** the neighbour list was exposed as `IReadOnlyList`, causing a boxed enumerator for each depth hypothesis. The hot loop now uses a span. Camera centres/focals and patch-row offsets are cached without changing arithmetic order. The complete real depth/confidence hash remains identical.
+- **Bundle:** retain and clear the camera Hessian/right-hand side and point cross-block buffers between iterations. Preserve observation insertion order when visibility changes. The dense solve and SVD remain the large scaling limits.
+- **Texture:** write directly into validated native bitmap storage; borrow source pixel spans. Channel order, row stride and premultiplied-alpha fallbacks are tested. All twelve BGRA/RGBA, alpha and padding combinations in the texture test agree; the 8K GLB output hash matches the previous implementation. This removes duplicate storage, not the UV/visibility limitations of the texturer.
+- **Features:** corners and line/junction detection now run as two bounded branches reading the same grayscale image, then join before deterministic suppression and feature selection. Occupancy scratch is pooled and explicitly cleared. The complete result hash is unchanged. Overlap of CPU work does not guarantee faster end-to-end extraction; the chart records the regression rather than hiding it.
+- **Readability:** matcher arguments are `leftFeatures`/`rightFeatures`; the line option is `allowReversedDescriptor`. Matrix, photo, camera, observation and mesh method parameters were similarly clarified. Serialized A/B fields retain their existing contracts.
+
+The hottest numerical paths now use spans or owned arrays, but **not all memory is fixed or pinned**, and not all LINQ has been removed. Descriptor arrays survive into artifacts and require owned storage. Pooling reduces allocation traffic but can retain memory. No raw pointer accesses were added: the changes address demonstrated allocations and copies without bypassing bounds checks. See Microsoft's [unsafe-code guidance](https://learn.microsoft.com/en-us/dotnet/standard/unsafe-code/best-practices).
+
+Remaining correctness and scalability priorities:
+
+1. **Descriptors and calibration:** Harris corners with normalized intensity patches are not scale/rotation/affine-invariant. Straight segments are matched for inspection; only junction points constrain the solver. There is no semantic sky/cloud mask, lens-distortion calibration or full 3D-line bundle constraint. Raising feature limits cannot substitute for these capabilities.
+2. **Bundle mathematics:** the Schur system is dense, with a dense factorization and fixed 10 m GPS soft-prior weighting instead of observation-specific uncertainty. Focal length and pose can absorb systematic errors. No independent control-point or physical-size acceptance check exists. Sparse or iterative Schur methods are appropriate to investigate for larger camera sets; [Ceres documents their trade-offs](https://ceres-solver.readthedocs.io/latest/nnls_solving.html).
+3. **Depth:** frontoparallel patch correlation and heuristic confidence/consistency checks can retain a mutually consistent wrong surface. Source images are still duplicated across concurrent jobs; a budgeted shared pyramid cache is a next memory target. No processing kernel uses Metal yet.
+4. **Fusion and surface extraction:** a full depth-footprint array is sorted for the median; candidate voxels are tested against many cameras; candidate growth and jagged geometry arrays remain expensive. Selection algorithms, spatial visibility indexing and chunked volume storage need separate correctness checks.
+5. **Texture:** gutter expansion still revisits large atlas regions; chart construction/packing remain serial. The pipeline lacks seam/exposure balancing and robust visibility treatment for all surfaces. Eliminating copies does not make a fragmented source mesh correct.
+
+### Shell investigation and broader pair selection
+
+Saved Cliff run `b5e21cac58754a9a96a35af26fd16295` contains 193 cameras and 20,492 exported sparse pair records representing 6,715 unique tracks. Its normalized median reprojection error is 0.486 px at 1000-pixel width (about 1.96 source pixels), yet cameras moved up to 24.85 m from their starting positions. A small reprojection residual is not evidence that the shell is real or that scale is accurate.
+
+The user's selected point 2,190 is at `(225.817, -23.668, 104.825)` and is observed only by photos 0606, 0607 and 0608, at capture elevations 53.702, 53.302 and 52.602 m. These are adjacent lower-pass photos. It has no higher-pass observation in the saved track.
+
+The old pair selector used an unscaled latitude/longitude distance and ignored elevation and viewing direction. The new selector:
+
+- computes camera positions in local metres, using elevation only when both altitudes exist and their datum labels agree;
+- tests finite viewing-pyramid overlap using face and edge separating axes, expanded by position uncertainty;
+- ranks overlap across the entire capture set, with half the overlap budget reserved for candidates differing by at least 3 m elevation or 8° pitch when available;
+- retains nearest spatial neighbours, sequence neighbours and explicit overlap/tie hints as additional sources;
+- applies camera hints consistently and saves selection evidence with the matching artifact;
+- exposes overlap count and viewing-distance controls in the native settings; changes invalidate Matching and later stages. Selection algorithm version is now 2. Earlier feature artifacts and compatible individual image-pair comparisons can still be reused.
+
+Defaults are 12 overlap candidates per photo and 200 m viewing distance. This distance is a search bound, not measured surface depth. Identically labelled unknown altitude datums are treated as provisionally comparable with GPS uncertainty; datasets mixing incompatible datums need corrected metadata or hints. Frustum overlap does not test occlusion or establish a feature correspondence. Photos lacking orientation/altitude fall back to spatial/sequence/hint pairs; there is no global visual-retrieval index yet.
+
+A read-only probe of the saved run selected 1,711 total pairs, including 650 not previously tested (the old set contained 1,106). Selection took about 0.20 seconds. For photo 0608, newly selected higher/different-pass photos gave 9–24 descriptor candidates and **zero accepted relative-pose solutions**; adjacent 0607/0609 pairs had 84/129 RANSAC inliers. These are model-consistency counts, not ground-truth correspondence labels. The pair-selection fix broadens coverage, but **the shell remains unresolved**. Do not call this a corrected final reconstruction or merely hide the affected points.
+
+Reproduce the read-only diagnostic with saved feature artifacts:
+
+```sh
+dotnet tools/Echo.Benchmarks/bin/Release/net10.0/Echo.Benchmarks.dll pairs PROJECT RUN local-results/pair-probe.json IMAGE_FILENAME
+```
+
+The sparse inspector now lets users select a track, browse its source photographs with a slider, and inspect the exact feature patch and saved error. All 3D stages share framing/reset controls and an unlit transparent metre grid. Minor metre lines fade when subpixel, leaving labelled 10 m guides; zooming reveals 1 m cells. Saved Cliff rendering and exact unit spacing are checked without changing the user's project.
+
+### Georeferencing and DEM scope
+
+Export remains a local-coordinate GLB plus custom `cliff.geo.json` and `cliff.report.json` sidecars. The geo sidecar carries the origin, East/Up/South axis convention, row-major local-to-ECEF transform, cameras, horizontal/vertical datum labels and warnings. Georeferencing is not embedded in the GLB; the sidecar is not a GeoJSON FeatureCollection. Metric scale is intended for referenced scenes, but physical accuracy remains unverified.
+
+Automatic DEM retrieval is not implemented. A terrain DEM could help with context and weak elevation/depth bounds after datum reconciliation; a single-height terrain raster cannot represent cliff overhangs or establish that a second sparse layer is wrong. [Geoscience Australia's elevation portal](https://www.ga.gov.au/scientific-topics/national-location-information/elvis-elevation-information-system) distinguishes available terrain and LiDAR products.
