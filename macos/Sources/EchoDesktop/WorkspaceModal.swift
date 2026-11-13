@@ -26,6 +26,7 @@ struct WorkspaceModal: View {
         case .settings: ProcessingSettingsView(workspace: workspace)
         case .georeference: GeoreferenceView(workspace: workspace)
         case .hints: HintEditor(workspace: workspace)
+        case .storage: ArtifactStorageView(workspace: workspace)
         case .history: RunHistoryView(workspace: workspace)
         }
     }

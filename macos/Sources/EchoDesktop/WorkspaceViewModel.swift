@@ -16,6 +16,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var openingError: String?
     @Published var root: String
     @Published var inspection: Inspection?
+    @Published var storageInventory: ArtifactStorageInventory?
     @Published var runs: [RunSummary] = []
     @Published var selectedRun = "latest"
     @Published var selectedPhotoID: String?
@@ -387,6 +388,33 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         let action = pendingChange?.apply
         pendingChange = nil
         action?()
+    }
+
+    func loadStorage() {
+        perform("Inspecting generated files…") {
+            self.storageInventory = try await self.client.storage(root: self.root)
+        }
+    }
+
+    func prepareDeletion(artifact: String?) {
+        let projectRoot = root
+        perform("Preparing deletion preview…") {
+            let plan = try await self.client.deletionPlan(root: projectRoot, artifact: artifact)
+            self.pendingChange = ProjectEditRequest(
+                title: plan.purgeAll ? "Purge all generated results?" : "Delete artifact and dependent indexes?",
+                message: plan.warning,
+                apply: {
+                    guard self.root == projectRoot else { return }
+                    self.perform("Deleting generated results…") {
+                        let arguments =
+                            ["storage", "delete", "--confirm", plan.token]
+                            + (artifact.map { ["--artifact", $0] } ?? [])
+                        try await self.client.command(root: projectRoot, arguments: arguments, progress: { _ in })
+                        self.selectedRun = "latest"
+                        self.storageInventory = try await self.client.storage(root: projectRoot)
+                    }
+                }, actionTitle: plan.purgeAll ? "Purge all results" : "Delete artifact", destructive: true)
+        }
     }
 
     func reset(from stage: PipelineStage) {

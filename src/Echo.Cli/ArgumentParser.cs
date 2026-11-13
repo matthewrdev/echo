@@ -28,6 +28,8 @@ public sealed class ArgumentParser : IArgumentParser
             "value",
             "target",
             "from",
+            "artifact",
+            "confirm",
             "run",
             "lat",
             "lon",

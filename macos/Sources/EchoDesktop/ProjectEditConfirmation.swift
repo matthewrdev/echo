@@ -11,7 +11,10 @@ struct ProjectEditConfirmation: ViewModifier {
                 get: { active && workspace.pendingChange != nil },
                 set: { if !$0 { workspace.pendingChange = nil } }), titleVisibility: .visible
         ) {
-            Button(workspace.pendingChange?.actionTitle ?? "Apply change") { workspace.applyPendingEdit() }
+            Button(
+                workspace.pendingChange?.actionTitle ?? "Apply change",
+                role: workspace.pendingChange?.destructive == true ? .destructive : nil
+            ) { workspace.applyPendingEdit() }
             Button("Cancel", role: .cancel) { workspace.pendingChange = nil }
         } message: {
             Text(workspace.pendingChange?.message ?? "")

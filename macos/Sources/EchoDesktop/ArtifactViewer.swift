@@ -42,6 +42,7 @@ struct ArtifactViewer: View {
                                     || workspace.inspection?.run?.status == "completed")
                         Button("Reset from this stage…") { workspace.reset(from: workspace.selectedStage) }
                             .disabled(!workspace.canEdit)
+                        Button("Manage generated files…") { workspace.sheet = .storage }
                         Divider()
                         Button("Show artifact files") { workspace.revealArtifact(workspace.selectedStage) }
                             .disabled(workspace.inspection?.run?.artifacts[workspace.selectedStage.rawValue] == nil)

@@ -18,6 +18,7 @@ struct ProjectSidebar: View {
                     Button("Project settings", systemImage: "gearshape") { workspace.sheet = .settings }
                     Button("Georeference", systemImage: "globe") { workspace.sheet = .georeference }
                     Button("Placement hints", systemImage: "pin") { workspace.sheet = .hints }
+                    Button("Generated files", systemImage: "externaldrive") { workspace.sheet = .storage }
                     Button("Saved runs", systemImage: "clock.arrow.circlepath") { workspace.sheet = .history }
                 }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).disabled(workspace.inspection == nil)

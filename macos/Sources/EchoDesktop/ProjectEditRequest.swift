@@ -6,4 +6,5 @@ struct ProjectEditRequest: Identifiable {
     let message: String
     let apply: () -> Void
     var actionTitle = "Apply change"
+    var destructive = false
 }

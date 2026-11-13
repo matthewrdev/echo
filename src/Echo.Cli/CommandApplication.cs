@@ -22,6 +22,9 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH sets list
     echo-photo --project PATH sets assign IMAGE_ID --set NAME
     echo-photo --project PATH pipeline reset --from STAGE
+    echo-photo --project PATH storage list
+    echo-photo --project PATH storage plan [--artifact artifacts/STAGE/KEY]
+    echo-photo --project PATH storage delete --confirm TOKEN [--artifact artifacts/STAGE/KEY]
     echo-photo --project PATH config show
     echo-photo --project PATH config import FILE
     echo-photo --project PATH hints list|import FILE

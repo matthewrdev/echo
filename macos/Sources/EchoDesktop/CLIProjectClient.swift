@@ -7,6 +7,17 @@ final class CLIProjectClient: ProjectClient {
         self.cli = cli
     }
 
+    func storage(root: String) async throws -> ArtifactStorageInventory {
+        let bytes = try await cli.execute(["--project", root, "storage", "list"], progress: { _ in })
+        return try JSONDecoder().decode(ArtifactStorageInventory.self, from: bytes)
+    }
+
+    func deletionPlan(root: String, artifact: String?) async throws -> ArtifactDeletionPlan {
+        let arguments = ["--project", root, "storage", "plan"] + (artifact.map { ["--artifact", $0] } ?? [])
+        let bytes = try await cli.execute(arguments, progress: { _ in })
+        return try JSONDecoder().decode(ArtifactDeletionPlan.self, from: bytes)
+    }
+
     func inspect(root: String, run: String) async throws -> Inspection {
         let bytes = try await cli.execute(["--project", root, "inspect", "--run", run], progress: { _ in })
         return try JSONDecoder().decode(Inspection.self, from: bytes)
