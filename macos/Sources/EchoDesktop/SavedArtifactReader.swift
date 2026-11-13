@@ -90,6 +90,13 @@ final class SavedArtifactReader: ArtifactReader {
             guard let unit else { throw CLIError(message: "Select a saved image or pair.") }
             return unit.file
         }
+        func metricScale() -> Bool {
+            guard let alignment = run.artifacts["alignment"],
+                let scene: ReconstructionScene = try? read(
+                    root.appendingPathComponent(alignment).appendingPathComponent("scene.json"))
+            else { return false }
+            return scene.origin != nil && !scene.frame.contains("arbitrary")
+        }
         switch stage {
         case .features:
             let features: FeatureSet = try read(unitFile())
@@ -149,7 +156,8 @@ final class SavedArtifactReader: ArtifactReader {
                 reconstruction: nil, points: [], photos: [], root: root, surface: surface,
                 uvs: artifact.uvs, texture: image, wireframe: false)
             return ArtifactPresentation(
-                title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue)
+                title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue,
+                metricScale: metricScale())
         case .export:
             let asset = try glb.read(folder.appendingPathComponent("cliff.glb"))
             let scene = scenes.make(
@@ -157,7 +165,7 @@ final class SavedArtifactReader: ArtifactReader {
                 uvs: asset.uvs, texture: mode == "Textured" ? asset.image : nil, wireframe: mode == "Wireframe")
             return ArtifactPresentation(
                 title: stage.title, detail: "\(asset.surface.faces.count.formatted()) triangles · actual exported GLB",
-                scene: scene, sceneIdentity: run.id + stage.rawValue)
+                scene: scene, sceneIdentity: run.id + stage.rawValue, metricScale: metricScale())
         case .alignment, .cloud, .mesh:
             let alignmentPath = run.artifacts["alignment"] ?? run.artifacts["alignmentPreview"]
             let reconstruction: ReconstructionScene? = try alignmentPath.map {
@@ -199,8 +207,19 @@ final class SavedArtifactReader: ArtifactReader {
                 reconstruction: reconstruction, points: points, photos: photos, root: root,
                 surface: surface, uvs: uvs, texture: texture, wireframe: mode == "Wireframe",
                 photoPlanes: stage == .alignment && mode == "Photo planes")
+            var inspection: SparseInspectionData?
+            if stage == .alignment, mode == "Inspect points", let reconstruction {
+                let featureFiles: [String: String] =
+                    try run.artifacts["features"].map {
+                        try read(root.appendingPathComponent($0).appendingPathComponent("units.json"))
+                    } ?? [:]
+                inspection = SparseInspectionData(
+                    root: root, scene: reconstruction, photos: photos, featureFiles: featureFiles)
+            }
             return ArtifactPresentation(
-                title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue)
+                title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue,
+                sparseInspection: inspection,
+                metricScale: reconstruction?.origin != nil && !(reconstruction?.frame.contains("arbitrary") ?? true))
         }
     }
 

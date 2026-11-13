@@ -3,12 +3,18 @@ import SwiftUI
 
 struct SceneViewport: NSViewRepresentable {
     let presentation: ArtifactPresentation
+    @ObservedObject var controller: SceneViewportController
+    var showGround = false
+    var selectedTrack: Int?
+    var selection: ((Int) -> Void)?
 
     func makeNSView(context: Context) -> ArtifactSceneView {
         let view = ArtifactSceneView(
             frame: .zero, options: [SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue])
+        controller.view = view
         view.allowsCameraControl = true
-        view.autoenablesDefaultLighting = true
+        view.autoenablesDefaultLighting = false
+        view.delegate = view.gridVisibility
         view.antialiasingMode = .multisampling4X
         view.defaultCameraController.inertiaEnabled = true
         view.setAccessibilityElement(true)
@@ -24,12 +30,21 @@ struct SceneViewport: NSViewRepresentable {
     }
 
     func updateNSView(_ view: ArtifactSceneView, context: Context) {
-        guard view.scene !== presentation.scene else { return }
-        let preserveCamera = !presentation.sceneIdentity.isEmpty && view.artifactIdentity == presentation.sceneIdentity
-        let transform = preserveCamera ? view.pointOfView?.transform : nil
-        view.artifactIdentity = presentation.sceneIdentity
-        view.scene = presentation.scene
-        view.pointOfView = presentation.scene?.rootNode.childNode(withName: "viewer-camera", recursively: false)
-        if let transform { view.pointOfView?.transform = transform }
+        if view.scene !== presentation.scene {
+            let preserveCamera =
+                !presentation.sceneIdentity.isEmpty && view.artifactIdentity == presentation.sceneIdentity
+            let transform = preserveCamera ? view.pointOfView?.transform : nil
+            view.artifactIdentity = presentation.sceneIdentity
+            view.scene = presentation.scene
+            view.pointOfView = presentation.scene?.rootNode.childNode(withName: "viewer-camera", recursively: false)
+            if let transform { view.pointOfView?.transform = transform }
+            view.needsInitialFit = !preserveCamera
+            view.needsLayout = true
+        }
+        view.scene?.rootNode.childNode(withName: "ground-grid", recursively: false)?.isHidden = !showGround
+        view.inspection = presentation.sparseInspection
+        view.selection = selection
+        let tracks = presentation.sparseInspection?.tracks ?? []
+        view.highlight(track: selectedTrack.flatMap { tracks.indices.contains($0) ? tracks[$0] : nil })
     }
 }

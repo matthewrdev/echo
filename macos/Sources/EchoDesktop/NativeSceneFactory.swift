@@ -29,7 +29,9 @@ final class NativeSceneFactory {
             let geometry = SCNGeometry(
                 sources: [SCNGeometrySource(vertices: vertices), colorSource], elements: [element])
             geometry.firstMaterial?.lightingModel = .constant
-            scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+            let node = SCNNode(geometry: geometry)
+            node.name = "artifact"
+            scene.rootNode.addChildNode(node)
         }
 
         if let surface {
@@ -46,9 +48,11 @@ final class NativeSceneFactory {
             material.diffuse.contents = texture ?? NSColor(calibratedWhite: 0.72, alpha: 1)
             material.isDoubleSided = true
             material.fillMode = wireframe ? .lines : .fill
-            material.lightingModel = texture == nil ? .lambert : .constant
+            material.lightingModel = .constant
             geometry.materials = [material]
-            scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+            let node = SCNNode(geometry: geometry)
+            node.name = "artifact"
+            scene.rootNode.addChildNode(node)
         }
 
         for camera in reconstruction?.cameras ?? [] {
@@ -91,17 +95,14 @@ final class NativeSceneFactory {
             }
         }
 
-        let (minimum, maximum) = scene.rootNode.boundingBox
-        let centre = SCNVector3((minimum.x + maximum.x) / 2, (minimum.y + maximum.y) / 2, (minimum.z + maximum.z) / 2)
-        let span = max(3, max(maximum.x - minimum.x, max(maximum.y - minimum.y, maximum.z - minimum.z)))
+        let positions = surface?.vertices ?? points.map(\.position)
+        let bounds = SceneBounds(positions: positions.isEmpty ? reconstruction?.cameras.map(\.centre) ?? [] : positions)
         let camera = SCNNode()
         camera.name = "viewer-camera"
         camera.camera = SCNCamera()
-        camera.camera?.zNear = 0.01
-        camera.camera?.zFar = 100_000
-        camera.position = SCNVector3(centre.x, centre.y + span * 0.2, centre.z + span * 1.6)
-        camera.look(at: centre)
+        bounds.fit(camera: camera, size: CGSize(width: 800, height: 600))
         scene.rootNode.addChildNode(camera)
+        scene.rootNode.addChildNode(GroundGridFactory().make(bounds: bounds))
         return scene
     }
 

@@ -22,7 +22,7 @@ final class ArtifactViewModel: ObservableObject {
 
     var modes: [String] {
         switch stage {
-        case .alignment: return ["Cameras", "Photo planes"]
+        case .alignment: return ["Cameras", "Photo planes", "Inspect points"]
         case .depth: return ["Depth", "Confidence"]
         case .cloud: return ["All support", "Support ≥40%", "Support ≥60%"]
         case .fusion: return ["X", "Y", "Z"]

@@ -10,4 +10,6 @@ struct ArtifactPresentation {
     var matches: MatchPresentation?
     var features: FeaturePresentation?
     var sceneIdentity: String = ""
+    var sparseInspection: SparseInspectionData?
+    var metricScale = false
 }

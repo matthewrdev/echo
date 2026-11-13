@@ -21,7 +21,7 @@ struct ArtifactViewer: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 16)
-                VStack(alignment: .trailing, spacing: 7) {
+                HStack(spacing: 8) {
                     Button("Process to \(workspace.selectedStage.shortTitle)", systemImage: "play.fill") {
                         workspace.start(through: workspace.selectedStage)
                     }
@@ -29,10 +29,11 @@ struct ArtifactViewer: View {
                         !workspace.canEdit || (workspace.inspection?.project.images.filter(\.enabled).count ?? 0) < 2
                     )
                     .help(
-                        "Process this stage and any required earlier stages using current inputs. Reuse compatible saved work."
+                        "Process to \(workspace.selectedStage.shortTitle). Reuse compatible saved work."
                     )
                     Button("Stage settings", systemImage: "gearshape") { workspace.sheet = .settings }
-                    Menu("More actions") {
+                        .help("\(workspace.selectedStage.shortTitle) settings")
+                    Menu {
                         Button("Process all stages to GLB") { workspace.start(through: .export) }.disabled(
                             !workspace.canEdit)
                         Button("Resume this saved run") { workspace.resume() }
@@ -44,8 +45,11 @@ struct ArtifactViewer: View {
                         Divider()
                         Button("Show artifact files") { workspace.revealArtifact(workspace.selectedStage) }
                             .disabled(workspace.inspection?.run?.artifacts[workspace.selectedStage.rawValue] == nil)
-                    }.fixedSize()
-                }
+                    } label: {
+                        Label("More stage actions", systemImage: "ellipsis")
+                    }
+                    .menuIndicator(.hidden).help("More stage actions")
+                }.labelStyle(.iconOnly).fixedSize()
             }
             if !model.modes.isEmpty {
                 Picker("View", selection: Binding(get: { model.mode }, set: { model.selectMode($0) })) {
@@ -113,9 +117,10 @@ struct ArtifactViewer: View {
                 } else if let matches = value.matches {
                     MatchingViewer(data: matches, selected: $model.selectedMatchIndex)
                 } else if value.scene != nil {
-                    SceneViewport(presentation: value)
-                    Text("Drag to orbit · scroll to zoom · Option-drag to pan").font(.caption).foregroundStyle(
-                        .secondary)
+                    Artifact3DViewer(presentation: value) { photoID in
+                        workspace.selectedPhotoID = photoID
+                        workspace.selectedStage = .features
+                    }
                 } else if let image = value.image {
                     if workspace.selectedStage == .depth { Text(value.title).font(.caption.weight(.semibold)) }
                     ImageViewport(image: image)
