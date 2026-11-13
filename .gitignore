@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+.build/
+dist/
+*.echoproj/
+.DS_Store
+*.user
+local-results/
+*.echo/
