@@ -20,6 +20,27 @@ public sealed class LineFeatureTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Strong line seeds cross faint connected sections without seeding isolated weak edges", () =>
+        {
+            var gray = new float[256 * 192];
+            for (var y = 15; y < 175; y++)
+            {
+                var contrast = y < 60 || y > 125 ? .18f : .07f;
+                for (var x = 80; x < 150; x++)
+                {
+                    gray[y * 256 + x] = contrast;
+                }
+                for (var x = 200; x < 230; x++)
+                {
+                    gray[y * 256 + x] = .07f;
+                }
+            }
+            var result = detector.Detect(gray, 256, 192, 100, 30, default,
+                new LineDetectionOptions { GradientThreshold = .04, SplitRegions = true });
+            Check(result.Any(line => Math.Abs(line.Start[0] - 79.5) < 2 && Math.Abs(line.End[0] - 79.5) < 2
+                && Math.Abs(line.End[1] - line.Start[1]) > 140), "Connected faint section must not fragment the vertical edge");
+            Check(result.All(line => line.Start[0] < 180 && line.End[0] < 180), "Weak edges without a strong seed remain rejected");
+        });
         tests.Run("Line detector recovers a straight edge and rejects a blank image", () =>
         {
             var gray = new float[256 * 192];

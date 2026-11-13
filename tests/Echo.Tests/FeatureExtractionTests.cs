@@ -29,7 +29,9 @@ public sealed class FeatureExtractionTests
     {
         VerifyPattern(tests, "checker", 256, false, "641484772d55232f015de1def9d9419f91101b61238ab1956269942e4af5c4bd");
         VerifyPattern(tests, "noise", 173, true, "f04475b5df8c4cea7f84e8d3f76629ba8bcc5fd5b62c6fceb83a297406fcd7c2");
-        VerifyPattern(tests, "rectangle", 256, true, "8cd4d6fcae792b27918412bb10766ed3e078999511efca171f6d85c1523e23a8");
+        // Detector v6 follows the mean edge normal; the fitted rectangle endpoints
+        // change slightly. Geometry is checked separately in LineFeatureTests.
+        VerifyPattern(tests, "rectangle", 256, true, "fa8419419e89f54dba04f994c329433fc676eac20fe27143b9d174771eb41ed9");
     }
 
     private void VerifyPattern(TestSuite tests, string pattern, int width, bool detectLines, string expectedHash)

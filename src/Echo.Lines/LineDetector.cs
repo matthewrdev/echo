@@ -26,6 +26,7 @@ public sealed class LineDetector : ILineDetector
             throw new ArgumentOutOfRangeException(nameof(options), "The line gradient threshold must be finite and positive.");
         }
         var threshold = (float)options.GradientThreshold;
+        var continuationThreshold = threshold * .5f;
         var pixelCount = gray.Length;
         var strengthOffset = pixelCount * 2;
         var buffer = ArrayPool<float>.Shared.Rent(pixelCount * 3 + width * 3);
@@ -81,6 +82,8 @@ public sealed class LineDetector : ILineDetector
                 visited[seed] = true;
                 var nx = gx[seed] / strength[seed];
                 var ny = gy[seed] / strength[seed];
+                var normalX = (double)nx;
+                var normalY = (double)ny;
                 for (var cursor = 0; cursor < region.Count; cursor++)
                 {
                     if (cursor % 1024 == 0)
@@ -95,17 +98,26 @@ public sealed class LineDetector : ILineDetector
                         for (var dx = -1; dx <= 1; dx++)
                         {
                             var index = (y + dy) * width + x + dx;
-                            if (visited[index] || strength[index] < threshold)
+                            // A strong seed may continue through a faint section of the
+                            // same edge. Isolated weak texture cannot start a new region.
+                            if (visited[index] || strength[index] < continuationThreshold)
                             {
                                 continue;
                             }
-                            // Group adjacent edge pixels whose normals agree within 15 degrees.
-                            if ((gx[index] * nx + gy[index] * ny) / strength[index] < .966)
+                            // Follow the mean region direction instead of freezing the
+                            // first pixel's noisy normal. The fitted segment still has
+                            // to pass the independent straightness and support checks.
+                            if ((gx[index] * nx + gy[index] * ny) / strength[index] < .9238795)
                             {
                                 continue;
                             }
                             visited[index] = true;
                             region.Add(index);
+                            normalX += gx[index] / strength[index];
+                            normalY += gy[index] / strength[index];
+                            var normalLength = Math.Sqrt(normalX * normalX + normalY * normalY);
+                            nx = (float)(normalX / normalLength);
+                            ny = (float)(normalY / normalLength);
                         }
                     }
                 }
