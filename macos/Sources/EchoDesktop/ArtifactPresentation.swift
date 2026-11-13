@@ -7,6 +7,7 @@ struct ArtifactPresentation {
     let detail: String
     var scene: SCNScene?
     var image: NSImage?
+    var depthImage: DepthImagePresentation?
     var matches: MatchPresentation?
     var features: FeaturePresentation?
     var sceneIdentity: String = ""

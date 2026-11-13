@@ -28,26 +28,34 @@ final class SceneInspectionTests: XCTestCase {
         XCTAssertEqual(data.tracks[0].observations.map(\.imageID), ["a", "b", "c"])
         XCTAssertEqual(data.tracks[0].observations[2].pixel, [50, 60])
         XCTAssertEqual(data.tracks[0].observations[2].error, 0.6)
+        XCTAssertEqual(data.cameraTracks["a"], [0])
+        XCTAssertEqual(data.cameraTracks["b"], [0, 1])
+        XCTAssertEqual(data.cameraTracks["c"], [0, 1])
     }
 
     func testFitIncludesEveryBoundingCornerInPortraitAndLandscape() {
         let bounds = SceneBounds(positions: [[-80, -10, -40], [20, 40, 10]])
-        for size in [CGSize(width: 1000, height: 400), CGSize(width: 300, height: 900)] {
-            let camera = SCNNode()
-            camera.camera = SCNCamera()
-            bounds.fit(camera: camera, size: size)
-            let tangent = tan(25 * Double.pi / 180)
-            for x in [bounds.minimum.x, bounds.maximum.x] {
-                for y in [bounds.minimum.y, bounds.maximum.y] {
-                    for z in [bounds.minimum.z, bounds.maximum.z] {
-                        let p = camera.convertPosition(SCNVector3(x, y, z), from: nil)
-                        XCTAssertLessThan(p.z, 0)
-                        XCTAssertLessThan(abs(p.y / -p.z), tangent)
-                        XCTAssertLessThan(abs(p.x / -p.z), tangent * size.width / size.height)
+        for direction in [SceneViewDirection.north, .east, .top] {
+            for size in [CGSize(width: 1000, height: 400), CGSize(width: 300, height: 900)] {
+                let camera = SCNNode()
+                camera.camera = SCNCamera()
+                bounds.fit(camera: camera, size: size, direction: direction)
+                let screenUp = camera.convertVector(direction.up, from: nil)
+                XCTAssertEqual(screenUp.y, 1, accuracy: 0.000001)
+                let tangent = tan(25 * Double.pi / 180)
+                for x in [bounds.minimum.x, bounds.maximum.x] {
+                    for y in [bounds.minimum.y, bounds.maximum.y] {
+                        for z in [bounds.minimum.z, bounds.maximum.z] {
+                            let p = camera.convertPosition(SCNVector3(x, y, z), from: nil)
+                            XCTAssertLessThan(p.z, 0)
+                            XCTAssertLessThan(abs(p.y / -p.z), tangent)
+                            XCTAssertLessThan(abs(p.x / -p.z), tangent * size.width / size.height)
+                        }
                     }
                 }
             }
         }
+
     }
 
     func testGridHasUnitSpacingAndDoesNotAffectCameraFit() throws {
@@ -120,7 +128,7 @@ final class SceneInspectionTests: XCTestCase {
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
             featureMatches: FeatureMatchIndexer())
         let presentation = try await reader.load(
-            root: root, run: run, stage: .alignment, unit: nil, mode: "Inspect points", slice: 0.5)
+            root: root, run: run, stage: .alignment, unit: nil, mode: "", slice: 0.5)
         let inspection = try XCTUnwrap(presentation.sparseInspection)
         XCTAssertFalse(inspection.tracks.isEmpty)
         XCTAssertTrue(inspection.tracks.allSatisfy { $0.observations.count >= 2 })

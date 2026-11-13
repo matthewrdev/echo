@@ -5,19 +5,13 @@ struct MatchPatchView: View {
     let image: NSImage
     let photo: Photo
     let pixel: [Double]
+    var overlay: FeaturePatchOverlay = .point(kind: nil)
     @StateObject private var controller = CanvasViewportController()
 
     private var patch: ImagePatch? {
-        guard let source = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-        let x = pixel[0] * Double(source.width) / Double(photo.width)
-        let y = pixel[1] * Double(source.height) / Double(photo.height)
-        let radius = 64.0 * Double(source.width) / Double(photo.width)
-        let rect = CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2).integral
-            .intersection(CGRect(x: 0, y: 0, width: source.width, height: source.height))
-        guard let crop = source.cropping(to: rect) else { return nil }
-        return ImagePatch(
-            image: NSImage(cgImage: crop, size: NSSize(width: crop.width, height: crop.height)),
-            centre: CGPoint(x: x - rect.minX, y: y - rect.minY))
+        FeaturePatchBuilder().build(
+            image: image, photoSize: CGSize(width: photo.width, height: photo.height),
+            pixel: CGPoint(x: pixel[0], y: pixel[1]), overlay: overlay)
     }
 
     var body: some View {
@@ -36,7 +30,7 @@ struct MatchPatchView: View {
                     renderer: PatchCanvasRenderer(identity: photo.id + pixel.description, patch: patch),
                     controller: controller)
             }
-            Text("Scroll to zoom · drag to pan").font(.caption2).foregroundStyle(.secondary)
+            Text(overlay.title).font(.caption2).foregroundStyle(.secondary)
         }.frame(maxWidth: .infinity)
     }
 }

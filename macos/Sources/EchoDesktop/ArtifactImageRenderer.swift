@@ -3,21 +3,37 @@ import ImageIO
 
 final class ArtifactImageRenderer {
     func depth(_ map: DepthMap, confidence: Bool) throws -> NSImage {
-        let values = map.depth.filter { $0 > 0 }.sorted()
-        let near = values.first ?? 0
-        let far = values.last ?? 1
-        var bytes = [UInt8](repeating: 0, count: map.width * map.height * 4)
+        let dimensions = map.width.multipliedReportingOverflow(by: map.height)
+        let validDimensions = map.width > 0 && map.height > 0 && !dimensions.overflow
+        guard validDimensions, dimensions.partialValue <= Int.max / 4,
+            map.depth.count == dimensions.partialValue, map.confidence.count == map.depth.count
+        else {
+            throw CLIError(message: "Depth image dimensions do not match its samples.")
+        }
+        var near = Float.infinity
+        var far = -Float.infinity
+        for depth in map.depth where depth.isFinite && depth > 0 {
+            near = min(near, depth)
+            far = max(far, depth)
+        }
+        let range = max(0.001, far - near)
+        var bytes = [UInt8](repeating: 0, count: map.depth.count * 4)
         for index in map.depth.indices {
-            let value = confidence ? map.confidence[index] : (map.depth[index] - near) / max(0.001, far - near)
-            let visible = map.depth[index] > 0
-            let color = NSColor(
-                calibratedHue: CGFloat((1 - min(1, max(0, value))) * 0.65), saturation: 0.8,
-                brightness: visible ? 0.95 : 0.08, alpha: 1
-            )
-            .usingColorSpace(.deviceRGB)!
-            bytes[index * 4] = UInt8(color.redComponent * 255)
-            bytes[index * 4 + 1] = UInt8(color.greenComponent * 255)
-            bytes[index * 4 + 2] = UInt8(color.blueComponent * 255)
+            if index % 65536 == 0 { try Task.checkCancellation() }
+            let depth = map.depth[index]
+            guard depth.isFinite && depth > 0 else { continue }
+            let value = confidence ? map.confidence[index] : (depth - near) / range
+            let hue = (1 - min(1, max(0, value.isFinite ? value : 0))) * 3.9
+            // HSV with fixed saturation/brightness, without per-pixel NSColor allocations.
+            let chroma: Float = 0.95 * 0.8
+            let secondary = chroma * (1 - abs(hue.truncatingRemainder(dividingBy: 2) - 1))
+            let base: Float = 0.95 - chroma
+            let red = hue < 1 ? chroma : hue < 2 ? secondary : 0
+            let green = hue < 1 ? secondary : hue < 3 ? chroma : secondary
+            let blue = hue < 2 ? 0 : hue < 3 ? secondary : chroma
+            bytes[index * 4] = UInt8((red + base) * 255)
+            bytes[index * 4 + 1] = UInt8((green + base) * 255)
+            bytes[index * 4 + 2] = UInt8((blue + base) * 255)
             bytes[index * 4 + 3] = 255
         }
         let data = Data(bytes)

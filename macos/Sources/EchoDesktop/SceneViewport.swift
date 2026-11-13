@@ -5,8 +5,8 @@ struct SceneViewport: NSViewRepresentable {
     let presentation: ArtifactPresentation
     @ObservedObject var controller: SceneViewportController
     var showGround = false
-    var selectedTrack: Int?
-    var selection: ((Int) -> Void)?
+    var selected: SparseSelection?
+    var selection: ((SparseSelection?) -> Void)?
 
     func makeNSView(context: Context) -> ArtifactSceneView {
         let view = ArtifactSceneView(
@@ -14,7 +14,8 @@ struct SceneViewport: NSViewRepresentable {
         controller.view = view
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = false
-        view.delegate = view.gridVisibility
+        view.renderObserver.orientation = controller.orientation
+        view.delegate = view.renderObserver
         view.antialiasingMode = .multisampling4X
         view.defaultCameraController.inertiaEnabled = true
         view.setAccessibilityElement(true)
@@ -44,7 +45,6 @@ struct SceneViewport: NSViewRepresentable {
         view.scene?.rootNode.childNode(withName: "ground-grid", recursively: false)?.isHidden = !showGround
         view.inspection = presentation.sparseInspection
         view.selection = selection
-        let tracks = presentation.sparseInspection?.tracks ?? []
-        view.highlight(track: selectedTrack.flatMap { tracks.indices.contains($0) ? tracks[$0] : nil })
+        view.highlight(selected)
     }
 }

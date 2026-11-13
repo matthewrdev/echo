@@ -3,6 +3,7 @@ import SwiftUI
 struct MetadataValueRow: View {
     let entry: MetadataEntry
     let copy: (String) -> Void
+    var loadPayload: ((String) async throws -> Data)?
     @State private var copied = false
 
     var body: some View {
@@ -15,12 +16,14 @@ struct MetadataValueRow: View {
                     copied = true
                 } label: {
                     Label(copied ? "Copied" : "Copy value", systemImage: copied ? "checkmark" : "doc.on.doc")
-                }.labelStyle(.iconOnly).buttonStyle(.borderless).help("Copy \(entry.key) value")
+                }.labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).help("Copy \(entry.key) value")
             }
             if entry.isOpaque {
-                Label(entry.summary, systemImage: "doc.zipper").font(.caption).foregroundStyle(.secondary)
-                Text("This private field has no decoded text value. The original file retains the complete payload.")
-                    .font(.caption2).foregroundStyle(.secondary)
+                if let loadPayload {
+                    MetadataPayloadView(tag: entry.key, load: loadPayload)
+                } else {
+                    Text(entry.summary).font(.caption).foregroundStyle(.secondary)
+                }
                 if !entry.isBinary {
                     DisclosureGroup("Raw reader output") {
                         ScrollView {

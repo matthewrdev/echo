@@ -9,7 +9,7 @@ struct ProjectSidebar: View {
             VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .top, spacing: 8) {
                     Button("Back to projects", systemImage: "chevron.left") { workspace.showProjects() }
-                        .labelStyle(.iconOnly).buttonStyle(.borderless).disabled(!workspace.canEdit)
+                        .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).disabled(!workspace.canEdit)
                     Text(workspace.inspection?.project.name ?? "Open a project")
                         .font(.headline).lineLimit(1).truncationMode(.tail)
                         .help(workspace.inspection?.project.name ?? "")
@@ -21,7 +21,7 @@ struct ProjectSidebar: View {
                     Button("Generated files", systemImage: "externaldrive") { workspace.sheet = .storage }
                     Button("Saved runs", systemImage: "clock.arrow.circlepath") { workspace.sheet = .history }
                 }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).disabled(workspace.inspection == nil)
+                .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).disabled(workspace.inspection == nil)
             }
             Divider()
             HStack {
@@ -30,7 +30,7 @@ struct ProjectSidebar: View {
                 Button("Photo map", systemImage: "map") { workspace.openMap() }.help(
                     "Photo locations and camera frustums")
                 Button("Import photos", systemImage: "plus") { workspace.importPhotos() }.disabled(!workspace.canEdit)
-            }.labelStyle(.iconOnly).buttonStyle(.borderless)
+            }.labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain)
             TextField("Search name or camera", text: $workspace.query).textFieldStyle(.roundedBorder)
             ScrollView(.horizontal) {
                 HStack(spacing: 4) {

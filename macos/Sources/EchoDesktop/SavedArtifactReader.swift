@@ -1,4 +1,5 @@
 import AppKit
+import SceneKit
 
 final class SavedArtifactReader: ArtifactReader {
     private let scenes: NativeSceneFactory
@@ -64,16 +65,22 @@ final class SavedArtifactReader: ArtifactReader {
         return []
     }
 
-    func load(root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double)
+    func load(
+        root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double,
+        cloudDetail: CloudDisplayDetail
+    )
         async throws -> ArtifactPresentation
     {
-        try await Task.detached(priority: .userInitiated) {
-            try self.loadSaved(root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice)
-        }.value
+        let task = Task.detached(priority: .userInitiated) {
+            try self.loadSaved(
+                root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice, cloudDetail: cloudDetail)
+        }
+        return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
     }
 
     private func loadSaved(
-        root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double
+        root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double,
+        cloudDetail: CloudDisplayDetail
     ) throws -> ArtifactPresentation {
         guard let path = run.artifacts[stage.rawValue] ?? run.artifacts[stage.rawValue + "Preview"] else {
             throw CLIError(message: "This stage has no saved artifact yet.")
@@ -129,10 +136,17 @@ final class SavedArtifactReader: ArtifactReader {
                     diagnostics: pair.diagnostics))
         case .depth:
             let map: DepthMap = try read(unitFile())
-            let name = try photo(map.imageId).name
+            let photograph = try photo(map.imageId)
+            let overlay = try images.depth(map, confidence: mode == "Confidence")
+            let accepted = map.depth.reduce(0) { $0 + ($1.isFinite && $1 > 0 ? 1 : 0) }
+            let coverage = Double(accepted) / Double(map.depth.count)
             return ArtifactPresentation(
-                title: name, detail: "\(map.width) × \(map.height) · zero depth is unknown",
-                image: try images.depth(map, confidence: mode == "Confidence"))
+                title: photograph.name,
+                detail:
+                    "\(map.width) × \(map.height) · \(coverage.formatted(.percent.precision(.fractionLength(2)))) accepted depth",
+                depthImage: DepthImagePresentation(
+                    identity: try unitFile().path, overlay: overlay,
+                    photograph: NSImage(contentsOf: root.appendingPathComponent(photograph.source))))
         case .fusion:
             let volume: FusedVolume = try read(folder.appendingPathComponent("volume.preview.json"))
             return ArtifactPresentation(
@@ -173,21 +187,35 @@ final class SavedArtifactReader: ArtifactReader {
             }
             var points = reconstruction?.points ?? []
             var detail = "\(points.count.formatted()) sparse points · \(reconstruction?.cameras.count ?? 0) cameras"
+            var cloudGeometry: SCNGeometry?
             var surface: Surface?
             var uvs: [[Double]] = []
             var texture: NSImage?
             if stage == .cloud {
                 let report: DenseCloudReport = try read(folder.appendingPathComponent("cloud.json"))
-                let threshold = mode == "Support ≥60%" ? 0.6 : mode == "Support ≥40%" ? 0.4 : 0
+                let threshold =
+                    ["≥60%", "Support ≥60%"].contains(mode) ? 0.6 : ["≥40%", "Support ≥40%"].contains(mode) ? 0.4 : 0
                 points = report.preview.filter { 1 - $0.error >= threshold }
                 let partial = run.artifacts["cloud"] == nil
+                var displayedCount = points.count
+                if !partial {
+                    let preview = try DenseCloudPreviewReader().read(
+                        file: folder.appendingPathComponent("cloud.ply"), expectedCount: report.retainedSamples,
+                        limit: cloudDetail.limit(for: report.retainedSamples), minimumSupport: threshold)
+                    cloudGeometry = preview.geometry
+                    displayedCount = preview.count
+                    points = []
+                }
                 let label = partial ? (run.status == "running" ? "LIVE PREVIEW" : "PARTIAL PREVIEW") : "Completed cloud"
                 let attributes = try FileManager.default.attributesOfItem(
                     atPath: folder.appendingPathComponent("cloud.json").path)
                 let updated =
                     (attributes[.modificationDate] as? Date)?.formatted(date: .omitted, time: .standard) ?? "unknown"
+                let density =
+                    !partial && cloudDetail.limit(for: report.retainedSamples) >= report.retainedSamples
+                    ? "all saved points" : "sampled points"
                 detail =
-                    "\(label) · \(report.retainedSamples.formatted()) accepted points · displaying \(points.count.formatted()) sampled points · updated \(updated)"
+                    "\(label) · \(report.retainedSamples.formatted()) accepted points · displaying \(displayedCount.formatted()) \(density) · updated \(updated)"
             }
             if stage == .mesh {
                 surface = try read(folder.appendingPathComponent("mesh.json"))
@@ -206,9 +234,9 @@ final class SavedArtifactReader: ArtifactReader {
             let scene = scenes.make(
                 reconstruction: reconstruction, points: points, photos: photos, root: root,
                 surface: surface, uvs: uvs, texture: texture, wireframe: mode == "Wireframe",
-                photoPlanes: stage == .alignment && mode == "Photo planes")
+                cloudGeometry: cloudGeometry)
             var inspection: SparseInspectionData?
-            if stage == .alignment, mode == "Inspect points", let reconstruction {
+            if stage == .alignment, let reconstruction {
                 let featureFiles: [String: String] =
                     try run.artifacts["features"].map {
                         try read(root.appendingPathComponent($0).appendingPathComponent("units.json"))

@@ -33,6 +33,11 @@ final class CLIProjectClient: ProjectClient {
         return try JSONDecoder().decode([String: JSONValue].self, from: bytes)
     }
 
+    func metadataPayload(root: String, imageID: String, tag: String) async throws -> Data {
+        let bytes = try await cli.execute(["--project", root, "images", "payload", imageID, tag], progress: { _ in })
+        return try JSONDecoder().decode(Data.self, from: bytes)
+    }
+
     func runs(root: String) async throws -> [RunSummary] {
         let bytes = try await cli.execute(["--project", root, "run", "list"], progress: { _ in })
         return try JSONDecoder().decode([RunSummary].self, from: bytes)

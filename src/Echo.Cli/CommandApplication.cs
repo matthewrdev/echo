@@ -18,6 +18,7 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH images import DIRECTORY [--set NAME] [--limit N]
     echo-photo --project PATH images list [--set NAME] [--query TEXT]
     echo-photo --project PATH images metadata IMAGE_ID
+    echo-photo --project PATH images payload IMAGE_ID GROUP:TAG
     echo-photo --project PATH images enable IMAGE_ID --value true|false
     echo-photo --project PATH sets list
     echo-photo --project PATH sets assign IMAGE_ID --set NAME

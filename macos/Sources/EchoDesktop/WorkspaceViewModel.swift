@@ -148,6 +148,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     func copyText(_ value: String) { clipboard.copy(value) }
 
+    func latestFeatureRun() async throws -> RunData? {
+        try await client.inspect(root: root, run: "latest").run
+    }
+
     func openMap(for photo: Photo? = nil) {
         mapFocusPhotoID = photo?.id
         if let photo { selectedPhotoID = photo.id }
@@ -156,6 +160,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     func metadata(for photo: Photo) async throws -> [String: JSONValue] {
         try await client.metadata(root: root, imageID: photo.id)
+    }
+
+    func metadataPayload(for photo: Photo, tag: String) async throws -> Data {
+        try await client.metadataPayload(root: root, imageID: photo.id, tag: tag)
     }
 
     var filteredPhotos: [Photo] {

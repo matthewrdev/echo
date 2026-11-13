@@ -29,8 +29,11 @@ struct SparseObservationView: View {
                         controller: controller
                     )
                     .frame(minHeight: 100, maxHeight: .infinity)
-                    MatchPatchView(title: "Observed feature", image: image, photo: photo, pixel: observation.pixel)
-                        .frame(height: 180)
+                    MatchPatchView(
+                        title: "Observed feature", image: image, photo: photo, pixel: observation.pixel,
+                        overlay: .point(kind: feature?.kind)
+                    )
+                    .frame(height: 180)
                     Button("Explore all features in this photo", systemImage: "viewfinder") { openFeatures(photo.id) }
                 } else if loading {
                     ProgressView("Opening source photo…").frame(maxWidth: .infinity, maxHeight: .infinity)

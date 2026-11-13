@@ -15,7 +15,10 @@ struct WorkspaceView: View {
         .frame(minWidth: 1100, minHeight: 760)
         .task { await workspace.poll() }
         .modifier(ProjectEditConfirmation(workspace: workspace, active: workspace.sheet == nil))
-        .sheet(item: $workspace.sheet) { WorkspaceModal(sheet: $0, workspace: workspace) }
+        .sheet(item: $workspace.sheet) {
+            WorkspaceModal(sheet: $0, workspace: workspace, artifacts: artifacts)
+                .disclosureGroupStyle(ClickableDisclosureStyle())
+        }
         .alert(
             "Echo",
             isPresented: Binding(

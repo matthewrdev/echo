@@ -36,20 +36,27 @@ struct MatchingViewer: View {
                 HStack(alignment: .top, spacing: 16) {
                     MatchPatchView(
                         title: "A · \(data.first.name)", image: data.firstImage, photo: data.first,
-                        pixel: data.matches[selected].a)
+                        pixel: data.matches[selected].a,
+                        overlay: FeaturePatchOverlay(line: data.matches[selected].lineA))
                     Image(systemName: "arrow.right").padding(.top, 80).foregroundStyle(.secondary)
                     MatchPatchView(
                         title: "B · \(data.second.name)", image: data.secondImage, photo: data.second,
-                        pixel: data.matches[selected].b)
+                        pixel: data.matches[selected].b,
+                        overlay: FeaturePatchOverlay(line: data.matches[selected].lineB))
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Correspondence \(selected + 1)").font(.headline)
+                        HStack {
+                            Text("Correspondence \(selected + 1)").font(.headline)
+                            Spacer()
+                            Button("Close match inspector", systemImage: "xmark") { self.selected = nil }
+                                .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).help("Close match inspector")
+                        }
                         HStack {
                             Button("Previous", systemImage: "chevron.left") { self.selected = max(0, selected - 1) }
-                                .labelStyle(.iconOnly)
+                                .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain)
                             Text("\(selected + 1) of \(data.matches.count)").font(.caption)
                             Button("Next", systemImage: "chevron.right") {
                                 self.selected = min(data.matches.count - 1, selected + 1)
-                            }.labelStyle(.iconOnly)
+                            }.labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain)
                         }
                         let match = data.matches[selected]
                         Text(match.verificationLabel)

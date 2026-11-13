@@ -44,6 +44,10 @@ final class SavedArtifactIntegrationTests: XCTestCase {
             case .alignment, .cloud, .mesh, .texture, .export:
                 let scene = try XCTUnwrap(presentation.scene, stage.rawValue)
                 XCTAssertFalse(scene.rootNode.childNodes.isEmpty, stage.rawValue)
+            case .depth:
+                let depth = try XCTUnwrap(presentation.depthImage)
+                XCTAssertGreaterThan(depth.overlay.size.width, 0)
+                XCTAssertNotNil(depth.photograph)
             default:
                 let image = try XCTUnwrap(presentation.image, stage.rawValue)
                 XCTAssertGreaterThan(image.size.width, 0, stage.rawValue)

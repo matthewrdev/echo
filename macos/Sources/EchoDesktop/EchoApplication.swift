@@ -27,6 +27,7 @@ struct EchoApplication: App {
     var body: some Scene {
         Window("Echo · Photogrammetry", id: "echo") {
             WorkspaceView(workspace: workspace, artifacts: artifacts)
+                .disclosureGroupStyle(ClickableDisclosureStyle())
         }
         .defaultSize(width: 1500, height: 960)
         .commands {

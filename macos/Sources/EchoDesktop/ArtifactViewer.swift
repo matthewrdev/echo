@@ -3,6 +3,8 @@ import SwiftUI
 struct ArtifactViewer: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @ObservedObject var model: ArtifactViewModel
+    @StateObject private var sceneController = SceneViewportController()
+    @AppStorage("viewer.showGroundGrid") private var showGround = false
 
     private var artifactKey: String {
         let stage = workspace.selectedStage.rawValue
@@ -15,11 +17,7 @@ struct ArtifactViewer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(workspace.selectedStage.title).font(.title2.bold())
-                    Text(workspace.selectedStage.explanation).font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(workspace.selectedStage.title).font(.title2.bold())
                 Spacer(minLength: 16)
                 HStack(spacing: 8) {
                     Button("Process to \(workspace.selectedStage.shortTitle)", systemImage: "play.fill") {
@@ -49,13 +47,21 @@ struct ArtifactViewer: View {
                     } label: {
                         Label("More stage actions", systemImage: "ellipsis")
                     }
-                    .menuIndicator(.hidden).help("More stage actions")
-                }.labelStyle(.iconOnly).fixedSize()
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).help("More stage actions")
+                    .labelStyle(.iconOnly).modifier(ViewerIconFrame()).accessibilityLabel("More stage actions")
+                }.labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).fixedSize()
             }
             if !model.modes.isEmpty {
-                Picker("View", selection: Binding(get: { model.mode }, set: { model.selectMode($0) })) {
+                Picker(
+                    workspace.selectedStage == .cloud ? "Depth agreement" : "View",
+                    selection: Binding(get: { model.mode }, set: { model.selectMode($0) })
+                ) {
                     ForEach(model.modes, id: \.self) { Text($0) }
                 }.pickerStyle(.segmented).fixedSize()
+                    .help(
+                        workspace.selectedStage == .cloud
+                            ? "Fraction of tested neighbouring depth maps that agree with each point. Filters the display only; not a probability of correctness."
+                            : "Saved artifact view")
             }
             if workspace.stageStatus(workspace.selectedStage) == "Out of date" {
                 Label(
@@ -63,6 +69,20 @@ struct ArtifactViewer: View {
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .font(.callout).foregroundStyle(.orange)
+            }
+            if workspace.selectedStage == .cloud, workspace.inspection?.run?.artifacts["cloud"] != nil {
+                HStack {
+                    Text("Point detail")
+                    Slider(
+                        value: $model.pointPercentage, in: 1...100, step: 1,
+                        onEditingChanged: { editing in
+                            if !editing { Task { await model.load() } }
+                        }
+                    ).frame(maxWidth: 260).accessibilityLabel("Percentage of saved points")
+                    Text("\(Int(model.pointPercentage))%")
+                        .monospacedDigit().frame(width: 40, alignment: .trailing)
+
+                }.font(.caption)
             }
             if workspace.selectedStage == .fusion {
                 HStack {
@@ -86,10 +106,15 @@ struct ArtifactViewer: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay(alignment: .bottomTrailing) {
             if model.loading {
-                ProgressView(model.presentation == nil ? "Opening artifact…" : "Updating preview…")
-                    .controlSize(.small).padding(12).background(
-                        .regularMaterial, in: RoundedRectangle(cornerRadius: 10)
-                    ).padding(20)
+                HStack {
+                    ProgressView(
+                        model.pointPercentage == 100 && workspace.selectedStage == .cloud
+                            ? "Loading all saved points…" : "Opening artifact…")
+                    Button("Cancel") { model.cancelLoading() }
+                }
+                .controlSize(.small).padding(12).background(
+                    .regularMaterial, in: RoundedRectangle(cornerRadius: 10)
+                ).padding(20)
             }
         }
         .onChange(of: workspace.selectedPhotoID) { _, id in
@@ -109,7 +134,7 @@ struct ArtifactViewer: View {
     private var artifactContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let value = model.presentation {
-                Text(value.detail).font(.caption).foregroundStyle(.secondary)
+                if value.scene == nil { Text(value.detail).font(.caption).foregroundStyle(.secondary) }
                 if let features = value.features {
                     FeatureViewer(data: features) { link in
                         model.requestMatch(link)
@@ -118,12 +143,16 @@ struct ArtifactViewer: View {
                 } else if let matches = value.matches {
                     MatchingViewer(data: matches, selected: $model.selectedMatchIndex)
                 } else if value.scene != nil {
-                    Artifact3DViewer(presentation: value) { photoID in
-                        workspace.selectedPhotoID = photoID
-                        workspace.selectedStage = .features
-                    }
+                    Artifact3DViewer(
+                        presentation: value,
+                        openFeatures: { photoID in
+                            workspace.selectedPhotoID = photoID
+                            workspace.selectedStage = .features
+                        }, controller: sceneController, showGround: $showGround)
+                } else if let depth = value.depthImage {
+                    Text(value.title).font(.caption.weight(.semibold))
+                    DepthImageViewport(data: depth)
                 } else if let image = value.image {
-                    if workspace.selectedStage == .depth { Text(value.title).font(.caption.weight(.semibold)) }
                     ImageViewport(image: image)
                 }
             } else {

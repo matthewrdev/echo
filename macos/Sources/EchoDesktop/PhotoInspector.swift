@@ -2,11 +2,15 @@ import SwiftUI
 
 struct PhotoInspector: View {
     @ObservedObject var workspace: WorkspaceViewModel
+    let artifacts: ArtifactViewModel
     @State private var image: NSImage?
     @State private var metadata: [String: JSONValue] = [:]
     @State private var query = ""
     @State private var loading = false
     @State private var metadataNotice = ""
+    @State private var features: FeaturePresentation?
+    @State private var showFeatures = false
+    @State private var featureNotice = "Checking saved features…"
 
     private var groups: [MetadataGroup] {
         let entries = metadata.map { MetadataEntry(key: $0.key, value: $0.value.description) }.filter {
@@ -33,8 +37,20 @@ struct PhotoInspector: View {
             HSplitView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(photo.name).font(.headline).textSelection(.enabled)
-                    Text("\(photo.camera) · \(photo.width) × \(photo.height)").foregroundStyle(.secondary)
-                    if let image {
+                    HStack {
+                        Text("\(photo.camera) · \(photo.width) × \(photo.height)").foregroundStyle(.secondary)
+                        Spacer()
+                        Toggle("Features", isOn: $showFeatures)
+                            .toggleStyle(.button).disabled(features == nil).help(featureNotice)
+                    }
+                    if showFeatures, let features {
+                        FeatureViewer(data: features) { match in
+                            workspace.selectedRun = "latest"
+                            artifacts.requestMatch(match)
+                            workspace.selectedStage = .matching
+                            workspace.sheet = nil
+                        }
+                    } else if let image {
                         ImageViewport(image: image)
                     } else {
                         ProgressView("Opening photograph…").frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -69,7 +85,11 @@ struct PhotoInspector: View {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("\(group.title) · \(group.entries.count)").font(.headline)
                                     ForEach(group.entries) { entry in
-                                        MetadataValueRow(entry: entry, copy: workspace.copyText)
+                                        MetadataValueRow(
+                                            entry: entry, copy: workspace.copyText,
+                                            loadPayload: { tag in
+                                                try await workspace.metadataPayload(for: photo, tag: tag)
+                                            })
                                         Divider()
                                     }
                                 }
@@ -77,6 +97,26 @@ struct PhotoInspector: View {
                         }.frame(maxWidth: .infinity, alignment: .leading)
                     }.frame(maxHeight: .infinity)
                 }.padding(18).frame(minWidth: 370, idealWidth: 440, maxWidth: 520, maxHeight: .infinity)
+            }
+            .task(id: photo.id + (workspace.workingRun?.artifacts["features"] ?? "")) {
+                features = nil
+                showFeatures = false
+                featureNotice = "Checking saved features…"
+                do {
+                    if let run = try await workspace.latestFeatureRun() {
+                        let loaded = try await artifacts.photoFeatures(
+                            root: workspace.root, run: run, photoID: photo.id)
+                        guard !Task.isCancelled else { return }
+                        features = loaded
+                    }
+                    featureNotice =
+                        features == nil
+                        ? "No saved features for this photo in the latest run"
+                        : "Show features from the latest saved run"
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    featureNotice = "Saved features unavailable: \(error.localizedDescription)"
+                }
             }
             .task(id: photo.id) {
                 image = nil

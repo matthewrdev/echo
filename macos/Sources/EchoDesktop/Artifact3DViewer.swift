@@ -3,41 +3,48 @@ import SwiftUI
 struct Artifact3DViewer: View {
     let presentation: ArtifactPresentation
     let openFeatures: (String) -> Void
-    @StateObject private var controller = SceneViewportController()
-    @AppStorage("viewer.showGroundGrid") private var showGround = false
-    @State private var selectedTrack: Int?
+    @ObservedObject var controller: SceneViewportController
+    @Binding var showGround: Bool
+    @State private var selected: SparseSelection?
     @State private var observationIndex = 0.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Button("Reset view", systemImage: "arrow.counterclockwise") { controller.reset() }
-                    .help("Fit the entire cloud or mesh to the viewport")
-                Toggle(isOn: $showGround) { Label("Ground grid", systemImage: "grid") }
-                    .toggleStyle(.button)
-                    .help("Show or hide the reference ground grid beneath the artifact")
-                Text(presentation.metricScale ? "1 m cells · 10 m guides" : "1 unit cells · metric scale unavailable")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Text(
-                    presentation.sparseInspection == nil
-                        ? "Drag to orbit · scroll to zoom · Option-drag to pan"
-                        : "Click a point to inspect · drag to orbit · scroll to zoom"
-                )
-                .font(.caption).foregroundStyle(.secondary)
-            }.controlSize(.small)
             HStack(alignment: .top, spacing: 12) {
                 SceneViewport(
                     presentation: presentation, controller: controller, showGround: showGround,
-                    selectedTrack: selectedTrack,
+                    selected: selected,
                     selection: {
-                        selectedTrack = $0
+                        selected = $0
                         observationIndex = 0
-                    })
-                if let data = presentation.sparseInspection {
+                    }
+                )
+                .overlay(alignment: .topTrailing) {
+                    VStack(spacing: 0) {
+                        SceneOrientationView(orientation: controller.orientation, metricScale: presentation.metricScale)
+                        SceneOrientationControls(controller: controller, metricScale: presentation.metricScale)
+                            .padding(.bottom, 5)
+                    }
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8)).padding(10)
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    VStack(alignment: .trailing, spacing: 10) {
+                        SceneViewControls(
+                            controller: controller, showGround: $showGround, metricScale: presentation.metricScale)
+                        Text(presentation.detail).font(.caption).foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
+                            .padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                    }.padding(10)
+                }
+                if let data = presentation.sparseInspection, let selected {
                     Divider()
                     VStack(alignment: .leading, spacing: 10) {
-                        if let selectedTrack, data.tracks.indices.contains(selectedTrack) {
+                        HStack {
+                            Spacer()
+                            Button("Clear selection", systemImage: "xmark") { self.selected = nil }
+                                .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).help("Clear selection")
+                        }
+                        if case .point(let selectedTrack) = selected, data.tracks.indices.contains(selectedTrack) {
                             let track = data.tracks[selectedTrack]
                             Text("Point \(selectedTrack + 1) · \(track.observations.count) source photos").font(
                                 .headline)
@@ -56,7 +63,7 @@ struct Artifact3DViewer: View {
                                     observationIndex = min(Double(track.observations.count - 1), observationIndex + 1)
                                 }
                                 .disabled(Int(observationIndex) >= track.observations.count - 1)
-                            }.labelStyle(.iconOnly)
+                            }.labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain)
                             if track.observations.count > 1 {
                                 Slider(value: $observationIndex, in: 0...Double(track.observations.count - 1), step: 1)
                                     .accessibilityLabel("Source photograph")
@@ -66,19 +73,15 @@ struct Artifact3DViewer: View {
                                 observation: track.observations[
                                     min(Int(observationIndex), track.observations.count - 1)],
                                 openFeatures: openFeatures)
-                        } else {
-                            ContentUnavailableView(
-                                "Select a sparse point", systemImage: "cursorarrow.rays",
-                                description: Text(
-                                    "Click a point in the cloud to see the photographs and feature patches that formed it. Yellow rays connect the point to its source cameras."
-                                ))
+                        } else if case .camera(let imageID) = selected {
+                            SparseCameraInspector(data: data, imageID: imageID, openFeatures: openFeatures)
                         }
                     }.frame(width: 340).frame(maxHeight: .infinity, alignment: .top)
                 }
             }
         }
         .onChange(of: presentation.id) { _, _ in
-            selectedTrack = nil
+            selected = nil
             observationIndex = 0
         }
     }

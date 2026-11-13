@@ -5,10 +5,16 @@ final class NativeSceneFactory {
     func make(
         reconstruction: ReconstructionScene?, points: [CloudPoint], photos: [Photo], root: URL,
         surface: Surface? = nil, uvs: [[Double]] = [], texture: NSImage? = nil,
-        wireframe: Bool = false, photoPlanes: Bool = false
+        wireframe: Bool = false, photoPlanes: Bool = false, cloudGeometry: SCNGeometry? = nil
     ) -> SCNScene {
         let scene = SCNScene()
         scene.background.contents = NSColor.windowBackgroundColor
+
+        if let cloudGeometry {
+            let node = SCNNode(geometry: cloudGeometry)
+            node.name = "artifact"
+            scene.rootNode.addChildNode(node)
+        }
 
         if !points.isEmpty {
             let vertices = points.map { vector($0.position) }
@@ -95,7 +101,13 @@ final class NativeSceneFactory {
             }
         }
 
-        let positions = surface?.vertices ?? points.map(\.position)
+        let positions: [[Double]]
+        if let cloudGeometry {
+            let box = cloudGeometry.boundingBox
+            positions = [[box.min.x, box.min.y, box.min.z], [box.max.x, box.max.y, box.max.z]]
+        } else {
+            positions = surface?.vertices ?? points.map(\.position)
+        }
         let bounds = SceneBounds(positions: positions.isEmpty ? reconstruction?.cameras.map(\.centre) ?? [] : positions)
         let camera = SCNNode()
         camera.name = "viewer-camera"

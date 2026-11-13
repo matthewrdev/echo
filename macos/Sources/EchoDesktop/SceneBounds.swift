@@ -27,19 +27,29 @@ struct SceneBounds {
         max(0.01, max(maximum.x - minimum.x, max(maximum.y - minimum.y, maximum.z - minimum.z)))
     }
 
-    func fit(camera: SCNNode, size: CGSize) {
+    func fit(camera: SCNNode, size: CGSize, direction: SceneViewDirection = .north) {
         let aspect = max(0.1, Double(size.width / max(1, size.height)))
         let tangent = tan(25 * Double.pi / 180)
-        let halfWidth = max(0.005, (maximum.x - minimum.x) / 2)
-        let halfHeight = max(0.005, (maximum.y - minimum.y) / 2)
-        let distance =
-            max(halfHeight / tangent, halfWidth / (tangent * aspect)) * 1.08
-            + (maximum.z - minimum.z) / 2
+        let offset = direction.offset
+        camera.position = SCNVector3(centre.x + offset.x, centre.y + offset.y, centre.z + offset.z)
+        camera.look(at: centre, up: direction.up, localFront: SCNVector3(0, 0, -1))
+        var distance = 0.01
+        // Fit every corner in the chosen camera basis, including depth and aspect.
+        for x in [minimum.x, maximum.x] {
+            for y in [minimum.y, maximum.y] {
+                for z in [minimum.z, maximum.z] {
+                    let local = camera.convertVector(SCNVector3(x - centre.x, y - centre.y, z - centre.z), from: nil)
+                    distance = max(
+                        distance, local.z + max(abs(local.y) / tangent, abs(local.x) / (tangent * aspect)) * 1.08)
+                }
+            }
+        }
+        camera.camera?.usesOrthographicProjection = false
         camera.camera?.fieldOfView = 50
         camera.camera?.projectionDirection = .vertical
         camera.camera?.zNear = max(0.0001, span / 100_000)
         camera.camera?.zFar = max(1000, span * 100)
-        camera.position = SCNVector3(centre.x, centre.y, centre.z + distance)
-        camera.look(at: centre)
+        camera.position = SCNVector3(
+            centre.x + offset.x * distance, centre.y + offset.y * distance, centre.z + offset.z * distance)
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkspaceModal: View {
     let sheet: WorkspaceSheet
     @ObservedObject var workspace: WorkspaceViewModel
+    let artifacts: ArtifactViewModel
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -21,7 +22,7 @@ struct WorkspaceModal: View {
     @ViewBuilder
     private var content: some View {
         switch sheet {
-        case .photo: PhotoInspector(workspace: workspace)
+        case .photo: PhotoInspector(workspace: workspace, artifacts: artifacts)
         case .map: PhotoMapView(workspace: workspace, focusPhotoID: workspace.mapFocusPhotoID)
         case .settings: ProcessingSettingsView(workspace: workspace)
         case .georeference: GeoreferenceView(workspace: workspace)

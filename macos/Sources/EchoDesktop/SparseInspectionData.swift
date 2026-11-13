@@ -5,6 +5,7 @@ struct SparseInspectionData {
     let photos: [String: Photo]
     let cameras: [String: CameraPose]
     let tracks: [SparseTrack]
+    let cameraTracks: [String: [Int]]
     let featureFiles: [String: String]
 
     init(root: URL, scene: ReconstructionScene, photos: [Photo], featureFiles: [String: String]) {
@@ -38,5 +39,12 @@ struct SparseInspectionData {
             }
         }
         self.tracks = tracks
+        var cameraTracks: [String: [Int]] = [:]
+        for (index, track) in tracks.enumerated() {
+            for observation in track.observations {
+                cameraTracks[observation.imageID, default: []].append(index)
+            }
+        }
+        self.cameraTracks = cameraTracks
     }
 }
