@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using System.Buffers;
+using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Imaging;
@@ -123,8 +124,8 @@ public sealed class DepthEstimator : IDepthEstimator
             var inverse = cameraGeometry.Transpose(other.Rotation);
             views.Add(new StereoView
             {
-                Photo = otherPhoto,
-                Camera = other,
+                Centre = new V3(other.Centre),
+                Focal = cameraGeometry.Focal(otherPhoto, other) * resized.Width / otherPhoto.Width,
                 Width = resized.Width,
                 Height = resized.Height,
                 Gray = resized.Pixels,
@@ -180,7 +181,7 @@ public sealed class DepthEstimator : IDepthEstimator
                 {
                     var depth = hypotheses[plane];
                     var world = centre + ray * depth;
-                    costs[plane] = CalculateCost(views, world, depth, patch, norm);
+                    costs[plane] = CalculateCost(CollectionsMarshal.AsSpan(views), world, depth, patch, norm);
                     if (costs[plane] < best)
                     {
                         best = costs[plane];
@@ -290,14 +291,14 @@ public sealed class DepthEstimator : IDepthEstimator
         return norm;
     }
 
-    private double CalculateCost(IReadOnlyList<StereoView> views, V3 world, double depth, ReadOnlySpan<double> patch, double norm)
+    private double CalculateCost(ReadOnlySpan<StereoView> views, V3 world, double depth, ReadOnlySpan<double> patch, double norm)
     {
         var firstView = double.PositiveInfinity;
         var secondView = firstView;
         var count = 0;
         foreach (var view in views)
         {
-            var p = cameraGeometry.Rotate(view.WorldToCamera, world - new V3(view.Camera.Centre));
+            var p = cameraGeometry.Rotate(view.WorldToCamera, world - view.Centre);
             if (p.Z <= 0)
             {
                 continue;
@@ -308,15 +309,19 @@ public sealed class DepthEstimator : IDepthEstimator
             double dot = 0;
             var n = 0;
             var valid = true;
+            var focal = view.Focal;
+            var halfWidth = view.Width * .5;
+            var halfHeight = view.Height * .5;
             // Warp a fronto-parallel reference patch into the neighbour at this depth.
             // This accounts for camera rotation and perspective within the patch.
             for (var dy = -2; dy <= 2 && valid; dy++)
             {
+                var down = view.PatchDown * (dy * depth);
                 for (var dx = -2; dx <= 2; dx++)
                 {
-                    var q = p + view.PatchRight * (dx * depth) + view.PatchDown * (dy * depth);
-                    var u = q.X / q.Z * view.Focal + view.Width * .5;
-                    var v = q.Y / q.Z * view.Focal + view.Height * .5;
+                    var q = p + view.PatchRight * (dx * depth) + down;
+                    var u = q.X / q.Z * focal + halfWidth;
+                    var v = q.Y / q.Z * focal + halfHeight;
                     var sample = q.Z > 0 ? rasterImageService.Sample(view.Gray, view.Width, view.Height, u, v) : float.NaN;
                     if (!float.IsFinite(sample))
                     {
@@ -350,7 +355,7 @@ public sealed class DepthEstimator : IDepthEstimator
         }
 
         // At least two supporting views where available; tolerate one occluded neighbour.
-        return count < Math.Min(2, views.Count) ? double.PositiveInfinity : count == 1 ? firstView : (firstView + secondView) * .5;
+        return count < Math.Min(2, views.Length) ? double.PositiveInfinity : count == 1 ? firstView : (firstView + secondView) * .5;
     }
 
     private double InterpolateDepth(ReadOnlySpan<double> hypotheses, ReadOnlySpan<double> costs, int bestPlane, double best)

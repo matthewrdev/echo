@@ -1,12 +1,17 @@
-using Echo.Contracts;
 using Echo.Geometry;
 
 namespace Echo.Depth;
 
 internal sealed class StereoView
 {
-    public Photo Photo { get; init; } = new();
-    public CameraPose Camera { get; init; } = new();
+    public V3 Centre
+    {
+        get; init;
+    }
+    public double Focal
+    {
+        get; init;
+    }
     public double[] WorldToCamera { get; init; } = [];
     public V3 PatchRight
     {
@@ -25,5 +30,4 @@ internal sealed class StereoView
     {
         get; init;
     }
-    public double Focal => (Camera.FocalPixels > 0 ? Camera.FocalPixels : Photo.FocalPixels) * Width / Photo.Width;
 }
