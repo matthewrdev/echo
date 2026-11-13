@@ -85,6 +85,45 @@ public sealed class DepthRangeTests
             }
         });
 
+        tests.Run("Depth ranges reuse bounded storage across observed, visible and concurrent estimates", () =>
+        {
+            var project = new ProjectData();
+            var photo = new Photo { Id = "reference", Width = 800, Height = 600, FocalPixels = 600 };
+            var camera = new CameraPose { ImageId = photo.Id };
+            var scene = new ReconstructionScene { Cameras = [camera, new CameraPose { Centre = [300, 400, 0] }] };
+            for (var index = 0; index < 10000; index++)
+            {
+                scene.Points.Add(Point("other", 0, 0, 200));
+            }
+            for (var index = 0; index < 9; index++)
+            {
+                scene.Points.Add(Point(photo.Id, 0, 0, 50));
+            }
+            var visible = ranges.Estimate(project, scene, photo, camera, default);
+            Check(visible.SampleCount == 10009 && visible.Near == 150 && visible.Far == 250,
+                "Fewer than ten observed points must fall back to all visible samples and preserve trimming");
+            scene.Points.Add(Point(photo.Id, 0, 0, 50));
+            var observed = ranges.Estimate(project, scene, photo, camera, default);
+            Check(observed.SampleCount == 10 && observed.Near == 37.5 && observed.Far == 62.5,
+                "Ten observed points must take precedence over unrelated visible depths");
+            var allocated = GC.GetAllocatedBytesForCurrentThread();
+            for (var index = 0; index < 20; index++)
+            {
+                Check(ranges.Estimate(project, scene, photo, camera, default) == observed, "Reused buffers retain no previous samples");
+            }
+            Check(GC.GetAllocatedBytesForCurrentThread() - allocated < 100000,
+                "Warm estimates must not allocate point-sized arrays or growing tile lists");
+            Parallel.For(0, 32, index =>
+            {
+                Check(ranges.Estimate(project, scene, photo, camera, default) == observed,
+                    "Concurrent images must not share mutable sample storage");
+            });
+            scene.Points.Clear();
+            var empty = ranges.Estimate(project, scene, photo, camera, default);
+            Check(empty.SampleCount == 0 && empty.Near == 10 && empty.Far == 2000,
+                "Empty scenes must use camera bounds, without reading stale pooled entries");
+        });
+
         tests.Run("Automatic depth reconstructs stereo texture beyond the old 100 metre cap", () =>
         {
             var store = stores.Open(Path.Combine(Path.GetTempPath(), "echo-depth-range-" + Guid.NewGuid().ToString("N")));
