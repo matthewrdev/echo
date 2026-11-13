@@ -25,9 +25,10 @@ public sealed class ReconstructionTests
     private readonly TextureTests textureTests;
     private readonly ProcessingEfficiencyTests efficiencyTests;
     private readonly LineFeatureTests lineTests;
+    private readonly ResetCommandTests resetCommandTests;
     private readonly Echo.Pipeline.IStageResetService resetService;
     [ImportingConstructor]
-    public ReconstructionTests(Echo.Geometry.ICameraGeometry cameraGeometry, Echo.Imaging.IRasterImageService rasterImageService, Echo.Infrastructure.IJsonCodec jsonCodec, Echo.Infrastructure.IFileOperations fileOperations, Echo.Reconstruction.IReconstructor reconstructor, Echo.Optimization.IBundleAdjuster bundleAdjuster, Echo.Meshing.IMeshBuilder meshBuilder, Echo.Simplification.IEdgeCollapse edgeCollapse, Echo.Export.IGlbWriter glbWriter, Echo.Projects.IProjectStoreFactory storeFactory, Echo.Pipeline.IProcessor processor, ProcessingSettingsTests settingsTests, TextureTests textureTests, Echo.Pipeline.IStageResetService resetService, ProcessingEfficiencyTests efficiencyTests, LineFeatureTests lineTests)
+    public ReconstructionTests(Echo.Geometry.ICameraGeometry cameraGeometry, Echo.Imaging.IRasterImageService rasterImageService, Echo.Infrastructure.IJsonCodec jsonCodec, Echo.Infrastructure.IFileOperations fileOperations, Echo.Reconstruction.IReconstructor reconstructor, Echo.Optimization.IBundleAdjuster bundleAdjuster, Echo.Meshing.IMeshBuilder meshBuilder, Echo.Simplification.IEdgeCollapse edgeCollapse, Echo.Export.IGlbWriter glbWriter, Echo.Projects.IProjectStoreFactory storeFactory, Echo.Pipeline.IProcessor processor, ProcessingSettingsTests settingsTests, TextureTests textureTests, Echo.Pipeline.IStageResetService resetService, ProcessingEfficiencyTests efficiencyTests, LineFeatureTests lineTests, ResetCommandTests resetCommandTests)
     {
         this.cameraGeometry = cameraGeometry;
         this.rasterImageService = rasterImageService;
@@ -44,6 +45,7 @@ public sealed class ReconstructionTests
         this.textureTests = textureTests;
         this.efficiencyTests = efficiencyTests;
         this.lineTests = lineTests;
+        this.resetCommandTests = resetCommandTests;
         this.resetService = resetService;
     }
 
@@ -55,6 +57,7 @@ public sealed class ReconstructionTests
         textureTests.Run(tests);
         efficiencyTests.Run(tests);
         lineTests.Run(tests);
+        resetCommandTests.Run(tests);
         tests.Run("MEF composes all processing stages in dependency order", () =>
         {
             var expected = new[]

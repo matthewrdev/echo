@@ -1,5 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
-  <ItemGroup><ProjectReference Include="../../src/Echo.Pipeline/Echo.Pipeline.csproj" /></ItemGroup>
-<ItemGroup><ProjectReference Include="../../src/Echo.Composition/Echo.Composition.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Echo.Cli/Echo.Cli.csproj" />
+    <ProjectReference Include="../../src/Echo.Pipeline/Echo.Pipeline.csproj" />
+    <ProjectReference Include="../../src/Echo.Composition/Echo.Composition.csproj" />
+  </ItemGroup>
 </Project>

@@ -27,6 +27,7 @@ public sealed class ArgumentParser : IArgumentParser
             "query",
             "value",
             "target",
+            "from",
             "run",
             "lat",
             "lon",
