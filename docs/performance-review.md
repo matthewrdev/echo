@@ -23,13 +23,35 @@ dotnet tools/Echo.Benchmarks/bin/Release/net10.0/Echo.Benchmarks.dll PROJECT RUN
 
 Local measurement logs and maps are ignored under `local-results/depth-performance/`. Single-camera output SHA-256: `12314452d1115419d86c9f90be6c5e7abf6c375baba2f04e539a6301b93b86d7`. Eight-camera output SHA-256: `f0850c381ce6363df840b34174d47d83484584d57183815f2aed3629067d24ba`.
 
+## Feature detection follow-up
+
+The first three photos in the 193-photo Cliff project were extracted directly, without reusing feature checkpoints. Each case ran five times; figures below are medians of iterations 1–4, after the initial JIT/pool warm-up. Image decoding is included; JSON serialization and output hashing are excluded. An independent user depth run overlapped later measurements, so elapsed times are indicative rather than an isolated CPU benchmark. Allocations are cumulative managed bytes, not peak RSS; pooled buffers retain memory for reuse.
+
+| Three-photo case | Before | After | Managed allocations before → after |
+| --- | ---: | ---: | ---: |
+| 1000 px, 800 points/photo, lines enabled | 1.014 s | 0.495 s | 210.6 MB → 34.6 MB |
+| 4032 px, 20,000 points/photo, lines enabled | 7.680 s | 5.134 s | 1726.7 MB → 528.9 MB |
+| 4032 px, 20,000 points/photo, points only | 4.512 s | 0.936 s | 1080.1 MB → 359.8 MB |
+
+All three complete output files were byte-identical to the previous implementation: coordinates, point/line ordering, kinds and every descriptor value. Default output contains 2,400 points and 110 lines; full-resolution output contains 60,000 points and 1,434 lines. These are extraction benchmarks, not evidence that the reconstructed model is correct.
+
+Changes: borrow native BGRA/RGBA pixels through spans when their layout and alpha semantics permit; area-downsample directly into grayscale; compute Harris products once in five rolling rows; sort corners in place with the original tie order; reuse a stack descriptor; pool line scratch storage and retain three smoothed rows; retain only the strongest requested lines with stable ties; cache line directions and remove per-junction LINQ closures. Other pixel formats, padded rows and premultiplied alpha retain Skia's conversion path. No unsafe pointer code was necessary.
+
+Regression checks include original-implementation hashes for checkerboard, noise and rectangle inputs; concurrent extractions alternating image dimensions; cancellation; and channel/alpha/stride parity. Detector fingerprints remain unchanged because results are preserved.
+
+```sh
+dotnet tools/Echo.Benchmarks/bin/Release/net10.0/Echo.Benchmarks.dll features PROJECT 1000 800 5 local-results/features.json 3 true
+```
+
+Local comparison outputs and timing logs are under `local-results/feature-optimization/` (ignored).
+
 ## Allocation and concurrency findings
 
 | Routine | Changes made | Remaining concerns |
 | --- | --- | --- |
 | Image preparation and depth pyramid | Decode each reference/neighbour once per job. Area-downsample directly into grayscale through spans. Preserve channel rounding. | Decoded full-resolution arrays are still sizeable and duplicated between concurrent jobs. A shared bounded image cache could help. |
 | Depth search | Reuse row-local patch, hypothesis and cost spans; reuse median-filter storage. Bound concurrent images and divide the worker budget between them. Persist per-image completion and report pyramid progress. | CPU patch correlation remains expensive at high resolutions. The memory setting is a scheduling estimate, not a hard process limit. Widths above the source size can repeat native-resolution refinement. Missing sparse support can still leave holes. |
-| Feature extraction | Store corner candidates as value types rather than separate heap objects. Line region growth checks cancellation during large regions. | Full candidate sorting and several full-image gradient arrays remain. Point descriptors are intensity patches, not scale/rotation-invariant descriptors. |
+| Feature extraction | Native pixel spans, rolling gradient-product rows, pooled line scratch, stable in-place corner sorting and reusable descriptors. See the measured follow-up above. | Full candidate sorting remains; line seed sorting and region traversal dominate the large-image line case. Point descriptors are intensity patches, not scale/rotation-invariant descriptors. |
 | Descriptor matching | Span-based distance calculation without per-comparison arrays; separate point and reversible line descriptors. | Exhaustive comparisons remain quadratic in feature counts. No approximate index or GPU matcher yet. |
 | Camera projection and registration | Remove the transpose allocation in general projection; cache camera projection for repeated registration, mesh and texture samples. Reuse DLT scratch storage. | RANSAC samples still sort the observation collection. Essential-matrix scoring still allocates small MathNet vectors per match; both deserve a dedicated numerical regression before replacement. |
 | Bundle adjustment | Reuse observation evaluation, Jacobian, index and Schur-product buffers. Eliminate per-observation LINQ concatenation and array copies. | Camera Hessian and solve remain dense. Dense camera algebra and stored point cross-blocks become the principal scaling limit. Sparse/block solving is a larger algorithm change. |

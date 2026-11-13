@@ -6,6 +6,7 @@ public interface IRasterImageService
 {
     RasterPixels ReadPixels(string path);
     GrayscaleImage ResizeGray(RasterPixels source, int width);
+    GrayscaleImage ResizeGray(SKBitmap source, int width);
     SKBitmap Decode(string path);
     SKBitmap Resize(SKBitmap source, int width);
     void Save(SKBitmap bitmap, string path, SKEncodedImageFormat format, int quality = 92);

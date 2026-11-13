@@ -49,6 +49,34 @@ public sealed class ProcessingEfficiencyTests
                 Check(direct.Pixels.SequenceEqual(images.Gray(reference)), "Identical grayscale samples");
             }
         });
+        tests.Run("Native pixel spans preserve channel order, alpha conversion and padded rows", () =>
+        {
+            foreach (var colorType in new[] { SKColorType.Bgra8888, SKColorType.Rgba8888 })
+            {
+                foreach (var alphaType in new[] { SKAlphaType.Opaque, SKAlphaType.Premul, SKAlphaType.Unpremul })
+                {
+                    foreach (var padding in new[] { 0, 16 })
+                    {
+                        var info = new SKImageInfo(173, 117, colorType, alphaType);
+                        using var bitmap = new SKBitmap(info, info.RowBytes + padding);
+                        var random = new Random(528);
+                        var pixels = new SKColor[bitmap.Width * bitmap.Height];
+                        for (var i = 0; i < pixels.Length; i++)
+                        {
+                            var alpha = alphaType == SKAlphaType.Opaque ? 255 : random.Next(256);
+                            pixels[i] = new SKColor((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256), (byte)alpha);
+                        }
+                        bitmap.Pixels = pixels;
+                        foreach (var width in new[] { 32, 80, 173, 256 })
+                        {
+                            using var reference = images.Resize(bitmap, width);
+                            var direct = images.ResizeGray(bitmap, width);
+                            Check(direct.Pixels.SequenceEqual(images.Gray(reference)), $"Identical pixels for {colorType}, {alphaType}, padding {padding}, width {width}");
+                        }
+                    }
+                }
+            }
+        });
         tests.Run("Depth scheduling bounds nested workers and reduces concurrency for large images", () =>
         {
             var project = new ProjectData { Images = [new Photo { Width = 4032, Height = 2268 }] };

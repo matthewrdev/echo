@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Imaging;
@@ -17,99 +18,155 @@ public sealed class LineDetector : ILineDetector
 
     public List<LineFeature> Detect(float[] gray, int width, int height, int limit, double minimumLength, CancellationToken cancellation)
     {
-        var smooth = new float[gray.Length];
-        var gx = new float[gray.Length];
-        var gy = new float[gray.Length];
-        var strength = new float[gray.Length];
-        var seeds = new List<int>();
-        for (var y = 1; y < height - 1; y++)
+        cancellation.ThrowIfCancellationRequested();
+        var pixelCount = gray.Length;
+        var strengthOffset = pixelCount * 2;
+        var buffer = ArrayPool<float>.Shared.Rent(pixelCount * 3 + width * 3);
+        bool[]? visited = null;
+        try
         {
-            for (var x = 1; x < width - 1; x++)
+            visited = ArrayPool<bool>.Shared.Rent(pixelCount);
+            visited.AsSpan(0, pixelCount).Clear();
+            var gx = buffer.AsSpan(0, pixelCount);
+            var gy = buffer.AsSpan(pixelCount, pixelCount);
+            var strength = buffer.AsSpan(strengthOffset, pixelCount);
+            var smooth = buffer.AsSpan(pixelCount * 3, width * 3);
+            // Uncomputed border pixels stop region growth, even when this buffer
+            // was last used by a larger image. All interior values are overwritten.
+            strength.Clear();
+            var seeds = new List<int>();
+            var nextRow = 1;
+            for (var y = 2; y < height - 2; y++)
             {
-                var i = y * width + x;
-                smooth[i] = (gray[i - width - 1] + 2 * gray[i - width] + gray[i - width + 1]
-                    + 2 * gray[i - 1] + 4 * gray[i] + 2 * gray[i + 1]
-                    + gray[i + width - 1] + 2 * gray[i + width] + gray[i + width + 1]) / 16;
-            }
-        }
-
-        for (var y = 2; y < height - 2; y++)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            for (var x = 2; x < width - 2; x++)
-            {
-                var i = y * width + x;
-                gx[i] = (smooth[i + 1] - smooth[i - 1]) * .5f;
-                gy[i] = (smooth[i + width] - smooth[i - width]) * .5f;
-                strength[i] = MathF.Sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
-                if (strength[i] >= .025f)
+                cancellation.ThrowIfCancellationRequested();
+                for (; nextRow <= y + 1; nextRow++)
                 {
-                    seeds.Add(i);
+                    SmoothRow(gray, width, nextRow, smooth.Slice(nextRow % 3 * width, width));
                 }
-            }
-        }
-
-        seeds.Sort((a, b) => strength[b].CompareTo(strength[a]));
-        var visited = new bool[gray.Length];
-        var region = new List<int>();
-        var lines = new List<LineFeature>();
-        foreach (var seed in seeds)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            if (visited[seed])
-            {
-                continue;
-            }
-            region.Clear();
-            region.Add(seed);
-            visited[seed] = true;
-            var nx = gx[seed] / strength[seed];
-            var ny = gy[seed] / strength[seed];
-            for (var cursor = 0; cursor < region.Count; cursor++)
-            {
-                if (cursor % 1024 == 0)
+                var previous = smooth.Slice((y - 1) % 3 * width, width);
+                var current = smooth.Slice(y % 3 * width, width);
+                var following = smooth.Slice((y + 1) % 3 * width, width);
+                for (var x = 2; x < width - 2; x++)
                 {
-                    cancellation.ThrowIfCancellationRequested();
-                }
-
-                var x = region[cursor] % width;
-                var y = region[cursor] / width;
-                for (var dy = -1; dy <= 1; dy++)
-                {
-                    for (var dx = -1; dx <= 1; dx++)
+                    var i = y * width + x;
+                    gx[i] = (current[x + 1] - current[x - 1]) * .5f;
+                    gy[i] = (following[x] - previous[x]) * .5f;
+                    strength[i] = MathF.Sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
+                    if (strength[i] >= .025f)
                     {
-                        var index = (y + dy) * width + x + dx;
-                        if (visited[index] || strength[index] < .025f)
-                        {
-                            continue;
-                        }
-                        // Group adjacent edge pixels whose normals agree within 15 degrees.
-                        if ((gx[index] * nx + gy[index] * ny) / strength[index] < .966)
-                        {
-                            continue;
-                        }
-                        visited[index] = true;
-                        region.Add(index);
+                        seeds.Add(i);
                     }
                 }
             }
 
-            var line = Fit(region, strength, width, minimumLength);
-            if (line == null)
+            seeds.Sort((a, b) => buffer[strengthOffset + b].CompareTo(buffer[strengthOffset + a]));
+            var region = new List<int>();
+            var lines = new List<LineFeature>();
+            foreach (var seed in seeds)
             {
-                continue;
+                cancellation.ThrowIfCancellationRequested();
+                if (visited[seed])
+                {
+                    continue;
+                }
+                region.Clear();
+                region.Add(seed);
+                visited[seed] = true;
+                var nx = gx[seed] / strength[seed];
+                var ny = gy[seed] / strength[seed];
+                for (var cursor = 0; cursor < region.Count; cursor++)
+                {
+                    if (cursor % 1024 == 0)
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                    }
+
+                    var x = region[cursor] % width;
+                    var y = region[cursor] / width;
+                    for (var dy = -1; dy <= 1; dy++)
+                    {
+                        for (var dx = -1; dx <= 1; dx++)
+                        {
+                            var index = (y + dy) * width + x + dx;
+                            if (visited[index] || strength[index] < .025f)
+                            {
+                                continue;
+                            }
+                            // Group adjacent edge pixels whose normals agree within 15 degrees.
+                            if ((gx[index] * nx + gy[index] * ny) / strength[index] < .966)
+                            {
+                                continue;
+                            }
+                            visited[index] = true;
+                            region.Add(index);
+                        }
+                    }
+                }
+
+                var line = Fit(region, strength, width, minimumLength);
+                if (line == null)
+                {
+                    continue;
+                }
+                line.Descriptor = Describe(gray, width, height, line);
+                if (line.Descriptor.Length > 0)
+                {
+                    RetainLine(lines, line, limit);
+                }
             }
-            line.Descriptor = Describe(gray, width, height, line);
-            if (line.Descriptor.Length > 0)
+
+            return lines;
+        }
+        finally
+        {
+            ArrayPool<float>.Shared.Return(buffer);
+            if (visited != null)
             {
-                lines.Add(line);
+                ArrayPool<bool>.Shared.Return(visited);
             }
         }
-
-        return lines.OrderByDescending(line => line.Strength).Take(limit).ToList();
     }
 
-    private LineFeature? Fit(List<int> region, float[] strength, int width, double minimumLength)
+    private void RetainLine(List<LineFeature> lines, LineFeature candidate, int limit)
+    {
+        var low = 0;
+        var high = lines.Count;
+        while (low < high)
+        {
+            var middle = low + (high - low) / 2;
+            if (lines[middle].Strength.CompareTo(candidate.Strength) >= 0)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+        if (low >= limit)
+        {
+            return;
+        }
+        // Insert after equally strong lines to retain the original stable order.
+        lines.Insert(low, candidate);
+        if (lines.Count > limit)
+        {
+            lines.RemoveAt(limit);
+        }
+    }
+
+    private void SmoothRow(ReadOnlySpan<float> gray, int width, int y, Span<float> target)
+    {
+        for (var x = 1; x < width - 1; x++)
+        {
+            var i = y * width + x;
+            target[x] = (gray[i - width - 1] + 2 * gray[i - width] + gray[i - width + 1]
+                + 2 * gray[i - 1] + 4 * gray[i] + 2 * gray[i + 1]
+                + gray[i + width - 1] + 2 * gray[i + width] + gray[i + width + 1]) / 16;
+        }
+    }
+
+    private LineFeature? Fit(List<int> region, ReadOnlySpan<float> strength, int width, double minimumLength)
     {
         if (region.Count < minimumLength * .7)
         {
@@ -197,19 +254,24 @@ public sealed class LineDetector : ILineDetector
     public List<Feature> Junctions(IReadOnlyList<LineFeature> lines, float[] gray, int width, int height, int limit, CancellationToken cancellation)
     {
         var result = new List<Feature>();
+        var directions = new LineDirection[lines.Count];
+        for (var index = 0; index < lines.Count; index++)
+        {
+            directions[index] = new LineDirection(lines[index]);
+        }
         for (var a = 0; a < lines.Count; a++)
         {
             cancellation.ThrowIfCancellationRequested();
             var first = lines[a];
-            var ax = first.End[0] - first.Start[0];
-            var ay = first.End[1] - first.Start[1];
-            var lengthA = Math.Sqrt(ax * ax + ay * ay);
+            var ax = directions[a].X;
+            var ay = directions[a].Y;
+            var lengthA = directions[a].Length;
             for (var b = a + 1; b < lines.Count; b++)
             {
                 var second = lines[b];
-                var bx = second.End[0] - second.Start[0];
-                var by = second.End[1] - second.Start[1];
-                var lengthB = Math.Sqrt(bx * bx + by * by);
+                var bx = directions[b].X;
+                var by = directions[b].Y;
+                var lengthB = directions[b].Length;
                 var cross = ax * by - ay * bx;
                 if (Math.Abs(cross) < .34 * lengthA * lengthB)
                 {
@@ -231,7 +293,7 @@ public sealed class LineDetector : ILineDetector
                 var insideWidth = x >= 9 && x < width - 9;
                 var insideHeight = y >= 9 && y < height - 9;
                 var inside = insideWidth && insideHeight;
-                if (!inside || result.Any(point => Math.Abs(point.X - x) < 8 && Math.Abs(point.Y - y) < 8))
+                if (!inside || NearJunction(result, x, y))
                 {
                     continue;
                 }
@@ -255,6 +317,18 @@ public sealed class LineDetector : ILineDetector
             }
         }
         return result;
+    }
+
+    private bool NearJunction(List<Feature> points, double x, double y)
+    {
+        foreach (var point in points)
+        {
+            if (Math.Abs(point.X - x) < 8 && Math.Abs(point.Y - y) < 8)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private bool Normalize(Span<float> descriptor)

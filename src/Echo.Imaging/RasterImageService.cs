@@ -1,4 +1,5 @@
 using System.ComponentModel.Composition;
+using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using SkiaSharp;
@@ -24,26 +25,50 @@ public sealed class RasterImageService : IRasterImageService
 
     public GrayscaleImage ResizeGray(RasterPixels source, int width)
     {
-        var scale = Math.Min(1.0, (double)width / source.Width);
-        var targetWidth = Math.Max(1, (int)Math.Round(source.Width * scale));
-        var targetHeight = Math.Max(1, (int)Math.Round(source.Height * scale));
+        return ResizeGray(source.Pixels, source.Width, source.Height, width);
+    }
+
+    public GrayscaleImage ResizeGray(SKBitmap source, int width)
+    {
+        var byteColour = source.ColorType is SKColorType.Bgra8888 or SKColorType.Rgba8888;
+        var unpremultiplied = source.AlphaType is SKAlphaType.Opaque or SKAlphaType.Unpremul;
+        var packedPixels = BitConverter.IsLittleEndian && source.RowBytes == source.Width * sizeof(uint);
+        var nativeLayout = byteColour && packedPixels;
+        if (nativeLayout && unpremultiplied)
+        {
+            // SKColor is an unpremultiplied ARGB uint. Borrow native pixels for
+            // this call; RGBA sources swap the accumulated red and blue channels.
+            // No full-resolution managed pixel copy is made.
+            var pixels = MemoryMarshal.Cast<byte, SKColor>(source.GetPixelSpan());
+            return ResizeGray(pixels, source.Width, source.Height, width, source.ColorType == SKColorType.Rgba8888);
+        }
+
+        // Skia converts other formats, padded rows and premultiplied alpha to
+        // the same colours as the existing bitmap-based resizing path.
+        return ResizeGray(source.Pixels, source.Width, source.Height, width);
+    }
+
+    private GrayscaleImage ResizeGray(ReadOnlySpan<SKColor> pixels, int sourceWidth, int sourceHeight, int width, bool swapRedBlue = false)
+    {
+        var scale = Math.Min(1.0, (double)width / sourceWidth);
+        var targetWidth = Math.Max(1, (int)Math.Round(sourceWidth * scale));
+        var targetHeight = Math.Max(1, (int)Math.Round(sourceHeight * scale));
         var output = new float[targetWidth * targetHeight];
-        ReadOnlySpan<SKColor> pixels = source.Pixels;
         for (var y = 0; y < targetHeight; y++)
         {
-            var y0 = y * source.Height / targetHeight;
-            var y1 = (y + 1) * source.Height / targetHeight;
+            var y0 = y * sourceHeight / targetHeight;
+            var y1 = (y + 1) * sourceHeight / targetHeight;
             for (var x = 0; x < targetWidth; x++)
             {
-                var x0 = x * source.Width / targetWidth;
-                var x1 = (x + 1) * source.Width / targetWidth;
+                var x0 = x * sourceWidth / targetWidth;
+                var x1 = (x + 1) * sourceWidth / targetWidth;
                 long red = 0;
                 long green = 0;
                 long blue = 0;
                 var count = (x1 - x0) * (y1 - y0);
                 for (var sy = y0; sy < y1; sy++)
                 {
-                    var row = pixels.Slice(sy * source.Width + x0, x1 - x0);
+                    var row = pixels.Slice(sy * sourceWidth + x0, x1 - x0);
                     foreach (var color in row)
                     {
                         red += color.Red;
@@ -53,8 +78,10 @@ public sealed class RasterImageService : IRasterImageService
                 }
 
                 // Keep the same byte rounding as Resize followed by Gray.
-                output[y * targetWidth + x] = (.299f * (byte)(red / count)
-                    + .587f * (byte)(green / count) + .114f * (byte)(blue / count)) / 255;
+                var redChannel = (byte)((swapRedBlue ? blue : red) / count);
+                var blueChannel = (byte)((swapRedBlue ? red : blue) / count);
+                output[y * targetWidth + x] = (.299f * redChannel
+                    + .587f * (byte)(green / count) + .114f * blueChannel) / 255;
             }
         }
 
