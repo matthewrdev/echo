@@ -156,7 +156,8 @@ final class SavedArtifactReader: ArtifactReader {
                     "\(map.width) × \(map.height) · \(coverage.formatted(.percent.precision(.fractionLength(2)))) accepted depth",
                 depthImage: DepthImagePresentation(
                     identity: try unitFile().path, overlay: overlay,
-                    photograph: NSImage(contentsOf: root.appendingPathComponent(photograph.source))))
+                    photograph: NSImage(contentsOf: root.appendingPathComponent(photograph.source)),
+                    map: map, isMetric: metricScale()))
         case .fusion:
             let volume: FusedVolume = try read(folder.appendingPathComponent("volume.preview.json"))
             return ArtifactPresentation(

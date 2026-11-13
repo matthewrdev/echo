@@ -3,12 +3,20 @@ import SwiftUI
 struct CanvasViewport: NSViewRepresentable {
     let renderer: CanvasRenderer
     @ObservedObject var controller: CanvasViewportController
+    var reportsHover = false
 
     func makeNSView(context: Context) -> InteractiveCanvasView {
         let view = InteractiveCanvasView()
         controller.view = view
         view.zoomChanged = { value in
             DispatchQueue.main.async { controller.zoom = value }
+        }
+        if reportsHover {
+            view.hoverChanged = { hover in
+                DispatchQueue.main.async {
+                    if controller.hover != hover { controller.hover = hover }
+                }
+            }
         }
         view.wantsLayer = true
         view.layer?.masksToBounds = true

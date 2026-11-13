@@ -19,8 +19,18 @@ struct DepthImageViewport: View {
                     .monospacedDigit().frame(width: 38, alignment: .trailing)
             }.font(.caption)
             CanvasViewport(
-                renderer: DepthCanvasRenderer(data: data, overlayOpacity: overlayOpacity), controller: controller
-            ).clipShape(RoundedRectangle(cornerRadius: 8))
+                renderer: DepthCanvasRenderer(data: data, overlayOpacity: overlayOpacity), controller: controller,
+                reportsHover: true
+            )
+            .overlay {
+                if let hover = controller.hover, let sample = data.map.sample(at: hover.imagePoint) {
+                    PointerTooltipLayout(point: hover.viewportPoint) {
+                        DepthSampleReadout(sample: sample, isMetric: data.isMetric).fixedSize()
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             if data.photograph == nil {
                 Text("Source photograph unavailable").font(.caption).foregroundStyle(.secondary)
             }

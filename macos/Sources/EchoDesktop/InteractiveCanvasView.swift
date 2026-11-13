@@ -4,10 +4,14 @@ final class InteractiveCanvasView: NSView {
     var renderer: CanvasRenderer? {
         didSet {
             if oldValue?.identity != renderer?.identity { fit() }
+            updateHover()
             needsDisplay = true
         }
     }
     var zoomChanged: ((Double) -> Void)?
+    var hoverChanged: ((CanvasHover?) -> Void)?
+    private var pointerPosition: CGPoint?
+    private var pointerTrackingArea: NSTrackingArea?
     private var magnification: CGFloat = 1
     private var offset = CGPoint.zero
     private var dragDistance: CGFloat = 0
@@ -43,6 +47,7 @@ final class InteractiveCanvasView: NSView {
         offset = .zero
         zoomChanged?(1)
         needsDisplay = true
+        updateHover()
     }
 
     func zoom(by factor: CGFloat, at anchor: CGPoint? = nil) {
@@ -56,6 +61,7 @@ final class InteractiveCanvasView: NSView {
             y: anchor.y - position.y * scale - (bounds.height - size.height * scale) / 2)
         zoomChanged?(Double(magnification))
         needsDisplay = true
+        updateHover()
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -79,11 +85,15 @@ final class InteractiveCanvasView: NSView {
         offset.x += event.deltaX
         offset.y += event.deltaY
         dragDistance += abs(event.deltaX) + abs(event.deltaY)
+        pointerPosition = convert(event.locationInWindow, from: nil)
+        updateHover()
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
         NSCursor.pop()
+        pointerPosition = convert(event.locationInWindow, from: nil)
+        updateHover()
         if dragDistance < 4 {
             let position = convert(event.locationInWindow, from: nil)
             renderer?.select(
@@ -94,4 +104,49 @@ final class InteractiveCanvasView: NSView {
     }
 
     override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let pointerTrackingArea { removeTrackingArea(pointerTrackingArea) }
+        guard hoverChanged != nil else { return }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [
+                .mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect, .enabledDuringMouseDrag,
+            ],
+            owner: self, userInfo: nil)
+        addTrackingArea(area)
+        pointerTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
+
+    override func mouseMoved(with event: NSEvent) {
+        pointerPosition = convert(event.locationInWindow, from: nil)
+        updateHover()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        pointerPosition = nil
+        updateHover()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        updateHover()
+    }
+
+    func imagePoint(at position: CGPoint) -> CGPoint? {
+        guard bounds.contains(position), let size = renderer?.size else { return nil }
+        let point = CGPoint(x: (position.x - origin.x) / scale, y: (position.y - origin.y) / scale)
+        return CGRect(origin: .zero, size: size).contains(point) ? point : nil
+    }
+
+    private func updateHover() {
+        guard let pointerPosition, let point = imagePoint(at: pointerPosition) else {
+            hoverChanged?(nil)
+            return
+        }
+        hoverChanged?(CanvasHover(imagePoint: point, viewportPoint: pointerPosition))
+    }
 }
