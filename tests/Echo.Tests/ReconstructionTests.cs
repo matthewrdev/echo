@@ -394,7 +394,7 @@ public sealed class ReconstructionTests
                 using var lease = store.Lock("run");
                 Throws(() => processor.Execute(store, "features", default), 6);
             });
-            store.Edit(p => p.Settings = new Settings { FeatureWidth = 320, FeatureLimit = 400, DepthWidth = 128, DepthPlanes = 48, DepthNear = 8, DepthFar = 18, TextureSize = 256, FaceLimit = 800 });
+            store.Edit(p => p.Settings = new Settings { FeatureWidth = 320, FeatureLimit = 400, DepthWidth = 128, DepthPlanes = 48, DepthNear = 8, DepthFar = 18, DepthConcurrency = 2, TextureSize = 256, FaceLimit = 800 });
             RunData? first = null;
             tests.Run("Cancellation preserves a completed per-image checkpoint and resume reuses it", () =>
             {
@@ -422,6 +422,7 @@ public sealed class ReconstructionTests
                 Check(partialFeatures.Count == 1, "Cancelled feature extraction retains its viewable image index");
                 var reused = 0;
                 var featureReports = 0;
+                var depthReports = 0;
                 var previewImages = partialFeatures.Count;
                 var cloudProgressEvents = 0;
                 var sawLiveCloudBeforeCompletion = false;
@@ -447,6 +448,22 @@ public sealed class ReconstructionTests
                         Check(current.Progress?.Stage == "features", "Preview writes must not replace feature progress");
                         Check(!current.Artifacts.ContainsKey("features"), "Features are viewable before stage completion");
                     }
+                    var depthCheckpoint = record.GetProperty("type").GetString() == "imageCheckpoint"
+                        && payload.GetProperty("stage").GetString() == "depth";
+                    if (depthCheckpoint)
+                    {
+                        depthReports++;
+                        var current = store.GetRun(paused.Id);
+                        var index = jsonCodec.Read<Dictionary<string, string>>(store.PathFor(current.Artifacts["depthPreview"] + "/units.json"));
+                        var imageId = payload.GetProperty("imageId").GetString()!;
+                        var map = jsonCodec.Read<DepthMap>(store.PathFor(index[imageId] + "/depth.json"));
+                        Check(map.ImageId == imageId, "Concurrent depth previews retain their photo identity");
+                        Check(index.Count == depthReports, "Each completed depth map appears in the live index");
+                        Check(payload.GetProperty("validSamples").GetInt32() == map.Depth.Count(value => float.IsFinite(value) && value > 0), "Report accepted depth coverage");
+                        Check(payload.GetProperty("sampleCount").GetInt32() == map.Depth.Length, "Report the complete depth image size");
+                        Check(current.Progress?.Stage == "depth", "Preview writes must not replace depth progress");
+                        Check(!current.Artifacts.ContainsKey("depth"), "Depth maps are viewable before stage completion");
+                    }
                     if (record.GetProperty("type").GetString() == "stageProgress"
                         && payload.GetProperty("stage").GetString() == "cloud")
                     {
@@ -470,6 +487,7 @@ public sealed class ReconstructionTests
                 });
                 Check(first.Status == "completed" && reused >= 1, "Resumed completed run and reused feature artifact");
                 Check(featureReports == 3 && previewImages == 3, "Every image is reported and added to the live feature index");
+                Check(depthReports == 3, "Every depth image is reported during processing");
                 Check(cloudProgressEvents >= 3, "Dense cloud reports progress during construction");
                 Check(sawLiveCloudBeforeCompletion, "Dense cloud publishes a viewable artifact before completion");
                 var scene = jsonCodec.Read<ReconstructionScene>(store.PathFor(first.Artifacts["alignment"] + "/scene.json"));

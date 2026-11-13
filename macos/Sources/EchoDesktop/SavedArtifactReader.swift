@@ -51,6 +51,14 @@ final class SavedArtifactReader: ArtifactReader {
             }
         }
         if stage == .depth, let alignment = run.artifacts["alignment"] {
+            if run.artifacts["depth"] == nil {
+                let units: [String: String] = try read(folder.appendingPathComponent("units.json"))
+                return units.map { id, path in
+                    unit(
+                        path, file: root.appendingPathComponent(path).appendingPathComponent("depth.json"),
+                        imageIDs: [id], detail: "Depth + confidence")
+                }.sorted { $0.title < $1.title }
+            }
             let paths: [String] = try read(folder.appendingPathComponent("units.json"))
             let scene: ReconstructionScene = try read(
                 root.appendingPathComponent(alignment).appendingPathComponent("scene.json"))

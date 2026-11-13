@@ -8,6 +8,7 @@ final class ArtifactViewModel: ObservableObject {
     private var root: URL?
     private var run: RunData?
     private var requestedMatch: FeatureMatchLink?
+    private var presentedMode = ""
     @Published var selectedMatchIndex: Int?
     private var stage = PipelineStage.alignment
 
@@ -80,13 +81,16 @@ final class ArtifactViewModel: ObservableObject {
                 selectedUnit = units.first?.id ?? ""
                 selectedMatchIndex = nil
             }
-            // New feature checkpoints extend the browser without replacing the
+            // New image checkpoints extend the browser without replacing the
             // photo, zoom or selected feature that the user is inspecting.
+            let currentUnit = units.first { $0.id == selectedUnit }
             let unchangedFeature =
-                stage == .features && sameSelection && presentation?.features?.photo.id == selectedUnit
-            if unchangedFeature, previousUnit == units.first(where: { $0.id == selectedUnit }),
-                previousMatching == run.artifacts["matching"]
-            {
+                stage == .features && presentation?.features?.photo.id == selectedUnit
+                && previousMatching == run.artifacts["matching"]
+            let unchangedDepth =
+                stage == .depth && presentation?.depthImage?.identity == currentUnit?.file.path
+                && presentedMode == mode
+            if sameSelection, presentation != nil, previousUnit == currentUnit, unchangedFeature || unchangedDepth {
                 return
             }
             await load()
@@ -132,6 +136,7 @@ final class ArtifactViewModel: ObservableObject {
             let value = try await task.value
             guard generation == request else { return }
             presentation = value
+            presentedMode = mode
         } catch is CancellationError {
             guard generation == request else { return }
         } catch {

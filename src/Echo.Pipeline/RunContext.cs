@@ -79,6 +79,7 @@ public sealed class RunContext
             "features-preview" => "features",
             "match-pair" => "matching",
             "depth-image" => "depth",
+            "depth-preview" => "depth",
             "alignment-preview" => "alignment",
             "alignment-initial" => "alignment",
             "alignment-guided-pair" => "alignment",
@@ -99,13 +100,16 @@ public sealed class RunContext
 
     public void Publish(string stage, string artifact)
     {
-        Run.Artifacts[stage] = artifact;
-        SaveRun();
-        Report("checkpoint", new
+        lock (reportGate)
         {
-            stage,
-            artifact
-        });
+            Run.Artifacts[stage] = artifact;
+            SaveRun();
+            Report("checkpoint", new
+            {
+                stage,
+                artifact
+            });
+        }
     }
 
     public void ReportProgress(string stage, string message, int? completed = null, int? total = null)
@@ -189,7 +193,7 @@ public sealed class RunContext
         {
             var data = JsonSerializer.SerializeToElement(payload, jsonCodec.Options);
             var stage = data.GetProperty("stage").GetString() ?? "";
-            if (stage is "cloud-preview" or "features-preview")
+            if (stage is "cloud-preview" or "features-preview" or "depth-preview")
             {
                 return;
             }

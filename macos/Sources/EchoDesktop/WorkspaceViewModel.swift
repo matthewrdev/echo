@@ -187,8 +187,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     func poll() async {
         while !Task.isCancelled {
             await reload()
-            let findingFeatures = isWorking && workingRun?.progress?.stage == "features"
-            try? await Task.sleep(for: .seconds(findingFeatures ? 1 : 3))
+            let discoveringImages = isWorking && ["features", "depth"].contains(workingRun?.progress?.stage ?? "")
+            try? await Task.sleep(for: .seconds(discoveringImages ? 1 : 3))
         }
     }
 

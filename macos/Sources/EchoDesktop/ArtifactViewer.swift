@@ -70,10 +70,15 @@ struct ArtifactViewer: View {
                 )
                 .font(.callout).foregroundStyle(.orange)
             }
-            if workspace.selectedStage == .features, let run = workspace.inspection?.run,
-                run.artifacts["features"] == nil, run.artifacts["featuresPreview"] != nil
+            if [.features, .depth].contains(workspace.selectedStage), let run = workspace.inspection?.run,
+                run.artifacts[workspace.selectedStage.rawValue] == nil,
+                run.artifacts[workspace.selectedStage.rawValue + "Preview"] != nil
             {
-                Text("\(model.units.count) / \(run.snapshot.images.filter(\.enabled).count) images ready")
+                let total =
+                    run.progress?.stage == workspace.selectedStage.rawValue
+                    ? run.progress?.total ?? run.snapshot.images.filter(\.enabled).count
+                    : run.snapshot.images.filter(\.enabled).count
+                Text("\(model.units.count) / \(total) images ready")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if workspace.selectedStage == .cloud, workspace.inspection?.run?.artifacts["cloud"] != nil {
