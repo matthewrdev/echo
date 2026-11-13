@@ -164,14 +164,16 @@ public sealed class DepthEstimator : IDepthEstimator
             CancellationToken = cancellation,
             MaxDegreeOfParallelism = maxWorkers > 0 ? maxWorkers : Math.Max(1, Environment.ProcessorCount / 2)
         };
-        var operation = prior == null ? "initial depth search" : "depth refinement";
-        var sampleCount = prior == null ? planeDepths.Length : project.Settings.DepthRefinementSamples;
+        var operation = prior == null ? "initial depth search" : "depth refinement and missing-depth search";
+        var sampleCount = planeDepths.Length + (prior == null ? 0 : project.Settings.DepthRefinementSamples);
         var description = $"{levelLabel}, {operation}, {views.Count} neighbours, up to {sampleCount} samples/pixel";
         progress?.Invoke(description);
         var levelProgress = new DepthLevelProgress(progress, description, height - 6);
         var searchStart = Stopwatch.GetTimestamp();
+        var globalSearches = 0;
+        var recoveredSamples = 0;
         Parallel.For(3, height - 3, options,
-            () => new DepthRowScratch(project.Settings.DepthRefinementSamples, prior == null ? planeDepths.Length : project.Settings.DepthRefinementSamples),
+            () => new DepthRowScratch(project.Settings.DepthRefinementSamples, Math.Max(planeDepths.Length, project.Settings.DepthRefinementSamples)),
             (y, _, scratch) =>
         {
             cancellation.ThrowIfCancellationRequested();
@@ -180,14 +182,6 @@ public sealed class DepthEstimator : IDepthEstimator
             var costBuffer = scratch.Costs;
             for (var x = 3; x < width - 3; x++)
             {
-                ReadOnlySpan<double> hypotheses = prior == null ? planeDepths
-                    : hypothesisBuffer.Slice(0, CreateHypotheses(prior, x, y, width, height, near, far, hypothesisBuffer));
-                if (hypotheses.Length == 0)
-                {
-                    continue;
-                }
-
-                var costs = costBuffer[..hypotheses.Length];
                 cancellation.ThrowIfCancellationRequested();
                 var norm = NormalizePatch(gray, width, x, y, patch);
                 if (norm < .0008)
@@ -196,59 +190,119 @@ public sealed class DepthEstimator : IDepthEstimator
                 }
 
                 var ray = cameraGeometry.Rotate(camera.Rotation, new V3((x - width * .5) / focal, (y - height * .5) / focal, 1));
+                var hypotheses = hypothesisBuffer[..(prior == null ? 0 : CreateHypotheses(prior, x, y, width, height, near, far, hypothesisBuffer))];
+                var selectedDepth = 0.0;
                 var best = double.PositiveInfinity;
-                var bestPlane = -1;
-                for (var plane = 0; plane < hypotheses.Length; plane++)
+                var found = hypotheses.Length > 0 && SearchDepth(CollectionsMarshal.AsSpan(views), centre, ray,
+                    patch, norm, hypotheses, costBuffer, false, cancellation, out selectedDepth, out best);
+                if (!found)
                 {
-                    if ((plane & 31) == 0)
+                    // A missing or rejected coarse estimate is not evidence of an empty
+                    // surface. Search the full interval again with this level's image detail.
+                    scratch.GlobalSearches++;
+                    found = SearchDepth(CollectionsMarshal.AsSpan(views), centre, ray, patch, norm,
+                        planeDepths, costBuffer, true, cancellation, out selectedDepth, out best);
+                    if (found && prior != null)
                     {
-                        cancellation.ThrowIfCancellationRequested();
-                    }
-                    var depth = hypotheses[plane];
-                    var world = centre + ray * depth;
-                    costs[plane] = CalculateCost(CollectionsMarshal.AsSpan(views), world, depth, patch, norm);
-                    if (costs[plane] < best)
-                    {
-                        best = costs[plane];
-                        bestPlane = plane;
+                        scratch.RecoveredSamples++;
                     }
                 }
-
-                if (bestPlane < 0 || best >= .18)
+                if (!found)
                 {
                     continue;
                 }
-
-                var competitor = double.PositiveInfinity;
-                for (var i = 0; i < costs.Length; i++)
-                {
-                    if (Math.Abs(i - bestPlane) > 2)
-                    {
-                        competitor = Math.Min(competitor, costs[i]);
-                    }
-                }
-
-                if (prior == null && competitor - best < .015)
-                {
-                    continue;
-                }
-
-                var selectedDepth = InterpolateDepth(hypotheses, costs, bestPlane, best);
                 result.Depth[y * width + x] = (float)selectedDepth;
                 result.Confidence[y * width + x] = (float)(1 - best);
             }
             levelProgress.CompleteRow();
             return scratch;
-        }, scratch => scratch.Dispose());
+        }, scratch =>
+        {
+            Interlocked.Add(ref globalSearches, scratch.GlobalSearches);
+            Interlocked.Add(ref recoveredSamples, scratch.RecoveredSamples);
+            scratch.Dispose();
+        });
         var filterStart = Stopwatch.GetTimestamp();
         progress?.Invoke($"{levelLabel}: filtering unsupported depth samples");
-        FilterUnsupportedSamples(result, cancellation);
+        var retainedSamples = FilterUnsupportedSamples(result, cancellation);
+        progress?.Invoke($"{levelLabel}: {retainedSamples:N0}/{result.Depth.Length:N0} depth samples retained ({100.0 * retainedSamples / result.Depth.Length:F2}%); {globalSearches:N0} full-range searches, {recoveredSamples:N0} recovery candidates before filtering");
         metrics?.Invoke(new DepthLevelMetrics(photo.Id, width, height, views.Count,
             Stopwatch.GetElapsedTime(preparationStart, searchStart).TotalSeconds,
             Stopwatch.GetElapsedTime(searchStart, filterStart).TotalSeconds,
-            Stopwatch.GetElapsedTime(filterStart).TotalSeconds));
+            Stopwatch.GetElapsedTime(filterStart).TotalSeconds)
+        {
+            GlobalSearches = globalSearches,
+            RecoveredSamples = recoveredSamples,
+            RetainedSamples = retainedSamples
+        });
 
         return result;
+    }
+
+    private bool SearchDepth(ReadOnlySpan<StereoView> views, V3 centre, V3 ray, ReadOnlySpan<double> patch,
+        double norm, ReadOnlySpan<double> hypotheses, Span<double> costBuffer, bool checkAmbiguity,
+        CancellationToken cancellation, out double selectedDepth, out double best)
+    {
+        selectedDepth = 0;
+        best = double.PositiveInfinity;
+        var costs = costBuffer[..hypotheses.Length];
+        var bestPlane = -1;
+        for (var plane = 0; plane < hypotheses.Length; plane++)
+        {
+            if ((plane & 31) == 0)
+            {
+                cancellation.ThrowIfCancellationRequested();
+            }
+            var depth = hypotheses[plane];
+            costs[plane] = CalculateCost(views, centre + ray * depth, depth, patch, norm);
+            if (costs[plane] < best)
+            {
+                best = costs[plane];
+                bestPlane = plane;
+            }
+        }
+        if (bestPlane < 0 || best >= .18)
+        {
+            return false;
+        }
+        if (checkAmbiguity)
+        {
+            for (var plane = 0; plane < costs.Length; plane++)
+            {
+                var competingCost = plane != bestPlane && costs[plane] - best < .015;
+                if (competingCost && DistinctProjection(views, centre, ray, hypotheses[bestPlane], hypotheses[plane]))
+                {
+                    return false;
+                }
+            }
+        }
+        selectedDepth = InterpolateDepth(hypotheses, costs, bestPlane, best);
+        return true;
+    }
+
+    private bool DistinctProjection(ReadOnlySpan<StereoView> views, V3 centre, V3 ray, double firstDepth, double secondDepth)
+    {
+        var firstPoint = centre + ray * firstDepth;
+        var secondPoint = centre + ray * secondDepth;
+        foreach (var view in views)
+        {
+            var first = cameraGeometry.Rotate(view.WorldToCamera, firstPoint - view.Centre);
+            var second = cameraGeometry.Rotate(view.WorldToCamera, secondPoint - view.Centre);
+            if (first.Z <= 0 || second.Z <= 0)
+            {
+                continue;
+            }
+            var dx = view.Focal * (first.X / first.Z - second.X / second.Z);
+            var dy = view.Focal * (first.Y / first.Z - second.Y / second.Z);
+            // Nearby samples of the same photometric minimum are not competing
+            // surfaces. Compare hypotheses separated by at least one image pixel,
+            // rather than by a fixed number of inverse-depth array entries.
+            if (dx * dx + dy * dy >= 1)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int CreateHypotheses(DepthMap prior, int x, int y, int width, int height,
@@ -399,12 +453,13 @@ public sealed class DepthEstimator : IDepthEstimator
         return selectedDepth;
     }
 
-    private void FilterUnsupportedSamples(DepthMap result, CancellationToken cancellation)
+    private int FilterUnsupportedSamples(DepthMap result, CancellationToken cancellation)
     {
         var width = result.Width;
         var height = result.Height;
         // Reject isolated samples and stabilise supported local patches without filling unseen pixels.
         var rawDepth = ArrayPool<float>.Shared.Rent(result.Depth.Length);
+        var retained = 0;
         try
         {
             result.Depth.AsSpan().CopyTo(rawDepth);
@@ -444,6 +499,7 @@ public sealed class DepthEstimator : IDepthEstimator
                         var neighbours = support[..supportCount];
                         neighbours.Sort();
                         result.Depth[index] = neighbours[supportCount / 2];
+                        retained++;
                     }
                 }
             }
@@ -452,5 +508,6 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             ArrayPool<float>.Shared.Return(rawDepth);
         }
+        return retained;
     }
 }

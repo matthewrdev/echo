@@ -33,7 +33,7 @@ public sealed class CheckpointStore : ICheckpointStore
             "texture" => "echo-0.1.0-charts2",
             "export" => "echo-0.1.0-geo3",
             "feature-image" => "echo-0.1.0-area2",
-            "depth-image" => "echo-0.1.0-pyramid4",
+            "depth-image" => "echo-0.1.0-pyramid5",
             _ => "echo-0.1.0"
         };
         var key = fileOperations.Hash(new
