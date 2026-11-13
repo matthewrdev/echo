@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.ComponentModel.Composition;
+using System.Runtime.ExceptionServices;
 using Echo.Contracts;
 using Echo.Imaging;
 using Echo.Lines;
@@ -30,18 +31,70 @@ public sealed class FeatureExtractor : IFeatureExtractor
         var gray = image.Pixels;
         var width = image.Width;
         var height = image.Height;
-        var corners = DetectCorners(gray, width, height, cancellation);
-        var occupied = new bool[gray.Length];
+        var candidates = DetectCandidates(gray, width, height, settings, cancellation);
+        var occupied = ArrayPool<bool>.Shared.Rent(gray.Length);
+        try
+        {
+            var occupancy = occupied.AsSpan(0, gray.Length);
+            occupancy.Clear();
+            return SelectFeatures(photo, settings, gray, width, height, candidates, occupancy, cancellation);
+        }
+        finally
+        {
+            ArrayPool<bool>.Shared.Return(occupied);
+        }
+    }
+
+    private FeatureCandidates DetectCandidates(float[] gray, int width, int height, Settings settings, CancellationToken cancellation)
+    {
+        var candidates = new FeatureCandidates();
+        if (!settings.DetectLines)
+        {
+            candidates.Corners = DetectCorners(gray, width, height, cancellation);
+            return candidates;
+        }
+
+        // Both branches only read gray and own separate output/scratch buffers. Junctions
+        // depend on lines, so stay in that branch. Suppression happens after both complete.
+        try
+        {
+            Parallel.Invoke(new ParallelOptions
+            {
+                CancellationToken = cancellation,
+                MaxDegreeOfParallelism = Math.Min(2, Environment.ProcessorCount)
+            },
+                () => candidates.Corners = DetectCorners(gray, width, height, cancellation),
+                () =>
+                {
+                    candidates.Lines = lines.Detect(gray, width, height, settings.LineLimit, settings.LineMinimumLength, cancellation,
+                        new LineDetectionOptions { GradientThreshold = settings.LineGradientThreshold, SplitRegions = settings.LineSplitRegions });
+                    candidates.Junctions = lines.Junctions(candidates.Lines, gray, width, height, Math.Max(1, settings.FeatureLimit / 4), cancellation);
+                });
+        }
+        catch (AggregateException exception)
+        {
+            // Parallel.Invoke has joined both branches before returning. Keep cancellation
+            // and single detector failures consistent with the sequential API.
+            cancellation.ThrowIfCancellationRequested();
+            ExceptionDispatchInfo.Capture(exception.GetBaseException()).Throw();
+            throw;
+        }
+
+        return candidates;
+    }
+
+    private FeatureSet SelectFeatures(Photo photo, Settings settings, float[] gray, int width, int height,
+        FeatureCandidates candidates, Span<bool> occupied, CancellationToken cancellation)
+    {
+        var corners = candidates.Corners;
         var output = new FeatureSet
         {
             ImageId = photo.Id
         };
         if (settings.DetectLines)
         {
-            output.Lines = lines.Detect(gray, width, height, settings.LineLimit, settings.LineMinimumLength, cancellation,
-                new LineDetectionOptions { GradientThreshold = settings.LineGradientThreshold, SplitRegions = settings.LineSplitRegions });
-            var junctions = lines.Junctions(output.Lines, gray, width, height, Math.Max(1, settings.FeatureLimit / 4), cancellation);
-            foreach (var point in junctions)
+            output.Lines = candidates.Lines;
+            foreach (var point in candidates.Junctions)
             {
                 Occupy(occupied, width, (int)Math.Round(point.X), (int)Math.Round(point.Y));
                 point.X *= (double)photo.Width / width;
