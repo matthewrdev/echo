@@ -36,10 +36,10 @@ enum PipelineStage: String, CaseIterable, Identifiable {
         switch self {
         case .features:
             return
-                "Harris corner keypoints: distinctive local texture patches, not lines or recognized shapes. Yellow circles mark detected keypoints."
+                "Inspect detected points and straight line segments. Squares identify line junctions; click a point or line to see its details and candidate matches."
         case .matching:
             return
-                "Pairs of similar image patches suggest the same physical point. Matching colours and numbers link both observations. Geometric verification happens during alignment."
+                "Inspect candidate point and line correspondences between photographs. Select a marker or segment to compare both image patches. Point matches are geometrically checked during alignment; standalone line matches are not yet used by the solver."
         case .alignment:
             return
                 "Matched points, GPS and camera orientation initialise poses. Triangulation and bundle adjustment refine cameras and the sparse cloud together."

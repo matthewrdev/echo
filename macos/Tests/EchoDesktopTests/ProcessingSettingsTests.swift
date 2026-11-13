@@ -9,6 +9,12 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(settings.featureWidth, 800)
         XCTAssertEqual(settings.cloudNeighbours, 8)
         XCTAssertEqual(settings.textureChartFaces, 512)
+        settings.detectLines = false
+        settings.lineLimit = 1200
+        settings.lineMinimumLength = 40
+        settings.depthConcurrency = 4
+        settings.depthWorkerThreads = 12
+        settings.depthMemoryBudgetMb = 2048
         settings.depthWidth = 4096
         settings.depthRefinementSamples = 32
         settings.depthNeighbours = 8
@@ -18,6 +24,12 @@ final class ProcessingSettingsTests: XCTestCase {
         settings.textureJpegQuality = 99
         settings.textureGutter = 8
         let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertFalse(restored.detectLines)
+        XCTAssertEqual(restored.lineLimit, 1200)
+        XCTAssertEqual(restored.lineMinimumLength, 40)
+        XCTAssertEqual(restored.depthConcurrency, 4)
+        XCTAssertEqual(restored.depthWorkerThreads, 12)
+        XCTAssertEqual(restored.depthMemoryBudgetMb, 2048)
         XCTAssertEqual(restored.depthWidth, 4096)
         XCTAssertEqual(restored.depthRefinementSamples, 32)
         XCTAssertEqual(restored.depthNeighbours, 8)
@@ -40,6 +52,13 @@ final class ProcessingSettingsTests: XCTestCase {
         changed = original
         changed.depthRefinementSamples = 32
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .depth)
+        changed = original
+        changed.depthConcurrency = 4
+        changed.depthWorkerThreads = 12
+        changed.depthMemoryBudgetMb = 2048
+        XCTAssertNil(impact.firstChangedStage(from: original, to: changed))
+        changed.detectLines = false
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .features)
         changed = original
         changed.faceLimit = 2_000_000
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .fusion)
