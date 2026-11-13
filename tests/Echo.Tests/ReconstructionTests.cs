@@ -404,7 +404,7 @@ public sealed class ReconstructionTests
                     processor.Execute(store, "export", cancellation.Token, output: value =>
                     {
                         using var doc = JsonDocument.Parse(jsonCodec.Encode(value));
-                        if (doc.RootElement.GetProperty("type").GetString() == "artifactCommitted")
+                        if (doc.RootElement.GetProperty("type").GetString() == "imageCheckpoint")
                         {
                             cancellation.Cancel();
                         }
@@ -417,13 +417,36 @@ public sealed class ReconstructionTests
 
                 var paused = store.GetRun();
                 Check(paused.Status == "cancelled", "Cancelled run status");
+                Check(!paused.Artifacts.ContainsKey("features"), "A partial index must not complete the feature stage");
+                var partialFeatures = jsonCodec.Read<Dictionary<string, string>>(store.PathFor(paused.Artifacts["featuresPreview"] + "/units.json"));
+                Check(partialFeatures.Count == 1, "Cancelled feature extraction retains its viewable image index");
                 var reused = 0;
+                var featureReports = 0;
+                var previewImages = partialFeatures.Count;
                 var cloudProgressEvents = 0;
                 var sawLiveCloudBeforeCompletion = false;
                 first = processor.Execute(store, "export", default, paused.Id, output: value =>
                 {
                     var record = JsonSerializer.SerializeToElement(value, jsonCodec.Options);
                     var payload = record.GetProperty("payload");
+                    var featureCheckpoint = record.GetProperty("type").GetString() == "imageCheckpoint"
+                        && payload.GetProperty("stage").GetString() == "features";
+                    if (featureCheckpoint)
+                    {
+                        featureReports++;
+                        var current = store.GetRun(paused.Id);
+                        var index = jsonCodec.Read<Dictionary<string, string>>(store.PathFor(current.Artifacts["featuresPreview"] + "/units.json"));
+                        Check(index.Count >= previewImages, "Resuming features must not shrink the preview");
+                        previewImages = index.Count;
+                        var imageId = payload.GetProperty("imageId").GetString()!;
+                        var features = jsonCodec.Read<FeatureSet>(store.PathFor(index[imageId] + "/features.json"));
+                        Check(payload.GetProperty("pointCount").GetInt32() == features.Features.Count, "Log the saved point count");
+                        Check(payload.GetProperty("lineCount").GetInt32() == features.Lines.Count, "Log the saved line count");
+                        Check(payload.GetProperty("message").GetString()!.Contains(payload.GetProperty("imageName").GetString()!), "Log the photo name");
+                        Check(payload.GetProperty("reused").GetBoolean() == (featureReports == 1), "Distinguish reused and newly extracted features");
+                        Check(current.Progress?.Stage == "features", "Preview writes must not replace feature progress");
+                        Check(!current.Artifacts.ContainsKey("features"), "Features are viewable before stage completion");
+                    }
                     if (record.GetProperty("type").GetString() == "stageProgress"
                         && payload.GetProperty("stage").GetString() == "cloud")
                     {
@@ -446,6 +469,7 @@ public sealed class ReconstructionTests
                     }
                 });
                 Check(first.Status == "completed" && reused >= 1, "Resumed completed run and reused feature artifact");
+                Check(featureReports == 3 && previewImages == 3, "Every image is reported and added to the live feature index");
                 Check(cloudProgressEvents >= 3, "Dense cloud reports progress during construction");
                 Check(sawLiveCloudBeforeCompletion, "Dense cloud publishes a viewable artifact before completion");
                 var scene = jsonCodec.Read<ReconstructionScene>(store.PathFor(first.Artifacts["alignment"] + "/scene.json"));

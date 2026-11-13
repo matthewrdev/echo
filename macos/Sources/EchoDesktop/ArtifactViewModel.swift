@@ -43,6 +43,8 @@ final class ArtifactViewModel: ObservableObject {
 
     func configure(root: String, run: RunData?, stage: PipelineStage, preferredPhotoID: String? = nil) async {
         let sameSelection = self.root?.path == root && self.run?.id == run?.id && self.stage == stage
+        let previousUnit = units.first { $0.id == selectedUnit }
+        let previousMatching = self.run?.artifacts["matching"]
         let request = UUID()
         generation = request
         loadTask?.cancel()
@@ -77,6 +79,15 @@ final class ArtifactViewModel: ObservableObject {
             } else if !units.contains(where: { $0.id == selectedUnit }) {
                 selectedUnit = units.first?.id ?? ""
                 selectedMatchIndex = nil
+            }
+            // New feature checkpoints extend the browser without replacing the
+            // photo, zoom or selected feature that the user is inspecting.
+            let unchangedFeature =
+                stage == .features && sameSelection && presentation?.features?.photo.id == selectedUnit
+            if unchangedFeature, previousUnit == units.first(where: { $0.id == selectedUnit }),
+                previousMatching == run.artifacts["matching"]
+            {
+                return
             }
             await load()
         } catch { self.error = error.localizedDescription }

@@ -17,7 +17,7 @@ struct RunEventFormatter {
             let unit = record.type == "pairCheckpoint" ? "image pairs" : "images"
             let completed = number(payload["completed"])
             let total = number(payload["total"])
-            message = "\(completed) of \(total) \(unit) processed."
+            message = payload["message"]?.description ?? "\(completed) of \(total) \(unit) processed."
         case "checkpoint":
             if rawStage == "cloudPreview" {
                 message = "Live dense-cloud preview updated."

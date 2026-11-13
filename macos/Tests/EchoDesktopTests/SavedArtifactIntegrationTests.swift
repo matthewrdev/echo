@@ -4,6 +4,7 @@ import XCTest
 @testable import EchoDesktop
 
 final class SavedArtifactIntegrationTests: XCTestCase {
+    @MainActor
     func testNativeReadersOpenEverySavedStage() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let projectPath = environment["ECHO_TEST_PROJECT"],
@@ -64,5 +65,50 @@ final class SavedArtifactIntegrationTests: XCTestCase {
             unit: nil, mode: "All support", slice: 0.5)
         XCTAssertNotNil(preview.scene)
         XCTAssertTrue(preview.detail.contains("LIVE PREVIEW"))
+
+        let savedFeatureIndex = try XCTUnwrap(previewArtifacts.removeValue(forKey: "features"))
+        let featureIndex = try JSONDecoder().decode(
+            [String: String].self,
+            from: Data(contentsOf: root.appendingPathComponent(savedFeatureIndex).appendingPathComponent("units.json")))
+        let imageIDs = featureIndex.keys.sorted()
+        XCTAssertGreaterThanOrEqual(imageIDs.count, 2)
+        let previewPath = "work/native-feature-preview-\(UUID().uuidString)"
+        let previewFolder = root.appendingPathComponent(previewPath)
+        defer { try? FileManager.default.removeItem(at: previewFolder) }
+        for count in 1...2 {
+            let folder = previewFolder.appendingPathComponent("\(count)")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let index = featureIndex.filter { imageIDs.prefix(count).contains($0.key) }
+            try JSONEncoder().encode(index).write(to: folder.appendingPathComponent("units.json"))
+        }
+        previewArtifacts["featuresPreview"] = previewPath + "/1"
+        previewArtifacts.removeValue(forKey: "matching")
+        let extracting = RunData(
+            id: run.id, status: "running", target: "features", snapshot: run.snapshot,
+            artifacts: previewArtifacts, error: nil, progress: nil)
+        let featureUnits = try await reader.units(root: root, run: extracting, stage: .features)
+        XCTAssertEqual(featureUnits.count, 1)
+        let model = ArtifactViewModel(reader: reader)
+        await model.configure(root: root.path, run: extracting, stage: .features)
+        let selected = try XCTUnwrap(model.presentation)
+        XCTAssertNotNil(selected.features)
+        XCTAssertFalse(try XCTUnwrap(selected.features).matchingAvailable)
+        previewArtifacts["featuresPreview"] = previewPath + "/2"
+        let updated = RunData(
+            id: run.id, status: "running", target: "features", snapshot: run.snapshot,
+            artifacts: previewArtifacts, error: nil, progress: nil)
+        await model.configure(root: root.path, run: updated, stage: .features)
+        XCTAssertEqual(
+            model.presentation?.id, selected.id, "Live index refresh keeps the inspected photo and selection")
+        XCTAssertEqual(model.units.count, 2)
+        model.selectUnit(imageIDs[1])
+        await model.configure(root: root.path, run: updated, stage: .features)
+        for _ in 0..<500 {
+            if !model.loading { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(model.loading)
+        XCTAssertEqual(
+            model.presentation?.features?.photo.id, imageIDs[1], "A live refresh must not cancel switching photos")
     }
 }

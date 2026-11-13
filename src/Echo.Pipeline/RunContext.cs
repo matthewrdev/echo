@@ -76,6 +76,7 @@ public sealed class RunContext
         var owner = stage switch
         {
             "feature-image" => "features",
+            "features-preview" => "features",
             "match-pair" => "matching",
             "depth-image" => "depth",
             "alignment-preview" => "alignment",
@@ -188,7 +189,7 @@ public sealed class RunContext
         {
             var data = JsonSerializer.SerializeToElement(payload, jsonCodec.Options);
             var stage = data.GetProperty("stage").GetString() ?? "";
-            if (stage == "cloud-preview")
+            if (stage is "cloud-preview" or "features-preview")
             {
                 return;
             }

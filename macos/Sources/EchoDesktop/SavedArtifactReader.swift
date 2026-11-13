@@ -24,7 +24,9 @@ final class SavedArtifactReader: ArtifactReader {
     }
 
     private func savedUnits(root: URL, run: RunData, stage: PipelineStage) throws -> [ArtifactUnit] {
-        guard let relative = run.artifacts[stage.rawValue] else { return [] }
+        guard let relative = run.artifacts[stage.rawValue] ?? run.artifacts[stage.rawValue + "Preview"] else {
+            return []
+        }
         let folder = root.appendingPathComponent(relative)
         let photos = Dictionary(uniqueKeysWithValues: run.snapshot.images.map { ($0.id, $0) })
         func unit(_ id: String, file: URL, imageIDs: [String], detail: String = "") -> ArtifactUnit {

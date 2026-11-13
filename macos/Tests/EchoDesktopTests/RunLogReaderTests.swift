@@ -4,6 +4,20 @@ import XCTest
 @testable import EchoDesktop
 
 final class RunLogReaderTests: XCTestCase {
+    func testFeatureCheckpointUsesPhotoAndCountsWhileOldEventsRemainReadable() throws {
+        let formatter = RunEventFormatter()
+        let current = Data(
+            #"{"sequence":1,"timestamp":"2026-11-14T07:49:34.006+11:00","type":"imageCheckpoint","payload":{"stage":"features","completed":54,"total":193,"message":"cliff.jpg · Found 800 points and 38 line segments · 54/193 images ready"}}"#
+                .utf8)
+        let entry = try XCTUnwrap(formatter.entry(from: current))
+        XCTAssertEqual(entry.stage, "features")
+        XCTAssertEqual(entry.message, "cliff.jpg · Found 800 points and 38 line segments · 54/193 images ready")
+        let legacy = Data(
+            #"{"sequence":2,"timestamp":"2026-11-14T07:49:34.006+11:00","type":"imageCheckpoint","payload":{"stage":"features","completed":54,"total":193}}"#
+                .utf8)
+        XCTAssertEqual(formatter.entry(from: legacy)?.message, "54 of 193 images processed.")
+    }
+
     func testAppendedEventsBecomeReadableMessagesWithoutDuplicates() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let folder = root.appendingPathComponent("runs/test")

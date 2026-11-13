@@ -70,6 +70,12 @@ struct ArtifactViewer: View {
                 )
                 .font(.callout).foregroundStyle(.orange)
             }
+            if workspace.selectedStage == .features, let run = workspace.inspection?.run,
+                run.artifacts["features"] == nil, run.artifacts["featuresPreview"] != nil
+            {
+                Text("\(model.units.count) / \(run.snapshot.images.filter(\.enabled).count) images ready")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if workspace.selectedStage == .cloud, workspace.inspection?.run?.artifacts["cloud"] != nil {
                 HStack {
                     Text("Point detail")
