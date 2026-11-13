@@ -51,7 +51,7 @@ struct ArtifactViewer: View {
                     .labelStyle(.iconOnly).modifier(ViewerIconFrame()).accessibilityLabel("More stage actions")
                 }.labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).fixedSize()
             }
-            if !model.modes.isEmpty {
+            if !model.modes.isEmpty, workspace.selectedStage != .depth {
                 Picker(
                     workspace.selectedStage == .cloud ? "Depth agreement" : "View",
                     selection: Binding(get: { model.mode }, set: { model.selectMode($0) })
@@ -70,16 +70,8 @@ struct ArtifactViewer: View {
                 )
                 .font(.callout).foregroundStyle(.orange)
             }
-            if [.features, .depth].contains(workspace.selectedStage), let run = workspace.inspection?.run,
-                run.artifacts[workspace.selectedStage.rawValue] == nil,
-                run.artifacts[workspace.selectedStage.rawValue + "Preview"] != nil
-            {
-                let total =
-                    run.progress?.stage == workspace.selectedStage.rawValue
-                    ? run.progress?.total ?? run.snapshot.images.filter(\.enabled).count
-                    : run.snapshot.images.filter(\.enabled).count
-                Text("\(model.units.count) / \(total) images ready")
-                    .font(.caption).foregroundStyle(.secondary)
+            if workspace.selectedStage == .features, let imageReadiness {
+                Text(imageReadiness).font(.caption).foregroundStyle(.secondary)
             }
             if workspace.selectedStage == .cloud, workspace.inspection?.run?.artifacts["cloud"] != nil {
                 HStack {
@@ -107,7 +99,9 @@ struct ArtifactViewer: View {
             }
             HStack(alignment: .top, spacing: 12) {
                 if !model.units.isEmpty {
-                    ArtifactUnitBrowser(units: model.units, selected: model.selectedUnit, selection: model.selectUnit)
+                    ArtifactUnitBrowser(
+                        units: model.units, selected: model.selectedUnit, selection: model.selectUnit,
+                        footer: workspace.selectedStage == .depth ? imageReadiness : nil)
                     Divider()
                 }
                 artifactContent.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -142,10 +136,26 @@ struct ArtifactViewer: View {
         }
     }
 
+    private var imageReadiness: String? {
+        guard [.features, .depth].contains(workspace.selectedStage), let run = workspace.inspection?.run else {
+            return nil
+        }
+        let stage = workspace.selectedStage.rawValue
+        let partial = run.artifacts[stage] == nil && run.artifacts[stage + "Preview"] != nil
+        guard partial || workspace.selectedStage == .depth else { return nil }
+        let total =
+            run.progress?.stage == stage
+            ? run.progress?.total ?? run.snapshot.images.filter(\.enabled).count
+            : run.snapshot.images.filter(\.enabled).count
+        return "\(model.units.count) / \(total) images ready"
+    }
+
     private var artifactContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let value = model.presentation {
-                if value.scene == nil { Text(value.detail).font(.caption).foregroundStyle(.secondary) }
+                if value.scene == nil, value.depthImage == nil {
+                    Text(value.detail).font(.caption).foregroundStyle(.secondary)
+                }
                 if let features = value.features {
                     FeatureViewer(data: features) { link in
                         model.requestMatch(link)
@@ -161,8 +171,12 @@ struct ArtifactViewer: View {
                             workspace.selectedStage = .features
                         }, controller: sceneController, showGround: $showGround)
                 } else if let depth = value.depthImage {
-                    Text(value.title).font(.caption.weight(.semibold))
-                    DepthImageViewport(data: depth)
+                    HStack(spacing: 12) {
+                        Text(value.title).fontWeight(.semibold).lineLimit(1).truncationMode(.middle)
+                        Spacer(minLength: 0)
+                        Text(value.detail).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                    }.font(.caption)
+                    DepthImageViewport(data: depth, mode: Binding(get: { model.mode }, set: { model.selectMode($0) }))
                 } else if let image = value.image {
                     ImageViewport(image: image)
                 }
