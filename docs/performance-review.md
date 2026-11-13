@@ -64,6 +64,35 @@ The builder indexes photos/cameras once, keeps a bounded nearest-neighbour selec
 dotnet tools/Echo.Benchmarks/bin/Release/net10.0/Echo.Benchmarks.dll cloud PROJECT RUN 3 local-results/cloud.ply 4 8
 ```
 
+## Remaining core kernels: independent parity checks
+
+The `core` benchmark runs the same fixture with the previous app's assemblies and the updated assemblies in separate processes. It covers 800 × 800 descriptor matching; 180 relative-pose observations with outliers; two GPS cameras plus a visually registered ground camera, rotation refinement and bundle adjustment; a curved 2,400-triangle grid simplified to 800 triangles; and texture baking plus GLB export. Three iterations per process; medians below exclude the initial warm-up. These small fixtures include output hashing/serialization (and texture/export I/O), so they establish output parity and allocation direction, not large-scene throughput. Allocation figures are cumulative managed bytes, not retained or peak memory.
+
+| Fixture | Before → after elapsed | Before → after allocations |
+| --- | ---: | ---: |
+| Descriptor matching | 18.9 → 13.5 ms | 0.209 → 0.171 MB |
+| Relative pose | 17.5 → 13.0 ms | 31.563 → 12.150 MB |
+| Mixed-camera alignment and refinement | 20.8 → 17.0 ms | 29.242 → 12.936 MB |
+| Mesh simplification | 146.5 → 35.7 ms | 114.066 → 3.393 MB |
+| Texture baking and GLB export | 77.3 → 58.1 ms | 6.235 → 3.382 MB |
+
+All five serialized output hashes are identical before/after; the exported GLB is byte-identical. The eight-camera real depth benchmark also retains its complete reference hash (`f0850c381ce6363df840b34174d47d83484584d57183815f2aed3629067d24ba`, 745,017 valid samples) after pooling worker hypothesis/cost buffers and median-filter scratch. Its latest warm median was 2.295 s and 2,363 MB allocated; full image decoding still dominates allocations.
+
+```sh
+# Use a fresh disposable output directory; this creates its own fixture project.
+dotnet tools/Echo.Benchmarks/bin/Release/net10.0/Echo.Benchmarks.dll core local-results/core-fixture
+```
+
+Local logs: `local-results/core-before.log`, `core-after.log` and `core-depth-after.log`. This is not a claim that every allocation or every LINQ call has been removed. Stable setup sorting and artifact materialization remain where they do not justify a risk to numerical ordering. No unsafe code was needed for these changes.
+
+## Cliff cloud crash and consistency
+
+The 193-photo Cliff cloud run was replayed from its saved alignment and depth maps, without editing the user's project. The crash reproduced in `DepthView.Difference`: a near-camera-plane projection exceeded `Int32.MaxValue`; converting it before bounds checking let `ix + 1` overflow. Bounds are now tested in floating point before conversion, with finite positive depth and map dimension checks. A regression test includes tiny positive Z, extreme coordinates, NaN, infinity and points behind the camera. Run failures now retain the exception stack in the NDJSON log as well as the short UI message.
+
+With the bounds fix, all 193 views completed: 42,352,518 of 50,105,923 depth samples retained in 30.019 s (Build timing; excludes loading depth maps and writing PLY). Stronger consistency then retained 38,899,757 in 30.591 s: every contributing bilinear corner must agree in depth, the sampled surface must project back within 1.5 depth-map pixels, and viewing rays must differ by at least 0.5 degrees. Both tolerances are configurable. The existing minimum support of one neighbour is preserved; two or more is a useful stricter option when coverage permits.
+
+Before/after XZ, XY and ZY projections were inspected using the `compare-cloud` benchmark command. Rejection of 3,452,761 extra samples **does not establish that the floating shell is fixed**. Separated/fragmented surfaces remain visible, and no ground-truth surface comparison or complete corrected mesh has passed acceptance. These checks cannot fix biased camera poses or mutually consistent wrong depth.
+
 ## Allocation and concurrency findings
 
 | Routine | Changes made | Remaining concerns |
@@ -71,14 +100,14 @@ dotnet tools/Echo.Benchmarks/bin/Release/net10.0/Echo.Benchmarks.dll cloud PROJE
 | Image preparation and depth pyramid | Decode each reference/neighbour once per job. Area-downsample directly into grayscale through spans. Preserve channel rounding. | Decoded full-resolution arrays are still sizeable and duplicated between concurrent jobs. A shared bounded image cache could help. |
 | Depth search | Reuse row-local patch, hypothesis and cost spans; reuse median-filter storage. Bound concurrent images and divide the worker budget between them. Persist per-image completion and report pyramid progress. | CPU patch correlation remains expensive at high resolutions. The memory setting is a scheduling estimate, not a hard process limit. Widths above the source size can repeat native-resolution refinement. Missing sparse support can still leave holes. |
 | Feature extraction | Native pixel spans, rolling gradient-product rows, pooled line scratch, stable in-place corner sorting and reusable descriptors. See the measured follow-up above. | Full candidate sorting remains; line seed sorting and region traversal dominate the large-image line case. Point descriptors are intensity patches, not scale/rotation-invariant descriptors. |
-| Descriptor matching | Span-based distance calculation without per-comparison arrays; separate point and reversible line descriptors. | Exhaustive comparisons remain quadratic in feature counts. No approximate index or GPU matcher yet. |
-| Camera projection and registration | Remove the transpose allocation in general projection; cache camera projection for repeated registration, mesh and texture samples. Reuse DLT scratch storage. | RANSAC samples still sort the observation collection. Essential-matrix scoring still allocates small MathNet vectors per match; both deserve a dedicated numerical regression before replacement. |
-| Bundle adjustment | Reuse observation evaluation, Jacobian, index and Schur-product buffers. Eliminate per-observation LINQ concatenation and array copies. | Camera Hessian and solve remain dense. Dense camera algebra and stored point cross-blocks become the principal scaling limit. Sparse/block solving is a larger algorithm change. |
+| Descriptor matching | Pass descriptor-bearing features directly through spans, pool nearest-neighbour scratch, and retain the original scalar accumulation and tie order; separate point and reversible line descriptors. | Exhaustive comparisons remain quadratic in feature counts. No approximate index or GPU matcher yet. |
+| Camera projection and registration | Value-type projection, bounded stable random-key sampling, reusable inlier lists and epipolar vectors, direct normal-equation accumulation and indexed camera lookup. Alignment copies only the required camera priors instead of serializing whole photos/EXIF. | SVD still uses MathNet allocations. Registration observation keys remain rounded strings; changing their identity needs a separate artifact compatibility review. |
+| Bundle adjustment | Reuse observation evaluation, Jacobian, index and Schur-product buffers. Save camera states through array references (trial steps replace arrays), use value-type projection and stack step vectors, and avoid per-iteration JSON camera cloning. | Camera Hessian and solve remain dense. Dense camera algebra and stored point cross-blocks become the principal scaling limit. Sparse/block solving is a larger algorithm change. |
 | Dense cloud | Indexed camera/photo lookup, bounded neighbour selection, pooled parallel row batches, deterministic merges and direct colour resizing. Reserve exact capacity when loading validated binary PLY. | All depth maps and accepted samples remain resident. Growing the construction list and generating previews still allocate. |
-| Fusion | Fill one footprint array, sort in place, and sort candidate keys in place. | Voxel candidate expansion and candidate-by-view traversal can dominate time and memory. Spatial indexing and chunked volume processing are still needed for large scenes. |
+| Fusion | Fill one footprint array, sort in place, index source cameras/photos, copy candidate keys directly, and preallocate the retained voxel list. | Voxel candidate expansion and candidate-by-view traversal can dominate time and memory. Spatial indexing and chunked volume processing are still needed for large scenes. |
 | Surface extraction | Reuse corner values, quad indices and signs; cache source-camera projection. | Geometry is stored as jagged vertex/face arrays. This retains many small objects even after temporary allocations are removed. |
-| Edge collapse | Reuse plane, candidate-position and affected-triangle buffers. Preserve candidate order, arithmetic and topology checks. | Repeated neighbour sets, boundary scans and stale priority-queue entries remain expensive. A revision-aware adjacency cache needs separate topology validation. |
-| Texture baking and packing | Reuse projected triangle/UV scratch and silhouette triangle storage. Cache camera transforms; use value-type texture coordinates. | Chart construction and packing are still serial. Fragmented geometry creates many tiny islands. No seam/exposure balancing. |
+| Edge collapse | Reuse neighbour/intersection/affected-face sets and buffers; count incident edges in one pass for boundary checks. Preserve candidate order, arithmetic and topology checks. | Boundary scans and stale priority-queue entries remain. A revision-aware adjacency cache needs separate topology validation. |
+| Texture baking and packing | Reuse projected triangle/UV scratch and silhouette triangle storage. Cache camera transforms, use value-type texture coordinates, mutate owned chart buffers, and combine repeated bounds scans. | Chart construction and packing are still serial. Fragmented geometry creates many tiny islands. No seam/exposure balancing. |
 | JSON and GLB | Stream JSON reads, writes and hashes. Stream GLB directly into an atomic output file instead of retaining duplicate full-size buffers. Hash/byte compatibility and failure atomicity are tested. | The JSON artifact schema still has large arrays, and progress events persist the full run snapshot. Binary numerical artifacts and throttled progress persistence are future changes. |
 
 These memory changes preserve numerical operations and saved artifact contracts; their algorithm fingerprints remain unchanged. Adding line/junction detection changes feature and matching fingerprints so old point-only results are not reused as new line results.
@@ -88,6 +117,8 @@ These memory changes preserve numerical operations and saved artifact contracts;
 A separate three-photo Quiet Place fixture under `local-results/line-preview.echo` produced 45, 45 and 43 line segments. Its three image pairs contained 16, 19 and 16 candidate line matches. No junctions passed the detector on these three particular images; synthetic corner/rectangle tests exercise junction detection and its point-match path.
 
 The native feature viewer draws selectable segments and junction markers. Matching includes selectable segment correspondences and metadata. Old saved feature artifacts show an explicit notice that they need to be regenerated to contain line data. Standalone line matches are inspection candidates, not geometrically verified 3D-line constraints. Junction point observations participate in the existing point alignment. Generic semantic shapes are not detected.
+
+The sensitivity/region-splitting follow-up found 134 line candidates across the first three Cliff photos at 1000-pixel analysis width, versus 110 previously. Inspected overlays show additional rock-edge segments and some sky/cloud edges. This is a modest detector improvement, not evidence of verified 3D line reconstruction. Synthetic tests exercise faint edges and curved regions with recoverable straight subsegments; legacy settings retain the original feature hashes. New threshold and splitting settings are exposed in the native editor and invalidate Features onward.
 
 ## Correctness limits
 
