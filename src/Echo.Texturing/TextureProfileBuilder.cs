@@ -18,15 +18,19 @@ public sealed class TextureProfileBuilder : ITextureProfileBuilder
         var columns = Math.Max(1, (int)Math.Ceiling(width * scale / cellSize) + 1);
         var top = Enumerable.Repeat(int.MaxValue, columns).ToArray();
         var bottom = Enumerable.Repeat(-1, columns).ToArray();
+        Span<SkiaSharp.SKPoint> points = stackalloc SkiaSharp.SKPoint[3];
         foreach (var face in patch.Triangles)
         {
-            var points = face.Select(v =>
+            for (var corner = 0; corner < 3; corner++)
             {
-                var point = patch.Coordinate(v, quarterTurns);
-                return new SkiaSharp.SKPoint((float)(point.X * scale / cellSize), (float)(point.Y * scale / cellSize));
-            }).ToArray();
-            var left = Math.Clamp((int)Math.Floor(points.Min(p => p.X)), 0, columns - 1);
-            var right = Math.Clamp((int)Math.Floor(points.Max(p => p.X)), 0, columns - 1);
+                var point = patch.Coordinate(face[corner], quarterTurns);
+                points[corner] = new SkiaSharp.SKPoint((float)(point.X * scale / cellSize), (float)(point.Y * scale / cellSize));
+            }
+
+            var minimumX = Math.Min(points[0].X, Math.Min(points[1].X, points[2].X));
+            var maximumX = Math.Max(points[0].X, Math.Max(points[1].X, points[2].X));
+            var left = Math.Clamp((int)Math.Floor(minimumX), 0, columns - 1);
+            var right = Math.Clamp((int)Math.Floor(maximumX), 0, columns - 1);
             for (var x = left; x <= right; x++)
             {
                 var low = double.PositiveInfinity;

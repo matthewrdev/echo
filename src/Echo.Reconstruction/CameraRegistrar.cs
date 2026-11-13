@@ -71,10 +71,11 @@ public sealed class CameraRegistrar : ICameraRegistrar
                 continue;
             }
 
+            var projection = new CameraProjector(cameraGeometry, photo, pose);
             var inliers = observations.Where(o =>
             {
-                var p = cameraGeometry.Project(photo, pose, new V3(o.Point));
-                return p != null && Math.Sqrt(cameraGeometry.Square(p[0] - o.Pixel[0]) + cameraGeometry.Square(p[1] - o.Pixel[1])) < 10;
+                var p = projection.Project(new V3(o.Point));
+                return p.HasValue && Math.Sqrt(cameraGeometry.Square(p.Value.X - o.Pixel[0]) + cameraGeometry.Square(p.Value.Y - o.Pixel[1])) < 10;
             }).ToList();
             if (inliers.Count > bestInliers.Count)
             {
@@ -96,11 +97,15 @@ public sealed class CameraRegistrar : ICameraRegistrar
         }
 
         var design = DenseMatrix.Create(observations.Count * 2, 12, 0);
+        Span<double> x = stackalloc double[4];
+        x[3] = 1;
         for (var i = 0; i < observations.Count; i++)
         {
             var p = (new V3(observations[i].Point) - mean) / scale;
             var ray = cameraGeometry.Ray(photo, observations[i].Pixel);
-            double[] x = [p.X, p.Y, p.Z, 1];
+            x[0] = p.X;
+            x[1] = p.Y;
+            x[2] = p.Z;
             for (var j = 0; j < 4; j++)
             {
                 design[2 * i, j] = x[j];

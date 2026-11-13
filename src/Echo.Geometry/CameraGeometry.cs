@@ -85,7 +85,12 @@ public sealed class CameraGeometry : ICameraGeometry
 
     public double[]? Project(Photo photo, CameraPose pose, V3 point)
     {
-        var p = Rotate(Transpose(pose.Rotation), point - new V3(pose.Centre));
+        var delta = point - new V3(pose.Centre);
+        var rotation = pose.Rotation;
+        var p = new V3(
+            rotation[0] * delta.X + rotation[3] * delta.Y + rotation[6] * delta.Z,
+            rotation[1] * delta.X + rotation[4] * delta.Y + rotation[7] * delta.Z,
+            rotation[2] * delta.X + rotation[5] * delta.Y + rotation[8] * delta.Z);
         return p.Z > 1e-8 ? [Focal(photo, pose) * p.X / p.Z + photo.Width * .5, Focal(photo, pose) * p.Y / p.Z + photo.Height * .5, p.Z] : null;
     }
 

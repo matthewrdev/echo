@@ -113,6 +113,13 @@ public sealed class BundleAdjuster : IBundleAdjuster
             return cost;
         }
 
+        var evaluation = new Evaluation();
+        Span<int> indices = stackalloc int[7];
+        Span<double> ju = stackalloc double[7];
+        Span<double> jv = stackalloc double[7];
+        Span<double> pu = stackalloc double[3];
+        Span<double> pv = stackalloc double[3];
+        Span<double> transformed = stackalloc double[3];
         var cost = Cost();
         for (var iteration = 0; iteration < project.Settings.BundleIterations; iteration++)
         {
@@ -128,8 +135,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 foreach (var observation in track.Observations)
                 {
                     var ci = observation.Camera;
-                    var evaluation = Evaluate(photos[ci], cameras[ci], track.Point);
-                    if (evaluation == null)
+                    if (!Evaluate(photos[ci], cameras[ci], track.Point, evaluation))
                     {
                         continue;
                     }
@@ -139,11 +145,22 @@ public sealed class BundleAdjuster : IBundleAdjuster
                     var rv = (observation.Pixel[1] - evaluation.V) * scale;
                     var error = Math.Sqrt(ru * ru + rv * rv);
                     var weight = Math.Min(1, 3 / Math.Max(error, 1e-9));
-                    var indices = cameraIndices[ci].Concat([focalIndices[ci]]).ToArray();
-                    var ju = evaluation.CameraU.Concat([evaluation.FocalU]).Select(v => v * scale).ToArray();
-                    var jv = evaluation.CameraV.Concat([evaluation.FocalV]).Select(v => v * scale).ToArray();
-                    var pu = evaluation.PointU.Select(v => v * scale).ToArray();
-                    var pv = evaluation.PointV.Select(v => v * scale).ToArray();
+                    cameraIndices[ci].AsSpan().CopyTo(indices);
+                    indices[6] = focalIndices[ci];
+                    for (var j = 0; j < 6; j++)
+                    {
+                        ju[j] = evaluation.CameraU[j] * scale;
+                        jv[j] = evaluation.CameraV[j] * scale;
+                    }
+
+                    ju[6] = evaluation.FocalU * scale;
+                    jv[6] = evaluation.FocalV * scale;
+                    for (var j = 0; j < 3; j++)
+                    {
+                        pu[j] = evaluation.PointU[j] * scale;
+                        pv[j] = evaluation.PointV[j] * scale;
+                    }
+
                     for (var j = 0; j < 3; j++)
                     {
                         block.B[j] += weight * (pu[j] * ru + pv[j] * rv);
@@ -222,7 +239,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 block.Inverse = Inverse3(block.H);
                 foreach (var row in block.Cross)
                 {
-                    var transformed = Multiply(block.Inverse, row.Value);
+                    Multiply(block.Inverse, row.Value, transformed);
                     b[row.Key] -= Dot(transformed, block.B);
                     foreach (var column in block.Cross)
                     {
@@ -496,20 +513,32 @@ public sealed class BundleAdjuster : IBundleAdjuster
         return tracks;
     }
 
-    private Evaluation? Evaluate(Photo photo, CameraPose camera, V3 point)
+    private bool Evaluate(Photo photo, CameraPose camera, V3 point, Evaluation evaluation)
     {
-        var inverse = cameraGeometry.Transpose(camera.Rotation);
-        var p = cameraGeometry.Rotate(inverse, point - new V3(camera.Centre));
+        var rotation = camera.Rotation;
+        ReadOnlySpan<double> inverse = stackalloc double[9]
+        {
+            rotation[0], rotation[3], rotation[6],
+            rotation[1], rotation[4], rotation[7],
+            rotation[2], rotation[5], rotation[8]
+        };
+        var delta = point - new V3(camera.Centre);
+        var p = new V3(
+            inverse[0] * delta.X + inverse[1] * delta.Y + inverse[2] * delta.Z,
+            inverse[3] * delta.X + inverse[4] * delta.Y + inverse[5] * delta.Z,
+            inverse[6] * delta.X + inverse[7] * delta.Y + inverse[8] * delta.Z);
         if (p.Z <= .001)
         {
-            return null;
+            return false;
         }
 
         var f = cameraGeometry.Focal(photo, camera);
-        double[] u = [f / p.Z, 0, -f * p.X / (p.Z * p.Z)];
-        double[] v = [0, f / p.Z, -f * p.Y / (p.Z * p.Z)];
-        var pu = new double[3];
-        var pv = new double[3];
+        ReadOnlySpan<double> u = stackalloc double[3] { f / p.Z, 0, -f * p.X / (p.Z * p.Z) };
+        ReadOnlySpan<double> v = stackalloc double[3] { 0, f / p.Z, -f * p.Y / (p.Z * p.Z) };
+        var pu = evaluation.PointU.AsSpan();
+        var pv = evaluation.PointV.AsSpan();
+        pu.Clear();
+        pv.Clear();
         for (var i = 0; i < 3; i++)
         {
             for (var j = 0; j < 3; j++)
@@ -519,9 +548,11 @@ public sealed class BundleAdjuster : IBundleAdjuster
             }
         }
 
-        double[] skew = [0, -p.Z, p.Y, p.Z, 0, -p.X, -p.Y, p.X, 0];
-        var cu = new double[6];
-        var cv = new double[6];
+        ReadOnlySpan<double> skew = stackalloc double[9] { 0, -p.Z, p.Y, p.Z, 0, -p.X, -p.Y, p.X, 0 };
+        var cu = evaluation.CameraU.AsSpan();
+        var cv = evaluation.CameraV.AsSpan();
+        cu.Clear();
+        cv.Clear();
         for (var i = 0; i < 3; i++)
         {
             cu[i] = -pu[i];
@@ -533,17 +564,11 @@ public sealed class BundleAdjuster : IBundleAdjuster
             }
         }
 
-        return new Evaluation
-        {
-            U = f * p.X / p.Z + photo.Width * .5,
-            V = f * p.Y / p.Z + photo.Height * .5,
-            PointU = pu,
-            PointV = pv,
-            CameraU = cu,
-            CameraV = cv,
-            FocalU = f * p.X / p.Z,
-            FocalV = f * p.Y / p.Z
-        };
+        evaluation.U = f * p.X / p.Z + photo.Width * .5;
+        evaluation.V = f * p.Y / p.Z + photo.Height * .5;
+        evaluation.FocalU = f * p.X / p.Z;
+        evaluation.FocalV = f * p.Y / p.Z;
+        return true;
     }
 
     private double Error(V3 point, Observation o, Photo[] photos, List<CameraPose> cameras)
@@ -589,7 +614,15 @@ public sealed class BundleAdjuster : IBundleAdjuster
         }
     }
 
-    private double Dot(double[] a, double[] b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    private double Dot(ReadOnlySpan<double> a, ReadOnlySpan<double> b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+    private void Multiply(ReadOnlySpan<double> matrix, ReadOnlySpan<double> vector, Span<double> result)
+    {
+        for (var row = 0; row < 3; row++)
+        {
+            result[row] = matrix[row * 3] * vector[0] + matrix[row * 3 + 1] * vector[1] + matrix[row * 3 + 2] * vector[2];
+        }
+    }
 
     private double[] Multiply(double[] matrix, double[] vector) => [matrix[0] * vector[0] + matrix[1] * vector[1] + matrix[2] * vector[2], matrix[3] * vector[0] + matrix[4] * vector[1] + matrix[5] * vector[2], matrix[6] * vector[0] + matrix[7] * vector[1] + matrix[8] * vector[2]];
 

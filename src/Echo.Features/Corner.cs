@@ -1,6 +1,6 @@
 namespace Echo.Features;
 
-internal sealed class Corner
+internal readonly struct Corner
 {
     public int X
     {

@@ -67,6 +67,11 @@ public sealed class LineDetector : ILineDetector
             var ny = gy[seed] / strength[seed];
             for (var cursor = 0; cursor < region.Count; cursor++)
             {
+                if (cursor % 1024 == 0)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                }
+
                 var x = region[cursor] % width;
                 var y = region[cursor] / width;
                 for (var dy = -1; dy <= 1; dy++)
@@ -110,7 +115,9 @@ public sealed class LineDetector : ILineDetector
         {
             return null;
         }
-        double x = 0, y = 0, weight = 0;
+        double x = 0;
+        double y = 0;
+        double weight = 0;
         foreach (var index in region)
         {
             var w = strength[index];
@@ -120,7 +127,9 @@ public sealed class LineDetector : ILineDetector
         }
         x /= weight;
         y /= weight;
-        double xx = 0, xy = 0, yy = 0;
+        double xx = 0;
+        double xy = 0;
+        double yy = 0;
         foreach (var index in region)
         {
             var dx = index % width - x;
@@ -146,7 +155,8 @@ public sealed class LineDetector : ILineDetector
             squaredError += across * across * strength[index];
         }
         var length = maximum - minimum;
-        var isSupported = length >= minimumLength && squaredError / weight <= 2.25 && region.Count / length >= .7;
+        var isStraight = squaredError / weight <= 2.25;
+        var isSupported = length >= minimumLength && isStraight && region.Count / length >= .7;
         if (!isSupported)
         {
             return null;
@@ -209,14 +219,18 @@ public sealed class LineDetector : ILineDetector
                 var dy = second.Start[1] - first.Start[1];
                 var t = (dx * by - dy * bx) / cross;
                 var u = (dx * ay - dy * ax) / cross;
-                var onSegments = t >= -4 / lengthA && t <= 1 + 4 / lengthA && u >= -4 / lengthB && u <= 1 + 4 / lengthB;
+                var onFirst = t >= -4 / lengthA && t <= 1 + 4 / lengthA;
+                var onSecond = u >= -4 / lengthB && u <= 1 + 4 / lengthB;
+                var onSegments = onFirst && onSecond;
                 if (!onSegments)
                 {
                     continue;
                 }
                 var x = first.Start[0] + t * ax;
                 var y = first.Start[1] + t * ay;
-                var inside = x >= 9 && y >= 9 && x < width - 9 && y < height - 9;
+                var insideWidth = x >= 9 && x < width - 9;
+                var insideHeight = y >= 9 && y < height - 9;
+                var inside = insideWidth && insideHeight;
                 if (!inside || result.Any(point => Math.Abs(point.X - x) < 8 && Math.Abs(point.Y - y) < 8))
                 {
                     continue;

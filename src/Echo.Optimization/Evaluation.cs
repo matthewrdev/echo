@@ -4,22 +4,22 @@ internal sealed class Evaluation
 {
     public double U
     {
-        get; init;
+        get; set;
     }
     public double V
     {
-        get; init;
+        get; set;
     }
-    public double[] CameraU { get; init; } = [];
-    public double[] CameraV { get; init; } = [];
-    public double[] PointU { get; init; } = [];
-    public double[] PointV { get; init; } = [];
+    public double[] CameraU { get; } = new double[6];
+    public double[] CameraV { get; } = new double[6];
+    public double[] PointU { get; } = new double[3];
+    public double[] PointV { get; } = new double[3];
     public double FocalU
     {
-        get; init;
+        get; set;
     }
     public double FocalV
     {
-        get; init;
+        get; set;
     }
 }

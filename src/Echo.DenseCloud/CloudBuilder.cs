@@ -194,6 +194,7 @@ public sealed class CloudBuilder : ICloudBuilder
             ImageIds = report.ImageIds,
             InputSamples = report.InputSamples
         };
+        cloud.Samples.EnsureCapacity(count);
         for (var i = 0; i < count; i++)
         {
             cloud.Samples.Add(new DenseSample(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadByte(), reader.ReadByte(), reader.ReadByte(), reader.ReadInt32(), reader.ReadSingle()));

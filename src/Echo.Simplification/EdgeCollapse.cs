@@ -24,6 +24,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
         var faces = input.Faces.Select(f => (int[])f.Clone()).ToArray();
         var removed = new bool[faces.Length];
         var remaining = faces.Length;
+        Span<double> plane = stackalloc double[4];
         for (var i = 0; i < faces.Length; i++)
         {
             var f = faces[i];
@@ -34,7 +35,10 @@ public sealed class EdgeCollapse : IEdgeCollapse
 
             var a = vertices[f[0]].Position;
             var normal = (vertices[f[1]].Position - a).Cross(vertices[f[2]].Position - a).Unit;
-            double[] plane = [normal.X, normal.Y, normal.Z, -(normal).Dot(a)];
+            plane[0] = normal.X;
+            plane[1] = normal.Y;
+            plane[2] = normal.Z;
+            plane[3] = -(normal).Dot(a);
             foreach (var v in f)
             {
                 for (var r = 0; r < 4; r++)
@@ -70,12 +74,32 @@ public sealed class EdgeCollapse : IEdgeCollapse
             var qb = vb.Quadric;
             var aBoundary = Boundary(a);
             var bBoundary = Boundary(b);
-            V3[] options = aBoundary && !bBoundary ? [va.Position] : bBoundary && !aBoundary ? [vb.Position] : [va.Position, vb.Position, (va.Position + vb.Position) * .5];
+            Span<V3> options = stackalloc V3[3];
+            var optionCount = 1;
+            if (aBoundary && !bBoundary)
+            {
+                options[0] = va.Position;
+            }
+            else if (bBoundary && !aBoundary)
+            {
+                options[0] = vb.Position;
+            }
+            else
+            {
+                options[0] = va.Position;
+                options[1] = vb.Position;
+                options[2] = (va.Position + vb.Position) * .5;
+                optionCount = 3;
+            }
             var best = double.PositiveInfinity;
             var bestPoint = options[0];
-            foreach (var option in options)
+            Span<double> p = stackalloc double[4];
+            p[3] = 1;
+            foreach (var option in options[..optionCount])
             {
-                double[] p = [option.X, option.Y, option.Z, 1];
+                p[0] = option.X;
+                p[1] = option.Y;
+                p[2] = option.Z;
                 double error = 0;
                 for (var r = 0; r < 4; r++)
                 {
@@ -122,14 +146,13 @@ public sealed class EdgeCollapse : IEdgeCollapse
             var b = vertices[edge.B].Position;
             var faceNormal = (vertices[f[1]].Position - vertices[f[0]].Position).Cross(vertices[f[2]].Position - vertices[f[0]].Position).Unit;
             var normal = (b - a).Cross(faceNormal).Unit;
-            double[] plane = [normal.X, normal.Y, normal.Z, -(normal).Dot(a)];
-            foreach (var vi in new[]
+            plane[0] = normal.X;
+            plane[1] = normal.Y;
+            plane[2] = normal.Z;
+            plane[3] = -(normal).Dot(a);
+            for (var endpoint = 0; endpoint < 2; endpoint++)
             {
-                edge.A,
-                edge.B
-            }
-            )
-            {
+                var vi = endpoint == 0 ? edge.A : edge.B;
                 for (var r = 0; r < 4; r++)
                 {
                     for (var c = 0; c < 4; c++)
@@ -145,6 +168,8 @@ public sealed class EdgeCollapse : IEdgeCollapse
             Offer(edge.A, edge.B);
         }
 
+        Span<V3> old = stackalloc V3[3];
+        Span<V3> next = stackalloc V3[3];
         while (remaining > target && queue.TryDequeue(out var edge, out _))
         {
             cancellation.ThrowIfCancellationRequested();
@@ -183,8 +208,12 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 }
 
                 var face = faces[fi];
-                var old = face.Select(v => vertices[v].Position).ToArray();
-                var next = face.Select(v => v == edge.A || v == edge.B ? edge.Position : vertices[v].Position).ToArray();
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var vertex = face[corner];
+                    old[corner] = vertices[vertex].Position;
+                    next[corner] = vertex == edge.A || vertex == edge.B ? edge.Position : old[corner];
+                }
                 var oldNormal = (old[1] - old[0]).Cross(old[2] - old[0]);
                 var newNormal = (next[1] - next[0]).Cross(next[2] - next[0]);
                 if (newNormal.Length < 1e-10 || (oldNormal.Unit).Dot(newNormal.Unit) < .25)
