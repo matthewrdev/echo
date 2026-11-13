@@ -42,6 +42,7 @@ public sealed class Settings
     public int DepthPlanes { get; set; } = 96;
     public int DepthRefinementSamples { get; set; } = 9;
     public int DepthNeighbours { get; set; } = 3;
+    public bool DepthRangeAutomatic { get; set; } = true;
     public double DepthNear { get; set; } = 2;
     public double DepthFar { get; set; } = 100;
     public int TextureSize { get; set; } = 8192;

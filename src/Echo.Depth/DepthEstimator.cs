@@ -14,12 +14,14 @@ public sealed class DepthEstimator : IDepthEstimator
 {
     private readonly ICameraGeometry cameraGeometry;
     private readonly IRasterImageService rasterImageService;
+    private readonly IDepthRangeEstimator rangeEstimator;
 
     [ImportingConstructor]
-    public DepthEstimator(ICameraGeometry cameraGeometry, IRasterImageService rasterImageService)
+    public DepthEstimator(ICameraGeometry cameraGeometry, IRasterImageService rasterImageService, IDepthRangeEstimator rangeEstimator)
     {
         this.cameraGeometry = cameraGeometry;
         this.rasterImageService = rasterImageService;
+        this.rangeEstimator = rangeEstimator;
     }
 
     public DepthMap Estimate(IProjectStore store,
@@ -31,6 +33,9 @@ public sealed class DepthEstimator : IDepthEstimator
         Action<string>? progress = null,
         Action<DepthLevelMetrics>? metrics = null)
     {
+        var photo = project.Images.Single(image => image.Id == camera.ImageId);
+        var range = rangeEstimator.Estimate(project, scene, photo, camera, cancellation);
+        progress?.Invoke($"Depth range {range.Near:F2}–{range.Far:F2} ({range.Source}, {range.SampleCount:N0} scene samples; metres when georeferenced)");
         using var sources = new DepthSourceImages(rasterImageService, store);
         DepthMap? prior = null;
         var width = Math.Min(160, project.Settings.DepthWidth);
@@ -45,7 +50,7 @@ public sealed class DepthEstimator : IDepthEstimator
             cancellation.ThrowIfCancellationRequested();
             var label = $"level {++level}/{levelCount}, {width}px";
             progress?.Invoke($"{label}: loading reference and neighbouring images");
-            prior = EstimateLevel(store, project, scene, camera, width, prior, sources, maxWorkers, cancellation, label, progress, metrics);
+            prior = EstimateLevel(store, project, scene, camera, range, width, prior, sources, maxWorkers, cancellation, label, progress, metrics);
             if (width == project.Settings.DepthWidth)
             {
                 return prior;
@@ -59,6 +64,7 @@ public sealed class DepthEstimator : IDepthEstimator
         ProjectData project,
         ReconstructionScene scene,
         CameraPose camera,
+        DepthSearchRange range,
         int levelWidth,
         DepthMap? prior,
         DepthSourceImages sources,
@@ -82,38 +88,11 @@ public sealed class DepthEstimator : IDepthEstimator
             Depth = new float[width * height],
             Confidence = new float[width * height]
         };
-        var depths = new List<double>();
-        var projection = new CameraProjector(cameraGeometry, photo, camera);
-        foreach (var point in scene.Points)
-        {
-            if (point.ImageA != photo.Id && point.ImageB != photo.Id)
-            {
-                continue;
-            }
-            var projected = projection.Project(new V3(point.Position));
-            if (projected.HasValue && projected.Value.Z > 0)
-            {
-                depths.Add(projected.Value.Z);
-            }
-        }
-        depths.Sort();
-        var near = project.Settings.DepthNear;
-        var far = project.Settings.DepthFar;
-        if (depths.Count >= 10)
-        {
-            near = Math.Max(near, depths[depths.Count / 5] * .75);
-            far = Math.Min(far, depths[depths.Count * 4 / 5] * 1.25);
-            if (far <= near)
-            {
-                near = project.Settings.DepthNear;
-                far = project.Settings.DepthFar;
-            }
-        }
-
+        var near = range.Near;
+        var far = range.Far;
         var focal = cameraGeometry.Focal(photo, camera) * width / photo.Width;
         var centre = new V3(camera.Centre);
-        var median = depths.Count == 0 ? (near + far) * .5 : depths[depths.Count / 2];
-        var minimumBaseline = Math.Clamp(median * .06, .75, 3);
+        var minimumBaseline = Math.Clamp(range.Median * .06, .75, 3);
         var forward = cameraGeometry.Rotate(camera.Rotation, new V3(0, 0, 1));
         var candidates = scene.Cameras.Where(candidate =>
         {
@@ -233,7 +212,10 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             GlobalSearches = globalSearches,
             RecoveredSamples = recoveredSamples,
-            RetainedSamples = retainedSamples
+            RetainedSamples = retainedSamples,
+            SearchNear = range.Near,
+            SearchFar = range.Far,
+            RangeSource = range.Source
         });
 
         return result;

@@ -22,6 +22,7 @@ struct ProcessingImpact {
         let depth =
             old.depthWidth != new.depthWidth || old.depthPlanes != new.depthPlanes
             || old.depthRefinementSamples != new.depthRefinementSamples || old.depthNeighbours != new.depthNeighbours
+            || old.depthRangeAutomatic != new.depthRangeAutomatic
             || old.depthNear != new.depthNear || old.depthFar != new.depthFar
         if depth { return .depth }
         let cloud =

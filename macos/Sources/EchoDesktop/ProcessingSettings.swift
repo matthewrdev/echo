@@ -25,6 +25,7 @@ struct ProcessingSettings: Codable {
     var depthPlanes: Int = 96
     var depthRefinementSamples: Int = 9
     var depthNeighbours: Int = 3
+    var depthRangeAutomatic: Bool = true
     var depthNear: Double = 2
     var depthFar: Double = 100
     var cloudWorkerThreads: Int = 0
@@ -71,6 +72,7 @@ struct ProcessingSettings: Codable {
         depthPlanes = try values.decodeIfPresent(Int.self, forKey: .depthPlanes) ?? 96
         depthRefinementSamples = try values.decodeIfPresent(Int.self, forKey: .depthRefinementSamples) ?? 9
         depthNeighbours = try values.decodeIfPresent(Int.self, forKey: .depthNeighbours) ?? 3
+        depthRangeAutomatic = try values.decodeIfPresent(Bool.self, forKey: .depthRangeAutomatic) ?? true
         depthNear = try values.decodeIfPresent(Double.self, forKey: .depthNear) ?? 2
         depthFar = try values.decodeIfPresent(Double.self, forKey: .depthFar) ?? 100
         cloudWorkerThreads = try values.decodeIfPresent(Int.self, forKey: .cloudWorkerThreads) ?? 0
@@ -118,6 +120,7 @@ struct ProcessingSettings: Codable {
         try values.encode(depthPlanes, forKey: .depthPlanes)
         try values.encode(depthRefinementSamples, forKey: .depthRefinementSamples)
         try values.encode(depthNeighbours, forKey: .depthNeighbours)
+        try values.encode(depthRangeAutomatic, forKey: .depthRangeAutomatic)
         try values.encode(depthNear, forKey: .depthNear)
         try values.encode(depthFar, forKey: .depthFar)
         try values.encode(cloudWorkerThreads, forKey: .cloudWorkerThreads)
@@ -149,8 +152,9 @@ struct ProcessingSettings: Codable {
             return
                 "Up to \(bundleIterations) iterations per solve · guided second pass \(guidedAlignmentPass ? "on" : "off")"
         case .depth:
+            let range = depthRangeAutomatic ? "Automatic scene range" : "\(depthNear)–\(depthFar) m range"
             return
-                "\(depthWidth) px · \(depthPlanes) initial samples · \(depthRefinementSamples) refinement samples · \(depthNeighbours) stereo views · \(depthNear)–\(depthFar) m range"
+                "\(depthWidth) px · \(depthPlanes) initial samples · \(depthRefinementSamples) refinement samples · \(depthNeighbours) stereo views · \(range)"
         case .cloud:
             return
                 "\(cloudNeighbours) neighbours · \(cloudMinimumSupport) required supporting views · \((cloudDepthTolerance * 100).formatted())% relative depth tolerance"

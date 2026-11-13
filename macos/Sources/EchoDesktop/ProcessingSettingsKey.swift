@@ -5,7 +5,7 @@ enum ProcessingSettingsKey: String, CodingKey {
     case depthConcurrency, depthWorkerThreads, depthMemoryBudgetMb
     case cloudWorkerThreads, cloudBatchRows
     case cloudReprojectionTolerancePixels, cloudMinimumParallaxDegrees
-    case depthRefinementSamples, depthNeighbours
+    case depthRefinementSamples, depthNeighbours, depthRangeAutomatic
     case textureChartFaces, textureChartAngle, textureGutter
     case featureWidth, bundleIterations, featureLimit, pairWindow, matchAllPairs, gpsPairNeighbours,
         matchRatioThreshold, matchDistanceThreshold, depthWidth, depthPlanes, depthNear, depthFar, cloudNeighbours,

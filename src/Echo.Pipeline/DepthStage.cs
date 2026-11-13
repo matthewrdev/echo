@@ -53,6 +53,7 @@ public sealed class DepthStage : IPipelineStage
                 project.Settings.DepthPlanes,
                 project.Settings.DepthRefinementSamples,
                 project.Settings.DepthNeighbours,
+                project.Settings.DepthRangeAutomatic,
                 project.Settings.DepthNear,
                 project.Settings.DepthFar
             };

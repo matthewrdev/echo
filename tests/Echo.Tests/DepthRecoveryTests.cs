@@ -32,7 +32,7 @@ public sealed class DepthRecoveryTests
             {
                 var project = new ProjectData
                 {
-                    Settings = new Settings { DepthWidth = 320, DepthPlanes = 101, DepthNeighbours = 2, DepthNear = 8, DepthFar = 12 }
+                    Settings = new Settings { DepthWidth = 320, DepthPlanes = 101, DepthNeighbours = 2, DepthRangeAutomatic = false, DepthNear = 8, DepthFar = 12 }
                 };
                 var scene = new ReconstructionScene();
                 using var texture = new SKBitmap(320, 192);

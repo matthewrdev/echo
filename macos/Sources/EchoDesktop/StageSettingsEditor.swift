@@ -96,12 +96,20 @@ struct StageSettingsEditor: View {
                 IntegerSettingSlider(
                     title: "Refinement samples per level", value: $settings.depthRefinementSamples, range: 3...128)
                 IntegerSettingSlider(title: "Stereo neighbours", value: $settings.depthNeighbours, range: 1...32)
-                DecimalSettingSlider(
-                    title: "Nearest distance (metres)", value: $settings.depthNear, range: 0.1...1000, step: 0.1)
-                DecimalSettingSlider(
-                    title: "Farthest distance (metres)", value: $settings.depthFar, range: 1...2000, step: 1)
+                Toggle("Infer depth range automatically", isOn: $settings.depthRangeAutomatic)
+                if settings.depthRangeAutomatic {
+                    Text(
+                        "Uses visible aligned scene points with a margin for each photo. Camera bounds provide a fallback when scene coverage is insufficient. The inferred range is reported in the activity log."
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    TextField("Nearest distance (metres)", value: $settings.depthNear, format: .number.grouping(.never))
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Farthest distance (metres)", value: $settings.depthFar, format: .number.grouping(.never))
+                        .textFieldStyle(.roundedBorder)
+                }
                 Text(
-                    "1024 pixels is a preview resolution for 4K photos. Use 2048 or the source width to retain smaller surface details; images are never upscaled. Initial samples search the depth range, and refinement samples refine each higher-resolution level. Tighten the range around the photographed surface to spend those samples usefully. Distances are metric only when the reconstruction has a metric frame."
+                    "1024 pixels is a preview resolution for 4K photos. Use 2048 or the source width to retain smaller surface details; images are never upscaled. Initial samples search the depth range, and refinement samples refine each higher-resolution level. Distances are metric only when the reconstruction has a metric frame."
                 ).foregroundStyle(.secondary)
             case .cloud:
                 IntegerSettingSlider(

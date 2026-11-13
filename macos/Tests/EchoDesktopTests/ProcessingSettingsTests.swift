@@ -12,6 +12,10 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(settings.frustumPairNeighbours, 12)
         XCTAssertTrue(settings.scaleInvariantFeatures)
         XCTAssertTrue(settings.guidedAlignmentPass)
+        XCTAssertTrue(settings.depthRangeAutomatic)
+        settings.depthRangeAutomatic = false
+        settings.depthNear = 5
+        settings.depthFar = 6000
         settings.scaleInvariantFeatures = false
         settings.guidedAlignmentPass = false
         settings.frustumPairNeighbours = 24
@@ -54,6 +58,9 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(restored.depthWidth, 4096)
         XCTAssertEqual(restored.depthRefinementSamples, 32)
         XCTAssertEqual(restored.depthNeighbours, 8)
+        XCTAssertFalse(restored.depthRangeAutomatic)
+        XCTAssertEqual(restored.depthNear, 5)
+        XCTAssertEqual(restored.depthFar, 6000)
         XCTAssertTrue(restored.matchAllPairs)
         XCTAssertEqual(restored.cloudMinimumSupport, 3)
         XCTAssertEqual(restored.fusionDetailMultiplier, 2)
@@ -86,6 +93,9 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .cloud)
         changed = original
         changed.depthRefinementSamples = 32
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .depth)
+        changed = original
+        changed.depthRangeAutomatic = false
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .depth)
         changed = original
         changed.depthConcurrency = 4

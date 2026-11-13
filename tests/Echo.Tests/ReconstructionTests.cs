@@ -394,7 +394,7 @@ public sealed class ReconstructionTests
                 using var lease = store.Lock("run");
                 Throws(() => processor.Execute(store, "features", default), 6);
             });
-            store.Edit(p => p.Settings = new Settings { FeatureWidth = 320, FeatureLimit = 400, DepthWidth = 128, DepthPlanes = 48, DepthNear = 8, DepthFar = 18, DepthConcurrency = 2, TextureSize = 256, FaceLimit = 800 });
+            store.Edit(p => p.Settings = new Settings { FeatureWidth = 320, FeatureLimit = 400, DepthWidth = 128, DepthPlanes = 48, DepthRangeAutomatic = false, DepthNear = 8, DepthFar = 18, DepthConcurrency = 2, TextureSize = 256, FaceLimit = 800 });
             RunData? first = null;
             tests.Run("Cancellation preserves a completed per-image checkpoint and resume reuses it", () =>
             {
