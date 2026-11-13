@@ -41,6 +41,7 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo inspect-glb FILE
     echo-photo compare-glb FILE REFERENCE
     echo-photo doctor
+    echo-photo runtime-info
 
     All data responses are JSON. Long jobs emit NDJSON with --events ndjson;
     otherwise progress goes to stderr and the final result is JSON.

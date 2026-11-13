@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkspaceView: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @ObservedObject var artifacts: ArtifactViewModel
+    var showRuntimeInfo: () -> Void
 
     var body: some View {
         Group {
@@ -62,6 +63,8 @@ struct WorkspaceView: View {
                 Text(workspace.selectedStage.title).font(.headline)
             }
             ToolbarItemGroup {
+                Button("Runtime information", systemImage: "info.circle", action: showRuntimeInfo)
+                    .help("About Echo and runtime information")
                 Button("Open project", systemImage: "folder.badge.plus") { workspace.openProject() }
                     .disabled(!workspace.canEdit)
             }
