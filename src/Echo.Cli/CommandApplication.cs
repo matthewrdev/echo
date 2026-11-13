@@ -1,0 +1,93 @@
+using System.ComponentModel.Composition;
+using System.Text.Json;
+using Echo.Contracts;
+
+namespace Echo.Cli;
+
+[Export(typeof(ICommandApplication)), PartCreationPolicy(CreationPolicy.Shared)]
+public sealed class CommandApplication : ICommandApplication
+{
+    private readonly IArgumentParser argumentParser;
+    private readonly ICommandOutput output;
+    private readonly IEnumerable<ICliCommand> commands;
+
+    private const string Help = """
+    Echo 0.1 — experimental C# photogrammetry workbench
+
+    echo-photo project init PATH [--name NAME]
+    echo-photo --project PATH images import DIRECTORY [--set NAME] [--limit N]
+    echo-photo --project PATH images list [--set NAME] [--query TEXT]
+    echo-photo --project PATH images metadata IMAGE_ID
+    echo-photo --project PATH images enable IMAGE_ID --value true|false
+    echo-photo --project PATH sets list
+    echo-photo --project PATH sets assign IMAGE_ID --set NAME
+    echo-photo --project PATH pipeline reset --from STAGE
+    echo-photo --project PATH config show
+    echo-photo --project PATH config import FILE
+    echo-photo --project PATH hints list|import FILE
+    echo-photo --project PATH hints camera IMAGE_ID [--lat N --lon N --alt N] [--yaw N --pitch N --roll N]
+    echo-photo --project PATH hints overlap IMAGE_ID OTHER_ID
+    echo-photo --project PATH hints tie IMAGE_ID OTHER_ID --ax X --ay Y --bx X --by Y
+    echo-photo --project PATH hints disable HINT_ID
+    echo-photo --project PATH pipeline plan [--target export]
+    echo-photo --project PATH run start [--target alignment] [--events ndjson]
+    echo-photo --project PATH run resume RUN_ID [--events ndjson]
+    echo-photo --project PATH run status|cancel|events [RUN_ID]
+    echo-photo --project PATH inspect [--run RUN_ID]
+    echo-photo inspect-glb FILE
+    echo-photo compare-glb FILE REFERENCE
+    echo-photo doctor
+
+    All data responses are JSON. Long jobs emit NDJSON with --events ndjson;
+    otherwise progress goes to stderr and the final result is JSON.
+    Stages: features → matching → alignment → depth → cloud → fusion → mesh → texture → export.
+    Cancellation: Ctrl-C or run cancel RUN_ID. Resume preserves the original inputs.
+    Outputs live in immutable project artifacts; input photos are never modified.
+    """;
+
+    [ImportingConstructor]
+    public CommandApplication(IArgumentParser argumentParser, ICommandOutput output, [ImportMany] IEnumerable<ICliCommand> commands)
+    {
+        this.argumentParser = argumentParser;
+        this.output = output;
+        this.commands = commands;
+    }
+
+    public int Run(string[] input)
+    {
+        try
+        {
+            var arguments = argumentParser.Parse(input);
+            if (arguments.Words.Count == 0 || arguments.Options.ContainsKey("help"))
+            {
+                Console.WriteLine(Help);
+                return 0;
+            }
+
+            var commandName = arguments.Words[0];
+            var command = commands.SingleOrDefault(candidate => candidate.Names.Contains(commandName));
+            if (command == null)
+            {
+                throw new EchoException("Unknown command. Use --help.", 2);
+            }
+
+            return command.Execute(arguments);
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Cancelled. Completed checkpoints are retained.");
+            return 130;
+        }
+        catch (Exception error)
+        {
+            var code = error switch
+            {
+                EchoException echo => echo.ExitCode,
+                FormatException or JsonException or ArgumentException => 2,
+                _ => 4
+            };
+            output.Error(error.Message, code);
+            return code;
+        }
+    }
+}

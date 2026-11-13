@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
+    <ProjectReference Include="../Echo.Projects/Echo.Projects.csproj" />
+    <ProjectReference Include="../Echo.Features/Echo.Features.csproj" />
+    <ProjectReference Include="../Echo.Matching/Echo.Matching.csproj" />
+    <ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" />
+    <ProjectReference Include="../Echo.Reconstruction/Echo.Reconstruction.csproj" />
+    <ProjectReference Include="../Echo.Depth/Echo.Depth.csproj" />
+    <ProjectReference Include="../Echo.DenseCloud/Echo.DenseCloud.csproj" />
+    <ProjectReference Include="../Echo.Fusion/Echo.Fusion.csproj" />
+    <ProjectReference Include="../Echo.Meshing/Echo.Meshing.csproj" />
+    <ProjectReference Include="../Echo.Simplification/Echo.Simplification.csproj" />
+    <ProjectReference Include="../Echo.Texturing/Echo.Texturing.csproj" />
+    <ProjectReference Include="../Echo.Export/Echo.Export.csproj" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" /></ItemGroup>
+</Project>
