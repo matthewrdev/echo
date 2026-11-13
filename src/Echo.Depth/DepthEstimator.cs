@@ -1,7 +1,6 @@
 using System.ComponentModel.Composition;
 using System.Buffers;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Imaging;
@@ -15,13 +14,15 @@ public sealed class DepthEstimator : IDepthEstimator
     private readonly ICameraGeometry cameraGeometry;
     private readonly IRasterImageService rasterImageService;
     private readonly IDepthRangeEstimator rangeEstimator;
+    private readonly IDepthNeighbourSelector neighbourSelector;
 
     [ImportingConstructor]
-    public DepthEstimator(ICameraGeometry cameraGeometry, IRasterImageService rasterImageService, IDepthRangeEstimator rangeEstimator)
+    public DepthEstimator(ICameraGeometry cameraGeometry, IRasterImageService rasterImageService, IDepthRangeEstimator rangeEstimator, IDepthNeighbourSelector neighbourSelector)
     {
         this.cameraGeometry = cameraGeometry;
         this.rasterImageService = rasterImageService;
         this.rangeEstimator = rangeEstimator;
+        this.neighbourSelector = neighbourSelector;
     }
 
     public DepthMap Estimate(IProjectStore store,
@@ -33,9 +34,16 @@ public sealed class DepthEstimator : IDepthEstimator
         Action<string>? progress = null,
         Action<DepthLevelMetrics>? metrics = null)
     {
-        var photo = project.Images.Single(image => image.Id == camera.ImageId);
+        var photo = FindPhoto(project.Images, camera.ImageId);
         var range = rangeEstimator.Estimate(project, scene, photo, camera, cancellation);
         progress?.Invoke($"Depth range {range.Near:F2}–{range.Far:F2} ({range.Source}, {range.SampleCount:N0} scene samples; metres when georeferenced)");
+        var selected = neighbourSelector.Select(scene, camera, range.Median, project.Settings.DepthNeighbours, cancellation);
+        var neighbours = new DepthNeighbour[selected.Length];
+        for (var index = 0; index < selected.Length; index++)
+        {
+            var other = selected[index];
+            neighbours[index] = new DepthNeighbour(other, FindPhoto(project.Images, other.ImageId), cameraGeometry.Transpose(other.Rotation));
+        }
         using var sources = new DepthSourceImages(rasterImageService, store);
         DepthMap? prior = null;
         var width = Math.Min(160, project.Settings.DepthWidth);
@@ -50,7 +58,7 @@ public sealed class DepthEstimator : IDepthEstimator
             cancellation.ThrowIfCancellationRequested();
             var label = $"level {++level}/{levelCount}, {width}px";
             progress?.Invoke($"{label}: loading reference and neighbouring images");
-            prior = EstimateLevel(store, project, scene, camera, range, width, prior, sources, maxWorkers, cancellation, label, progress, metrics);
+            prior = EstimateLevel(project, photo, camera, neighbours, range, width, prior, sources, maxWorkers, cancellation, label, progress, metrics);
             if (width == project.Settings.DepthWidth)
             {
                 return prior;
@@ -60,10 +68,28 @@ public sealed class DepthEstimator : IDepthEstimator
         }
     }
 
-    private DepthMap EstimateLevel(IProjectStore store,
-        ProjectData project,
-        ReconstructionScene scene,
+    private Photo FindPhoto(List<Photo> photos, string imageId)
+    {
+        Photo? found = null;
+        foreach (var photo in photos)
+        {
+            if (photo.Id != imageId)
+            {
+                continue;
+            }
+            if (found != null)
+            {
+                throw new EchoException($"Duplicate photograph ID: {imageId}.", 5);
+            }
+            found = photo;
+        }
+        return found ?? throw new EchoException($"Missing photograph: {imageId}.", 5);
+    }
+
+    private DepthMap EstimateLevel(ProjectData project,
+        Photo photo,
         CameraPose camera,
+        DepthNeighbour[] neighbours,
         DepthSearchRange range,
         int levelWidth,
         DepthMap? prior,
@@ -75,7 +101,6 @@ public sealed class DepthEstimator : IDepthEstimator
         Action<DepthLevelMetrics>? metrics)
     {
         var preparationStart = Stopwatch.GetTimestamp();
-        var photo = project.Images.Single(i => i.Id == camera.ImageId);
         var reference = sources.ReadLevel(photo, levelWidth);
         var gray = reference.Pixels;
         var width = reference.Width;
@@ -92,30 +117,17 @@ public sealed class DepthEstimator : IDepthEstimator
         var far = range.Far;
         var focal = cameraGeometry.Focal(photo, camera) * width / photo.Width;
         var centre = new V3(camera.Centre);
-        var minimumBaseline = Math.Clamp(range.Median * .06, .75, 3);
-        var forward = cameraGeometry.Rotate(camera.Rotation, new V3(0, 0, 1));
-        var candidates = scene.Cameras.Where(candidate =>
-        {
-            var isDifferentImage = candidate.ImageId != camera.ImageId;
-            var hasBaseline = (new V3(candidate.Centre) - centre).Length > .05;
-            var facing = cameraGeometry.Rotate(candidate.Rotation, new V3(0, 0, 1));
-            var hasSimilarOrientation = facing.Dot(forward) > .8;
-            return isDifferentImage && hasBaseline && hasSimilarOrientation;
-        }).ToList();
-        var neighbours = candidates.Where(c => (new V3(c.Centre) - centre).Length >= minimumBaseline).ToList();
-        if (neighbours.Count < 2)
-        {
-            neighbours = candidates;
-        }
-
-        var views = new List<StereoView>();
-        foreach (var other in neighbours.OrderBy(c => (new V3(c.Centre) - centre).Length).Take(project.Settings.DepthNeighbours))
+        var patchRight = cameraGeometry.Rotate(camera.Rotation, new V3(1 / focal, 0, 0));
+        var patchDown = cameraGeometry.Rotate(camera.Rotation, new V3(0, 1 / focal, 0));
+        var views = new StereoView[neighbours.Length];
+        for (var index = 0; index < neighbours.Length; index++)
         {
             cancellation.ThrowIfCancellationRequested();
-            var otherPhoto = project.Images.Single(i => i.Id == other.ImageId);
+            var other = neighbours[index].Camera;
+            var otherPhoto = neighbours[index].Photo;
             var resized = sources.ReadLevel(otherPhoto, levelWidth);
-            var inverse = cameraGeometry.Transpose(other.Rotation);
-            views.Add(new StereoView
+            var inverse = neighbours[index].WorldToCamera;
+            views[index] = new StereoView
             {
                 Centre = new V3(other.Centre),
                 Focal = cameraGeometry.Focal(otherPhoto, other) * resized.Width / otherPhoto.Width,
@@ -123,12 +135,12 @@ public sealed class DepthEstimator : IDepthEstimator
                 Height = resized.Height,
                 Gray = resized.Pixels,
                 WorldToCamera = inverse,
-                PatchRight = cameraGeometry.Rotate(inverse, cameraGeometry.Rotate(camera.Rotation, new V3(1 / focal, 0, 0))),
-                PatchDown = cameraGeometry.Rotate(inverse, cameraGeometry.Rotate(camera.Rotation, new V3(0, 1 / focal, 0)))
-            });
+                PatchRight = cameraGeometry.Rotate(inverse, patchRight),
+                PatchDown = cameraGeometry.Rotate(inverse, patchDown)
+            };
         }
 
-        if (views.Count == 0)
+        if (views.Length == 0)
         {
             throw new EchoException($"No suitable stereo neighbour for {photo.Name}.", 5);
         }
@@ -145,7 +157,7 @@ public sealed class DepthEstimator : IDepthEstimator
         };
         var operation = prior == null ? "initial depth search" : "depth refinement and missing-depth search";
         var sampleCount = planeDepths.Length + (prior == null ? 0 : project.Settings.DepthRefinementSamples);
-        var description = $"{levelLabel}, {operation}, {views.Count} neighbours, up to {sampleCount} samples/pixel";
+        var description = $"{levelLabel}, {operation}, {views.Length} neighbours, up to {sampleCount} samples/pixel";
         progress?.Invoke(description);
         var levelProgress = new DepthLevelProgress(progress, description, height - 6);
         var searchStart = Stopwatch.GetTimestamp();
@@ -172,14 +184,14 @@ public sealed class DepthEstimator : IDepthEstimator
                 var hypotheses = hypothesisBuffer[..(prior == null ? 0 : CreateHypotheses(prior, x, y, width, height, near, far, hypothesisBuffer))];
                 var selectedDepth = 0.0;
                 var best = double.PositiveInfinity;
-                var found = hypotheses.Length > 0 && SearchDepth(CollectionsMarshal.AsSpan(views), centre, ray,
+                var found = hypotheses.Length > 0 && SearchDepth(views, centre, ray,
                     patch, norm, hypotheses, costBuffer, false, cancellation, out selectedDepth, out best);
                 if (!found)
                 {
                     // A missing or rejected coarse estimate is not evidence of an empty
                     // surface. Search the full interval again with this level's image detail.
                     scratch.GlobalSearches++;
-                    found = SearchDepth(CollectionsMarshal.AsSpan(views), centre, ray, patch, norm,
+                    found = SearchDepth(views, centre, ray, patch, norm,
                         planeDepths, costBuffer, true, cancellation, out selectedDepth, out best);
                     if (found && prior != null)
                     {
@@ -205,7 +217,7 @@ public sealed class DepthEstimator : IDepthEstimator
         progress?.Invoke($"{levelLabel}: filtering unsupported depth samples");
         var retainedSamples = FilterUnsupportedSamples(result, cancellation);
         progress?.Invoke($"{levelLabel}: {retainedSamples:N0}/{result.Depth.Length:N0} depth samples retained ({100.0 * retainedSamples / result.Depth.Length:F2}%); {globalSearches:N0} full-range searches, {recoveredSamples:N0} recovery candidates before filtering");
-        metrics?.Invoke(new DepthLevelMetrics(photo.Id, width, height, views.Count,
+        metrics?.Invoke(new DepthLevelMetrics(photo.Id, width, height, views.Length,
             Stopwatch.GetElapsedTime(preparationStart, searchStart).TotalSeconds,
             Stopwatch.GetElapsedTime(searchStart, filterStart).TotalSeconds,
             Stopwatch.GetElapsedTime(filterStart).TotalSeconds)
