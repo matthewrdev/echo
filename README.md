@@ -6,6 +6,7 @@ Echo is a native macOS photogrammetry workbench for reconstructing cliffs, terra
 
 ## See what your scan is doing
 
+- **Use your GPU.** Depth processing automatically prefers Metal on supported Macs, with CPU fallback.
 - **Watch results arrive.** Inspect detected features and depth maps as each photograph finishes processing.
 - **Understand the reconstruction.** Compare matches, overlay depth and confidence on the original photo, and inspect cameras and points in 3D.
 - **Use your capture data.** Explore photo metadata, DJI camera orientation and GPS positioning alongside the reconstruction.
@@ -22,7 +23,7 @@ To build from source, install Xcode and the [.NET 10 SDK](https://dotnet.microso
 ./scripts/desktop
 ```
 
-Create a project, import overlapping JPEG, PNG or TIFF photographs, and choose a processing stage. Convert camera RAW files before importing.
+Create a project, import overlapping JPEG, PNG or TIFF photographs, and choose a processing stage. Convert camera RAW files before importing. Use **Trim similar photos** to exclude redundant captures without deleting originals.
 
 To build a standalone Release app:
 
@@ -31,7 +32,7 @@ To build a standalone Release app:
 open dist/Echo.app
 ```
 
-The package includes .NET and reads photo metadata directly in C#. Users do not need Homebrew, ExifTool, Perl or any separate runtime installation. Pass `osx-x64` to package for Intel; the default is Apple Silicon. Local builds are ad-hoc signed, not notarised.
+The standalone package includes the required runtime and processing tools. Pass `osx-x64` to package for Intel; the default is Apple Silicon. Local builds are ad-hoc signed, not notarised.
 
 ## Automate with the CLI
 
@@ -43,11 +44,9 @@ The package includes .NET and reads photo metadata directly in C#. Users do not 
 
 Commands return JSON; `--events ndjson` streams progress. Use `--help` for commands and `doctor` to check dependencies. Resume preserves a run's original settings; start a new run to apply changes.
 
-Depth scheduling defaults to automatic memory budgeting (`depthMemoryBudgetMb: 0`). At the start of the depth stage, it budgets 25% of the runtime's memory capacity, bounded to 256 MB–32 GB, while retaining the configured photo and CPU concurrency limits. This is a scheduling estimate, not reserved memory or a hard process limit. In the desktop Depth settings, turn off **Automatic memory budget** to choose a fixed 256–32768 MB budget. Existing projects retain their explicitly saved budgets.
-
 ## Development
 
-The desktop uses SwiftUI, AppKit and SceneKit/Metal. Reconstruction runs on the CPU in focused C#/.NET projects, composed with MEF.
+The desktop uses SwiftUI, AppKit and SceneKit/Metal. The CLI and processing subsystems are C#/.NET projects composed with MEF.
 
 ```bash
 ./scripts/build.sh         # Build and run C# and native tests
@@ -55,7 +54,3 @@ The desktop uses SwiftUI, AppKit and SceneKit/Metal. Reconstruction runs on the 
 ```
 
 See [AGENTS.md](AGENTS.md) for code conventions, [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) for licensing.
-
-Use **Trim similar photos** above the photo list to keep one sharp representative of near-identical shots. Extras are marked **Discarded**, with the retained photo identified, and excluded from processing. Originals are not deleted. Choose **Discarded**, select a photo and click **Restore photo** to bring it back; restored photos are protected from future trimming. Press **Process** afterwards: **Resume** intentionally preserves the original run's inputs. Photos referenced by enabled placement/tie/overlap hints are retained.
-
-The CLI previews groups with `images deduplicate` and applies them with `images deduplicate --apply`. Use `images restore IMAGE_ID` to restore a discarded photo. Selection groups shots taken within 10 seconds, within 0.75 m and with camera orientation within 1 degree and matching focal length. A coarse visual check rejects changed content. Each excluded photo must match its retained representative directly, so gradual camera motion cannot chain into one group. It is conservative about viewpoint changes and uses stricter image similarity when GPS is absent. Sharpness is measured at preview resolution. Saved runs and source files remain intact.
