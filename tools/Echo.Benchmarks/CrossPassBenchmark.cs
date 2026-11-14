@@ -19,15 +19,13 @@ public sealed class CrossPassBenchmark
     private readonly IRasterImageService images;
     private readonly IFeatureMatcher matcher;
     private readonly ICameraGeometry geometry;
-    private readonly IFundamentalEstimator verification;
     private readonly IGuidedFeatureMatcher guided;
     private readonly IProjectStoreFactory stores;
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
 
     [ImportingConstructor]
-    public CrossPassBenchmark(IScaleSpaceFeatures scaleFeatures, IFeatureExtractor legacyFeatures, IRasterImageService images,
-        IFeatureMatcher matcher, ICameraGeometry geometry, IProjectStoreFactory stores, IFileOperations files, IJsonCodec json, IFundamentalEstimator verification, IGuidedFeatureMatcher guided)
+    public CrossPassBenchmark(IScaleSpaceFeatures scaleFeatures, IFeatureExtractor legacyFeatures, IRasterImageService images, IFeatureMatcher matcher, ICameraGeometry geometry, IProjectStoreFactory stores, IFileOperations files, IJsonCodec json, IGuidedFeatureMatcher guided)
     {
         this.scaleFeatures = scaleFeatures;
         this.legacyFeatures = legacyFeatures;
@@ -37,7 +35,6 @@ public sealed class CrossPassBenchmark
         this.stores = stores;
         this.files = files;
         this.json = json;
-        this.verification = verification;
         this.guided = guided;
     }
 
@@ -96,7 +93,7 @@ public sealed class CrossPassBenchmark
                 var matchingSeconds = watch.Elapsed.TotalSeconds;
                 watch.Restart();
                 var relative = geometry.EstimateRelative(photos[0], photos[index], pair.Matches);
-                var verified = verification.Estimate(pair.Matches, 4, default);
+                var verified = FundamentalMatrixEstimator.Estimate(pair.Matches, 4, default);
                 var recovered = guided.Recover(features[0], features[index], pair.Matches, settings, 4, default);
                 var result = new
                 {

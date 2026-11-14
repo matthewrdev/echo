@@ -1,19 +1,16 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace Echo.Geometry;
 
-[Export(typeof(IFundamentalEstimator)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class FundamentalEstimator : IFundamentalEstimator
+/// <summary>
+/// Fits the fundamental matrix between two photos and rejects correspondences
+/// that disagree with their shared epipolar geometry.
+/// </summary>
+public static class FundamentalMatrixEstimator
 {
-    [ImportingConstructor]
-    public FundamentalEstimator()
-    {
-    }
-
-    public FundamentalEstimate? Estimate(IReadOnlyList<Match> matches, double thresholdPixels, CancellationToken cancellation)
+    public static FundamentalMatrixEstimate? Estimate(IReadOnlyList<Match> matches, double thresholdPixels, CancellationToken cancellation)
     {
         if (matches.Count < 12)
         {
@@ -83,11 +80,11 @@ public sealed class FundamentalEstimator : IFundamentalEstimator
             maximumIterations = Math.Min(maximumIterations, Math.Max(128, required));
         }
         return best.Count >= 12 && bestMatrix != null
-            ? new FundamentalEstimate { Matrix = bestMatrix, Inliers = best, Iterations = iteration }
+            ? new FundamentalMatrixEstimate { Matrix = bestMatrix, Inliers = best, Iterations = iteration }
             : null;
     }
 
-    private void Collect(IReadOnlyList<Match> matches, ReadOnlySpan<double> matrix, double squaredThreshold, List<Match> inliers)
+    private static void Collect(IReadOnlyList<Match> matches, ReadOnlySpan<double> matrix, double squaredThreshold, List<Match> inliers)
     {
         inliers.Clear();
         foreach (var match in matches)
@@ -110,7 +107,7 @@ public sealed class FundamentalEstimator : IFundamentalEstimator
         }
     }
 
-    private double[]? Fit(IReadOnlyList<Match> matches)
+    private static double[]? Fit(IReadOnlyList<Match> matches)
     {
         if (matches.Count < 8)
         {
@@ -167,7 +164,7 @@ public sealed class FundamentalEstimator : IFundamentalEstimator
         return (Transform(second).Transpose() * matrix * Transform(first)).ToRowMajorArray();
     }
 
-    private void AddEquation(Span<double> triangular, Span<double> equation)
+    private static void AddEquation(Span<double> triangular, Span<double> equation)
     {
         for (var column = 0; column < 9; column++)
         {
@@ -191,7 +188,7 @@ public sealed class FundamentalEstimator : IFundamentalEstimator
         }
     }
 
-    private PixelNormalization? Normalize(IReadOnlyList<Match> matches, bool left)
+    private static PixelNormalization? Normalize(IReadOnlyList<Match> matches, bool left)
     {
         double centreX = 0;
         double centreY = 0;
@@ -216,7 +213,7 @@ public sealed class FundamentalEstimator : IFundamentalEstimator
             : null;
     }
 
-    private Matrix<double> Transform(PixelNormalization normalization)
+    private static Matrix<double> Transform(PixelNormalization normalization)
     {
         return DenseMatrix.OfArray(new[,]
         {

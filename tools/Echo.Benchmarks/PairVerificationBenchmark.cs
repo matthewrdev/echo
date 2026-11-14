@@ -12,15 +12,13 @@ public sealed class PairVerificationBenchmark
     private readonly IProjectStoreFactory stores;
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
-    private readonly IFundamentalEstimator geometry;
 
     [ImportingConstructor]
-    public PairVerificationBenchmark(IProjectStoreFactory stores, IJsonCodec json, IFileOperations files, IFundamentalEstimator geometry)
+    public PairVerificationBenchmark(IProjectStoreFactory stores, IJsonCodec json, IFileOperations files)
     {
         this.stores = stores;
         this.json = json;
         this.files = files;
-        this.geometry = geometry;
     }
 
     public int Run(string[] args)
@@ -43,7 +41,7 @@ public sealed class PairVerificationBenchmark
             {
                 continue;
             }
-            var verified = geometry.Estimate(pair.Matches, Math.Max(left.Width, right.Width) / 1000.0, default);
+            var verified = FundamentalMatrixEstimator.Estimate(pair.Matches, Math.Max(left.Width, right.Width) / 1000.0, default);
             var decisions = new List<object>();
             for (var index = 0; index < pair.Matches.Count; index++)
             {

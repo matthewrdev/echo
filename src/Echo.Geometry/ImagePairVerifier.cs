@@ -6,12 +6,10 @@ namespace Echo.Geometry;
 [Export(typeof(IImagePairVerifier)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ImagePairVerifier : IImagePairVerifier
 {
-    private readonly IFundamentalEstimator fundamental;
 
     [ImportingConstructor]
-    public ImagePairVerifier(IFundamentalEstimator fundamental)
+    public ImagePairVerifier()
     {
-        this.fundamental = fundamental;
     }
 
     public ImagePair Verify(Photo leftPhoto, Photo rightPhoto, ImagePair candidates, CancellationToken cancellation)
@@ -26,7 +24,7 @@ public sealed class ImagePairVerifier : IImagePairVerifier
                 automatic.Add(match);
             }
         }
-        var estimate = fundamental.Estimate(automatic, threshold, cancellation);
+        var estimate = FundamentalMatrixEstimator.Estimate(automatic, threshold, cancellation);
         var inliers = estimate == null ? new HashSet<Match>() : new HashSet<Match>(estimate.Inliers);
         var verified = new ImagePair { A = candidates.A, B = candidates.B };
         foreach (var match in candidates.Matches)

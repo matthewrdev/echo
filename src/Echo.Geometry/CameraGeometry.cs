@@ -8,13 +8,9 @@ namespace Echo.Geometry;
 [Export(typeof(ICameraGeometry)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class CameraGeometry : ICameraGeometry
 {
-
-    private readonly IFundamentalEstimator fundamental;
-
     [ImportingConstructor]
-    public CameraGeometry(IFundamentalEstimator fundamental)
+    public CameraGeometry()
     {
-        this.fundamental = fundamental;
     }
 
     public V3 Rotate(double[] rotation, V3 vector) => new(rotation[0] * vector.X + rotation[1] * vector.Y + rotation[2] * vector.Z, rotation[3] * vector.X + rotation[4] * vector.Y + rotation[5] * vector.Z, rotation[6] * vector.X + rotation[7] * vector.Y + rotation[8] * vector.Z);
@@ -145,7 +141,7 @@ public sealed class CameraGeometry : ICameraGeometry
 
     public RelativePose? EstimateRelative(Photo leftPhoto, Photo rightPhoto, List<Match> matches)
     {
-        var verified = fundamental.Estimate(matches, Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000.0, default);
+        var verified = FundamentalMatrixEstimator.Estimate(matches, Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000.0, default);
         if (verified == null)
         {
             return null;

@@ -8,18 +8,16 @@ namespace Echo.Matching;
 [Export(typeof(IGuidedFeatureMatcher)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
 {
-    private readonly IFundamentalEstimator geometry;
 
     [ImportingConstructor]
-    public GuidedFeatureMatcher(IFundamentalEstimator geometry)
+    public GuidedFeatureMatcher()
     {
-        this.geometry = geometry;
     }
 
     public ImagePair? Recover(FeatureSet left, FeatureSet right, IReadOnlyList<Match> initialMatches, Settings settings,
         double thresholdPixels, CancellationToken cancellation)
     {
-        var seed = geometry.Estimate(initialMatches, thresholdPixels, cancellation);
+        var seed = FundamentalMatrixEstimator.Estimate(initialMatches, thresholdPixels, cancellation);
         if (seed == null || seed.Inliers.Count < 20)
         {
             return null;
@@ -39,7 +37,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
                 candidates.Add(match);
             }
         }
-        var verified = geometry.Estimate(candidates, thresholdPixels, cancellation);
+        var verified = FundamentalMatrixEstimator.Estimate(candidates, thresholdPixels, cancellation);
         if (verified == null || verified.Inliers.Count <= seed.Inliers.Count)
         {
             return null;

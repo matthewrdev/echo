@@ -2,7 +2,7 @@ using Echo.Contracts;
 
 namespace Echo.Geometry;
 
-public sealed class FundamentalEstimate
+public sealed class FundamentalMatrixEstimate
 {
     public double[] Matrix { get; set; } = [];
     public List<Match> Inliers { get; set; } = [];

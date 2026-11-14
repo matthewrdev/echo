@@ -9,14 +9,12 @@ namespace Echo.Tests;
 public sealed class GuidedMatchingTests
 {
     private readonly ICameraGeometry cameras;
-    private readonly IFundamentalEstimator verification;
     private readonly IGuidedFeatureMatcher guided;
 
     [ImportingConstructor]
-    public GuidedMatchingTests(ICameraGeometry cameras, IFundamentalEstimator verification, IGuidedFeatureMatcher guided)
+    public GuidedMatchingTests(ICameraGeometry cameras, IGuidedFeatureMatcher guided)
     {
         this.cameras = cameras;
-        this.verification = verification;
         this.guided = guided;
     }
 
@@ -33,7 +31,7 @@ public sealed class GuidedMatchingTests
             }
             // Exact synthetic pixels: use a subpixel tolerance so random outliers
             // passing near a real epipolar line do not count as true correspondences.
-            var result = verification.Estimate(candidates, .1, default);
+            var result = FundamentalMatrixEstimator.Estimate(candidates, .1, default);
             Check(result != null, "Limited overlap must recover a model");
             var correct = 0;
             foreach (var match in result!.Inliers)
@@ -50,7 +48,7 @@ public sealed class GuidedMatchingTests
             {
                 degenerate.Add(new Match { A = [index, index], B = [index * 2, index * 2] });
             }
-            Check(verification.Estimate(degenerate, 1, default) == null, "Collinear correspondences cannot determine epipolar geometry");
+            Check(FundamentalMatrixEstimator.Estimate(degenerate, 1, default) == null, "Collinear correspondences cannot determine epipolar geometry");
         });
         tests.Run("Guided second pass recovers known correspondences and rejects descriptor aliases off the epipolar line", () =>
         {

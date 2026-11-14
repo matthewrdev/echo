@@ -10,14 +10,12 @@ namespace Echo.Optimization;
 public sealed class BundleAdjuster : IBundleAdjuster
 {
     private readonly ICameraGeometry cameraGeometry;
-    private readonly IFundamentalEstimator fundamental;
     private readonly IMatrix3Inverter matrixInverter;
 
     [ImportingConstructor]
-    public BundleAdjuster(ICameraGeometry cameraGeometry, IFundamentalEstimator fundamental, IMatrix3Inverter matrixInverter)
+    public BundleAdjuster(ICameraGeometry cameraGeometry, IMatrix3Inverter matrixInverter)
     {
         this.cameraGeometry = cameraGeometry;
-        this.fundamental = fundamental;
         this.matrixInverter = matrixInverter;
     }
 
@@ -436,7 +434,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 continue;
             }
 
-            var relative = fundamental.Estimate(pair.Matches, Math.Max(photos[a].Width, photos[b].Width) / 1000.0, cancellation);
+            var relative = FundamentalMatrixEstimator.Estimate(pair.Matches, Math.Max(photos[a].Width, photos[b].Width) / 1000.0, cancellation);
             var matches = relative?.Inliers ?? pair.Matches.Where(m => m.Manual).ToList();
             foreach (var match in matches)
             {
