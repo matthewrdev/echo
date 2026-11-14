@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <InternalsVisibleTo Include="Echo.Tests" />
+    <InternalsVisibleTo Include="Echo.Benchmarks" />
     <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
     <ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" />
     <ProjectReference Include="../Echo.Imaging/Echo.Imaging.csproj" />

@@ -242,7 +242,7 @@ public sealed class DepthEstimator : IDepthEstimator
         return result;
     }
 
-    private bool SearchDepth(ReadOnlySpan<StereoView> views, V3 centre, V3 ray, ReadOnlySpan<double> patch,
+    internal bool SearchDepth(ReadOnlySpan<StereoView> views, V3 centre, V3 ray, ReadOnlySpan<double> patch,
         double norm, ReadOnlySpan<double> hypotheses, Span<double> costBuffer, bool checkAmbiguity,
         CancellationToken cancellation, out double selectedDepth, out double best)
     {
@@ -298,7 +298,7 @@ public sealed class DepthEstimator : IDepthEstimator
         return true;
     }
 
-    private bool DistinctProjection(ReadOnlySpan<StereoView> views, V3 centre, V3 ray, double firstDepth, double secondDepth)
+    internal bool DistinctProjection(ReadOnlySpan<StereoView> views, V3 centre, V3 ray, double firstDepth, double secondDepth)
     {
         var firstPoint = centre + ray * firstDepth;
         var secondPoint = centre + ray * secondDepth;
@@ -363,7 +363,7 @@ public sealed class DepthEstimator : IDepthEstimator
         return hypotheses.Length;
     }
 
-    private double NormalizePatch(float[] gray, int width, int x, int y, Span<double> patch)
+    internal double NormalizePatch(float[] gray, int width, int x, int y, Span<double> patch)
     {
         var n = 0;
         double mean = 0;
@@ -460,7 +460,7 @@ public sealed class DepthEstimator : IDepthEstimator
         return count < Math.Min(2, views.Length) ? double.PositiveInfinity : count == 1 ? firstView : (firstView + secondView) * .5;
     }
 
-    private double InterpolateDepth(ReadOnlySpan<double> hypotheses, ReadOnlySpan<double> costs, int bestPlane, double best)
+    internal double InterpolateDepth(ReadOnlySpan<double> hypotheses, ReadOnlySpan<double> costs, int bestPlane, double best)
     {
         var selectedDepth = hypotheses[bestPlane];
         var hasFiniteNeighbours = bestPlane > 0

@@ -3,6 +3,10 @@ using Echo.Composition;
 using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(DepthBenchmark).Assembly, typeof(Processor).Assembly);
+if (args.FirstOrDefault() == "metal-depth")
+{
+    return composition.Resolve<MetalDepthBenchmark>().Run(args[1..]);
+}
 if (args.FirstOrDefault() == "align")
 {
     return composition.Resolve<AlignmentBenchmark>().Run(args[1..]);
