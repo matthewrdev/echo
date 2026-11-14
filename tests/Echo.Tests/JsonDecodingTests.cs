@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using System.Text;
 using System.Text.Json;
 using Echo.Contracts;
+using Echo.Cli;
 using Echo.Infrastructure;
 using Echo.Texturing;
 
@@ -11,15 +12,22 @@ namespace Echo.Tests;
 public sealed class JsonDecodingTests
 {
     private readonly IJsonCodec json;
+    private readonly IArgumentParser arguments;
 
     [ImportingConstructor]
-    public JsonDecodingTests(IJsonCodec json)
+    public JsonDecodingTests(IJsonCodec json, IArgumentParser arguments)
     {
         this.json = json;
+        this.arguments = arguments;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Inspection summary is a standalone CLI flag", () =>
+        {
+            var parsed = arguments.Parse(["--project", "saved.echo", "inspect", "--summary", "--run", "saved-run"]);
+            Check(parsed.Options.ContainsKey("summary") && parsed.Get("run", null) == "saved-run", "Summary flag must not consume the next argument");
+        });
         tests.Run("Generated JSON contracts preserve persisted values and serialization", () =>
         {
             RoundTrip(new ProjectData());
@@ -75,6 +83,15 @@ public sealed class JsonDecodingTests
             Reject(Encoding.UTF8.GetBytes(valid.Replace("\"height\":1", "\"height\":-1")));
             Reject(Encoding.UTF8.GetBytes(valid.Replace("[1]", "[]")));
             Reject(Encoding.UTF8.GetBytes(valid + "{}"));
+        });
+        tests.Run("Inspection summaries omit bulk payload while retaining camera and cloud metadata", () =>
+        {
+            var scene = new ReconstructionScene { Frame = "local metres", Cameras = [new CameraPose { ImageId = "p" }], Points = [new CloudPoint()], Warnings = ["saved warning"] };
+            var overview = Read<ReconstructionOverview>(json.Encode(scene)).ToScene();
+            Check(overview.Points.Count == 0 && overview.Cameras.Single().ImageId == "p" && overview.Warnings.Single() == "saved warning", "Scene summary");
+            var cloud = new DenseCloudReport { InputSamples = 100, RetainedSamples = 50, Preview = [new CloudPoint()], ImageIds = ["p"] };
+            var report = Read<DenseCloudOverview>(json.Encode(cloud)).ToReport();
+            Check(report.Preview.Count == 0 && report.RetainedSamples == 50 && report.InputSamples == 100 && report.ImageIds.Single() == "p", "Cloud summary");
         });
     }
 

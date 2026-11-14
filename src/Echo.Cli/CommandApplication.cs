@@ -39,7 +39,7 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH run start [--target alignment] [--events ndjson]
     echo-photo --project PATH run resume RUN_ID [--events ndjson]
     echo-photo --project PATH run status|cancel|events [RUN_ID]
-    echo-photo --project PATH inspect [--run RUN_ID]
+    echo-photo --project PATH inspect [--run RUN_ID] [--summary]
     echo-photo inspect-glb FILE
     echo-photo compare-glb FILE REFERENCE
     echo-photo doctor

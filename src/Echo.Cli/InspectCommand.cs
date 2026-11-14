@@ -24,11 +24,9 @@ public sealed class InspectCommand : ICliCommand
 
     public int Execute(Arguments args)
     {
-        var action = args.Word(1, "");
-        var ndjson = args.IsNdjson;
         var store = storeFactory.Open(args.Get("project", null) ?? throw new EchoException("--project PATH is required.", 2));
         store.Load();
-        output.Write(inspector.Inspect(store, args.Get("run", "latest")!));
+        output.Write(inspector.Inspect(store, args.Get("run", "latest")!, args.Options.ContainsKey("summary")));
         return 0;
     }
 }

@@ -16,7 +16,7 @@ public sealed class ProjectInspector : IProjectInspector
         this.jsonCodec = jsonCodec;
     }
 
-    public Inspection Inspect(IProjectStore store, string runId = "latest")
+    public Inspection Inspect(IProjectStore store, string runId = "latest", bool summary = false)
     {
         RunData? run = null;
         ReconstructionScene? scene = null;
@@ -35,10 +35,13 @@ public sealed class ProjectInspector : IProjectInspector
             var key = run.Artifacts.ContainsKey("alignment") ? "alignment" : "alignmentPreview";
             if (run.Artifacts.TryGetValue(key, out var alignment))
             {
-                scene = jsonCodec.Read<ReconstructionScene>(store.PathFor(alignment + "/scene.json"));
+                var file = store.PathFor(alignment + "/scene.json");
+                scene = summary
+                    ? jsonCodec.Read<ReconstructionOverview>(file).ToScene()
+                    : jsonCodec.Read<ReconstructionScene>(file);
             }
 
-            if (run.Artifacts.TryGetValue("mesh", out var mesh))
+            if (!summary && run.Artifacts.TryGetValue("mesh", out var mesh))
             {
                 var file = store.PathFor(mesh + "/mesh.json");
                 // Full-resolution meshes are opened explicitly by the artifact viewer,
@@ -51,7 +54,10 @@ public sealed class ProjectInspector : IProjectInspector
 
             if (run.Artifacts.TryGetValue("cloud", out var dense))
             {
-                cloud = jsonCodec.Read<DenseCloudReport>(store.PathFor(dense + "/cloud.json"));
+                var file = store.PathFor(dense + "/cloud.json");
+                cloud = summary
+                    ? jsonCodec.Read<DenseCloudOverview>(file).ToReport()
+                    : jsonCodec.Read<DenseCloudReport>(file);
             }
         }
 

@@ -5,5 +5,5 @@ namespace Echo.Pipeline;
 
 public interface IProjectInspector
 {
-    Inspection Inspect(IProjectStore store, string runId = "latest");
+    Inspection Inspect(IProjectStore store, string runId = "latest", bool summary = false);
 }

@@ -19,7 +19,8 @@ final class CLIProjectClient: ProjectClient {
     }
 
     func inspect(root: String, run: String) async throws -> Inspection {
-        let bytes = try await cli.execute(["--project", root, "inspect", "--run", run], progress: { _ in })
+        let bytes = try await cli.execute(
+            ["--project", root, "inspect", "--run", run, "--summary"], progress: { _ in })
         return try JSONDecoder().decode(Inspection.self, from: bytes)
     }
 
