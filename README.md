@@ -53,3 +53,7 @@ The desktop uses SwiftUI, AppKit and SceneKit/Metal. Reconstruction runs on the 
 ```
 
 See [AGENTS.md](AGENTS.md) for code conventions, [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) for licensing.
+
+Use **Trim similar photos** above the photo list to keep one sharp representative of near-identical shots. Extras are marked **Discarded**, with the retained photo identified, and excluded from processing. Originals are not deleted. Choose **Discarded**, select a photo and click **Restore photo** to bring it back; restored photos are protected from future trimming. Press **Process** afterwards: **Resume** intentionally preserves the original run's inputs. Photos referenced by enabled placement/tie/overlap hints are retained.
+
+The CLI previews groups with `images deduplicate` and applies them with `images deduplicate --apply`. Use `images restore IMAGE_ID` to restore a discarded photo. Selection groups shots taken within 10 seconds, within 0.75 m and with camera orientation within 1 degree and matching focal length. A coarse visual check rejects changed content. Each excluded photo must match its retained representative directly, so gradual camera motion cannot chain into one group. It is conservative about viewpoint changes and uses stricter image similarity when GPS is absent. Sharpness is measured at preview resolution. Saved runs and source files remain intact.

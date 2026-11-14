@@ -20,7 +20,11 @@ struct PhotoThumbnailRow: View {
                 Text(photo.camera).font(.caption2).foregroundStyle(.secondary)
                 HStack(spacing: 5) {
                     if photo.gps != nil { Image(systemName: "location.fill") }
-                    if !photo.enabled { Text("Excluded") }
+                    if photo.isDiscarded {
+                        Label("Discarded", systemImage: "archivebox")
+                    } else if !photo.enabled {
+                        Text("Excluded")
+                    }
                     Text("\(photo.width) × \(photo.height)")
                 }.font(.caption2).foregroundStyle(.secondary)
             }
@@ -39,13 +43,18 @@ struct PhotoThumbnailRow: View {
         .onTapGesture { workspace.selectedPhotoID = photo.id }
         .help(photo.hoverSummary)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(photo.name), \(photo.camera), double click to open photograph and metadata")
+        .accessibilityLabel(
+            "\(photo.name), \(photo.camera), \(photo.isDiscarded ? "Discarded, " : "")double click to open photograph and metadata"
+        )
         .contextMenu {
             Button("Open photograph & metadata") {
                 workspace.selectedPhotoID = photo.id
                 workspace.sheet = .photo
             }
-            Button(photo.enabled ? "Exclude from processing" : "Include in processing") {
+            Button(
+                photo.isDiscarded
+                    ? "Restore photo" : (photo.enabled ? "Exclude from processing" : "Include in processing")
+            ) {
                 workspace.setEnabled(photo, enabled: !photo.enabled)
             }.disabled(!workspace.canEdit)
         }

@@ -27,6 +27,11 @@ struct ProjectSidebar: View {
             HStack {
                 Text("PHOTOS").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer()
+                Button("Trim similar photos", systemImage: "square.on.square") { workspace.trimSimilarPhotos() }
+                    .help(
+                        "Keep the sharpest of similar photos and mark the extras as discarded. Originals can be restored."
+                    )
+                    .disabled(!workspace.canEdit)
                 Button("Photo map", systemImage: "map") { workspace.openMap() }.help(
                     "Photo locations and camera frustums")
                 Button("Import photos", systemImage: "plus") { workspace.importPhotos() }.disabled(!workspace.canEdit)
@@ -34,7 +39,8 @@ struct ProjectSidebar: View {
             TextField("Search name or camera", text: $workspace.query).textFieldStyle(.roundedBorder)
             ScrollView(.horizontal) {
                 HStack(spacing: 4) {
-                    ForEach(["All images", "GPS present", "No GPS", "Unplaced", "Disabled"], id: \.self) { filter in
+                    ForEach(["All images", "Discarded", "GPS present", "No GPS", "Unplaced", "Disabled"], id: \.self) {
+                        filter in
                         Button(filter) { workspace.locationFilter = filter }
                             .buttonStyle(.borderless).font(.caption).padding(5)
                             .background(
@@ -43,8 +49,10 @@ struct ProjectSidebar: View {
                     }
                 }
             }
-            Text("\(workspace.filteredPhotos.count) of \(workspace.inspection?.project.images.count ?? 0) photos")
-                .font(.caption).foregroundStyle(.secondary)
+            Text(
+                "\(workspace.filteredPhotos.count) of \(workspace.inspection?.project.images.count ?? 0) photos · \(workspace.inspection?.project.images.filter(\.enabled).count ?? 0) enabled"
+            )
+            .font(.caption).foregroundStyle(.secondary)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(workspace.photoGroups) { group in
@@ -66,6 +74,15 @@ struct ProjectSidebar: View {
             }
             if let photo = workspace.selectedPhoto {
                 Divider()
+                if photo.isDiscarded {
+                    Label("Discarded", systemImage: "archivebox").font(.caption.weight(.semibold))
+                    if let kept = workspace.inspection?.project.images.first(where: { $0.id == photo.duplicateOf }) {
+                        Text("Similar to \(kept.name)").font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Button("Restore photo", systemImage: "arrow.uturn.backward") {
+                        workspace.setEnabled(photo, enabled: true)
+                    }.disabled(!workspace.canEdit)
+                }
                 Toggle(
                     "Use in processing",
                     isOn: Binding(get: { photo.enabled }, set: { workspace.setEnabled(photo, enabled: $0) })

@@ -16,8 +16,14 @@ struct Photo: Decodable, Identifiable {
     let attitude: Attitude?
     let metadata: [String: JSONValue]
 
+    var discarded: Bool? = nil
+    var duplicateOf: String? = nil
+
+    var isDiscarded: Bool { discarded == true }
+
     var hoverSummary: String {
         var lines = [name, "\(camera) · \(width) × \(height)"]
+        if isDiscarded { lines.append("Discarded as a similar photo. Restore it to include it in processing.") }
         if let capturedAt, !capturedAt.isEmpty { lines.append("Captured: \(capturedAt)") }
         for key in ["ExposureTime", "FNumber", "ISO", "FocalLength"] {
             if let value = metadata[key] { lines.append("\(key): \(value.description)") }

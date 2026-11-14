@@ -176,6 +176,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             switch locationFilter {
             case "GPS present": matchesLocation = image.gps != nil
             case "No GPS": matchesLocation = image.gps == nil
+            case "Discarded": matchesLocation = image.isDiscarded
             case "Disabled": matchesLocation = !image.enabled
             case "Unplaced": matchesLocation = inspection?.reconstruction?.unplaced.contains(image.id) == true
             default: matchesLocation = true
@@ -357,7 +358,15 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         }
     }
 
+    func trimSimilarPhotos() {
+        execute("Trimming similar photos…", ["images", "deduplicate", "--apply"])
+    }
+
     func setEnabled(_ photo: Photo, enabled: Bool) {
+        if enabled && photo.isDiscarded {
+            execute("Restoring photo…", ["images", "restore", photo.id])
+            return
+        }
         requestEdit("Change processing images?", from: .features) {
             self.execute("Updating image…", ["images", "enable", photo.id, "--value", String(enabled)])
         }
@@ -470,6 +479,11 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             busy = false
             await reload()
             if title == "Saving processing settings…", errorMessage == nil { status = "Processing settings saved." }
+            if title == "Trimming similar photos…", errorMessage == nil {
+                let enabled = inspection?.project.images.filter(\.enabled).count ?? 0
+                status =
+                    "Similar photos trimmed. \(enabled) photos enabled. Press Process to use this selection; Resume keeps the saved run’s selection."
+            }
         }
     }
 
