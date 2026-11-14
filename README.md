@@ -16,7 +16,7 @@ Echo is in active development. Reconstruction quality is experimental; inspect t
 
 ## Get started
 
-Install Xcode, the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and [ExifTool](https://exiftool.org/) (`brew install exiftool`). Then launch the desktop app:
+To build from source, install Xcode and the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), then launch the desktop app:
 
 ```bash
 ./scripts/desktop
@@ -31,7 +31,7 @@ To build a standalone Release app:
 open dist/Echo.app
 ```
 
-The package includes the .NET runtime. ExifTool is still required for import. Pass `osx-x64` to package for Intel; the default is Apple Silicon. Local builds are ad-hoc signed, not notarised.
+The package includes .NET, ExifTool and its Perl runtime: users do not need Homebrew or any separate runtime installation. The first source build downloads and compiles pinned metadata dependencies. Pass `osx-x64` to package for Intel; the default is Apple Silicon. Local builds are ad-hoc signed, not notarised.
 
 ## Automate with the CLI
 
@@ -52,4 +52,4 @@ The desktop uses SwiftUI, AppKit and SceneKit/Metal. Reconstruction runs on the 
 ./scripts/check-format.sh  # Check formatting and code conventions
 ```
 
-See [AGENTS.md](AGENTS.md) for code conventions and [LICENSE](LICENSE) for licensing.
+See [AGENTS.md](AGENTS.md) for code conventions, [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) for licensing.

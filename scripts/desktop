@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ -z "${ECHO_EXIFTOOL:-}" ]]; then
+    metadata_runtime=osx-arm64
+    if [[ "$(uname -m)" == x86_64 ]]; then metadata_runtime=osx-x64; fi
+    export ECHO_EXIFTOOL="$(bash "$repo_dir/scripts/build-metadata-tool.sh" "$metadata_runtime")/exiftool"
+fi
 dotnet build "$repo_dir/src/Echo.Cli/Echo.Cli.csproj" -c Release --nologo -m:1 >&2
 swift build --package-path "$repo_dir/macos" -c release >&2
 native_bin="$(swift build --package-path "$repo_dir/macos" -c release --show-bin-path)"
