@@ -36,6 +36,7 @@ public sealed class Settings
     public int TextureGutter { get; set; } = 4;
     public bool ExportValidate { get; set; } = true;
     public int DepthConcurrency { get; set; } = 2;
+    public string DepthBackend { get; set; } = "cpu";
     public int DepthWorkerThreads { get; set; } = 0;
     public int DepthMemoryBudgetMb { get; set; } = 0;
     public int DepthWidth { get; set; } = 1024;

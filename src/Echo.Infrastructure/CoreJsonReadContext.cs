@@ -7,6 +7,8 @@ namespace Echo.Infrastructure;
 [JsonSerializable(typeof(ProjectData))]
 [JsonSerializable(typeof(RunData))]
 [JsonSerializable(typeof(Artifact))]
+[JsonSerializable(typeof(ProcessingMetadata))]
+[JsonSerializable(typeof(RunProcessingMetadata))]
 [JsonSerializable(typeof(Settings))]
 [JsonSerializable(typeof(Photo))]
 [JsonSerializable(typeof(List<Hint>))]

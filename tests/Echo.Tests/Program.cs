@@ -14,6 +14,7 @@ composition.Resolve<AlignmentVerificationTests>().Run(scaleTests);
 composition.Resolve<Matrix3InverterTests>().Run(scaleTests);
 composition.Resolve<RunRecoveryTests>().Run(scaleTests);
 composition.Resolve<DepthProgressTests>().Run(scaleTests);
+composition.Resolve<ProcessingMetadataTests>().Run(scaleTests);
 composition.Resolve<DepthRecoveryTests>().Run(scaleTests);
 composition.Resolve<DepthRangeTests>().Run(scaleTests);
 composition.Resolve<DepthNeighbourTests>().Run(scaleTests);

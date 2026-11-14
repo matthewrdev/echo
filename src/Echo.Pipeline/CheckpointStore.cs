@@ -1,4 +1,6 @@
 using System.ComponentModel.Composition;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
@@ -23,10 +25,12 @@ public sealed class CheckpointStore : ICheckpointStore
         object inputs,
         Action<string> action,
         CancellationToken cancellation,
-        Action<string, object> progress)
+        Action<string, object> progress,
+        Func<ProcessingMetadata>? processing = null,
+        string? algorithmVersion = null)
     {
         cancellation.ThrowIfCancellationRequested();
-        var version = stage switch
+        var version = algorithmVersion ?? stage switch
         {
             "alignment" => "echo-0.1.0-bundle5",
             "mesh" => "echo-0.1.0-surface4",
@@ -76,10 +80,22 @@ public sealed class CheckpointStore : ICheckpointStore
         {
             action(temp);
             cancellation.ThrowIfCancellationRequested();
+            var metadata = processing?.Invoke() ?? new ProcessingMetadata
+            {
+                Executions = [new ProcessingExecution { Component = stage }]
+            };
+            metadata.Stage = stage;
+            metadata.AlgorithmVersion = version;
+            metadata.OperatingSystem = RuntimeInformation.OSDescription;
+            metadata.Architecture = RuntimeInformation.ProcessArchitecture.ToString();
+            metadata.Runtime = RuntimeInformation.FrameworkDescription;
+            metadata.SoftwareVersion = typeof(CheckpointStore).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+            fileOperations.AtomicJson(Path.Combine(temp, "processing.json"), metadata);
             var files = Directory.GetFiles(temp, "*", SearchOption.AllDirectories).ToDictionary(p => Path.GetRelativePath(temp, p), fileOperations.HashFile);
             fileOperations.AtomicJson(Path.Combine(temp, "manifest.json"), new Artifact
             {
                 Stage = stage,
+                AlgorithmVersion = version,
                 Key = key,
                 Files = files
             });

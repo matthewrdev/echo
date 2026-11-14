@@ -127,7 +127,20 @@ public sealed class ImageStageConcurrencyTests
         var result = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var path in Directory.GetFiles(store.PathFor("artifacts"), "*", SearchOption.AllDirectories))
         {
-            result.Add(Path.GetRelativePath(store.Root, path), files.HashFile(path));
+            if (Path.GetFileName(path) == "processing.json")
+            {
+                // Execution timestamps and scheduling provenance intentionally differ.
+                // ProcessingMetadataTests verifies their integrity and reuse separately.
+                continue;
+            }
+            var hash = files.HashFile(path);
+            if (Path.GetFileName(path) == "manifest.json")
+            {
+                var manifest = json.Read<Artifact>(path);
+                manifest.Files.Remove("processing.json");
+                hash = files.Hash(manifest);
+            }
+            result.Add(Path.GetRelativePath(store.Root, path), hash);
         }
         return result;
     }

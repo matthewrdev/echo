@@ -14,6 +14,8 @@ public sealed class RunContext
     private readonly JsonSerializerOptions eventOptions;
     private readonly object reportGate = new();
     private readonly HashSet<string> processingStages = new(StringComparer.Ordinal);
+    private readonly RunProcessingMetadata processing;
+    private bool processingDirty = true;
     private long sequence;
 
     public RunContext(IProjectStore store,
@@ -40,6 +42,10 @@ public sealed class RunContext
             .OrderBy(image => image.CapturedAt)
             .ThenBy(image => image.Name)
             .ToList();
+        var processingPath = store.PathFor($"runs/{run.Id}/processing.json");
+        processing = File.Exists(processingPath)
+            ? jsonCodec.Read<RunProcessingMetadata>(processingPath)
+            : new RunProcessingMetadata { RunId = run.Id, RequestedDepthBackend = run.Snapshot.Settings.DepthBackend };
         var eventPath = store.PathFor($"runs/{run.Id}/events.ndjson");
         sequence = File.Exists(eventPath) ? File.ReadLines(eventPath).LongCount() : 0;
     }
@@ -71,7 +77,8 @@ public sealed class RunContext
 
     public List<DepthMap> DepthMaps() => DepthUnits().Select(path => jsonCodec.Read<DepthMap>(Store.PathFor(path + "/depth.json"))).ToList();
 
-    public string Build(string stage, object inputs, Action<string> action)
+    public string Build(string stage, object inputs, Action<string> action, Func<ProcessingMetadata>? metadata = null,
+        string? algorithmVersion = null)
     {
         var owner = stage switch
         {
@@ -95,7 +102,41 @@ public sealed class RunContext
             };
         }
 
-        return checkpoints.Build(Store, stage, inputs, action, Cancellation, Report);
+        var reused = true;
+        if (metadata == null)
+        {
+            metadata = () => new ProcessingMetadata
+            {
+                SourceArtifacts = ProcessingArtifactReferences.Find(inputs, jsonCodec.Options),
+                Executions = [new ProcessingExecution { Component = stage }]
+            };
+        }
+        var artifact = checkpoints.Build(Store, stage, inputs, directory =>
+        {
+            reused = false;
+            action(directory);
+        }, Cancellation, Report, metadata, algorithmVersion);
+        lock (reportGate)
+        {
+            var path = artifact + "/processing.json";
+            var manifest = jsonCodec.Read<Artifact>(Store.PathFor(artifact + "/manifest.json"));
+            var recorded = manifest.Files.ContainsKey("processing.json");
+            processing.Artifacts[artifact] = new ArtifactProcessingReference
+            {
+                Stage = stage,
+                Reused = reused,
+                MetadataPath = recorded ? path : null,
+                ProvenanceStatus = recorded ? "recorded" : "unknown-legacy"
+            };
+            processingDirty = true;
+            Report("artifactProcessing", new
+            {
+                stage,
+                artifact,
+                processing = processing.Artifacts[artifact]
+            });
+        }
+        return artifact;
     }
 
     public void Publish(string stage, string artifact)
@@ -237,6 +278,12 @@ public sealed class RunContext
 
     private void SaveRun()
     {
+        Run.ProcessingMetadataFile = "processing.json";
+        if (processingDirty)
+        {
+            fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/processing.json"), processing);
+            processingDirty = false;
+        }
         fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/run.json"), Run);
     }
 }

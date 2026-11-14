@@ -8,6 +8,10 @@ public sealed class RunData
     public ProjectData Snapshot { get; set; } = new();
     public DateTimeOffset Created { get; set; } = DateTimeOffset.UtcNow;
     public Dictionary<string, string> Artifacts { get; set; } = [];
+    public string? ProcessingMetadataFile
+    {
+        get; set;
+    }
     public string? Error
     {
         get; set;
