@@ -5,5 +5,15 @@ struct DepthImagePresentation {
     let overlay: NSImage
     let photograph: NSImage?
     let map: DepthMap
-    var isMetric = false
+    let quality: DepthQualitySummary
+    let isMetric: Bool
+
+    init(identity: String, overlay: NSImage, photograph: NSImage?, map: DepthMap, isMetric: Bool = false) {
+        self.identity = identity
+        self.overlay = overlay
+        self.photograph = photograph
+        self.map = map
+        quality = DepthQualitySummary(map: map)
+        self.isMetric = isMetric
+    }
 }

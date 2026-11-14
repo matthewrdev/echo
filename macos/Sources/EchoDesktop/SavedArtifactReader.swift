@@ -148,16 +148,15 @@ final class SavedArtifactReader: ArtifactReader {
             let map: DepthMap = try read(unitFile())
             let photograph = try photo(map.imageId)
             let overlay = try images.depth(map, confidence: mode == "Confidence")
-            let accepted = map.depth.reduce(0) { $0 + ($1.isFinite && $1 > 0 ? 1 : 0) }
-            let coverage = Double(accepted) / Double(map.depth.count)
+            let presentation = DepthImagePresentation(
+                identity: try unitFile().path, overlay: overlay,
+                photograph: NSImage(contentsOf: root.appendingPathComponent(photograph.source)),
+                map: map, isMetric: metricScale())
             return ArtifactPresentation(
                 title: photograph.name,
                 detail:
-                    "\(map.width) × \(map.height) · \(coverage.formatted(.percent.precision(.fractionLength(2)))) accepted depth",
-                depthImage: DepthImagePresentation(
-                    identity: try unitFile().path, overlay: overlay,
-                    photograph: NSImage(contentsOf: root.appendingPathComponent(photograph.source)),
-                    map: map, isMetric: metricScale()))
+                    "\(map.width) × \(map.height) · \(presentation.quality.coverage.formatted(.percent.precision(.fractionLength(2)))) accepted depth",
+                depthImage: presentation)
         case .fusion:
             let volume: FusedVolume = try read(folder.appendingPathComponent("volume.preview.json"))
             return ArtifactPresentation(

@@ -174,6 +174,7 @@ struct ArtifactViewer: View {
                     HStack(spacing: 12) {
                         Text(value.title).fontWeight(.semibold).lineLimit(1).truncationMode(.middle)
                         Spacer(minLength: 0)
+                        DepthQualityBadge(summary: depth.quality).fixedSize()
                         Text(value.detail).foregroundStyle(.secondary).lineLimit(1).fixedSize()
                     }.font(.caption)
                     DepthImageViewport(data: depth, mode: Binding(get: { model.mode }, set: { model.selectMode($0) }))
