@@ -8,9 +8,12 @@ namespace Echo.Metadata;
 [Export(typeof(IMetadataReader)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MetadataReader : IMetadataReader
 {
+    private readonly MetadataJsonReadContext json;
+
     [ImportingConstructor]
     public MetadataReader()
     {
+        json = new MetadataJsonReadContext();
     }
 
     public string? FindExifTool()
@@ -82,7 +85,7 @@ public sealed class MetadataReader : IMetadataReader
                 throw new EchoException("ExifTool failed: " + error.GetAwaiter().GetResult());
             }
 
-            return JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(output)![0];
+            return JsonSerializer.Deserialize(output, json.ListDictionaryStringJsonElement)![0];
         }
         catch (System.ComponentModel.Win32Exception)
         {

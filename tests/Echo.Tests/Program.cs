@@ -5,6 +5,7 @@ using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(ReconstructionTests).Assembly, typeof(Processor).Assembly, typeof(CommandApplication).Assembly);
 var scaleTests = new TestSuite();
+composition.Resolve<JsonDecodingTests>().Run(scaleTests);
 composition.Resolve<PhotoDeduplicationTests>().Run(scaleTests);
 composition.Resolve<ScaleSpaceFeatureTests>().Run(scaleTests);
 composition.Resolve<GuidedMatchingTests>().Run(scaleTests);
