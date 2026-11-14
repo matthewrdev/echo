@@ -1,16 +1,8 @@
-using System.ComponentModel.Composition;
-
 namespace Echo.Geometry;
 
-[Export(typeof(IRandomSampleSelector)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class RandomSampleSelector : IRandomSampleSelector
+public static class RandomSampleSelector
 {
-    [ImportingConstructor]
-    public RandomSampleSelector()
-    {
-    }
-
-    public void Select<T>(IReadOnlyList<T> source, Random random, Span<T> sample)
+    public static void Select<T>(IReadOnlyList<T> source, Random random, Span<T> sample)
     {
         if (sample.Length > source.Count)
         {

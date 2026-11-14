@@ -54,9 +54,14 @@ public sealed class SourceConventionChecker
 
         foreach (var token in root.DescendantTokens().Where(token => token.IsKind(SyntaxKind.StaticKeyword)))
         {
-            if (token.Parent is not OperatorDeclarationSyntax)
+            var containingClass = token.Parent?.AncestorsAndSelf().OfType<ClassDeclarationSyntax>().FirstOrDefault();
+            var statelessHelper = containingClass != null
+                && containingClass.Modifiers.Any(SyntaxKind.StaticKeyword)
+                && containingClass.AttributeLists.Count == 0
+                && containingClass.Members.All(member => member is MethodDeclarationSyntax);
+            if (token.Parent is not OperatorDeclarationSyntax && !statelessHelper)
             {
-                failures.Add($"{path}: use instance members and composition instead of statics.");
+                failures.Add($"{path}: reserve statics for stateless algorithm helpers; compose services instead.");
             }
         }
 

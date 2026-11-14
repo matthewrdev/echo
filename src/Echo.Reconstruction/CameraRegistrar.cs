@@ -9,13 +9,11 @@ namespace Echo.Reconstruction;
 public sealed class CameraRegistrar : ICameraRegistrar
 {
     private readonly ICameraGeometry cameraGeometry;
-    private readonly IRandomSampleSelector samples;
 
     [ImportingConstructor]
-    public CameraRegistrar(ICameraGeometry cameraGeometry, IRandomSampleSelector samples)
+    public CameraRegistrar(ICameraGeometry cameraGeometry)
     {
         this.cameraGeometry = cameraGeometry;
-        this.samples = samples;
     }
 
     public CameraPose? Register(Photo photo, List<ImagePair> pairs, List<CloudPoint> points)
@@ -78,7 +76,7 @@ public sealed class CameraRegistrar : ICameraRegistrar
         var sample = new Observation[8];
         for (var iteration = 0; iteration < 100; iteration++)
         {
-            samples.Select<Observation>(observations, random, sample);
+            RandomSampleSelector.Select<Observation>(observations, random, sample);
             var pose = FitPose(photo, sample);
             if (pose == null)
             {

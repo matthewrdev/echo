@@ -18,17 +18,15 @@ public sealed class ProcessingEfficiencyTests
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
     private readonly ICameraGeometry geometry;
-    private readonly IRandomSampleSelector samples;
 
     [ImportingConstructor]
-    public ProcessingEfficiencyTests(IRasterImageService images, IDepthExecutionPlanner planner, IJsonCodec json, IFileOperations files, ICameraGeometry geometry, IRandomSampleSelector samples)
+    public ProcessingEfficiencyTests(IRasterImageService images, IDepthExecutionPlanner planner, IJsonCodec json, IFileOperations files, ICameraGeometry geometry)
     {
         this.images = images;
         this.planner = planner;
         this.json = json;
         this.files = files;
         this.geometry = geometry;
-        this.samples = samples;
     }
 
     internal void Run(TestSuite tests)
@@ -44,7 +42,7 @@ public sealed class ProcessingEfficiencyTests
                 for (var iteration = 0; iteration < 160; iteration++)
                 {
                     var expected = source.OrderBy(_ => expectedRandom.Next()).Take(8).ToArray();
-                    samples.Select<int>(source, actualRandom, selected);
+                    RandomSampleSelector.Select<int>(source, actualRandom, selected);
                     Check(selected.SequenceEqual(expected), "Same observations, ordering and random draw count");
                 }
             }

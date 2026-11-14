@@ -8,12 +8,9 @@ namespace Echo.Geometry;
 [Export(typeof(IFundamentalEstimator)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class FundamentalEstimator : IFundamentalEstimator
 {
-    private readonly IRandomSampleSelector samples;
-
     [ImportingConstructor]
-    public FundamentalEstimator(IRandomSampleSelector samples)
+    public FundamentalEstimator()
     {
-        this.samples = samples;
     }
 
     public FundamentalEstimate? Estimate(IReadOnlyList<Match> matches, double thresholdPixels, CancellationToken cancellation)
@@ -37,7 +34,7 @@ public sealed class FundamentalEstimator : IFundamentalEstimator
         for (; iteration < maximumIterations; iteration++)
         {
             cancellation.ThrowIfCancellationRequested();
-            samples.Select<Match>(matches, random, sample);
+            RandomSampleSelector.Select<Match>(matches, random, sample);
             var matrix = Fit(sample);
             if (matrix == null)
             {
