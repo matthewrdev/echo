@@ -39,7 +39,8 @@ public sealed class DepthStage : IPipelineStage
         var completed = 0;
         var progressGate = new object();
         var plan = executionPlanner.Plan(project, scene.Cameras.Count);
-        context.ReportProgress(Name, $"Depth: {plan.ConcurrentImages} images concurrently, {plan.WorkersPerImage} CPU workers per image; estimated {plan.EstimatedBytesPerImage / 1024 / 1024:N0} MB per job.", 0, scene.Cameras.Count);
+        var budgetMode = project.Settings.DepthMemoryBudgetMb == 0 ? "automatic" : "manual";
+        context.ReportProgress(Name, $"Depth: {plan.ConcurrentImages} images concurrently, {plan.WorkersPerImage} CPU workers per image; estimated {plan.EstimatedBytesPerImage / 1024 / 1024:N0} MB per job; {budgetMode} memory budget {plan.MemoryBudgetBytes / 1024 / 1024:N0} MB.", 0, scene.Cameras.Count);
         var options = new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = plan.ConcurrentImages };
         Parallel.For(0, scene.Cameras.Count, options, index =>
         {

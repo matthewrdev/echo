@@ -28,9 +28,11 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
         // Pooled grayscale buffers can round up to twice the requested pixel count.
         // This is a scheduling estimate rather than a hard process-memory limit.
         var bytesPerImage = largestSource * 4 * (neighbours + 3) + largestMap * (36 + neighbours * 8);
-        var memorySlots = Math.Max(1, settings.DepthMemoryBudgetMb * 1024L * 1024 / Math.Max(1, bytesPerImage));
+        var memoryBudgetMb = DepthMemoryBudget.ResolveMegabytes(settings.DepthMemoryBudgetMb, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
+        var memoryBudgetBytes = memoryBudgetMb * 1024L * 1024;
+        var memorySlots = Math.Max(1, memoryBudgetBytes / Math.Max(1, bytesPerImage));
         var workers = settings.DepthWorkerThreads > 0 ? settings.DepthWorkerThreads : Math.Max(1, Environment.ProcessorCount - 2);
         var images = (int)Math.Max(1, Math.Min(Math.Min(settings.DepthConcurrency, cameraCount), Math.Min(workers, memorySlots)));
-        return new DepthExecutionPlan(images, Math.Max(1, workers / images), bytesPerImage);
+        return new DepthExecutionPlan(images, Math.Max(1, workers / images), bytesPerImage, memoryBudgetBytes);
     }
 }

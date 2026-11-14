@@ -84,8 +84,20 @@ struct StageSettingsEditor: View {
                 IntegerSettingSlider(title: "Concurrent photos", value: $settings.depthConcurrency, range: 1...16)
                 IntegerSettingSlider(
                     title: "Total CPU workers (0 = automatic)", value: $settings.depthWorkerThreads, range: 0...256)
-                IntegerSettingSlider(
-                    title: "Scheduling memory budget (MB)", value: $settings.depthMemoryBudgetMb, range: 256...32768)
+                Toggle(
+                    "Automatic memory budget",
+                    isOn: Binding(
+                        get: { settings.depthMemoryBudgetMb == 0 },
+                        set: { settings.depthMemoryBudgetMb = $0 ? 0 : 4096 }))
+                if settings.depthMemoryBudgetMb != 0 {
+                    IntegerSettingSlider(
+                        title: "Scheduling memory budget (MB)", value: $settings.depthMemoryBudgetMb,
+                        range: 256...32768)
+                }
+                Text(
+                    "Automatic uses 25% of the processing engine’s available memory, up to 32 GB. The budget is recalculated when depth processing starts and shown in the activity log."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 Text(
                     "Photos share the CPU budget. Concurrency is reduced when estimated image memory exceeds the budget; this is not a hard process-memory limit. Execution settings do not invalidate saved maps."
                 )

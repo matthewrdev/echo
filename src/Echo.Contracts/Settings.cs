@@ -37,7 +37,7 @@ public sealed class Settings
     public bool ExportValidate { get; set; } = true;
     public int DepthConcurrency { get; set; } = 2;
     public int DepthWorkerThreads { get; set; } = 0;
-    public int DepthMemoryBudgetMb { get; set; } = 1024;
+    public int DepthMemoryBudgetMb { get; set; } = 0;
     public int DepthWidth { get; set; } = 1024;
     public int DepthPlanes { get; set; } = 96;
     public int DepthRefinementSamples { get; set; } = 9;
@@ -75,9 +75,10 @@ public sealed class Settings
             || CloudMinimumParallaxDegrees is < 0 or > 10;
         var invalidFusionSettings = !double.IsFinite(FusionDetailMultiplier)
             || FusionDetailMultiplier < .25 || FusionDetailMultiplier > 16;
+        var invalidDepthMemory = DepthMemoryBudgetMb != 0 && DepthMemoryBudgetMb is < 256 or > 32768;
         var invalidDepthExecution = DepthConcurrency is < 1 or > 16
             || DepthWorkerThreads is < 0 or > 256
-            || DepthMemoryBudgetMb is < 256 or > 32768;
+            || invalidDepthMemory;
         var invalidDepthResolution = DepthWidth is < 32 or > 8192
             || DepthPlanes is < 8 or > 2048
             || DepthRefinementSamples is < 3 or > 128

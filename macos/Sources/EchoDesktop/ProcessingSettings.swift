@@ -20,7 +20,7 @@ struct ProcessingSettings: Codable {
     var matchDistanceThreshold: Double = 0.65
     var depthConcurrency: Int = 2
     var depthWorkerThreads: Int = 0
-    var depthMemoryBudgetMb: Int = 1024
+    var depthMemoryBudgetMb: Int = 0
     var depthWidth: Int = 1024
     var depthPlanes: Int = 96
     var depthRefinementSamples: Int = 9
@@ -67,7 +67,7 @@ struct ProcessingSettings: Codable {
         matchDistanceThreshold = try values.decodeIfPresent(Double.self, forKey: .matchDistanceThreshold) ?? 0.65
         depthConcurrency = try values.decodeIfPresent(Int.self, forKey: .depthConcurrency) ?? 2
         depthWorkerThreads = try values.decodeIfPresent(Int.self, forKey: .depthWorkerThreads) ?? 0
-        depthMemoryBudgetMb = try values.decodeIfPresent(Int.self, forKey: .depthMemoryBudgetMb) ?? 1024
+        depthMemoryBudgetMb = try values.decodeIfPresent(Int.self, forKey: .depthMemoryBudgetMb) ?? 0
         depthWidth = try values.decodeIfPresent(Int.self, forKey: .depthWidth) ?? 1024
         depthPlanes = try values.decodeIfPresent(Int.self, forKey: .depthPlanes) ?? 96
         depthRefinementSamples = try values.decodeIfPresent(Int.self, forKey: .depthRefinementSamples) ?? 9

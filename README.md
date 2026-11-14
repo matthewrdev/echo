@@ -43,6 +43,8 @@ The package includes .NET and reads photo metadata directly in C#. Users do not 
 
 Commands return JSON; `--events ndjson` streams progress. Use `--help` for commands and `doctor` to check dependencies. Resume preserves a run's original settings; start a new run to apply changes.
 
+Depth scheduling defaults to automatic memory budgeting (`depthMemoryBudgetMb: 0`). At the start of the depth stage, it budgets 25% of the runtime's memory capacity, bounded to 256 MB–32 GB, while retaining the configured photo and CPU concurrency limits. This is a scheduling estimate, not reserved memory or a hard process limit. In the desktop Depth settings, turn off **Automatic memory budget** to choose a fixed 256–32768 MB budget. Existing projects retain their explicitly saved budgets.
+
 ## Development
 
 The desktop uses SwiftUI, AppKit and SceneKit/Metal. Reconstruction runs on the CPU in focused C#/.NET projects, composed with MEF.

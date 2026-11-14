@@ -13,6 +13,7 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertTrue(settings.scaleInvariantFeatures)
         XCTAssertTrue(settings.guidedAlignmentPass)
         XCTAssertTrue(settings.depthRangeAutomatic)
+        XCTAssertEqual(settings.depthMemoryBudgetMb, 0)
         settings.depthRangeAutomatic = false
         settings.depthNear = 5
         settings.depthFar = 6000
@@ -68,6 +69,17 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(restored.textureGutter, 8)
         XCTAssertEqual(restored.frustumPairNeighbours, 24)
         XCTAssertEqual(restored.pairSearchDistance, 350)
+    }
+
+    func testAutomaticDepthMemoryBudgetRoundTripsWithoutInvalidatingSavedMaps() throws {
+        let saved = Data(#"{"depthMemoryBudgetMb":1024}"#.utf8)
+        let manual = try JSONDecoder().decode(ProcessingSettings.self, from: saved)
+        XCTAssertEqual(manual.depthMemoryBudgetMb, 1024)
+        var automatic = manual
+        automatic.depthMemoryBudgetMb = 0
+        let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(automatic))
+        XCTAssertEqual(restored.depthMemoryBudgetMb, 0)
+        XCTAssertNil(ProcessingImpact().firstChangedStage(from: manual, to: restored))
     }
 
     func testDependencyWarningsStartAtTheEarliestAffectedStage() {

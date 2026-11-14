@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Echo.Contracts;
 using Echo.Depth;
 using Echo.Geometry;
@@ -90,6 +91,58 @@ public sealed class ProcessingEfficiencyTests
                         }
                     }
                 }
+            }
+        });
+        tests.Run("Automatic depth memory scales with runtime capacity and preserves manual overrides", () =>
+        {
+            const long megabyte = 1024 * 1024;
+            const long gigabyte = 1024 * megabyte;
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 8 * gigabyte) == 2048, "8 GB runtime capacity budgets 2 GB");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 16 * gigabyte) == 4096, "16 GB runtime capacity budgets 4 GB");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 64 * gigabyte) == 16384, "Larger machines are not capped at 4 GB");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, long.MaxValue) == 32768, "Automatic budget stays bounded without overflow");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 512 * megabyte) == 256, "Minimum scheduling budget");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 0) == 1024, "Conservative fallback when runtime capacity is unavailable");
+            Check(DepthMemoryBudget.ResolveMegabytes(2048, 64 * gigabyte) == 2048, "Explicit 2 GB remains explicit");
+            Check(DepthMemoryBudget.ResolveMegabytes(4096, 8 * gigabyte) == 4096, "Explicit 4 GB remains explicit");
+        });
+        tests.Run("Depth memory settings accept automatic mode and retain saved manual budgets", () =>
+        {
+            var automatic = JsonSerializer.Deserialize<Settings>("{}", json.Options)!;
+            automatic.Validate();
+            Check(automatic.DepthMemoryBudgetMb == 0, "Missing memory settings default to automatic");
+            Check(json.Clone(automatic).DepthMemoryBudgetMb == 0, "Automatic mode round-trips");
+            Check(JsonSerializer.Deserialize<Settings>("{\"depthMemoryBudgetMb\":1024}", json.Options)!.DepthMemoryBudgetMb == 1024, "Old projects retain explicit budgets");
+            foreach (var budget in new[] { -1, 1, 255, 32769 })
+            {
+                var settings = new Settings { DepthMemoryBudgetMb = budget };
+                var rejected = false;
+                try
+                {
+                    settings.Validate();
+                }
+                catch (EchoException)
+                {
+                    rejected = true;
+                }
+                Check(rejected, $"Reject invalid manual budget {budget}");
+            }
+
+            var project = new ProjectData { Images = [new Photo { Width = 4032, Height = 2268 }] };
+            project.Settings.DepthWidth = 2048;
+            project.Settings.DepthNeighbours = 12;
+            project.Settings.DepthWorkerThreads = 16;
+            var automaticPlan = planner.Plan(project, 48);
+            Check(automaticPlan.MemoryBudgetBytes >= 256L * 1024 * 1024, "Resolve automatic mode before scheduling");
+            Check(automaticPlan.ConcurrentImages * automaticPlan.WorkersPerImage <= 16, "Automatic memory retains the CPU budget");
+            project.Settings.DepthMemoryBudgetMb = 1024;
+            Check(planner.Plan(project, 48).ConcurrentImages == 1, "1 GB bounds large depth jobs to one image");
+            foreach (var budget in new[] { 2048, 4096 })
+            {
+                project.Settings.DepthMemoryBudgetMb = budget;
+                var plan = planner.Plan(project, 48);
+                Check(plan.ConcurrentImages == 2 && plan.WorkersPerImage == 8, "2 GB and 4 GB allow two jobs sharing 16 workers");
+                Check(plan.MemoryBudgetBytes == budget * 1024L * 1024, "Report the resolved manual budget");
             }
         });
         tests.Run("Depth scheduling bounds nested workers and reduces concurrency for large images", () =>

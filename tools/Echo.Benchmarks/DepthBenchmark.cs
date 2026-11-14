@@ -28,9 +28,9 @@ public sealed class DepthBenchmark
 
     public int Run(string[] args)
     {
-        if (args.Length < 5 || args.Length > 8)
+        if (args.Length < 5 || args.Length > 9)
         {
-            Console.Error.WriteLine("Usage: Echo.Benchmarks PROJECT RUN WIDTH ITERATIONS OUTPUT.json [CAMERAS] [CONCURRENCY] [FIRST_IMAGE_NAME]");
+            Console.Error.WriteLine("Usage: Echo.Benchmarks PROJECT RUN WIDTH ITERATIONS OUTPUT.json [CAMERAS] [CONCURRENCY] [FIRST_IMAGE_NAME] [MEMORY_MB]");
             return 2;
         }
 
@@ -43,9 +43,16 @@ public sealed class DepthBenchmark
         {
             run.Snapshot.Settings.DepthConcurrency = int.Parse(args[6]);
         }
-        var plan = executionPlanner.Plan(run.Snapshot, cameraCount);
+        if (args.Length >= 9)
+        {
+            run.Snapshot.Settings.DepthMemoryBudgetMb = int.Parse(args[8]);
+        }
+        run.Snapshot.Settings.Validate();
+        // Selected outputs still use neighbours from the complete aligned scene.
+        // Planning from the subset would underestimate per-image memory.
+        var plan = executionPlanner.Plan(run.Snapshot, scene.Cameras.Count);
         var firstCamera = 0;
-        if (args.Length == 8)
+        if (args.Length >= 8)
         {
             var image = run.Snapshot.Images.Single(photo => photo.Name == args[7]);
             firstCamera = scene.Cameras.FindIndex(camera => camera.ImageId == image.Id);
@@ -82,6 +89,9 @@ public sealed class DepthBenchmark
                 cameraCount,
                 plan.ConcurrentImages,
                 plan.WorkersPerImage,
+                plan.EstimatedBytesPerImage,
+                plan.MemoryBudgetBytes,
+                run.Snapshot.Settings.DepthMemoryBudgetMb,
                 writeSeconds,
                 writeAllocatedBytes = writeAllocated,
                 phases,
