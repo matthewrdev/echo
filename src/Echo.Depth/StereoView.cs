@@ -2,7 +2,7 @@ using Echo.Geometry;
 
 namespace Echo.Depth;
 
-internal sealed class StereoView
+public sealed class StereoView
 {
     public V3 Centre
     {

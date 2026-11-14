@@ -5,6 +5,7 @@
     <Project Path="src/Echo.Cli/Echo.Cli.csproj" />
     <Project Path="src/Echo.Contracts/Echo.Contracts.csproj" />
     <Project Path="src/Echo.Depth/Echo.Depth.csproj" />
+    <Project Path="src/Echo.Depth.Metal/Echo.Depth.Metal.csproj" />
     <Project Path="src/Echo.DenseCloud/Echo.DenseCloud.csproj" />
     <Project Path="src/Echo.Export/Echo.Export.csproj" />
     <Project Path="src/Echo.Features/Echo.Features.csproj" />

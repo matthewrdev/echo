@@ -12,5 +12,6 @@ public interface IDepthEstimator
         CancellationToken cancellation,
         int maxWorkers = 0,
         Action<string>? progress = null,
-        Action<DepthLevelMetrics>? metrics = null);
+        Action<DepthLevelMetrics>? metrics = null,
+        Action<ProcessingExecution>? execution = null);
 }

@@ -28,9 +28,9 @@ public sealed class DepthBenchmark
 
     public int Run(string[] args)
     {
-        if (args.Length < 5 || args.Length > 9)
+        if (args.Length < 5 || args.Length > 10)
         {
-            Console.Error.WriteLine("Usage: Echo.Benchmarks PROJECT RUN WIDTH ITERATIONS OUTPUT.json [CAMERAS] [CONCURRENCY] [FIRST_IMAGE_NAME] [MEMORY_MB]");
+            Console.Error.WriteLine("Usage: Echo.Benchmarks PROJECT RUN WIDTH ITERATIONS OUTPUT.json [CAMERAS] [CONCURRENCY] [FIRST_IMAGE_NAME] [MEMORY_MB] [auto|cpu|metal|metal-validated]");
             return 2;
         }
 
@@ -48,6 +48,11 @@ public sealed class DepthBenchmark
             run.Snapshot.Settings.DepthMemoryBudgetMb = int.Parse(args[8]);
         }
         run.Snapshot.Settings.Validate();
+        if (args.Length >= 10)
+        {
+            run.Snapshot.Settings.DepthBackend = args[9];
+            run.Snapshot.Settings.Validate();
+        }
         // Selected outputs still use neighbours from the complete aligned scene.
         // Planning from the subset would underestimate per-image memory.
         var plan = executionPlanner.Plan(run.Snapshot, scene.Cameras.Count);
@@ -68,17 +73,27 @@ public sealed class DepthBenchmark
             var watch = Stopwatch.StartNew();
             var maps = new DepthMap[cameraCount];
             var phases = new List<DepthLevelMetrics>[cameraCount];
+            var executions = new List<ProcessingExecution>[cameraCount];
             Parallel.For(0, cameraCount, new ParallelOptions { MaxDegreeOfParallelism = plan.ConcurrentImages }, index =>
             {
                 var profile = new List<DepthLevelMetrics>();
                 phases[index] = profile;
-                maps[index] = estimator.Estimate(store, run.Snapshot, scene, scene.Cameras[firstCamera + index], default, plan.WorkersPerImage, metrics: profile.Add);
+                var execution = new List<ProcessingExecution>();
+                executions[index] = execution;
+                maps[index] = estimator.Estimate(store, run.Snapshot, scene, scene.Cameras[firstCamera + index], default, plan.WorkersPerImage, metrics: profile.Add, execution: execution.Add);
             });
             watch.Stop();
             allocated = GC.GetTotalAllocatedBytes(true) - allocated;
             var writeStarted = Stopwatch.GetTimestamp();
             var writeAllocated = GC.GetTotalAllocatedBytes(true);
             files.AtomicJson(Path.GetFullPath(args[4]), cameraCount == 1 ? (object)maps[0] : maps);
+            files.AtomicJson(Path.GetFullPath(args[4]) + ".processing.json", new ProcessingMetadata
+            {
+                Stage = "depth-benchmark",
+                Executions = executions.SelectMany(items => items).ToList(),
+                ConcurrentImages = plan.ConcurrentImages,
+                MemoryBudgetBytes = plan.MemoryBudgetBytes
+            });
             var writeSeconds = Stopwatch.GetElapsedTime(writeStarted).TotalSeconds;
             writeAllocated = GC.GetTotalAllocatedBytes(true) - writeAllocated;
             Console.WriteLine(json.Encode(new
@@ -95,6 +110,7 @@ public sealed class DepthBenchmark
                 writeSeconds,
                 writeAllocatedBytes = writeAllocated,
                 phases,
+                executions,
                 valid = maps.Sum(map => map.Depth.Count(d => d > 0)),
                 hash = files.Hash(cameraCount == 1 ? (object)maps[0] : maps)
             }));

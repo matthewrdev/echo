@@ -26,6 +26,22 @@ internal sealed class DepthRowScratch : IDisposable
     {
         get; set;
     }
+    public long AcceleratedSearches
+    {
+        get; set;
+    }
+    public long CpuSearches
+    {
+        get; set;
+    }
+    public long ValidatedSearches
+    {
+        get; set;
+    }
+    public long MatchedSearches
+    {
+        get; set;
+    }
 
     public void Dispose()
     {

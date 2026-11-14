@@ -132,6 +132,7 @@ public sealed class ProcessingEfficiencyTests
             project.Settings.DepthWidth = 2048;
             project.Settings.DepthNeighbours = 12;
             project.Settings.DepthWorkerThreads = 16;
+            project.Settings.DepthBackend = "cpu";
             var automaticPlan = planner.Plan(project, 48);
             Check(automaticPlan.MemoryBudgetBytes >= 256L * 1024 * 1024, "Resolve automatic mode before scheduling");
             Check(automaticPlan.ConcurrentImages * automaticPlan.WorkersPerImage <= 16, "Automatic memory retains the CPU budget");
@@ -144,6 +145,11 @@ public sealed class ProcessingEfficiencyTests
                 Check(plan.ConcurrentImages == 2 && plan.WorkersPerImage == 8, "2 GB and 4 GB allow two jobs sharing 16 workers");
                 Check(plan.MemoryBudgetBytes == budget * 1024L * 1024, "Report the resolved manual budget");
             }
+            var cpuPlan = planner.Plan(project, 48);
+            project.Settings.DepthBackend = "auto";
+            var metalPlan = planner.Plan(project, 48);
+            Check(metalPlan.EstimatedBytesPerImage > cpuPlan.EstimatedBytesPerImage, "Automatic reserves GPU uploads, resident images and batches");
+            Check(metalPlan.MemoryBudgetBytes == cpuPlan.MemoryBudgetBytes, "Backend choice preserves the explicit memory budget");
         });
         tests.Run("Depth scheduling bounds nested workers and reduces concurrency for large images", () =>
         {

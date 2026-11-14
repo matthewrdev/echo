@@ -13,11 +13,13 @@ namespace Echo.Depth;
 public sealed class DepthEstimator : IDepthEstimator
 {
     private readonly IRasterImageService rasterImageService;
+    private readonly IDepthCostAccelerator[] accelerators;
 
     [ImportingConstructor]
-    public DepthEstimator(IRasterImageService rasterImageService)
+    public DepthEstimator(IRasterImageService rasterImageService, [ImportMany] IEnumerable<IDepthCostAccelerator> accelerators)
     {
         this.rasterImageService = rasterImageService;
+        this.accelerators = accelerators.ToArray();
     }
 
     public DepthMap Estimate(IProjectStore store,
@@ -27,7 +29,8 @@ public sealed class DepthEstimator : IDepthEstimator
         CancellationToken cancellation,
         int maxWorkers = 0,
         Action<string>? progress = null,
-        Action<DepthLevelMetrics>? metrics = null)
+        Action<DepthLevelMetrics>? metrics = null,
+        Action<ProcessingExecution>? execution = null)
     {
         var photo = FindPhoto(project.Images, camera.ImageId);
         var range = DepthRangeEstimator.Estimate(project, scene, photo, camera, cancellation);
@@ -59,7 +62,7 @@ public sealed class DepthEstimator : IDepthEstimator
             progress?.Invoke($"{label}: loading reference and neighbouring images");
             try
             {
-                prior = EstimateLevel(project, photo, camera, neighbours, range, width, prior, sources, maxWorkers, cancellation, label, progress, metrics);
+                prior = EstimateLevel(project, photo, camera, neighbours, range, width, prior, sources, maxWorkers, cancellation, label, progress, metrics, execution);
             }
             finally
             {
@@ -106,7 +109,8 @@ public sealed class DepthEstimator : IDepthEstimator
         CancellationToken cancellation,
         string levelLabel,
         Action<string>? progress,
-        Action<DepthLevelMetrics>? metrics)
+        Action<DepthLevelMetrics>? metrics,
+        Action<ProcessingExecution>? execution)
     {
         var preparationStart = Stopwatch.GetTimestamp();
         var reference = sources.ReadLevel(photo, levelWidth);
@@ -168,14 +172,31 @@ public sealed class DepthEstimator : IDepthEstimator
         var description = $"{levelLabel}, {operation}, {views.Length} neighbours, up to {sampleCount} samples/pixel";
         progress?.Invoke(description);
         var levelProgress = new DepthLevelProgress(progress, description, height - 6);
+        using var acceleration = OpenAcceleration(project.Settings.DepthBackend, views, cancellation);
+        if (acceleration.Failure != null)
+        {
+            progress?.Invoke($"{levelLabel}: CPU fallback: {acceleration.Failure}");
+        }
         var searchStart = Stopwatch.GetTimestamp();
         var globalSearches = 0;
         var recoveredSamples = 0;
+        long acceleratedSearches = 0;
+        long matchedSearches = 0;
+        long cpuSearches = 0;
+        long validatedSearches = 0;
+        var validate = project.Settings.DepthBackend == "metal-validated";
         Parallel.For(3, height - 3, options,
             () => new DepthRowScratch(project.Settings.DepthRefinementSamples, Math.Max(planeDepths.Length, project.Settings.DepthRefinementSamples)),
             (y, _, scratch) =>
         {
             cancellation.ThrowIfCancellationRequested();
+            if (acceleration.Session != null)
+            {
+                SearchAcceleratedRow(y, gray, width, height, focal, camera, centre, views, prior, near, far,
+                    planeDepths, scratch, result, acceleration, validate, cancellation);
+                levelProgress.CompleteRow();
+                return scratch;
+            }
             Span<double> patch = stackalloc double[25];
             var hypothesisBuffer = scratch.Hypotheses;
             var costBuffer = scratch.Costs;
@@ -193,6 +214,7 @@ public sealed class DepthEstimator : IDepthEstimator
                 var hypotheses = hypothesisBuffer[..(prior == null ? 0 : CreateHypotheses(prior, x, y, width, height, near, far, hypothesisBuffer))];
                 var selectedDepth = 0.0;
                 var best = double.PositiveInfinity;
+                scratch.CpuSearches += hypotheses.Length > 0 ? 1 : 0;
                 var found = hypotheses.Length > 0 && SearchDepth(views, centre, ray,
                     patch, norm, hypotheses, costBuffer, false, cancellation, out selectedDepth, out best);
                 if (!found)
@@ -200,6 +222,7 @@ public sealed class DepthEstimator : IDepthEstimator
                     // A missing or rejected coarse estimate is not evidence of an empty
                     // surface. Search the full interval again with this level's image detail.
                     scratch.GlobalSearches++;
+                    scratch.CpuSearches++;
                     found = SearchDepth(views, centre, ray, patch, norm,
                         planeDepths, costBuffer, true, cancellation, out selectedDepth, out best);
                     if (found && prior != null)
@@ -220,11 +243,42 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             Interlocked.Add(ref globalSearches, scratch.GlobalSearches);
             Interlocked.Add(ref recoveredSamples, scratch.RecoveredSamples);
+            Interlocked.Add(ref acceleratedSearches, scratch.AcceleratedSearches);
+            Interlocked.Add(ref matchedSearches, scratch.MatchedSearches);
+            Interlocked.Add(ref cpuSearches, scratch.CpuSearches);
+            Interlocked.Add(ref validatedSearches, scratch.ValidatedSearches);
             scratch.Dispose();
         });
         var filterStart = Stopwatch.GetTimestamp();
         progress?.Invoke($"{levelLabel}: filtering unsupported depth samples");
         var retainedSamples = FilterUnsupportedSamples(result, cancellation);
+        var actualBackend = acceleratedSearches == 0 ? "cpu" : cpuSearches > 0 ? "metal+cpu" : "metal";
+        var precision = acceleratedSearches == 0 ? "float64 with float32 samples/output"
+            : validate ? "Metal float32 candidates; CPU float64 reference with float32 samples/output"
+            : "Metal float32 costs; CPU float64 selection/interpolation; float32 samples/output";
+        var validation = acceleratedSearches == 0 ? "none"
+            : validate ? "every search: acceptance and bitwise float32 depth/confidence; CPU correction on mismatch"
+            : "cost shape/range checks; no CPU reference comparison";
+        execution?.Invoke(new ProcessingExecution
+        {
+            Component = "stereo-depth-search",
+            RequestedBackend = project.Settings.DepthBackend,
+            ActualBackend = actualBackend,
+            Implementation = acceleratedSearches > 0 ? acceleration.Session!.Implementation : "echo-cpu-stereo-cost; Vector128<double> when available",
+            Device = acceleration.Session?.Device,
+            Precision = precision,
+            Validation = validation,
+            OutputAuthority = validate || acceleratedSearches == 0 ? "cpu-reference" : actualBackend,
+            CpuImplementation = cpuSearches == 0 ? null : Vector128.IsHardwareAccelerated ? "Vector128<double>" : "scalar",
+            FallbackReason = acceleration.Failure ?? (validatedSearches > matchedSearches ? "Nonidentical Metal search results were replaced with the CPU reference." : null),
+            LevelWidth = width,
+            Workers = options.MaxDegreeOfParallelism,
+            AcceleratedSearches = acceleratedSearches,
+            MatchedSearches = matchedSearches,
+            CpuSearches = cpuSearches,
+            ValidatedSearches = validatedSearches,
+            CorrectedSearches = validatedSearches - matchedSearches
+        });
         progress?.Invoke($"{levelLabel}: {retainedSamples:N0}/{result.Depth.Length:N0} depth samples retained ({100.0 * retainedSamples / result.Depth.Length:F2}%); {globalSearches:N0} full-range searches, {recoveredSamples:N0} recovery candidates before filtering");
         metrics?.Invoke(new DepthLevelMetrics(photo.Id, width, height, views.Length,
             Stopwatch.GetElapsedTime(preparationStart, searchStart).TotalSeconds,
@@ -279,6 +333,29 @@ public sealed class DepthEstimator : IDepthEstimator
                 bestPlane = plane;
             }
         }
+        return AcceptDepth(views, centre, ray, hypotheses, costs, checkAmbiguity, bestPlane, best, out selectedDepth);
+    }
+
+    private bool SelectDepth(ReadOnlySpan<StereoView> views, V3 centre, V3 ray, ReadOnlySpan<double> hypotheses,
+        ReadOnlySpan<double> costs, bool checkAmbiguity, out double selectedDepth, out double best)
+    {
+        best = double.PositiveInfinity;
+        var bestPlane = -1;
+        for (var plane = 0; plane < costs.Length; plane++)
+        {
+            if (costs[plane] < best)
+            {
+                best = costs[plane];
+                bestPlane = plane;
+            }
+        }
+        return AcceptDepth(views, centre, ray, hypotheses, costs, checkAmbiguity, bestPlane, best, out selectedDepth);
+    }
+
+    private bool AcceptDepth(ReadOnlySpan<StereoView> views, V3 centre, V3 ray, ReadOnlySpan<double> hypotheses,
+        ReadOnlySpan<double> costs, bool checkAmbiguity, int bestPlane, double best, out double selectedDepth)
+    {
+        selectedDepth = 0;
         if (bestPlane < 0 || best >= .18)
         {
             return false;
@@ -296,6 +373,166 @@ public sealed class DepthEstimator : IDepthEstimator
         }
         selectedDepth = InterpolateDepth(hypotheses, costs, bestPlane, best);
         return true;
+    }
+
+    private DepthAccelerationState OpenAcceleration(string backend, StereoView[] views, CancellationToken cancellation)
+    {
+        if (backend == "cpu")
+        {
+            return new DepthAccelerationState(null, null);
+        }
+        if (backend is not ("auto" or "metal" or "metal-validated"))
+        {
+            throw new EchoException("Unknown depth backend: " + backend, 2);
+        }
+        var accelerator = accelerators.SingleOrDefault(candidate => candidate.Backend == "metal");
+        if (accelerator == null)
+        {
+            return new DepthAccelerationState(null, "Metal module is not installed.");
+        }
+        try
+        {
+            return new DepthAccelerationState(accelerator.Open(views, cancellation), null);
+        }
+        catch (DepthAccelerationException error)
+        {
+            return new DepthAccelerationState(null, error.Message);
+        }
+    }
+
+    private void SearchAcceleratedRow(int y, float[] gray, int width, int height, double focal,
+        CameraPose camera, V3 centre, StereoView[] views, DepthMap? prior, double near, double far,
+        double[] planeDepths, DepthRowScratch scratch, DepthMap result, DepthAccelerationState acceleration,
+        bool validate, CancellationToken cancellation)
+    {
+        var local = new List<DepthSearchSample>();
+        var global = new List<DepthSearchSample>();
+        Span<double> patch = stackalloc double[25];
+        var rayY = (y - height * .5) / focal;
+        for (var x = 3; x < width - 3; x++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var norm = NormalizePatch(gray, width, x, y, patch);
+            if (norm < .0008)
+            {
+                continue;
+            }
+            var count = prior == null ? 0 : CreateHypotheses(prior, x, y, width, height, near, far, scratch.Hypotheses);
+            var sample = new DepthSearchSample
+            {
+                PixelIndex = y * width + x,
+                Ray = CameraGeometry.Rotate(camera.Rotation, new V3((x - width * .5) / focal, rayY, 1)),
+                Patch = patch.ToArray(),
+                Norm = norm,
+                Hypotheses = count > 0 ? scratch.Hypotheses[..count].ToArray() : planeDepths
+            };
+            (count > 0 ? local : global).Add(sample);
+        }
+        var rejected = SearchAcceleratedBatch(local, false, views, centre, result, scratch, acceleration, validate, cancellation);
+        foreach (var sample in rejected)
+        {
+            sample.Hypotheses = planeDepths;
+            global.Add(sample);
+        }
+        scratch.GlobalSearches += global.Count;
+        var missing = SearchAcceleratedBatch(global, true, views, centre, result, scratch, acceleration, validate, cancellation);
+        if (prior != null)
+        {
+            scratch.RecoveredSamples += global.Count - missing.Count;
+        }
+    }
+
+    private List<DepthSearchSample> SearchAcceleratedBatch(List<DepthSearchSample> samples, bool checkAmbiguity,
+        StereoView[] views, V3 centre, DepthMap result, DepthRowScratch scratch, DepthAccelerationState acceleration,
+        bool validate, CancellationToken cancellation)
+    {
+        var rejected = new List<DepthSearchSample>();
+        if (samples.Count == 0)
+        {
+            return rejected;
+        }
+        var acceleratedCosts = CalculateAcceleratedCosts(centre, samples, acceleration, cancellation);
+        for (var index = 0; index < samples.Count; index++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var sample = samples[index];
+            bool found;
+            double depth;
+            double cost;
+            if (acceleratedCosts == null)
+            {
+                scratch.CpuSearches++;
+                found = SearchDepth(views, centre, sample.Ray, sample.Patch, sample.Norm, sample.Hypotheses,
+                    scratch.Costs, checkAmbiguity, cancellation, out depth, out cost);
+            }
+            else
+            {
+                var costs = scratch.Costs[..sample.Hypotheses.Length];
+                for (var plane = 0; plane < costs.Length; plane++)
+                {
+                    costs[plane] = acceleratedCosts[index * costs.Length + plane];
+                }
+                found = SelectDepth(views, centre, sample.Ray, sample.Hypotheses, costs,
+                    checkAmbiguity, out depth, out cost);
+                scratch.AcceleratedSearches++;
+                if (validate)
+                {
+                    var cpuFound = SearchDepth(views, centre, sample.Ray, sample.Patch, sample.Norm, sample.Hypotheses,
+                        scratch.Costs, checkAmbiguity, cancellation, out var cpuDepth, out var cpuCost);
+                    scratch.CpuSearches++;
+                    scratch.ValidatedSearches++;
+                    var sameValues = BitConverter.SingleToInt32Bits((float)depth) == BitConverter.SingleToInt32Bits((float)cpuDepth)
+                        && BitConverter.SingleToInt32Bits((float)(1 - cost)) == BitConverter.SingleToInt32Bits((float)(1 - cpuCost));
+                    if (found == cpuFound && (!found || sameValues))
+                    {
+                        scratch.MatchedSearches++;
+                    }
+                    found = cpuFound;
+                    depth = cpuDepth;
+                    cost = cpuCost;
+                }
+            }
+            if (!found)
+            {
+                rejected.Add(sample);
+                continue;
+            }
+            result.Depth[sample.PixelIndex] = (float)depth;
+            result.Confidence[sample.PixelIndex] = (float)(1 - cost);
+        }
+        return rejected;
+    }
+
+    private float[]? CalculateAcceleratedCosts(V3 centre, List<DepthSearchSample> samples,
+        DepthAccelerationState acceleration, CancellationToken cancellation)
+    {
+        if (acceleration.Failure != null)
+        {
+            return null;
+        }
+        try
+        {
+            var costs = acceleration.Session!.Calculate(centre, samples, cancellation);
+            if (costs.Length != checked(samples.Count * samples[0].Hypotheses.Length))
+            {
+                throw new DepthAccelerationException("Metal returned an invalid cost count.");
+            }
+            foreach (var cost in costs)
+            {
+                // Positive infinity means insufficient support, as on the CPU.
+                var invalidCost = float.IsNaN(cost) || cost < 0 || cost > 2 && !float.IsPositiveInfinity(cost);
+                if (invalidCost)
+                {
+                    throw new DepthAccelerationException("Metal returned an invalid stereo cost.");
+                }
+            }
+            return costs;
+        }
+        catch (DepthAccelerationException error)
+        {
+            acceleration.Fail(error.Message);
+            return null;
+        }
     }
 
     internal bool DistinctProjection(ReadOnlySpan<StereoView> views, V3 centre, V3 ray, double firstDepth, double secondDepth)

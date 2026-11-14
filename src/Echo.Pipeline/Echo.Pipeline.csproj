@@ -7,6 +7,7 @@
     <ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" />
     <ProjectReference Include="../Echo.Reconstruction/Echo.Reconstruction.csproj" />
     <ProjectReference Include="../Echo.Depth/Echo.Depth.csproj" />
+    <ProjectReference Include="../Echo.Depth.Metal/Echo.Depth.Metal.csproj" />
     <ProjectReference Include="../Echo.DenseCloud/Echo.DenseCloud.csproj" />
     <ProjectReference Include="../Echo.Fusion/Echo.Fusion.csproj" />
     <ProjectReference Include="../Echo.Meshing/Echo.Meshing.csproj" />

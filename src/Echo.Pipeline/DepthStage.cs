@@ -39,6 +39,9 @@ public sealed class DepthStage : IPipelineStage
         var completed = 0;
         var progressGate = new object();
         var plan = executionPlanner.Plan(project, scene.Cameras.Count);
+        // Direct Metal has a different numerical contract. CPU and the fully
+        // validated diagnostic backend retain their original checkpoint keys.
+        var algorithmVersion = project.Settings.DepthBackend is "auto" or "metal" ? "echo-0.1.0-pyramid8-metal1" : null;
         var budgetMode = project.Settings.DepthMemoryBudgetMb == 0 ? "automatic" : "manual";
         context.ReportProgress(Name, $"Depth: {plan.ConcurrentImages} images concurrently, {plan.WorkersPerImage} CPU workers per image; estimated {plan.EstimatedBytesPerImage / 1024 / 1024:N0} MB per job; {budgetMode} memory budget {plan.MemoryBudgetBytes / 1024 / 1024:N0} MB.", 0, scene.Cameras.Count);
         var options = new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = plan.ConcurrentImages };
@@ -59,6 +62,12 @@ public sealed class DepthStage : IPipelineStage
                 project.Settings.DepthFar
             };
             DepthMap? detected = null;
+            var processing = new ProcessingMetadata
+            {
+                MemoryBudgetBytes = plan.MemoryBudgetBytes,
+                ConcurrentImages = plan.ConcurrentImages,
+                SourceArtifacts = [alignment]
+            };
             var depth = context.Build("depth-image", inputs, directory =>
             {
                 var map = depthEstimator.Estimate(store, project, scene, camera, cancellation, plan.WorkersPerImage, message =>
@@ -67,7 +76,7 @@ public sealed class DepthStage : IPipelineStage
                     {
                         context.ReportProgress(Name, $"Image {index + 1}/{scene.Cameras.Count} · {photo.Name} · {message}", completed, scene.Cameras.Count);
                     }
-                });
+                }, execution: processing.Executions.Add);
                 detected = map;
                 cancellation.ThrowIfCancellationRequested();
                 lock (progressGate)
@@ -75,7 +84,7 @@ public sealed class DepthStage : IPipelineStage
                     context.ReportProgress(Name, $"Image {index + 1}/{scene.Cameras.Count} · {photo.Name} · saving depth and confidence maps", completed, scene.Cameras.Count);
                 }
                 fileOperations.AtomicJson(Path.Combine(directory, "depth.json"), map);
-            });
+            }, () => processing, algorithmVersion);
             depthUnits[index] = depth;
             var reused = detected == null;
             var savedMap = detected ?? jsonCodec.Read<DepthMap>(store.PathFor(depth + "/depth.json"));
@@ -108,7 +117,7 @@ public sealed class DepthStage : IPipelineStage
         var artifact = context.Build("depth", depthUnits, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), depthUnits);
-        });
+        }, () => new ProcessingMetadata { SourceArtifacts = depthUnits.ToList() });
         context.Publish("depth", artifact);
     }
 
@@ -119,7 +128,7 @@ public sealed class DepthStage : IPipelineStage
         var artifact = context.Build("depth-preview", units, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), units);
-        });
+        }, () => new ProcessingMetadata { SourceArtifacts = units.Values.ToList() });
         context.Publish("depthPreview", artifact);
     }
 }
