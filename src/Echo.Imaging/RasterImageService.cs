@@ -30,8 +30,18 @@ public sealed class RasterImageService : IRasterImageService
 
     public GrayscaleImage ResizeGray(SKBitmap source, int width)
     {
+        return ResizeGrayNative(source, width, null);
+    }
+
+    public GrayscaleImage ResizeGray(SKBitmap source, int width, float[] destination)
+    {
+        return ResizeGrayNative(source, width, destination);
+    }
+
+    private GrayscaleImage ResizeGrayNative(SKBitmap source, int width, float[]? destination)
+    {
         var pixels = BorrowPixels(source, out var swapRedBlue);
-        var result = ResizeGray(pixels, source.Width, source.Height, width, swapRedBlue);
+        var result = ResizeGray(pixels, source.Width, source.Height, width, swapRedBlue, destination);
         GC.KeepAlive(source);
         return result;
     }
@@ -52,12 +62,26 @@ public sealed class RasterImageService : IRasterImageService
         return source.Pixels;
     }
 
-    private GrayscaleImage ResizeGray(ReadOnlySpan<SKColor> pixels, int sourceWidth, int sourceHeight, int width, bool swapRedBlue = false)
+    public RasterDimensions ResizeDimensions(int sourceWidth, int sourceHeight, int width)
     {
         var scale = Math.Min(1.0, (double)width / sourceWidth);
         var targetWidth = Math.Max(1, (int)Math.Round(sourceWidth * scale));
         var targetHeight = Math.Max(1, (int)Math.Round(sourceHeight * scale));
-        var output = new float[targetWidth * targetHeight];
+        return new RasterDimensions(targetWidth, targetHeight);
+    }
+
+    private GrayscaleImage ResizeGray(ReadOnlySpan<SKColor> pixels, int sourceWidth, int sourceHeight, int width,
+        bool swapRedBlue = false, float[]? destination = null)
+    {
+        var size = ResizeDimensions(sourceWidth, sourceHeight, width);
+        var targetWidth = size.Width;
+        var targetHeight = size.Height;
+        var length = checked(targetWidth * targetHeight);
+        var output = destination ?? new float[length];
+        if (output.Length < length)
+        {
+            throw new ArgumentException("Grayscale destination is smaller than the resized image.", nameof(destination));
+        }
         for (var y = 0; y < targetHeight; y++)
         {
             var y0 = y * sourceHeight / targetHeight;
@@ -142,9 +166,9 @@ public sealed class RasterImageService : IRasterImageService
 
     public RasterPixels ResizePixels(SKBitmap source, int width)
     {
-        var scale = Math.Min(1.0, (double)width / source.Width);
-        var targetWidth = Math.Max(1, (int)Math.Round(source.Width * scale));
-        var targetHeight = Math.Max(1, (int)Math.Round(source.Height * scale));
+        var size = ResizeDimensions(source.Width, source.Height, width);
+        var targetWidth = size.Width;
+        var targetHeight = size.Height;
         var input = BorrowPixels(source, out var swapRedBlue);
         var output = new SKColor[targetWidth * targetHeight];
         for (var y = 0; y < targetHeight; y++)
@@ -207,15 +231,6 @@ public sealed class RasterImageService : IRasterImageService
 
     public float Sample(float[] pixels, int width, int height, double x, double y)
     {
-        if (x < 0 || y < 0 || x >= width - 1 || y >= height - 1)
-        {
-            return float.NaN;
-        }
-
-        var ix = (int)x;
-        var iy = (int)y;
-        var dx = (float)(x - ix);
-        var dy = (float)(y - iy);
-        return pixels[iy * width + ix] * (1 - dx) * (1 - dy) + pixels[iy * width + ix + 1] * dx * (1 - dy) + pixels[(iy + 1) * width + ix] * (1 - dx) * dy + pixels[(iy + 1) * width + ix + 1] * dx * dy;
+        return new GrayscaleSampler(pixels, width, height).Sample(x, y);
     }
 }

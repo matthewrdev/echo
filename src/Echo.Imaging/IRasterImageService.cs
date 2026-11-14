@@ -9,6 +9,8 @@ public interface IRasterImageService
     ReadOnlySpan<SKColor> BorrowPixels(SKBitmap bitmap, out bool swapRedBlue);
     GrayscaleImage ResizeGray(RasterPixels source, int width);
     GrayscaleImage ResizeGray(SKBitmap source, int width);
+    GrayscaleImage ResizeGray(SKBitmap source, int width, float[] destination);
+    RasterDimensions ResizeDimensions(int sourceWidth, int sourceHeight, int width);
     SKBitmap Decode(string path);
     SKBitmap Resize(SKBitmap source, int width);
     RasterPixels ResizePixels(SKBitmap source, int width);

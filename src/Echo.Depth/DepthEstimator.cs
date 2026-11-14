@@ -48,7 +48,7 @@ public sealed class DepthEstimator : IDepthEstimator
             var other = selected[index];
             neighbours[index] = new DepthNeighbour(other, FindPhoto(project.Images, other.ImageId), cameraGeometry.Transpose(other.Rotation));
         }
-        using var sources = new DepthSourceImages(rasterImageService, store);
+        using var sources = new DepthSourceImages(rasterImageService, store, neighbours.Length + 1);
         DepthMap? prior = null;
         var width = Math.Min(160, project.Settings.DepthWidth);
         var levelCount = 1;
@@ -62,7 +62,16 @@ public sealed class DepthEstimator : IDepthEstimator
             cancellation.ThrowIfCancellationRequested();
             var label = $"level {++level}/{levelCount}, {width}px";
             progress?.Invoke($"{label}: loading reference and neighbouring images");
-            prior = EstimateLevel(project, photo, camera, neighbours, range, width, prior, sources, maxWorkers, cancellation, label, progress, metrics);
+            try
+            {
+                prior = EstimateLevel(project, photo, camera, neighbours, range, width, prior, sources, maxWorkers, cancellation, label, progress, metrics);
+            }
+            finally
+            {
+                // Every row worker has finished before EstimateLevel returns or
+                // throws. Only then may another image reuse these grayscale arrays.
+                sources.ReleaseLevel();
+            }
             if (width == project.Settings.DepthWidth)
             {
                 return prior;
@@ -175,6 +184,7 @@ public sealed class DepthEstimator : IDepthEstimator
             Span<double> patch = stackalloc double[25];
             var hypothesisBuffer = scratch.Hypotheses;
             var costBuffer = scratch.Costs;
+            var rayY = (y - height * .5) / focal;
             for (var x = 3; x < width - 3; x++)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -184,7 +194,7 @@ public sealed class DepthEstimator : IDepthEstimator
                     continue;
                 }
 
-                var ray = cameraGeometry.Rotate(camera.Rotation, new V3((x - width * .5) / focal, (y - height * .5) / focal, 1));
+                var ray = cameraGeometry.Rotate(camera.Rotation, new V3((x - width * .5) / focal, rayY, 1));
                 var hypotheses = hypothesisBuffer[..(prior == null ? 0 : CreateHypotheses(prior, x, y, width, height, near, far, hypothesisBuffer))];
                 var selectedDepth = 0.0;
                 var best = double.PositiveInfinity;
@@ -333,9 +343,11 @@ public sealed class DepthEstimator : IDepthEstimator
 
         var localNear = Math.Max(near, minimum * .98);
         var localFar = Math.Min(far, maximum * 1.02);
+        var inverseNear = 1 / localNear;
+        var inverseSpan = 1 / localFar - inverseNear;
         for (var p = 0; p < hypotheses.Length; p++)
         {
-            hypotheses[p] = 1 / (1 / localNear + (1 / localFar - 1 / localNear) * p / (hypotheses.Length - 1));
+            hypotheses[p] = 1 / (inverseNear + inverseSpan * p / (hypotheses.Length - 1));
         }
 
         return hypotheses.Length;
@@ -347,9 +359,10 @@ public sealed class DepthEstimator : IDepthEstimator
         double mean = 0;
         for (var dy = -2; dy <= 2; dy++)
         {
-            for (var dx = -2; dx <= 2; dx++)
+            var row = gray.AsSpan((y + dy) * width + x - 2, 5);
+            for (var dx = 0; dx < row.Length; dx++)
             {
-                patch[n] = gray[(y + dy) * width + x + dx];
+                patch[n] = row[dx];
                 mean += patch[n++];
             }
         }
@@ -369,6 +382,7 @@ public sealed class DepthEstimator : IDepthEstimator
         var firstView = double.PositiveInfinity;
         var secondView = firstView;
         var count = 0;
+        Span<V3> columns = stackalloc V3[5];
         foreach (var view in views)
         {
             var p = cameraGeometry.Rotate(view.WorldToCamera, world - view.Centre);
@@ -385,6 +399,11 @@ public sealed class DepthEstimator : IDepthEstimator
             var focal = view.Focal;
             var halfWidth = view.Width * .5;
             var halfHeight = view.Height * .5;
+            var sampler = new GrayscaleSampler(view.Gray, view.Width, view.Height);
+            for (var column = 0; column < columns.Length; column++)
+            {
+                columns[column] = p + view.PatchRight * ((column - 2) * depth);
+            }
             // Warp a fronto-parallel reference patch into the neighbour at this depth.
             // This accounts for camera rotation and perspective within the patch.
             for (var dy = -2; dy <= 2 && valid; dy++)
@@ -392,10 +411,10 @@ public sealed class DepthEstimator : IDepthEstimator
                 var down = view.PatchDown * (dy * depth);
                 for (var dx = -2; dx <= 2; dx++)
                 {
-                    var q = p + view.PatchRight * (dx * depth) + down;
+                    var q = columns[dx + 2] + down;
                     var u = q.X / q.Z * focal + halfWidth;
                     var v = q.Y / q.Z * focal + halfHeight;
-                    var sample = q.Z > 0 ? rasterImageService.Sample(view.Gray, view.Width, view.Height, u, v) : float.NaN;
+                    var sample = q.Z > 0 ? sampler.Sample(u, v) : float.NaN;
                     if (!float.IsFinite(sample))
                     {
                         valid = false;

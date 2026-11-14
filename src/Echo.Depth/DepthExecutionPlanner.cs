@@ -25,8 +25,9 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
         }
         var neighbours = Math.Min(settings.DepthNeighbours, Math.Max(0, cameraCount - 1));
         // Decoded sources, transient decoder storage, pyramid levels and output arrays.
+        // Pooled grayscale buffers can round up to twice the requested pixel count.
         // This is a scheduling estimate rather than a hard process-memory limit.
-        var bytesPerImage = largestSource * 4 * (neighbours + 3) + largestMap * (32 + neighbours * 4);
+        var bytesPerImage = largestSource * 4 * (neighbours + 3) + largestMap * (36 + neighbours * 8);
         var memorySlots = Math.Max(1, settings.DepthMemoryBudgetMb * 1024L * 1024 / Math.Max(1, bytesPerImage));
         var workers = settings.DepthWorkerThreads > 0 ? settings.DepthWorkerThreads : Math.Max(1, Environment.ProcessorCount - 2);
         var images = (int)Math.Max(1, Math.Min(Math.Min(settings.DepthConcurrency, cameraCount), Math.Min(workers, memorySlots)));

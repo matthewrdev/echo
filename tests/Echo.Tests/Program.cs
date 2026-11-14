@@ -14,5 +14,6 @@ composition.Resolve<DepthProgressTests>().Run(scaleTests);
 composition.Resolve<DepthRecoveryTests>().Run(scaleTests);
 composition.Resolve<DepthRangeTests>().Run(scaleTests);
 composition.Resolve<DepthNeighbourTests>().Run(scaleTests);
+composition.Resolve<GrayscaleSamplerTests>().Run(scaleTests);
 composition.Resolve<ArtifactStorageTests>().Run(scaleTests);
 return Math.Max(scaleTests.Finish(), composition.Resolve<ReconstructionTests>().Run());
