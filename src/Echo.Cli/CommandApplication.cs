@@ -16,6 +16,8 @@ public sealed class CommandApplication : ICommandApplication
 
     echo-photo project init PATH [--name NAME]
     echo-photo --project PATH images import DIRECTORY [--set NAME] [--limit N]
+    echo-photo --project PATH images deduplicate [--apply]
+    echo-photo --project PATH images restore IMAGE_ID
     echo-photo --project PATH images list [--set NAME] [--query TEXT]
     echo-photo --project PATH images metadata IMAGE_ID
     echo-photo --project PATH images payload IMAGE_ID GROUP:TAG

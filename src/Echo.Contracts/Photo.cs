@@ -34,6 +34,18 @@ public sealed class Photo
         get; set;
     }
     public bool Enabled { get; set; } = true;
+    public bool Discarded
+    {
+        get; set;
+    }
+    public string? DuplicateOf
+    {
+        get; set;
+    }
+    public bool KeepWhenTrimming
+    {
+        get; set;
+    }
     public List<string> Sets { get; set; } = [];
     public Dictionary<string, JsonElement> Metadata { get; set; } = [];
 }

@@ -12,14 +12,16 @@ public sealed class ImagesCommand : ICliCommand
     private readonly ICommandOutput output;
     private readonly IMetadataReader metadataReader;
     private readonly IMetadataPayloadReader payloadReader;
+    private readonly IPhotoDeduplicator deduplicator;
 
     [ImportingConstructor]
-    public ImagesCommand(IProjectStoreFactory storeFactory, ICommandOutput output, IMetadataReader metadataReader, IMetadataPayloadReader payloadReader)
+    public ImagesCommand(IProjectStoreFactory storeFactory, ICommandOutput output, IMetadataReader metadataReader, IMetadataPayloadReader payloadReader, IPhotoDeduplicator deduplicator)
     {
         this.storeFactory = storeFactory;
         this.output = output;
         this.metadataReader = metadataReader;
         this.payloadReader = payloadReader;
+        this.deduplicator = deduplicator;
     }
 
     public IReadOnlyCollection<string> Names => ["images"];
@@ -38,6 +40,19 @@ public sealed class ImagesCommand : ICliCommand
                     imported = store.Import(args.RequiredWord(2), args.Get("set", "default")!, args.Int("limit", int.MaxValue), value => output.Progress(value, ndjson))
                 });
                 return 0;
+            case "deduplicate":
+                var plan = deduplicator.Plan(store);
+                var apply = args.Options.ContainsKey("apply");
+                if (apply)
+                {
+                    deduplicator.Apply(store, plan);
+                }
+                output.Write(new
+                {
+                    applied = apply,
+                    plan
+                });
+                return 0;
             case "list":
                 var set = args.Get("set", null);
                 var query = args.Get("query", null);
@@ -47,8 +62,22 @@ public sealed class ImagesCommand : ICliCommand
                     .ToList();
                 output.Write(images);
                 return 0;
+            case "restore":
+                deduplicator.Restore(store, args.RequiredWord(2));
+                WriteReceipt(store.Load());
+                return 0;
             case "enable":
-                WriteReceipt(store.Edit(p => FindImage(p, args.RequiredWord(2)).Enabled = bool.Parse(args.Get("value", "true")!)));
+                var imageId = args.RequiredWord(2);
+                var enabled = bool.Parse(args.Get("value", "true")!);
+                if (enabled && FindImage(store.Load(), imageId).Discarded)
+                {
+                    deduplicator.Restore(store, imageId);
+                    WriteReceipt(store.Load());
+                }
+                else
+                {
+                    WriteReceipt(store.Edit(p => FindImage(p, imageId).Enabled = enabled));
+                }
                 return 0;
             case "metadata":
             case "payload":
