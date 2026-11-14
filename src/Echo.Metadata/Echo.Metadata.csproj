@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="MetadataExtractor" Version="2.9.3" />
     <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
   </ItemGroup>
 </Project>

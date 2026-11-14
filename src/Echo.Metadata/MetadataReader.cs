@@ -1,95 +1,89 @@
 using System.ComponentModel.Composition;
-using System.Diagnostics;
 using System.Text.Json;
 using Echo.Contracts;
+using MetadataExtractor;
+using MetadataExtractor.Formats.Jpeg;
 
 namespace Echo.Metadata;
 
-[Export(typeof(IMetadataReader)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class MetadataReader : IMetadataReader
+[Export(typeof(IMetadataReader)), Export(typeof(IMetadataPayloadReader)), PartCreationPolicy(CreationPolicy.Shared)]
+public sealed class MetadataReader : IMetadataReader, IMetadataPayloadReader
 {
-    private readonly MetadataJsonReadContext json;
-
     [ImportingConstructor]
     public MetadataReader()
     {
-        json = new MetadataJsonReadContext();
     }
 
-    public string? FindExifTool()
-    {
-        var configured = Environment.GetEnvironmentVariable("ECHO_EXIFTOOL");
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            return File.Exists(configured) ? configured : null;
-        }
-
-        var name = OperatingSystem.IsWindows() ? "exiftool.exe" : "exiftool";
-        var bundled = Path.Combine(AppContext.BaseDirectory, "metadata", name);
-        if (File.Exists(bundled))
-        {
-            return bundled;
-        }
-
-        // Source builds may opt into an external tool; packaged apps carry their own.
-        foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
-        {
-            if (string.IsNullOrWhiteSpace(directory))
-            {
-                continue;
-            }
-            var candidate = Path.Combine(directory, name);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-        return null;
-    }
+    public string Description => "MetadataExtractor " + typeof(ImageMetadataReader).Assembly.GetName().Version + " · managed C#";
 
     public Dictionary<string, JsonElement> Read(string path, bool includeAllGroups = false)
     {
-        var start = new ProcessStartInfo(FindExifTool() ?? throw new EchoException("The metadata reader is missing. Rebuild the Echo app package, or set ECHO_EXIFTOOL for a source build."))
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
+        var document = ReadDocument(path);
         if (includeAllGroups)
         {
-            start.ArgumentList.Add("-a");
-            start.ArgumentList.Add("-u");
-            start.ArgumentList.Add("-G1");
+            return document.Fields;
         }
-
-        foreach (var arg in new[]
+        var fields = new Dictionary<string, JsonElement>(document.Fields.Count, StringComparer.Ordinal);
+        foreach (var field in document.Fields)
         {
-            "-j",
-            "-n",
-            "--",
-            Path.GetFullPath(path)
+            var colon = field.Key.IndexOf(':');
+            var name = field.Key[(colon + 1)..];
+            // Thumbnail dimensions must not replace full-image dimensions.
+            if (!field.Key.StartsWith("IFD1:", StringComparison.Ordinal))
+            {
+                fields.TryAdd(name, field.Value);
+            }
         }
-        )
-        {
-            start.ArgumentList.Add(arg);
-        }
+        return fields;
+    }
 
+    public byte[] Read(string path, string tag)
+    {
+        var document = ReadDocument(path);
+        if (document.Payloads.TryGetValue(tag, out var exact))
+        {
+            return exact;
+        }
+        byte[]? found = null;
+        foreach (var payload in document.Payloads)
+        {
+            var name = payload.Key.AsSpan(payload.Key.IndexOf(':') + 1);
+            if (name.Equals(tag, StringComparison.OrdinalIgnoreCase))
+            {
+                if (found != null)
+                {
+                    throw new EchoException("Multiple metadata fields have this name. Select the group-qualified field.", 2);
+                }
+                found = payload.Value;
+            }
+        }
+        return found ?? throw new EchoException("No binary payload was found for " + tag + ".", 2);
+    }
+
+    private PhotoMetadata ReadDocument(string path)
+    {
         try
         {
-            using var process = Process.Start(start)!;
-            var error = process.StandardError.ReadToEndAsync();
-            var output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit();
-            if (process.ExitCode != 0)
+            var document = new PhotoMetadata();
+            var jpeg = false;
+            foreach (var directory in ImageMetadataReader.ReadMetadata(path))
             {
-                throw new EchoException("ExifTool failed: " + error.GetAwaiter().GetResult());
+                MetadataFields.Add(directory, document);
+                jpeg |= directory is JpegDirectory;
             }
-
-            return JsonSerializer.Deserialize(output, json.ListDictionaryStringJsonElement)![0];
+            if (jpeg)
+            {
+                // This vendor APP7 block is separate from EXIF maker notes.
+                foreach (var segment in JpegSegmentReader.ReadSegments(path, [JpegSegmentType.App7]))
+                {
+                    DjiDebugMetadata.Decode(segment.Bytes, document);
+                }
+            }
+            return document;
         }
-        catch (System.ComponentModel.Win32Exception)
+        catch (Exception error) when (error is ImageProcessingException or IOException or UnauthorizedAccessException)
         {
-            throw new EchoException("The metadata reader could not start. Rebuild the Echo app package, or check ECHO_EXIFTOOL for a source build.");
+            throw new EchoException("Unable to read photo metadata: " + error.Message, 2);
         }
     }
 }

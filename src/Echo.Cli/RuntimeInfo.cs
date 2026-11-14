@@ -83,7 +83,7 @@ public sealed record RuntimeInfo
     {
         get; init;
     }
-    public string? ExifTool
+    public string? MetadataEngine
     {
         get; init;
     }

@@ -4,6 +4,9 @@ namespace Echo.Metadata;
 
 public interface IMetadataReader
 {
-    string? FindExifTool();
+    string Description
+    {
+        get;
+    }
     Dictionary<string, JsonElement> Read(string path, bool includeAllGroups = false);
 }

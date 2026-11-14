@@ -58,7 +58,7 @@ public sealed class RuntimeInfoProvider : IRuntimeInfoProvider
             VectorFloatLanes = Vector<float>.Count,
             ArmAdvSimd = AdvSimd.IsSupported,
             X86Avx2 = Avx2.IsSupported,
-            ExifTool = metadata.FindExifTool(),
+            MetadataEngine = metadata.Description,
             Assemblies = versions
         };
     }

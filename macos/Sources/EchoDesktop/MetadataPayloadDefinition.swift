@@ -26,7 +26,7 @@ struct MetadataPayloadDefinition {
         formatDescription =
             meaning == nil
             ? "Binary payload · no field decoder available"
-            : "Binary payload · sample type and layout are not defined by ExifTool"
+            : "Binary payload · sample type and layout are undocumented"
         reference =
             meaning == nil
             ? nil : URL(string: "https://github.com/exiftool/exiftool/blob/master/lib/Image/ExifTool/DJI.pm")

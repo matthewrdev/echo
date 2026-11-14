@@ -21,7 +21,7 @@ struct ProcessorRuntimeInfo: Decodable {
     let vectorFloatLanes: Int
     let armAdvSimd: Bool
     let x86Avx2: Bool
-    let exifTool: String?
+    let metadataEngine: String?
     let assemblies: [String: String]
 
     var sections: [RuntimeInfoSection] {
@@ -53,7 +53,7 @@ struct ProcessorRuntimeInfo: Decodable {
                         name: "Instruction sets", value: instructionSets.isEmpty ? "Baseline" : instructionSets),
                     RuntimeInfoField(name: "Engine version", value: version),
                     RuntimeInfoField(name: "Executable", value: executable),
-                    RuntimeInfoField(name: "ExifTool", value: exifTool ?? "Not found"),
+                    RuntimeInfoField(name: "Metadata reader", value: metadataEngine ?? "Unknown"),
                 ]),
             RuntimeInfoSection(
                 title: "Processor assemblies",
