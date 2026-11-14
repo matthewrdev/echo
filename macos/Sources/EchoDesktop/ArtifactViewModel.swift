@@ -111,7 +111,10 @@ final class ArtifactViewModel: ObservableObject {
     }
 
     func cancelLoading() {
+        generation = UUID()
         loadTask?.cancel()
+        loadTask = nil
+        loading = false
     }
 
     func load() async {
