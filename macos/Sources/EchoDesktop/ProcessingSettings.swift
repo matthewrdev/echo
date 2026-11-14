@@ -19,6 +19,7 @@ struct ProcessingSettings: Codable {
     var matchRatioThreshold: Double = 0.72
     var matchDistanceThreshold: Double = 0.65
     var depthConcurrency: Int = 2
+    var depthBackend: String = "auto"
     var depthWorkerThreads: Int = 0
     var depthMemoryBudgetMb: Int = 0
     var depthWidth: Int = 1024
@@ -66,6 +67,7 @@ struct ProcessingSettings: Codable {
         matchRatioThreshold = try values.decodeIfPresent(Double.self, forKey: .matchRatioThreshold) ?? 0.72
         matchDistanceThreshold = try values.decodeIfPresent(Double.self, forKey: .matchDistanceThreshold) ?? 0.65
         depthConcurrency = try values.decodeIfPresent(Int.self, forKey: .depthConcurrency) ?? 2
+        depthBackend = try values.decodeIfPresent(String.self, forKey: .depthBackend) ?? "auto"
         depthWorkerThreads = try values.decodeIfPresent(Int.self, forKey: .depthWorkerThreads) ?? 0
         depthMemoryBudgetMb = try values.decodeIfPresent(Int.self, forKey: .depthMemoryBudgetMb) ?? 0
         depthWidth = try values.decodeIfPresent(Int.self, forKey: .depthWidth) ?? 1024
@@ -114,6 +116,7 @@ struct ProcessingSettings: Codable {
         try values.encode(matchRatioThreshold, forKey: .matchRatioThreshold)
         try values.encode(matchDistanceThreshold, forKey: .matchDistanceThreshold)
         try values.encode(depthConcurrency, forKey: .depthConcurrency)
+        try values.encode(depthBackend, forKey: .depthBackend)
         try values.encode(depthWorkerThreads, forKey: .depthWorkerThreads)
         try values.encode(depthMemoryBudgetMb, forKey: .depthMemoryBudgetMb)
         try values.encode(depthWidth, forKey: .depthWidth)

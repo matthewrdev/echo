@@ -19,8 +19,10 @@ struct ProcessingImpact {
         if old.guidedAlignmentPass != new.guidedAlignmentPass || old.bundleIterations != new.bundleIterations {
             return .alignment
         }
+        let oldDirectMetal = old.depthBackend == "auto" || old.depthBackend == "metal"
+        let newDirectMetal = new.depthBackend == "auto" || new.depthBackend == "metal"
         let depth =
-            old.depthWidth != new.depthWidth || old.depthPlanes != new.depthPlanes
+            oldDirectMetal != newDirectMetal || old.depthWidth != new.depthWidth || old.depthPlanes != new.depthPlanes
             || old.depthRefinementSamples != new.depthRefinementSamples || old.depthNeighbours != new.depthNeighbours
             || old.depthRangeAutomatic != new.depthRangeAutomatic
             || old.depthNear != new.depthNear || old.depthFar != new.depthFar

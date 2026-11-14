@@ -81,6 +81,21 @@ struct StageSettingsEditor: View {
                     "More iterations allow further camera and point refinement. The solve may stop early after convergence; more iterations cannot repair incorrect correspondences or missing overlap."
                 ).foregroundStyle(.secondary)
             case .depth:
+                Picker("Compute backend", selection: $settings.depthBackend) {
+                    Text("Automatic (prefer Metal)").tag("auto")
+                    Text("Metal").tag("metal")
+                    Text("CPU").tag("cpu")
+                    Text("Metal with CPU validation").tag("metal-validated")
+                }
+                if settings.depthBackend == "auto" || settings.depthBackend == "metal" {
+                    Text(
+                        "Uses the GPU for faster depth processing, with CPU fallback if Metal is unavailable. Small numerical differences from CPU processing are expected."
+                    ).font(.caption).foregroundStyle(.secondary)
+                } else if settings.depthBackend == "metal-validated" {
+                    Text(
+                        "Checks every Metal search against the CPU and corrects any difference. This validation mode adds work; it is not a speed mode. Saved maps remain reusable; reset Depth to process them with Metal."
+                    ).font(.caption).foregroundStyle(.secondary)
+                }
                 IntegerSettingSlider(title: "Concurrent photos", value: $settings.depthConcurrency, range: 1...16)
                 IntegerSettingSlider(
                     title: "Total CPU workers (0 = automatic)", value: $settings.depthWorkerThreads, range: 0...256)

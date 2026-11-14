@@ -14,6 +14,8 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertTrue(settings.guidedAlignmentPass)
         XCTAssertTrue(settings.depthRangeAutomatic)
         XCTAssertEqual(settings.depthMemoryBudgetMb, 0)
+        XCTAssertEqual(settings.depthBackend, "auto")
+        settings.depthBackend = "metal-validated"
         settings.depthRangeAutomatic = false
         settings.depthNear = 5
         settings.depthFar = 6000
@@ -50,6 +52,7 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(restored.lineGradientThreshold, 0.04)
         XCTAssertFalse(restored.lineSplitRegions)
         XCTAssertEqual(restored.depthConcurrency, 4)
+        XCTAssertEqual(restored.depthBackend, "metal-validated")
         XCTAssertEqual(restored.depthWorkerThreads, 12)
         XCTAssertEqual(restored.cloudWorkerThreads, 4)
         XCTAssertEqual(restored.cloudBatchRows, 16)
@@ -80,6 +83,24 @@ final class ProcessingSettingsTests: XCTestCase {
         let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(automatic))
         XCTAssertEqual(restored.depthMemoryBudgetMb, 0)
         XCTAssertNil(ProcessingImpact().firstChangedStage(from: manual, to: restored))
+    }
+
+    func testDepthBackendChangesInvalidateOnlyDifferentNumericalContracts() throws {
+        var automatic = ProcessingSettings()
+        XCTAssertEqual(automatic.depthBackend, "auto")
+        var metal = automatic
+        metal.depthBackend = "metal"
+        XCTAssertNil(ProcessingImpact().firstChangedStage(from: automatic, to: metal))
+        var cpu = automatic
+        cpu.depthBackend = "cpu"
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: automatic, to: cpu), .depth)
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: cpu, to: automatic), .depth)
+        var validated = cpu
+        validated.depthBackend = "metal-validated"
+        XCTAssertNil(ProcessingImpact().firstChangedStage(from: cpu, to: validated))
+        let saved = Data(#"{"depthBackend":"cpu"}"#.utf8)
+        automatic = try JSONDecoder().decode(ProcessingSettings.self, from: saved)
+        XCTAssertEqual(automatic.depthBackend, "cpu")
     }
 
     func testDependencyWarningsStartAtTheEarliestAffectedStage() {
