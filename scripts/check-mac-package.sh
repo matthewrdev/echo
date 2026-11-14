@@ -17,9 +17,9 @@ run_cli() {
 codesign --verify --deep --strict "$scratch/Echo relocated.app"
 run_cli doctor > "$scratch/doctor.json"
 python3 - "$scratch/doctor.json" "$metadata" <<'PY'
-import json, sys
+import json, os, sys
 doctor = json.load(open(sys.argv[1]))
-assert doctor['metadataReady'] and doctor['exifTool'] == sys.argv[2], doctor
+assert doctor['metadataReady'] and os.path.realpath(doctor['exifTool']) == os.path.realpath(sys.argv[2]), doctor
 PY
 
 mkdir "$scratch/photos"

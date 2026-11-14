@@ -36,9 +36,11 @@ with open(sys.argv[1], "w") as file:
     json.dump(info, file, indent=2)
 PY
 dotnet publish src/Echo.Cli -c Release -r "$runtime" --self-contained true -p:PublishSingleFile=false -p:PublishAot=false -o "$staging_dir/Contents/MacOS/cli" --nologo -m:1
-cp -R "$metadata_bundle" "$staging_dir/Contents/MacOS/cli/metadata"
+cp -R "$metadata_bundle" "$staging_dir/Contents/Resources/metadata"
+# Keep non-bundle resource directories out of the nested-code signing location.
+ln -s ../../Resources/metadata "$staging_dir/Contents/MacOS/cli/metadata"
 # Upstream Perl ships read-only resources; codesign must be able to seal them.
-chmod -R u+w "$staging_dir/Contents/MacOS/cli/metadata"
+chmod -R u+w "$staging_dir/Contents/Resources/metadata"
 cp "$native_bin/EchoDesktop" "$staging_dir/Contents/MacOS/EchoDesktop"
 cp scripts/Info.plist "$staging_dir/Contents/Info.plist"
 cp assets/Echo.icns "$staging_dir/Contents/Resources/Echo.icns"
