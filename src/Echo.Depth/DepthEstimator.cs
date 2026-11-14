@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.Intrinsics;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Imaging;
@@ -256,7 +257,22 @@ public sealed class DepthEstimator : IDepthEstimator
                 cancellation.ThrowIfCancellationRequested();
             }
             var depth = hypotheses[plane];
-            costs[plane] = CalculateCost(views, centre + ray * depth, depth, patch, norm);
+            if (Vector128.IsHardwareAccelerated && plane + 1 < hypotheses.Length)
+            {
+                var pair = StereoCostBatch.Calculate(views, centre, ray, depth, hypotheses[plane + 1], patch, norm);
+                costs[plane] = pair.First;
+                costs[plane + 1] = pair.Second;
+                if (costs[plane] < best)
+                {
+                    best = costs[plane];
+                    bestPlane = plane;
+                }
+                plane++;
+            }
+            else
+            {
+                costs[plane] = CalculateCost(views, centre + ray * depth, depth, patch, norm);
+            }
             if (costs[plane] < best)
             {
                 best = costs[plane];
