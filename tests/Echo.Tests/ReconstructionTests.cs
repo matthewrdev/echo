@@ -418,6 +418,10 @@ public sealed class ReconstructionTests
                 Check(!paused.Artifacts.ContainsKey("features"), "A partial index must not complete the feature stage");
                 var partialFeatures = jsonCodec.Read<Dictionary<string, string>>(store.PathFor(paused.Artifacts["featuresPreview"] + "/units.json"));
                 Check(partialFeatures.Count == 1, "Cancelled feature extraction retains its viewable image index");
+                // Concurrent workers can commit more images than the coordinator has
+                // published when cancellation arrives. Every such image must be reused.
+                var committedFeatures = Directory.GetDirectories(store.PathFor("artifacts/feature-image"))
+                    .Select(path => Path.GetRelativePath(store.Root, path)).ToHashSet(StringComparer.Ordinal);
                 var reused = 0;
                 var featureReports = 0;
                 var depthReports = 0;
@@ -442,7 +446,7 @@ public sealed class ReconstructionTests
                         Check(payload.GetProperty("pointCount").GetInt32() == features.Features.Count, "Log the saved point count");
                         Check(payload.GetProperty("lineCount").GetInt32() == features.Lines.Count, "Log the saved line count");
                         Check(payload.GetProperty("message").GetString()!.Contains(payload.GetProperty("imageName").GetString()!), "Log the photo name");
-                        Check(payload.GetProperty("reused").GetBoolean() == (featureReports == 1), "Distinguish reused and newly extracted features");
+                        Check(payload.GetProperty("reused").GetBoolean() == committedFeatures.Contains(index[imageId]), "Distinguish reused and newly extracted features");
                         Check(current.Progress?.Stage == "features", "Preview writes must not replace feature progress");
                         Check(!current.Artifacts.ContainsKey("features"), "Features are viewable before stage completion");
                     }

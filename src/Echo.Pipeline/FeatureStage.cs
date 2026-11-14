@@ -11,13 +11,17 @@ public sealed class FeatureStage : IPipelineStage
     private readonly IFileOperations fileOperations;
     private readonly IFeatureExtractor featureExtractor;
     private readonly IJsonCodec jsonCodec;
+    private readonly IImageWorkPlanner workPlanner;
+    private readonly IOrderedWorkExecutor workExecutor;
 
     [ImportingConstructor]
-    public FeatureStage(IFileOperations fileOperations, IFeatureExtractor featureExtractor, IJsonCodec jsonCodec)
+    public FeatureStage(IFileOperations fileOperations, IFeatureExtractor featureExtractor, IJsonCodec jsonCodec, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor)
     {
         this.fileOperations = fileOperations;
         this.featureExtractor = featureExtractor;
         this.jsonCodec = jsonCodec;
+        this.workPlanner = workPlanner;
+        this.workExecutor = workExecutor;
     }
 
     public string Name => "features";
@@ -27,62 +31,68 @@ public sealed class FeatureStage : IPipelineStage
     {
         var project = context.Run.Snapshot;
         var images = context.Images;
-        var store = context.Store;
         var cancellation = context.Cancellation;
         var featureUnits = new Dictionary<string, string>();
         var previewCount = context.Run.Artifacts.ContainsKey("featuresPreview")
             ? context.ReadArtifact<Dictionary<string, string>>("featuresPreview", "units.json").Count
             : 0;
-        foreach (var image in images)
+        var plan = workPlanner.Features(project.Settings, images);
+        workExecutor.Run(images.Count, plan.Workers, index => BuildImage(context, images[index]), (index, checkpoint) =>
         {
-            var inputs = new
-            {
-                image.Id,
-                image.SourceHash,
-                detectorVersion = 6,
-                project.Settings.ScaleInvariantFeatures,
-                project.Settings.DetectLines,
-                project.Settings.LineLimit,
-                project.Settings.LineMinimumLength,
-                project.Settings.LineGradientThreshold,
-                project.Settings.LineSplitRegions,
-                project.Settings.FeatureWidth,
-                project.Settings.FeatureLimit
-            };
-            FeatureSet? detected = null;
-            var unit = context.Build("feature-image", inputs, directory =>
-            {
-                detected = featureExtractor.Extract(store, image, project.Settings, cancellation);
-                fileOperations.AtomicJson(Path.Combine(directory, "features.json"), detected);
-            });
-            featureUnits[image.Id] = unit;
-            var reused = detected == null;
-            var features = detected ?? jsonCodec.Read<FeatureSet>(store.PathFor(unit + "/features.json"));
+            var image = images[index];
+            featureUnits[image.Id] = checkpoint.Artifact;
             if (featureUnits.Count > previewCount)
             {
                 PublishPreview(context, featureUnits);
                 previewCount = featureUnits.Count;
             }
-            var action = reused ? "Reused" : "Found";
+            var action = checkpoint.Reused ? "Reused" : "Found";
             context.Report("imageCheckpoint", new
             {
                 stage = "features",
                 imageId = image.Id,
                 imageName = image.Name,
-                pointCount = features.Features.Count,
-                lineCount = features.Lines.Count,
-                reused,
-                message = $"{image.Name} · {action} {features.Features.Count:N0} points and {features.Lines.Count:N0} line segments · {featureUnits.Count:N0}/{images.Count:N0} images ready",
+                pointCount = checkpoint.PointCount,
+                lineCount = checkpoint.LineCount,
+                reused = checkpoint.Reused,
+                message = $"{image.Name} · {action} {checkpoint.PointCount:N0} points and {checkpoint.LineCount:N0} line segments · {featureUnits.Count:N0}/{images.Count:N0} images ready",
                 completed = featureUnits.Count,
                 total = images.Count
             });
-        }
+        }, cancellation);
 
         var artifact = context.Build("features", featureUnits, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), featureUnits);
         });
         context.Publish("features", artifact);
+    }
+
+    private FeatureImageCheckpoint BuildImage(RunContext context, Photo image)
+    {
+        var settings = context.Run.Snapshot.Settings;
+        var inputs = new
+        {
+            image.Id,
+            image.SourceHash,
+            detectorVersion = 6,
+            settings.ScaleInvariantFeatures,
+            settings.DetectLines,
+            settings.LineLimit,
+            settings.LineMinimumLength,
+            settings.LineGradientThreshold,
+            settings.LineSplitRegions,
+            settings.FeatureWidth,
+            settings.FeatureLimit
+        };
+        FeatureSet? detected = null;
+        var unit = context.Build("feature-image", inputs, directory =>
+        {
+            detected = featureExtractor.Extract(context.Store, image, settings, context.Cancellation);
+            fileOperations.AtomicJson(Path.Combine(directory, "features.json"), detected);
+        });
+        var features = detected ?? jsonCodec.Read<FeatureSet>(context.Store.PathFor(unit + "/features.json"));
+        return new FeatureImageCheckpoint(unit, features.Features.Count, features.Lines.Count, detected == null);
     }
 
     private void PublishPreview(RunContext context, Dictionary<string, string> featureUnits)

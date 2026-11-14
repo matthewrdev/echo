@@ -10,17 +10,21 @@ namespace Echo.Pipeline;
 public sealed class MatchingStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
-    private readonly IJsonCodec jsonCodec;
     private readonly IFeatureMatcher featureMatcher;
     private readonly IImagePairSelector pairSelector;
+    private readonly IImageWorkPlanner workPlanner;
+    private readonly IOrderedWorkExecutor workExecutor;
+    private readonly IFeatureSetCacheFactory cacheFactory;
 
     [ImportingConstructor]
-    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IJsonCodec jsonCodec, IFeatureMatcher featureMatcher)
+    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IFeatureMatcher featureMatcher, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory)
     {
         this.fileOperations = fileOperations;
-        this.jsonCodec = jsonCodec;
         this.featureMatcher = featureMatcher;
         this.pairSelector = pairSelector;
+        this.workPlanner = workPlanner;
+        this.workExecutor = workExecutor;
+        this.cacheFactory = cacheFactory;
     }
 
     public string Name => "matching";
@@ -30,7 +34,6 @@ public sealed class MatchingStage : IPipelineStage
     {
         var project = context.Run.Snapshot;
         var images = context.Images;
-        var store = context.Store;
         var cancellation = context.Cancellation;
         var featureUnits = context.ReadArtifact<Dictionary<string, string>>("features", "units.json");
         var wanted = pairSelector.Select(project, images, featureUnits);
@@ -42,36 +45,11 @@ public sealed class MatchingStage : IPipelineStage
         context.ReportProgress("matching", $"Selected {wanted.Count:N0} image pairs using viewing overlap, spatial neighbours, capture sequence and hints.");
 
         var pairUnits = new List<string>();
-        // Bounded cache: features are small but do not retain every decoded source image.
-        foreach (var pair in wanted)
+        var plan = workPlanner.Matching(project.Settings, wanted.Count);
+        using var cache = cacheFactory.Create(plan.FeatureCacheBytes);
+        workExecutor.Run(wanted.Count, plan.Workers, index => BuildPair(context, wanted[index], photos, featureUnits, cache), (index, unit) =>
         {
-            var hints = project.Hints.Where(hint => AppliesToPair(hint, pair)).ToArray();
-            var unit = context.Build("match-pair", new
-            {
-                a = featureUnits[pair.A],
-                b = featureUnits[pair.B],
-                hints,
-                matcherVersion = 5,
-                project.Settings.MatchRatioThreshold,
-                project.Settings.MatchDistanceThreshold
-            }, dir =>
-                        {
-                            var a = jsonCodec.Read<FeatureSet>(store.PathFor(featureUnits[pair.A] + "/features.json"));
-                            var b = jsonCodec.Read<FeatureSet>(store.PathFor(featureUnits[pair.B] + "/features.json"));
-                            var matches = featureMatcher.Match(a, b, project.Settings, cancellation);
-                            foreach (var hint in hints)
-                            {
-                                matches.Matches.Add(new Match
-                                {
-                                    A = hint.ImageId == pair.A ? hint.Pixel! : hint.OtherPixel!,
-                                    B = hint.ImageId == pair.A ? hint.OtherPixel! : hint.Pixel!,
-                                    Manual = true
-                                });
-                            }
-
-                            ImagePairVerifier.Verify(photos[pair.A], photos[pair.B], matches, cancellation);
-                            fileOperations.AtomicJson(Path.Combine(dir, "pair.json"), matches);
-                        });
+            var pair = wanted[index];
             pairUnits.Add(unit);
             context.Report("pairCheckpoint", new
             {
@@ -81,7 +59,7 @@ public sealed class MatchingStage : IPipelineStage
                 completed = pairUnits.Count,
                 total = wanted.Count
             });
-        }
+        }, cancellation);
 
         context.Publish("matching", context.Build("matching", new
         {
@@ -99,6 +77,40 @@ public sealed class MatchingStage : IPipelineStage
             });
         }));
     }
+
+    private string BuildPair(RunContext context, PairIdentity pair, IReadOnlyDictionary<string, Photo> photos, IReadOnlyDictionary<string, string> featureUnits, FeatureSetCache cache)
+    {
+        var project = context.Run.Snapshot;
+        var cancellation = context.Cancellation;
+        var hints = project.Hints.Where(hint => AppliesToPair(hint, pair)).ToArray();
+        return context.Build("match-pair", new
+        {
+            a = featureUnits[pair.A],
+            b = featureUnits[pair.B],
+            hints,
+            matcherVersion = 5,
+            project.Settings.MatchRatioThreshold,
+            project.Settings.MatchDistanceThreshold
+        }, directory =>
+        {
+            var a = cache.Read(context.Store.PathFor(featureUnits[pair.A] + "/features.json"), cancellation);
+            var b = cache.Read(context.Store.PathFor(featureUnits[pair.B] + "/features.json"), cancellation);
+            var matches = featureMatcher.Match(a, b, project.Settings, cancellation);
+            foreach (var hint in hints)
+            {
+                matches.Matches.Add(new Match
+                {
+                    A = hint.ImageId == pair.A ? hint.Pixel! : hint.OtherPixel!,
+                    B = hint.ImageId == pair.A ? hint.OtherPixel! : hint.Pixel!,
+                    Manual = true
+                });
+            }
+
+            ImagePairVerifier.Verify(photos[pair.A], photos[pair.B], matches, cancellation);
+            fileOperations.AtomicJson(Path.Combine(directory, "pair.json"), matches);
+        });
+    }
+
     private bool AppliesToPair(Hint hint, PairIdentity pair)
     {
         var sameOrder = hint.ImageId == pair.A && hint.OtherImageId == pair.B;
