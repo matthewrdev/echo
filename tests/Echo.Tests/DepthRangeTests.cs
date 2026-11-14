@@ -26,12 +26,60 @@ public sealed class DepthRangeTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Nearly stationary camera pairs cannot collapse the automatic depth interval", () =>
+        {
+            var photo = new Photo { Id = "reference", Width = 800, Height = 600, FocalPixels = 600 };
+            var camera = new CameraPose { ImageId = photo.Id };
+            var scene = new ReconstructionScene
+            {
+                Cameras =
+                [
+                    camera,
+                    new CameraPose { ImageId = "other", Centre = [5, 0, 0] },
+                    new CameraPose { ImageId = "stationary", Centre = [.000001, 0, 0] }
+                ]
+            };
+            var project = new ProjectData { Images = [photo] };
+            for (var index = 0; index < 30; index++)
+            {
+                scene.Points.Add(Point(photo.Id, -20 + index, 0, 100));
+            }
+            var clean = ranges.Estimate(project, scene, photo, camera, default);
+            for (var index = 0; index < 12; index++)
+            {
+                // A separate image tile with several tiny-baseline observations
+                // used to override global trimming despite almost no parallax.
+                scene.Points.Add(Point(photo.Id, .02, .02, .1, "stationary"));
+            }
+            scene.Points.Add(Point(photo.Id, 0, 0, .001, "missing"));
+            scene.Points.Add(Point(photo.Id, 0, 0, .001, photo.Id));
+            var filtered = ranges.Estimate(project, scene, photo, camera, default);
+            Check(filtered.Near == clean.Near && filtered.Far == clean.Far && filtered.Median == clean.Median,
+                "Weak and missing-camera observations must not starve the real surface of search samples");
+            Check(filtered.SampleCount == 30 && filtered.RejectedObservations == 14, "Report excluded observations");
+
+            scene.Cameras.Add(new CameraPose { ImageId = "close", Centre = [.02, 0, 0] });
+            for (var index = 0; index < 12; index++)
+            {
+                scene.Points.Add(Point(photo.Id, .02, .02, .1, "close"));
+            }
+            var nearby = ranges.Estimate(project, scene, photo, camera, default);
+            Check(nearby.Near < .1 && nearby.Far == clean.Far,
+                "Genuinely close geometry with strong parallax must remain in the range; no metric near clamp");
+
+            scene.Points.RemoveRange(0, 30);
+            scene.Points.RemoveRange(14, 12);
+            var fallback = ranges.Estimate(project, scene, photo, camera, default);
+            Check(fallback.SampleCount == 0 && fallback.Source.Contains("fallback"),
+                "All-weak observations must fall back to capture bounds");
+        });
+
         tests.Run("Automatic depth includes a distant image region, rejects outliers and scales with the scene", () =>
         {
             var photo = new Photo { Id = "reference", Width = 800, Height = 600, FocalPixels = 600 };
             var project = new ProjectData { Images = [photo] };
             var camera = new CameraPose { ImageId = photo.Id };
-            var scene = new ReconstructionScene { Cameras = [camera, new CameraPose { Centre = [5, 0, 0] }] };
+            var scene = new ReconstructionScene { Cameras = [camera, new CameraPose { ImageId = "other", Centre = [5, 0, 0] }] };
             for (var index = 0; index < 1000; index++)
             {
                 scene.Points.Add(Point(photo.Id, -15, 0, 80));
@@ -70,7 +118,7 @@ public sealed class DepthRangeTests
             var project = new ProjectData();
             var photo = new Photo { Id = "reference", Width = 800, Height = 600, FocalPixels = 600 };
             var camera = new CameraPose { ImageId = photo.Id };
-            var scene = new ReconstructionScene { Cameras = [camera, new CameraPose { Centre = [300, 400, 0] }] };
+            var scene = new ReconstructionScene { Cameras = [camera, new CameraPose { ImageId = "other", Centre = [300, 400, 0] }] };
             var range = ranges.Estimate(project, scene, photo, camera, default);
             Check(range.Source.Contains("fallback") && range.Far > 500, "Capture extent supplies the fallback instead of 100 metres");
             using var cancellation = new CancellationTokenSource();
@@ -90,10 +138,11 @@ public sealed class DepthRangeTests
             var project = new ProjectData();
             var photo = new Photo { Id = "reference", Width = 800, Height = 600, FocalPixels = 600 };
             var camera = new CameraPose { ImageId = photo.Id };
-            var scene = new ReconstructionScene { Cameras = [camera, new CameraPose { Centre = [300, 400, 0] }] };
+            var scene = new ReconstructionScene { Cameras = [camera, new CameraPose { ImageId = "other", Centre = [300, 400, 0] }] };
+            scene.Cameras.Add(new CameraPose { ImageId = "remote", Centre = [-300, 400, 0] });
             for (var index = 0; index < 10000; index++)
             {
-                scene.Points.Add(Point("other", 0, 0, 200));
+                scene.Points.Add(Point("other", 0, 0, 200, "remote"));
             }
             for (var index = 0; index < 9; index++)
             {
@@ -119,6 +168,7 @@ public sealed class DepthRangeTests
                     "Concurrent images must not share mutable sample storage");
             });
             scene.Points.Clear();
+            scene.Cameras.RemoveAt(2);
             var empty = ranges.Estimate(project, scene, photo, camera, default);
             Check(empty.SampleCount == 0 && empty.Near == 10 && empty.Far == 2000,
                 "Empty scenes must use camera bounds, without reading stale pooled entries");
@@ -159,7 +209,7 @@ public sealed class DepthRangeTests
                 }
                 for (var index = 0; index < 20; index++)
                 {
-                    scene.Points.Add(Point("view0", -30 + index * 3, 0, 150));
+                    scene.Points.Add(Point("view0", -30 + index * 3, 0, 150, "view-8"));
                 }
                 var map = estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2);
                 var accepted = map.Depth.Where(value => value > 0).ToArray();
@@ -176,9 +226,9 @@ public sealed class DepthRangeTests
         });
     }
 
-    private CloudPoint Point(string imageId, double x, double y, double z)
+    private CloudPoint Point(string imageId, double x, double y, double z, string? otherImageId = null)
     {
-        return new CloudPoint { ImageA = imageId, Position = [x, y, z], Error = .5 };
+        return new CloudPoint { ImageA = imageId, ImageB = otherImageId ?? (imageId == "other" ? "reference" : "other"), Position = [x, y, z], Error = .5 };
     }
 
     private void Check(bool condition, string message)

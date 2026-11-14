@@ -62,12 +62,24 @@ public sealed class DepthRangeEstimator : IDepthRangeEstimator
         visibleCounts.Clear();
         var count = 0;
         var observedCount = 0;
+        var rejectedObservations = 0;
+        var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
+        foreach (var pose in scene.Cameras)
+        {
+            cameras.Add(pose.ImageId, pose);
+        }
         var projector = new CameraProjector(geometry, photo, camera);
         foreach (var point in scene.Points)
         {
             cancellation.ThrowIfCancellationRequested();
             if (!double.IsFinite(point.Error) || point.Error > 4)
             {
+                continue;
+            }
+
+            if (!HasReliableTriangulation(point, cameras))
+            {
+                rejectedObservations++;
                 continue;
             }
 
@@ -100,7 +112,10 @@ public sealed class DepthRangeEstimator : IDepthRangeEstimator
 
         if (count < 10)
         {
-            return FromCameraBounds(scene, cancellation);
+            return FromCameraBounds(scene, cancellation) with
+            {
+                RejectedObservations = rejectedObservations
+            };
         }
 
         var useObserved = observedCount >= 10;
@@ -128,7 +143,40 @@ public sealed class DepthRangeEstimator : IDepthRangeEstimator
         // Sample each image region independently: a densely matched foreground
         // must not trim away a smaller, more distant section of the same photo.
         var source = useObserved ? "automatic: observed scene points" : "automatic: scene points in camera view";
-        return FromTiles(samples, grouped[..sampleCount], counts, source, cancellation);
+        return FromTiles(samples, grouped[..sampleCount], counts, source, cancellation)
+            with
+        {
+            RejectedObservations = rejectedObservations
+        };
+    }
+
+    private bool HasReliableTriangulation(CloudPoint point, Dictionary<string, CameraPose> cameras)
+    {
+        if (!cameras.TryGetValue(point.ImageA, out var first) || !cameras.TryGetValue(point.ImageB, out var second))
+        {
+            return false;
+        }
+
+        var position = new V3(point.Position);
+        var a = position - new V3(first.Centre);
+        var b = position - new V3(second.Centre);
+        var firstDepth = first.Rotation[2] * a.X + first.Rotation[5] * a.Y + first.Rotation[8] * a.Z;
+        var secondDepth = second.Rotation[2] * b.X + second.Rotation[5] * b.Y + second.Rotation[8] * b.Z;
+        if (firstDepth <= 0 || secondDepth <= 0)
+        {
+            return false;
+        }
+
+        // Low reprojection error alone does not constrain depth when the cameras
+        // barely moved. Require half a degree of triangulation parallax before
+        // allowing a point to set the inverse-depth search interval. Comparing
+        // squared sine avoids normalisation, square roots and acos per point.
+        const double minimumSineSquared = .00007615242180438042;
+        var cross = a.Cross(b);
+        var lengthProduct = a.Dot(a) * b.Dot(b);
+        var crossSquared = cross.Dot(cross);
+        var finiteRays = double.IsFinite(lengthProduct) && lengthProduct > 0;
+        return finiteRays && crossSquared >= minimumSineSquared * lengthProduct;
     }
 
     private DepthSearchRange FromTiles(Span<double> samples, Span<double> grouped, ReadOnlySpan<int> counts,

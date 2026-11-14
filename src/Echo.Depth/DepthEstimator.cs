@@ -37,6 +37,10 @@ public sealed class DepthEstimator : IDepthEstimator
         var photo = FindPhoto(project.Images, camera.ImageId);
         var range = rangeEstimator.Estimate(project, scene, photo, camera, cancellation);
         progress?.Invoke($"Depth range {range.Near:F2}–{range.Far:F2} ({range.Source}, {range.SampleCount:N0} scene samples; metres when georeferenced)");
+        if (range.RejectedObservations > 0)
+        {
+            progress?.Invoke($"Depth range excluded {range.RejectedObservations:N0} sparse points with missing cameras, invalid geometry or less than 0.5° triangulation parallax");
+        }
         var selected = neighbourSelector.Select(scene, camera, range.Median, project.Settings.DepthNeighbours, cancellation);
         var neighbours = new DepthNeighbour[selected.Length];
         for (var index = 0; index < selected.Length; index++)
