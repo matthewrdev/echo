@@ -60,10 +60,12 @@ final class SavedDepthArtifactReaderTests: XCTestCase {
         let root = URL(fileURLWithPath: path)
         let run = try JSONDecoder().decode(
             RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(id)/run.json")))
+        let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
-            featureMatches: FeatureMatchIndexer(),
-            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer()))
+            featureMatches: FeatureMatchIndexer(json: json),
+            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
+            json: json)
         let units = try await reader.units(root: root, run: run, stage: .depth)
         for unit in units.prefix(3) {
             let start = Date()

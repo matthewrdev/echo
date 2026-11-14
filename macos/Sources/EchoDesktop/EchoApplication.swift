@@ -16,10 +16,12 @@ struct EchoApplication: App {
             wrappedValue: RuntimeInfoViewModel(
                 cli: cli,
                 native: NativeRuntimeInfo(bundle: .main, processorURL: options.cli), clipboard: SystemTextClipboard()))
+        let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
-            featureMatches: FeatureMatchIndexer(),
-            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer()))
+            featureMatches: FeatureMatchIndexer(json: json),
+            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
+            json: json)
         let formatter = RunEventFormatter()
         let workspace = WorkspaceViewModel(
             client: projects, project: options.project, logReader: RunLogReader(formatter: formatter),

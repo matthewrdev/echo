@@ -1,11 +1,13 @@
 import AppKit
 
 actor SavedDepthArtifactReader {
+    private let json: ArtifactJSONReader
     private let maps: DepthMapReader
     private let images: ArtifactImageRenderer
     private var cache: [CachedDepthArtifact] = []
 
-    init(maps: DepthMapReader, images: ArtifactImageRenderer) {
+    init(maps: DepthMapReader, images: ArtifactImageRenderer, json: ArtifactJSONReader = ArtifactJSONReader()) {
+        self.json = json
         self.maps = maps
         self.images = images
     }
@@ -48,7 +50,7 @@ actor SavedDepthArtifactReader {
         let map = try maps.read(file)
         let image = NSImage(contentsOf: photograph)
         let metadata: ReconstructionMetadata? = alignment.flatMap { file in
-            try? JSONDecoder().decode(ReconstructionMetadata.self, from: Data(contentsOf: file, options: .mappedIfSafe))
+            try? json.read(file)
         }
         let depth = try DepthImagePresentation(
             identity: file.path, overlay: images.depth(map, confidence: false), photograph: image,

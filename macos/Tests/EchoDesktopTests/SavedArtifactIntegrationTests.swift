@@ -16,10 +16,12 @@ final class SavedArtifactIntegrationTests: XCTestCase {
         let root = URL(fileURLWithPath: projectPath)
         let runFile = root.appendingPathComponent("runs/\(runID)/run.json")
         let run = try JSONDecoder().decode(RunData.self, from: Data(contentsOf: runFile))
+        let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
-            featureMatches: FeatureMatchIndexer(),
-            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer()))
+            featureMatches: FeatureMatchIndexer(json: json),
+            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
+            json: json)
         XCTAssertFalse(run.snapshot.images.isEmpty)
 
         for stage in PipelineStage.allCases {

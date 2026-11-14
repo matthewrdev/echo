@@ -63,11 +63,11 @@ struct SparseObservationView: View {
             if loaded == nil { error = "Cannot open \(photo.name)." }
             if let path = data.featureFiles[photo.id] {
                 let pixel = observation.pixel
+                let json = data.json
                 let found = await Task.detached(priority: .userInitiated) {
                     guard
-                        let bytes = try? Data(
-                            contentsOf: root.appendingPathComponent(path).appendingPathComponent("features.json")),
-                        let set = try? JSONDecoder().decode(FeatureSet.self, from: bytes)
+                        let set: FeatureSet = try? json.read(
+                            root.appendingPathComponent(path).appendingPathComponent("features.json"))
                     else { return Optional<ImageFeature>.none }
                     return set.features.first { abs($0.x - pixel[0]) < 0.1 && abs($0.y - pixel[1]) < 0.1 }
                 }.value

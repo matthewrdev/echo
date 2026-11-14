@@ -1,10 +1,14 @@
 import Foundation
 
 final class FeatureMatchIndexer {
+    private let json: ArtifactJSONReader
+
+    init(json: ArtifactJSONReader) { self.json = json }
+
     func read(root: URL, run: RunData, features: FeatureSet) throws -> [FeatureMatchLink] {
         guard let matching = run.artifacts["matching"] else { return [] }
         let file = root.appendingPathComponent(matching).appendingPathComponent("units.json")
-        let units = try JSONDecoder().decode([String].self, from: Data(contentsOf: file))
+        let units: [String] = try json.read(file)
         var lookup: [PixelCoordinate: Int] = [:]
         for (index, feature) in features.features.enumerated() {
             lookup[PixelCoordinate(x: feature.x, y: feature.y)] = index
@@ -13,8 +17,10 @@ final class FeatureMatchIndexer {
         var links: [FeatureMatchLink] = []
         for unit in units {
             let path = root.appendingPathComponent(unit).appendingPathComponent("pair.json")
-            let pair = try JSONDecoder().decode(ImagePair.self, from: Data(contentsOf: path))
-            guard pair.a == features.imageId || pair.b == features.imageId else { continue }
+            try Task.checkCancellation()
+            let summary: ImagePairSummary = try json.read(path)
+            guard summary.a == features.imageId || summary.b == features.imageId else { continue }
+            let pair: ImagePair = try json.read(path)
             let isFirst = pair.a == features.imageId
             for (index, match) in (pair.lineMatches ?? []).enumerated() {
                 let otherID = isFirst ? pair.b : pair.a

@@ -6,17 +6,19 @@ final class SavedArtifactReader: ArtifactReader {
     private let images: ArtifactImageRenderer
     private let glb: GlbAssetReader
     private let featureMatches: FeatureMatchIndexer
+    private let json: ArtifactJSONReader
     private let depths: SavedDepthArtifactReader
 
     init(
         scenes: NativeSceneFactory, images: ArtifactImageRenderer, glb: GlbAssetReader,
-        featureMatches: FeatureMatchIndexer, depths: SavedDepthArtifactReader
+        featureMatches: FeatureMatchIndexer, depths: SavedDepthArtifactReader, json: ArtifactJSONReader
     ) {
         self.featureMatches = featureMatches
         self.scenes = scenes
         self.images = images
         self.glb = glb
         self.depths = depths
+        self.json = json
     }
 
     func units(root: URL, run: RunData, stage: PipelineStage) async throws -> [ArtifactUnit] {
@@ -48,8 +50,8 @@ final class SavedArtifactReader: ArtifactReader {
             let paths: [String] = try read(folder.appendingPathComponent("units.json"))
             return try paths.map { path in
                 let file = root.appendingPathComponent(path).appendingPathComponent("pair.json")
-                let pair: ImagePair = try read(file)
-                return unit(path, file: file, imageIDs: [pair.a, pair.b], detail: "\(pair.matches.count) candidates")
+                let pair: ImagePairSummary = try read(file)
+                return unit(path, file: file, imageIDs: [pair.a, pair.b], detail: "\(pair.count) candidates")
             }
         }
         if stage == .depth, let alignment = run.artifacts["alignment"] {
@@ -184,7 +186,12 @@ final class SavedArtifactReader: ArtifactReader {
         case .alignment, .cloud, .mesh:
             let alignmentPath = run.artifacts["alignment"] ?? run.artifacts["alignmentPreview"]
             let reconstruction: ReconstructionScene? = try alignmentPath.map {
-                try read(root.appendingPathComponent($0).appendingPathComponent("scene.json"))
+                let file = root.appendingPathComponent($0).appendingPathComponent("scene.json")
+                if stage == .alignment { return try read(file) }
+                let metadata: ReconstructionMetadata = try read(file)
+                return ReconstructionScene(
+                    frame: metadata.frame, origin: metadata.origin, cameras: metadata.cameras,
+                    points: [], unplaced: [], warnings: [])
             }
             var points = reconstruction?.points ?? []
             var detail = "\(points.count.formatted()) sparse points · \(reconstruction?.cameras.count ?? 0) cameras"
@@ -243,7 +250,7 @@ final class SavedArtifactReader: ArtifactReader {
                         try read(root.appendingPathComponent($0).appendingPathComponent("units.json"))
                     } ?? [:]
                 inspection = SparseInspectionData(
-                    root: root, scene: reconstruction, photos: photos, featureFiles: featureFiles)
+                    root: root, scene: reconstruction, photos: photos, featureFiles: featureFiles, json: json)
             }
             return ArtifactPresentation(
                 title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue,
@@ -253,6 +260,6 @@ final class SavedArtifactReader: ArtifactReader {
     }
 
     private func read<T: Decodable>(_ file: URL) throws -> T {
-        try JSONDecoder().decode(T.self, from: Data(contentsOf: file, options: .mappedIfSafe))
+        try json.read(file)
     }
 }

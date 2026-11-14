@@ -124,10 +124,12 @@ final class SceneInspectionTests: XCTestCase {
         let root = URL(fileURLWithPath: path)
         let run = try JSONDecoder().decode(
             RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(runID)/run.json")))
+        let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
-            featureMatches: FeatureMatchIndexer(),
-            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer()))
+            featureMatches: FeatureMatchIndexer(json: json),
+            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
+            json: json)
         let presentation = try await reader.load(
             root: root, run: run, stage: .alignment, unit: nil, mode: "", slice: 0.5)
         let inspection = try XCTUnwrap(presentation.sparseInspection)

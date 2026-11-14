@@ -1,6 +1,7 @@
 import Foundation
 
 struct SparseInspectionData {
+    let json: ArtifactJSONReader
     let root: URL
     let photos: [String: Photo]
     let cameras: [String: CameraPose]
@@ -8,7 +9,11 @@ struct SparseInspectionData {
     let cameraTracks: [String: [Int]]
     let featureFiles: [String: String]
 
-    init(root: URL, scene: ReconstructionScene, photos: [Photo], featureFiles: [String: String]) {
+    init(
+        root: URL, scene: ReconstructionScene, photos: [Photo], featureFiles: [String: String],
+        json: ArtifactJSONReader = ArtifactJSONReader()
+    ) {
+        self.json = json
         self.root = root
         self.photos = Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) })
         cameras = Dictionary(uniqueKeysWithValues: scene.cameras.map { ($0.imageId, $0) })
