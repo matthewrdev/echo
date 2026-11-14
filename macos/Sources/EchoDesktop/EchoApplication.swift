@@ -18,7 +18,8 @@ struct EchoApplication: App {
                 native: NativeRuntimeInfo(bundle: .main, processorURL: options.cli), clipboard: SystemTextClipboard()))
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
-            featureMatches: FeatureMatchIndexer())
+            featureMatches: FeatureMatchIndexer(),
+            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer()))
         let formatter = RunEventFormatter()
         let workspace = WorkspaceViewModel(
             client: projects, project: options.project, logReader: RunLogReader(formatter: formatter),

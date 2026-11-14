@@ -6,15 +6,17 @@ final class SavedArtifactReader: ArtifactReader {
     private let images: ArtifactImageRenderer
     private let glb: GlbAssetReader
     private let featureMatches: FeatureMatchIndexer
+    private let depths: SavedDepthArtifactReader
 
     init(
         scenes: NativeSceneFactory, images: ArtifactImageRenderer, glb: GlbAssetReader,
-        featureMatches: FeatureMatchIndexer
+        featureMatches: FeatureMatchIndexer, depths: SavedDepthArtifactReader
     ) {
         self.featureMatches = featureMatches
         self.scenes = scenes
         self.images = images
         self.glb = glb
+        self.depths = depths
     }
 
     func units(root: URL, run: RunData, stage: PipelineStage) async throws -> [ArtifactUnit] {
@@ -60,7 +62,7 @@ final class SavedArtifactReader: ArtifactReader {
                 }.sorted { $0.title < $1.title }
             }
             let paths: [String] = try read(folder.appendingPathComponent("units.json"))
-            let scene: ReconstructionScene = try read(
+            let scene: ReconstructionMetadata = try read(
                 root.appendingPathComponent(alignment).appendingPathComponent("scene.json"))
             // DepthStage writes checkpoints in reconstruction camera order.
             guard paths.count == scene.cameras.count else {
@@ -82,7 +84,7 @@ final class SavedArtifactReader: ArtifactReader {
         async throws -> ArtifactPresentation
     {
         let task = Task.detached(priority: .userInitiated) {
-            try self.loadSaved(
+            try await self.loadSaved(
                 root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice, cloudDetail: cloudDetail)
         }
         return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
@@ -91,7 +93,7 @@ final class SavedArtifactReader: ArtifactReader {
     private func loadSaved(
         root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double,
         cloudDetail: CloudDisplayDetail
-    ) throws -> ArtifactPresentation {
+    ) async throws -> ArtifactPresentation {
         guard let path = run.artifacts[stage.rawValue] ?? run.artifacts[stage.rawValue + "Preview"] else {
             throw CLIError(message: "This stage has no saved artifact yet.")
         }
@@ -109,10 +111,10 @@ final class SavedArtifactReader: ArtifactReader {
         }
         func metricScale() -> Bool {
             guard let alignment = run.artifacts["alignment"],
-                let scene: ReconstructionScene = try? read(
+                let scene: ReconstructionMetadata = try? read(
                     root.appendingPathComponent(alignment).appendingPathComponent("scene.json"))
             else { return false }
-            return scene.origin != nil && !scene.frame.contains("arbitrary")
+            return scene.isMetric
         }
         switch stage {
         case .features:
@@ -145,18 +147,7 @@ final class SavedArtifactReader: ArtifactReader {
                     first: first, second: second, firstImage: left, secondImage: right, matches: pair.displayMatches,
                     diagnostics: pair.diagnostics))
         case .depth:
-            let map: DepthMap = try read(unitFile())
-            let photograph = try photo(map.imageId)
-            let overlay = try images.depth(map, confidence: mode == "Confidence")
-            let presentation = DepthImagePresentation(
-                identity: try unitFile().path, overlay: overlay,
-                photograph: NSImage(contentsOf: root.appendingPathComponent(photograph.source)),
-                map: map, isMetric: metricScale())
-            return ArtifactPresentation(
-                title: photograph.name,
-                detail:
-                    "\(map.width) × \(map.height) · \(presentation.quality.coverage.formatted(.percent.precision(.fractionLength(2)))) accepted depth",
-                depthImage: presentation)
+            return try await depths.load(root: root, run: run, unit: unit, mode: mode)
         case .fusion:
             let volume: FusedVolume = try read(folder.appendingPathComponent("volume.preview.json"))
             return ArtifactPresentation(

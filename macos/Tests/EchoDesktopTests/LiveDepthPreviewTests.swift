@@ -15,7 +15,8 @@ final class LiveDepthPreviewTests: XCTestCase {
             RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(id)/run.json")))
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
-            featureMatches: FeatureMatchIndexer())
+            featureMatches: FeatureMatchIndexer(),
+            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer()))
         let saved = try await reader.units(root: root, run: run, stage: .depth)
         XCTAssertGreaterThanOrEqual(saved.count, 2)
         let completed = Array(saved.reversed().prefix(2))

@@ -70,7 +70,8 @@ final class DenseCloudPreviewTests: XCTestCase {
             RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(id)/run.json")))
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
-            featureMatches: FeatureMatchIndexer())
+            featureMatches: FeatureMatchIndexer(),
+            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer()))
         let presentation = try await reader.load(
             root: root, run: run, stage: .cloud, unit: nil, mode: "All support", slice: 0.5,
             cloudDetail: .pointLimit(500_000))

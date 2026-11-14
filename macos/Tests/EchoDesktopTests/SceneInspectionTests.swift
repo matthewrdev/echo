@@ -126,7 +126,8 @@ final class SceneInspectionTests: XCTestCase {
             RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(runID)/run.json")))
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
-            featureMatches: FeatureMatchIndexer())
+            featureMatches: FeatureMatchIndexer(),
+            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer()))
         let presentation = try await reader.load(
             root: root, run: run, stage: .alignment, unit: nil, mode: "", slice: 0.5)
         let inspection = try XCTUnwrap(presentation.sparseInspection)
