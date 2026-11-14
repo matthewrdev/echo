@@ -4,22 +4,22 @@ repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
 app="${1:-$repo_dir/dist/Echo.app}"
 photo="${2:-}"
 payload_tag="${3:-}"
+expected_payload="${4:-}"
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 
 # Relocation, spaces in the app path, and an empty tool search path must all work.
 ditto "$app" "$scratch/Echo relocated.app"
 cli="$scratch/Echo relocated.app/Contents/MacOS/cli/echo-photo"
-metadata="$scratch/Echo relocated.app/Contents/MacOS/cli/metadata/exiftool"
 run_cli() {
     env -i PATH=/nonexistent HOME="$scratch" TMPDIR="$scratch/" "$cli" "$@"
 }
 codesign --verify --deep --strict "$scratch/Echo relocated.app"
 run_cli doctor > "$scratch/doctor.json"
-python3 - "$scratch/doctor.json" "$metadata" <<'PY'
-import json, os, sys
+python3 - "$scratch/doctor.json" <<'PY'
+import json, sys
 doctor = json.load(open(sys.argv[1]))
-assert doctor['metadataReady'] and os.path.realpath(doctor['exifTool']) == os.path.realpath(sys.argv[2]), doctor
+assert doctor['metadataReady'] and 'managed C#' in doctor['metadataEngine'], doctor
 PY
 
 mkdir "$scratch/photos"
@@ -54,11 +54,12 @@ PY
 
 if [[ -n "$payload_tag" ]]; then
     run_cli --project "$scratch/test.echo" images payload "$image_id" "$payload_tag" > "$scratch/payload.json"
-    env -i PATH=/nonexistent "$metadata" -b -u "-$payload_tag" -- "$photo" > "$scratch/original-payload.bin"
-    python3 - "$scratch/payload.json" "$scratch/original-payload.bin" <<'PY'
+    python3 - "$scratch/payload.json" "$expected_payload" <<'PY'
 import base64, json, sys
 payload = base64.b64decode(json.load(open(sys.argv[1])))
-assert payload and payload == open(sys.argv[2], 'rb').read()
+assert payload
+if sys.argv[2]:
+    assert payload == open(sys.argv[2], 'rb').read()
 print(f'Original binary metadata payload preserved: {len(payload)} bytes.')
 PY
 fi

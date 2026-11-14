@@ -31,7 +31,7 @@ To build a standalone Release app:
 open dist/Echo.app
 ```
 
-The package includes .NET, ExifTool and its Perl runtime: users do not need Homebrew or any separate runtime installation. The first source build downloads and compiles pinned metadata dependencies. Pass `osx-x64` to package for Intel; the default is Apple Silicon. Local builds are ad-hoc signed, not notarised.
+The package includes .NET and reads photo metadata directly in C#. Users do not need Homebrew, ExifTool, Perl or any separate runtime installation. Pass `osx-x64` to package for Intel; the default is Apple Silicon. Local builds are ad-hoc signed, not notarised.
 
 ## Automate with the CLI
 

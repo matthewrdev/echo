@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
-if [[ "$(uname -s)" == Darwin && -z "${ECHO_EXIFTOOL:-}" ]]; then
-    metadata_runtime=osx-arm64
-    if [[ "$(uname -m)" == x86_64 ]]; then metadata_runtime=osx-x64; fi
-    export ECHO_EXIFTOOL="$(bash "$repo_dir/scripts/build-metadata-tool.sh" "$metadata_runtime")/exiftool"
-fi
 cli_dll="$repo_dir/src/Echo.Cli/bin/Release/net10.0/echo-photo.dll"
 if [[ ! -f "$cli_dll" ]]; then
   dotnet build "$repo_dir/src/Echo.Cli/Echo.Cli.csproj" -c Release --nologo -m:1 >&2
