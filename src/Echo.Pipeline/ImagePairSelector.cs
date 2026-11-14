@@ -7,14 +7,9 @@ namespace Echo.Pipeline;
 [Export(typeof(IImagePairSelector)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ImagePairSelector : IImagePairSelector
 {
-    private readonly ICameraGeometry geometry;
-    private readonly IFrustumOverlap overlap;
-
     [ImportingConstructor]
-    public ImagePairSelector(ICameraGeometry geometry, IFrustumOverlap overlap)
+    public ImagePairSelector()
     {
-        this.geometry = geometry;
-        this.overlap = overlap;
     }
 
     public IReadOnlyList<PairIdentity> Select(ProjectData project, IReadOnlyList<Photo> images, IReadOnlyDictionary<string, string> featureUnits)
@@ -79,7 +74,7 @@ public sealed class ImagePairSelector : IImagePairSelector
                     var distanceSquared = delta.X * delta.X + delta.Z * delta.Z + (comparableAltitude ? delta.Y * delta.Y : 0);
                     var bothViewsAvailable = source.Frustum != null && target.Frustum != null;
                     var canCompareViews = comparableAltitude && bothViewsAvailable && project.Settings.FrustumPairNeighbours > 0;
-                    var score = canCompareViews ? overlap.Score(source.Frustum!, target.Frustum!) : 0;
+                    var score = canCompareViews ? FrustumOverlap.Score(source.Frustum!, target.Frustum!) : 0;
                     var differentElevation = comparableAltitude && Math.Abs(delta.Y) >= 3;
                     var differentTilt = source.Attitude != null && target.Attitude != null
                         && Math.Abs(source.Attitude.Pitch - target.Attitude.Pitch) >= 8;
@@ -162,13 +157,13 @@ public sealed class ImagePairSelector : IImagePairSelector
             var position = prior.Position;
             var attitude = prior.Attitude;
             origin ??= position;
-            var centre = position == null ? default : geometry.ToLocal(position, origin!);
+            var centre = position == null ? default : CameraGeometry.ToLocal(position, origin!);
             CaptureFrustum? frustum = null;
             var located = position?.Altitude != null && attitude != null;
             var validIntrinsics = photo.Width > 0 && photo.Height > 0 && photo.FocalPixels > 0;
             if (located && validIntrinsics)
             {
-                frustum = new CaptureFrustum(centre, geometry.AttitudeRotation(attitude!),
+                frustum = new CaptureFrustum(centre, CameraGeometry.AttitudeRotation(attitude!),
                     photo.Width / (2 * photo.FocalPixels), photo.Height / (2 * photo.FocalPixels),
                     project.Settings.PairSearchDistance, position!.UncertaintyMetres);
             }

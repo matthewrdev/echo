@@ -1,27 +1,17 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace Echo.Reconstruction;
 
-[Export(typeof(ICameraRegistrar)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class CameraRegistrar : ICameraRegistrar
+public static class CameraRegistrar
 {
-    private readonly ICameraGeometry cameraGeometry;
-
-    [ImportingConstructor]
-    public CameraRegistrar(ICameraGeometry cameraGeometry)
-    {
-        this.cameraGeometry = cameraGeometry;
-    }
-
-    public CameraPose? Register(Photo photo, List<ImagePair> pairs, List<CloudPoint> points)
+    public static CameraPose? Register(Photo photo, List<ImagePair> pairs, List<CloudPoint> points)
     {
         return Register(photo, CollectObservations(photo.Id, pairs, points));
     }
 
-    private List<Observation> CollectObservations(string imageId, List<ImagePair> pairs, List<CloudPoint> points)
+    private static List<Observation> CollectObservations(string imageId, List<ImagePair> pairs, List<CloudPoint> points)
     {
         var lookup = new Dictionary<string, double[]>();
         string Key(string image, double[] pixel) => $"{image}:{Math.Round(pixel[0], 1)}:{Math.Round(pixel[1], 1)}";
@@ -62,7 +52,7 @@ public sealed class CameraRegistrar : ICameraRegistrar
         return observations;
     }
 
-    private CameraPose? Register(Photo photo, List<Observation> observations)
+    private static CameraPose? Register(Photo photo, List<Observation> observations)
     {
         if (observations.Count < 8)
         {
@@ -83,12 +73,12 @@ public sealed class CameraRegistrar : ICameraRegistrar
                 continue;
             }
 
-            var projection = new CameraProjector(cameraGeometry, photo, pose);
+            var projection = new CameraProjector(photo, pose);
             inliers.Clear();
             foreach (var observation in observations)
             {
                 var p = projection.Project(new V3(observation.Point));
-                if (p.HasValue && Math.Sqrt(cameraGeometry.Square(p.Value.X - observation.Pixel[0]) + cameraGeometry.Square(p.Value.Y - observation.Pixel[1])) < 10)
+                if (p.HasValue && Math.Sqrt(CameraGeometry.Square(p.Value.X - observation.Pixel[0]) + CameraGeometry.Square(p.Value.Y - observation.Pixel[1])) < 10)
                 {
                     inliers.Add(observation);
                 }
@@ -105,7 +95,7 @@ public sealed class CameraRegistrar : ICameraRegistrar
         return bestInliers.Count >= 8 ? FitPose(photo, bestInliers) ?? best : null;
     }
 
-    private CameraPose? FitPose(Photo photo, IReadOnlyList<Observation> observations)
+    private static CameraPose? FitPose(Photo photo, IReadOnlyList<Observation> observations)
     {
         var mean = new V3();
         foreach (var observation in observations)
@@ -130,7 +120,7 @@ public sealed class CameraRegistrar : ICameraRegistrar
         for (var i = 0; i < observations.Count; i++)
         {
             var p = (new V3(observations[i].Point) - mean) / scale;
-            var ray = cameraGeometry.Ray(photo, observations[i].Pixel);
+            var ray = CameraGeometry.Ray(photo, observations[i].Pixel);
             x[0] = p.X;
             x[1] = p.Y;
             x[2] = p.Z;

@@ -14,24 +14,20 @@ namespace Echo.Benchmarks;
 [Export]
 public sealed class CrossPassBenchmark
 {
-    private readonly IScaleSpaceFeatures scaleFeatures;
     private readonly IFeatureExtractor legacyFeatures;
     private readonly IRasterImageService images;
     private readonly IFeatureMatcher matcher;
-    private readonly ICameraGeometry geometry;
     private readonly IGuidedFeatureMatcher guided;
     private readonly IProjectStoreFactory stores;
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
 
     [ImportingConstructor]
-    public CrossPassBenchmark(IScaleSpaceFeatures scaleFeatures, IFeatureExtractor legacyFeatures, IRasterImageService images, IFeatureMatcher matcher, ICameraGeometry geometry, IProjectStoreFactory stores, IFileOperations files, IJsonCodec json, IGuidedFeatureMatcher guided)
+    public CrossPassBenchmark(IFeatureExtractor legacyFeatures, IRasterImageService images, IFeatureMatcher matcher, IProjectStoreFactory stores, IFileOperations files, IJsonCodec json, IGuidedFeatureMatcher guided)
     {
-        this.scaleFeatures = scaleFeatures;
         this.legacyFeatures = legacyFeatures;
         this.images = images;
         this.matcher = matcher;
-        this.geometry = geometry;
         this.stores = stores;
         this.files = files;
         this.json = json;
@@ -74,7 +70,7 @@ public sealed class CrossPassBenchmark
                 {
                     using var bitmap = SKBitmap.Decode(store.PathFor(photo.Source));
                     var gray = images.ResizeGray(bitmap, settings.FeatureWidth);
-                    set = new FeatureSet { ImageId = photo.Id, Features = scaleFeatures.Detect(gray.Pixels, gray.Width, gray.Height, settings.FeatureLimit, default) };
+                    set = new FeatureSet { ImageId = photo.Id, Features = ScaleSpaceFeatures.Detect(gray.Pixels, gray.Width, gray.Height, settings.FeatureLimit, default) };
                     foreach (var feature in set.Features)
                     {
                         feature.X *= (double)photo.Width / gray.Width;
@@ -92,7 +88,7 @@ public sealed class CrossPassBenchmark
                 var pair = matcher.Match(features[0], features[index], settings, default);
                 var matchingSeconds = watch.Elapsed.TotalSeconds;
                 watch.Restart();
-                var relative = geometry.EstimateRelative(photos[0], photos[index], pair.Matches);
+                var relative = CameraGeometry.EstimateRelative(photos[0], photos[index], pair.Matches);
                 var verified = FundamentalMatrixEstimator.Estimate(pair.Matches, 4, default);
                 var recovered = guided.Recover(features[0], features[index], pair.Matches, settings, 4, default);
                 var result = new

@@ -10,15 +10,13 @@ namespace Echo.Tests;
 [Export]
 public sealed class DepthRangeTests
 {
-    private readonly IDepthRangeEstimator ranges;
     private readonly IDepthEstimator estimator;
     private readonly IProjectStoreFactory stores;
     private readonly IRasterImageService images;
 
     [ImportingConstructor]
-    public DepthRangeTests(IDepthRangeEstimator ranges, IDepthEstimator estimator, IProjectStoreFactory stores, IRasterImageService images)
+    public DepthRangeTests(IDepthEstimator estimator, IProjectStoreFactory stores, IRasterImageService images)
     {
-        this.ranges = ranges;
         this.estimator = estimator;
         this.stores = stores;
         this.images = images;
@@ -44,7 +42,7 @@ public sealed class DepthRangeTests
             {
                 scene.Points.Add(Point(photo.Id, -20 + index, 0, 100));
             }
-            var clean = ranges.Estimate(project, scene, photo, camera, default);
+            var clean = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             for (var index = 0; index < 12; index++)
             {
                 // A separate image tile with several tiny-baseline observations
@@ -53,7 +51,7 @@ public sealed class DepthRangeTests
             }
             scene.Points.Add(Point(photo.Id, 0, 0, .001, "missing"));
             scene.Points.Add(Point(photo.Id, 0, 0, .001, photo.Id));
-            var filtered = ranges.Estimate(project, scene, photo, camera, default);
+            var filtered = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(filtered.Near == clean.Near && filtered.Far == clean.Far && filtered.Median == clean.Median,
                 "Weak and missing-camera observations must not starve the real surface of search samples");
             Check(filtered.SampleCount == 30 && filtered.RejectedObservations == 14, "Report excluded observations");
@@ -63,13 +61,13 @@ public sealed class DepthRangeTests
             {
                 scene.Points.Add(Point(photo.Id, .02, .02, .1, "close"));
             }
-            var nearby = ranges.Estimate(project, scene, photo, camera, default);
+            var nearby = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(nearby.Near < .1 && nearby.Far == clean.Far,
                 "Genuinely close geometry with strong parallax must remain in the range; no metric near clamp");
 
             scene.Points.RemoveRange(0, 30);
             scene.Points.RemoveRange(14, 12);
-            var fallback = ranges.Estimate(project, scene, photo, camera, default);
+            var fallback = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(fallback.SampleCount == 0 && fallback.Source.Contains("fallback"),
                 "All-weak observations must fall back to capture bounds");
         });
@@ -92,7 +90,7 @@ public sealed class DepthRangeTests
             scene.Points.Add(Point(photo.Id, 0, 0, -100));
             scene.Points.Add(Point(photo.Id, 500, 0, 100));
             scene.Points.Add(new CloudPoint { ImageA = photo.Id, Position = [0, 0, 9000], Error = 50 });
-            var range = ranges.Estimate(project, scene, photo, camera, default);
+            var range = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(range.Near < 80 && range.Far > 220, "Both near and distant regions must be searched");
             Check(range.Far < 400, "Outliers, points behind the camera and points outside its view must not expand the interval");
             foreach (var point in scene.Points)
@@ -103,13 +101,13 @@ public sealed class DepthRangeTests
             {
                 pose.Centre = pose.Centre.Select(value => value * 10).ToArray();
             }
-            var scaled = ranges.Estimate(project, scene, photo, camera, default);
+            var scaled = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(Math.Abs(scaled.Near - range.Near * 10) < 1e-8, "Near range follows scene scale");
             Check(Math.Abs(scaled.Far - range.Far * 10) < 1e-8, "Far range has no fixed metric ceiling");
             project.Settings.DepthRangeAutomatic = false;
             project.Settings.DepthNear = 7;
             project.Settings.DepthFar = 6000;
-            var manual = ranges.Estimate(project, scene, photo, camera, default);
+            var manual = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(manual.Near == 7 && manual.Far == 6000, "Manual bounds are used exactly, without percentile narrowing");
         });
 
@@ -119,13 +117,13 @@ public sealed class DepthRangeTests
             var photo = new Photo { Id = "reference", Width = 800, Height = 600, FocalPixels = 600 };
             var camera = new CameraPose { ImageId = photo.Id };
             var scene = new ReconstructionScene { Cameras = [camera, new CameraPose { ImageId = "other", Centre = [300, 400, 0] }] };
-            var range = ranges.Estimate(project, scene, photo, camera, default);
+            var range = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(range.Source.Contains("fallback") && range.Far > 500, "Capture extent supplies the fallback instead of 100 metres");
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
             try
             {
-                ranges.Estimate(project, scene, photo, camera, cancellation.Token);
+                DepthRangeEstimator.Estimate(project, scene, photo, camera, cancellation.Token);
                 throw new InvalidOperationException("Depth range inference must honour cancellation");
             }
             catch (OperationCanceledException)
@@ -148,28 +146,28 @@ public sealed class DepthRangeTests
             {
                 scene.Points.Add(Point(photo.Id, 0, 0, 50));
             }
-            var visible = ranges.Estimate(project, scene, photo, camera, default);
+            var visible = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(visible.SampleCount == 10009 && visible.Near == 150 && visible.Far == 250,
                 "Fewer than ten observed points must fall back to all visible samples and preserve trimming");
             scene.Points.Add(Point(photo.Id, 0, 0, 50));
-            var observed = ranges.Estimate(project, scene, photo, camera, default);
+            var observed = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(observed.SampleCount == 10 && observed.Near == 37.5 && observed.Far == 62.5,
                 "Ten observed points must take precedence over unrelated visible depths");
             var allocated = GC.GetAllocatedBytesForCurrentThread();
             for (var index = 0; index < 20; index++)
             {
-                Check(ranges.Estimate(project, scene, photo, camera, default) == observed, "Reused buffers retain no previous samples");
+                Check(DepthRangeEstimator.Estimate(project, scene, photo, camera, default) == observed, "Reused buffers retain no previous samples");
             }
             Check(GC.GetAllocatedBytesForCurrentThread() - allocated < 100000,
                 "Warm estimates must not allocate point-sized arrays or growing tile lists");
             Parallel.For(0, 32, index =>
             {
-                Check(ranges.Estimate(project, scene, photo, camera, default) == observed,
+                Check(DepthRangeEstimator.Estimate(project, scene, photo, camera, default) == observed,
                     "Concurrent images must not share mutable sample storage");
             });
             scene.Points.Clear();
             scene.Cameras.RemoveAt(2);
-            var empty = ranges.Estimate(project, scene, photo, camera, default);
+            var empty = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(empty.SampleCount == 0 && empty.Near == 10 && empty.Far == 2000,
                 "Empty scenes must use camera bounds, without reading stale pooled entries");
         });

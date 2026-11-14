@@ -15,16 +15,14 @@ public sealed class CloudProcessingTests
     private readonly ICloudExecutionPlanner planner;
     private readonly IProjectStoreFactory stores;
     private readonly IRasterImageService images;
-    private readonly ICameraGeometry geometry;
 
     [ImportingConstructor]
-    public CloudProcessingTests(ICloudBuilder builder, ICloudExecutionPlanner planner, IProjectStoreFactory stores, IRasterImageService images, ICameraGeometry geometry)
+    public CloudProcessingTests(ICloudBuilder builder, ICloudExecutionPlanner planner, IProjectStoreFactory stores, IRasterImageService images)
     {
         this.builder = builder;
         this.planner = planner;
         this.stores = stores;
         this.images = images;
-        this.geometry = geometry;
     }
 
     internal void Run(TestSuite tests)
@@ -35,7 +33,7 @@ public sealed class CloudProcessingTests
             var depths = new float[64 * 48];
             Array.Fill(depths, 10);
             var map = new DepthMap { Width = 64, Height = 48, Depth = depths };
-            var view = new DepthView(geometry, photo, new CameraPose(), map);
+            var view = new DepthView(photo, new CameraPose(), map);
             foreach (var point in new[]
             {
                 new V3(1, 0, 1e-300), new V3(0, 1, 1e-300),
@@ -54,7 +52,7 @@ public sealed class CloudProcessingTests
             var depths = new float[64 * 48];
             Array.Fill(depths, 10);
             var map = new DepthMap { Width = 64, Height = 48, Depth = depths };
-            var reference = new DepthView(geometry, photo, new CameraPose(), map);
+            var reference = new DepthView(photo, new CameraPose(), map);
             var point = new V3(0, 0, 10);
             Check(reference.TrySurfacePoint(point, .01, out var surface), "A continuous plane supplies support");
             Check(reference.ReprojectsTo(surface, 32, 24, .01), "Consistent support returns to the source pixel");
@@ -64,7 +62,7 @@ public sealed class CloudProcessingTests
             Check(Math.Abs(reference.Difference(edge)) < 1e-8, "Legacy interpolation invents a depth between surfaces");
             Check(!reference.TrySurfacePoint(edge, .01, out _), "The invented surface is not accepted as support");
             Array.Fill(depths, 10.08f);
-            var neighbour = new DepthView(geometry, photo, new CameraPose { Centre = [2, 0, 0] }, map);
+            var neighbour = new DepthView(photo, new CameraPose { Centre = [2, 0, 0] }, map);
             Check(neighbour.TrySurfacePoint(point, .01, out surface), "Depth tolerance alone accepts this sample");
             Check(!reference.ReprojectsTo(surface, 32, 24, .01), "Round-trip consistency rejects its pixel mismatch");
         });

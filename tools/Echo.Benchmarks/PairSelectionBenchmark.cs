@@ -14,18 +14,15 @@ public sealed class PairSelectionBenchmark
 {
     private readonly IImagePairSelector selector;
     private readonly IFeatureMatcher matcher;
-    private readonly ICameraGeometry geometry;
     private readonly IProjectStoreFactory stores;
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
 
     [ImportingConstructor]
-    public PairSelectionBenchmark(IImagePairSelector selector, IFeatureMatcher matcher, ICameraGeometry geometry,
-        IProjectStoreFactory stores, IJsonCodec json, IFileOperations files)
+    public PairSelectionBenchmark(IImagePairSelector selector, IFeatureMatcher matcher, IProjectStoreFactory stores, IJsonCodec json, IFileOperations files)
     {
         this.selector = selector;
         this.matcher = matcher;
-        this.geometry = geometry;
         this.stores = stores;
         this.json = json;
         this.files = files;
@@ -67,7 +64,7 @@ public sealed class PairSelectionBenchmark
             matches ??= matcher.Match(
                 json.Read<FeatureSet>(store.PathFor(featureUnits[pair.A] + "/features.json")),
                 json.Read<FeatureSet>(store.PathFor(featureUnits[pair.B] + "/features.json")), project.Settings, default);
-            var relative = geometry.EstimateRelative(photos[pair.A], photos[pair.B], matches.Matches);
+            var relative = CameraGeometry.EstimateRelative(photos[pair.A], photos[pair.B], matches.Matches);
             var other = photos[pair.A == focus.Id ? pair.B : pair.A];
             checks.Add(new
             {

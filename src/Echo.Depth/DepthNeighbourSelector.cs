@@ -1,21 +1,11 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 
 namespace Echo.Depth;
 
-[Export(typeof(IDepthNeighbourSelector)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class DepthNeighbourSelector : IDepthNeighbourSelector
+public static class DepthNeighbourSelector
 {
-    private readonly ICameraGeometry geometry;
-
-    [ImportingConstructor]
-    public DepthNeighbourSelector(ICameraGeometry geometry)
-    {
-        this.geometry = geometry;
-    }
-
-    public CameraPose[] Select(ReconstructionScene scene, CameraPose reference, double medianDepth, int limit, CancellationToken cancellation)
+    public static CameraPose[] Select(ReconstructionScene scene, CameraPose reference, double medianDepth, int limit, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         var capacity = Math.Min(Math.Max(0, limit), scene.Cameras.Count);
@@ -33,7 +23,7 @@ public sealed class DepthNeighbourSelector : IDepthNeighbourSelector
         var preferredCount = 0;
         var preferredAvailable = 0;
         var centre = new V3(reference.Centre);
-        var forward = geometry.Rotate(reference.Rotation, new V3(0, 0, 1));
+        var forward = CameraGeometry.Rotate(reference.Rotation, new V3(0, 0, 1));
         var minimumBaseline = Math.Clamp(medianDepth * .06, .75, 3);
         foreach (var camera in scene.Cameras)
         {
@@ -43,7 +33,7 @@ public sealed class DepthNeighbourSelector : IDepthNeighbourSelector
                 continue;
             }
             var distance = (new V3(camera.Centre) - centre).Length;
-            var facing = geometry.Rotate(camera.Rotation, new V3(0, 0, 1));
+            var facing = CameraGeometry.Rotate(camera.Rotation, new V3(0, 0, 1));
             var eligible = distance > .05 && facing.Dot(forward) > .8;
             if (!eligible)
             {
@@ -67,7 +57,7 @@ public sealed class DepthNeighbourSelector : IDepthNeighbourSelector
         return result;
     }
 
-    private int Insert(Span<DepthNeighbourCandidate> candidates, int count, DepthNeighbourCandidate candidate)
+    private static int Insert(Span<DepthNeighbourCandidate> candidates, int count, DepthNeighbourCandidate candidate)
     {
         var index = count;
         while (index > 0 && candidate.Distance < candidates[index - 1].Distance)

@@ -11,18 +11,12 @@ namespace Echo.Depth;
 [Export(typeof(IDepthEstimator)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class DepthEstimator : IDepthEstimator
 {
-    private readonly ICameraGeometry cameraGeometry;
     private readonly IRasterImageService rasterImageService;
-    private readonly IDepthRangeEstimator rangeEstimator;
-    private readonly IDepthNeighbourSelector neighbourSelector;
 
     [ImportingConstructor]
-    public DepthEstimator(ICameraGeometry cameraGeometry, IRasterImageService rasterImageService, IDepthRangeEstimator rangeEstimator, IDepthNeighbourSelector neighbourSelector)
+    public DepthEstimator(IRasterImageService rasterImageService)
     {
-        this.cameraGeometry = cameraGeometry;
         this.rasterImageService = rasterImageService;
-        this.rangeEstimator = rangeEstimator;
-        this.neighbourSelector = neighbourSelector;
     }
 
     public DepthMap Estimate(IProjectStore store,
@@ -35,18 +29,18 @@ public sealed class DepthEstimator : IDepthEstimator
         Action<DepthLevelMetrics>? metrics = null)
     {
         var photo = FindPhoto(project.Images, camera.ImageId);
-        var range = rangeEstimator.Estimate(project, scene, photo, camera, cancellation);
+        var range = DepthRangeEstimator.Estimate(project, scene, photo, camera, cancellation);
         progress?.Invoke($"Depth range {range.Near:F2}–{range.Far:F2} ({range.Source}, {range.SampleCount:N0} scene samples; metres when georeferenced)");
         if (range.RejectedObservations > 0)
         {
             progress?.Invoke($"Depth range excluded {range.RejectedObservations:N0} sparse points with missing cameras, invalid geometry or less than 0.5° triangulation parallax");
         }
-        var selected = neighbourSelector.Select(scene, camera, range.Median, project.Settings.DepthNeighbours, cancellation);
+        var selected = DepthNeighbourSelector.Select(scene, camera, range.Median, project.Settings.DepthNeighbours, cancellation);
         var neighbours = new DepthNeighbour[selected.Length];
         for (var index = 0; index < selected.Length; index++)
         {
             var other = selected[index];
-            neighbours[index] = new DepthNeighbour(other, FindPhoto(project.Images, other.ImageId), cameraGeometry.Transpose(other.Rotation));
+            neighbours[index] = new DepthNeighbour(other, FindPhoto(project.Images, other.ImageId), CameraGeometry.Transpose(other.Rotation));
         }
         using var sources = new DepthSourceImages(rasterImageService, store, neighbours.Length + 1);
         DepthMap? prior = null;
@@ -128,10 +122,10 @@ public sealed class DepthEstimator : IDepthEstimator
         };
         var near = range.Near;
         var far = range.Far;
-        var focal = cameraGeometry.Focal(photo, camera) * width / photo.Width;
+        var focal = CameraGeometry.Focal(photo, camera) * width / photo.Width;
         var centre = new V3(camera.Centre);
-        var patchRight = cameraGeometry.Rotate(camera.Rotation, new V3(1 / focal, 0, 0));
-        var patchDown = cameraGeometry.Rotate(camera.Rotation, new V3(0, 1 / focal, 0));
+        var patchRight = CameraGeometry.Rotate(camera.Rotation, new V3(1 / focal, 0, 0));
+        var patchDown = CameraGeometry.Rotate(camera.Rotation, new V3(0, 1 / focal, 0));
         var views = new StereoView[neighbours.Length];
         for (var index = 0; index < neighbours.Length; index++)
         {
@@ -143,13 +137,13 @@ public sealed class DepthEstimator : IDepthEstimator
             views[index] = new StereoView
             {
                 Centre = new V3(other.Centre),
-                Focal = cameraGeometry.Focal(otherPhoto, other) * resized.Width / otherPhoto.Width,
+                Focal = CameraGeometry.Focal(otherPhoto, other) * resized.Width / otherPhoto.Width,
                 Width = resized.Width,
                 Height = resized.Height,
                 Gray = resized.Pixels,
                 WorldToCamera = inverse,
-                PatchRight = cameraGeometry.Rotate(inverse, patchRight),
-                PatchDown = cameraGeometry.Rotate(inverse, patchDown)
+                PatchRight = CameraGeometry.Rotate(inverse, patchRight),
+                PatchDown = CameraGeometry.Rotate(inverse, patchDown)
             };
         }
 
@@ -194,7 +188,7 @@ public sealed class DepthEstimator : IDepthEstimator
                     continue;
                 }
 
-                var ray = cameraGeometry.Rotate(camera.Rotation, new V3((x - width * .5) / focal, rayY, 1));
+                var ray = CameraGeometry.Rotate(camera.Rotation, new V3((x - width * .5) / focal, rayY, 1));
                 var hypotheses = hypothesisBuffer[..(prior == null ? 0 : CreateHypotheses(prior, x, y, width, height, near, far, hypothesisBuffer))];
                 var selectedDepth = 0.0;
                 var best = double.PositiveInfinity;
@@ -294,8 +288,8 @@ public sealed class DepthEstimator : IDepthEstimator
         var secondPoint = centre + ray * secondDepth;
         foreach (var view in views)
         {
-            var first = cameraGeometry.Rotate(view.WorldToCamera, firstPoint - view.Centre);
-            var second = cameraGeometry.Rotate(view.WorldToCamera, secondPoint - view.Centre);
+            var first = CameraGeometry.Rotate(view.WorldToCamera, firstPoint - view.Centre);
+            var second = CameraGeometry.Rotate(view.WorldToCamera, secondPoint - view.Centre);
             if (first.Z <= 0 || second.Z <= 0)
             {
                 continue;
@@ -385,7 +379,7 @@ public sealed class DepthEstimator : IDepthEstimator
         Span<V3> columns = stackalloc V3[5];
         foreach (var view in views)
         {
-            var p = cameraGeometry.Rotate(view.WorldToCamera, world - view.Centre);
+            var p = CameraGeometry.Rotate(view.WorldToCamera, world - view.Centre);
             if (p.Z <= 0)
             {
                 continue;

@@ -7,12 +7,9 @@ namespace Echo.Tests;
 [Export]
 public sealed class Matrix3InverterTests
 {
-    private readonly IMatrix3Inverter inverter;
-
     [ImportingConstructor]
-    public Matrix3InverterTests(IMatrix3Inverter inverter)
+    public Matrix3InverterTests()
     {
-        this.inverter = inverter;
     }
 
     internal void Run(TestSuite tests)
@@ -28,7 +25,7 @@ public sealed class Matrix3InverterTests
                 {
                     matrix[index] = basis[index] * scale;
                 }
-                inverter.Invert(matrix, inverse);
+                Matrix3Inverter.Invert(matrix, inverse);
                 for (var row = 0; row < 3; row++)
                 {
                     for (var column = 0; column < 3; column++)
@@ -47,7 +44,7 @@ public sealed class Matrix3InverterTests
             }
             try
             {
-                inverter.Invert(new double[9], inverse);
+                Matrix3Inverter.Invert(new double[9], inverse);
                 throw new InvalidOperationException("A singular matrix must be rejected");
             }
             catch (EchoException)

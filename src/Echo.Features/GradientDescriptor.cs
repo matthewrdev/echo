@@ -1,16 +1,8 @@
-using System.ComponentModel.Composition;
-
 namespace Echo.Features;
 
-[Export(typeof(IGradientDescriptor)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class GradientDescriptor : IGradientDescriptor
+public static class GradientDescriptor
 {
-    [ImportingConstructor]
-    public GradientDescriptor()
-    {
-    }
-
-    public int Orientations(ReadOnlySpan<float> pixels, int width, int height, ScaleKeypoint point, Span<double> angles)
+    public static int Orientations(ReadOnlySpan<float> pixels, int width, int height, ScaleKeypoint point, Span<double> angles)
     {
         Span<double> histogram = stackalloc double[36];
         Span<double> smoothed = stackalloc double[36];
@@ -62,7 +54,7 @@ public sealed class GradientDescriptor : IGradientDescriptor
         return count;
     }
 
-    public bool Describe(ReadOnlySpan<float> pixels, int width, int height, ScaleKeypoint point, double angle, Span<float> descriptor)
+    public static bool Describe(ReadOnlySpan<float> pixels, int width, int height, ScaleKeypoint point, double angle, Span<float> descriptor)
     {
         descriptor.Clear();
         var cellSize = 3 * point.Scale;
@@ -106,7 +98,7 @@ public sealed class GradientDescriptor : IGradientDescriptor
         return Normalize(descriptor);
     }
 
-    private void Add(Span<float> descriptor, double columnBin, double rowBin, double orientationBin, double magnitude)
+    private static void Add(Span<float> descriptor, double columnBin, double rowBin, double orientationBin, double magnitude)
     {
         var column = (int)Math.Floor(columnBin);
         var row = (int)Math.Floor(rowBin);
@@ -137,7 +129,7 @@ public sealed class GradientDescriptor : IGradientDescriptor
         }
     }
 
-    private bool Normalize(Span<float> descriptor)
+    private static bool Normalize(Span<float> descriptor)
     {
         double squared = 0;
         foreach (var value in descriptor)

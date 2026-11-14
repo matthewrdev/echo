@@ -13,14 +13,12 @@ namespace Echo.DenseCloud;
 [Export(typeof(ICloudBuilder)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class CloudBuilder : ICloudBuilder
 {
-    private readonly ICameraGeometry cameraGeometry;
     private readonly IRasterImageService rasterImageService;
     private readonly ICloudExecutionPlanner executionPlanner;
 
     [ImportingConstructor]
-    public CloudBuilder(ICameraGeometry cameraGeometry, IRasterImageService rasterImageService, ICloudExecutionPlanner executionPlanner)
+    public CloudBuilder(IRasterImageService rasterImageService, ICloudExecutionPlanner executionPlanner)
     {
-        this.cameraGeometry = cameraGeometry;
         this.rasterImageService = rasterImageService;
         this.executionPlanner = executionPlanner;
     }
@@ -53,7 +51,7 @@ public sealed class CloudBuilder : ICloudBuilder
         for (var index = 0; index < maps.Count; index++)
         {
             var map = maps[index];
-            views[index] = new DepthView(cameraGeometry, photos[map.ImageId], cameras[map.ImageId], map);
+            views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
             cloud.ImageIds.Add(map.ImageId);
             totalRows += map.Height;
             maximumWidth = Math.Max(maximumWidth, map.Width);

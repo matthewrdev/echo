@@ -8,13 +8,11 @@ namespace Echo.Tests;
 [Export]
 public sealed class GuidedMatchingTests
 {
-    private readonly ICameraGeometry cameras;
     private readonly IGuidedFeatureMatcher guided;
 
     [ImportingConstructor]
-    public GuidedMatchingTests(ICameraGeometry cameras, IGuidedFeatureMatcher guided)
+    public GuidedMatchingTests(IGuidedFeatureMatcher guided)
     {
-        this.cameras = cameras;
         this.guided = guided;
     }
 
@@ -104,7 +102,7 @@ public sealed class GuidedMatchingTests
         for (var index = 0; index < count; index++)
         {
             var point = new V3(random.NextDouble() * 5 - 2, random.NextDouble() * 3 - 1, 6 + random.NextDouble() * 8);
-            result.Add(new Match { A = cameras.Project(photo, left, point)![..2], B = cameras.Project(photo, right, point)![..2] });
+            result.Add(new Match { A = CameraGeometry.Project(photo, left, point)![..2], B = CameraGeometry.Project(photo, right, point)![..2] });
         }
         return result;
     }

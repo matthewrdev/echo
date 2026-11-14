@@ -1,25 +1,11 @@
 using System.Buffers;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Features;
 
-[Export(typeof(IScaleSpaceFeatures)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class ScaleSpaceFeatures : IScaleSpaceFeatures
+public static class ScaleSpaceFeatures
 {
-    private readonly IGaussianBlur blur;
-    private readonly IScaleSpaceExtrema extrema;
-    private readonly IGradientDescriptor descriptors;
-
-    [ImportingConstructor]
-    public ScaleSpaceFeatures(IGaussianBlur blur, IScaleSpaceExtrema extrema, IGradientDescriptor descriptors)
-    {
-        this.blur = blur;
-        this.extrema = extrema;
-        this.descriptors = descriptors;
-    }
-
-    public List<Feature> Detect(ReadOnlySpan<float> pixels, int width, int height, int limit, CancellationToken cancellation)
+    public static List<Feature> Detect(ReadOnlySpan<float> pixels, int width, int height, int limit, CancellationToken cancellation)
     {
         var invalid = width < 1 || height < 1 || pixels.Length != checked(width * height) || limit < 1;
         if (invalid)
@@ -31,7 +17,7 @@ public sealed class ScaleSpaceFeatures : IScaleSpaceFeatures
         var basis = ArrayPool<float>.Shared.Rent(width * height);
         try
         {
-            blur.Apply(pixels, basis.AsSpan(0, width * height), width, height, Math.Sqrt(1.6 * 1.6 - .5 * .5), cancellation);
+            GaussianBlur.Apply(pixels, basis.AsSpan(0, width * height), width, height, Math.Sqrt(1.6 * 1.6 - .5 * .5), cancellation);
             var octaveScale = 1.0;
             while (Math.Min(width, height) >= 32)
             {
@@ -61,13 +47,13 @@ public sealed class ScaleSpaceFeatures : IScaleSpaceFeatures
         return result;
     }
 
-    private int Compare(ScaleFeatureCandidate left, ScaleFeatureCandidate right)
+    private static int Compare(ScaleFeatureCandidate left, ScaleFeatureCandidate right)
     {
         var response = right.Response.CompareTo(left.Response);
         return response != 0 ? response : left.Order.CompareTo(right.Order);
     }
 
-    private float[] ProcessOctave(float[] basis, int width, int height, double octaveScale, int limit,
+    private static float[] ProcessOctave(float[] basis, int width, int height, double octaveScale, int limit,
         PriorityQueue<ScaleFeatureCandidate, double> candidates, CancellationToken cancellation)
     {
         var length = width * height;
@@ -81,7 +67,7 @@ public sealed class ScaleSpaceFeatures : IScaleSpaceFeatures
                 var previousSigma = 1.6 * Math.Pow(2, (layer - 1) / 3.0);
                 var nextSigma = 1.6 * Math.Pow(2, layer / 3.0);
                 gaussian[layer] = ArrayPool<float>.Shared.Rent(length);
-                blur.Apply(gaussian[layer - 1].AsSpan(0, length), gaussian[layer].AsSpan(0, length), width, height,
+                GaussianBlur.Apply(gaussian[layer - 1].AsSpan(0, length), gaussian[layer].AsSpan(0, length), width, height,
                     Math.Sqrt(nextSigma * nextSigma - previousSigma * previousSigma), cancellation);
                 differences[layer - 1] = ArrayPool<float>.Shared.Rent(length);
                 for (var pixel = 0; pixel < length; pixel++)
@@ -89,7 +75,7 @@ public sealed class ScaleSpaceFeatures : IScaleSpaceFeatures
                     differences[layer - 1][pixel] = gaussian[layer][pixel] - gaussian[layer - 1][pixel];
                 }
             }
-            var keypoints = extrema.Find(differences, width, height, cancellation);
+            var keypoints = ScaleSpaceExtrema.Find(differences, width, height, cancellation);
             Span<double> angles = stackalloc double[36];
             Span<float> descriptor = stackalloc float[128];
             var order = (int)Math.Log2(octaveScale) * limit * 36;
@@ -101,10 +87,10 @@ public sealed class ScaleSpaceFeatures : IScaleSpaceFeatures
                     break;
                 }
                 var pixels = gaussian[point.Layer].AsSpan(0, length);
-                var count = descriptors.Orientations(pixels, width, height, point, angles);
+                var count = GradientDescriptor.Orientations(pixels, width, height, point, angles);
                 for (var orientation = 0; orientation < count; orientation++)
                 {
-                    if (!descriptors.Describe(pixels, width, height, point, angles[orientation], descriptor))
+                    if (!GradientDescriptor.Describe(pixels, width, height, point, angles[orientation], descriptor))
                     {
                         continue;
                     }

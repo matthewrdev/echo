@@ -1,19 +1,11 @@
-using System.ComponentModel.Composition;
 using System.Buffers;
 using Echo.Contracts;
 
 namespace Echo.Matching;
 
-[Export(typeof(IDescriptorMatcher)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class DescriptorMatcher : IDescriptorMatcher
+public static class DescriptorMatcher
 {
-
-    [ImportingConstructor]
-    public DescriptorMatcher()
-    {
-    }
-
-    public DescriptorMatches Match<T>(ReadOnlySpan<T> leftFeatures, ReadOnlySpan<T> rightFeatures, Settings settings, CancellationToken cancellation, bool allowReversedDescriptor = false) where T : IFeatureDescriptor
+    public static DescriptorMatches Match<T>(ReadOnlySpan<T> leftFeatures, ReadOnlySpan<T> rightFeatures, Settings settings, CancellationToken cancellation, bool allowReversedDescriptor = false) where T : IFeatureDescriptor
     {
         var diagnostics = new MatchingDiagnostics
         {
@@ -111,7 +103,7 @@ public sealed class DescriptorMatcher : IDescriptorMatcher
             ArrayPool<int>.Shared.Return(indices);
         }
     }
-    private double Distance(ReadOnlySpan<float> leftDescriptor, ReadOnlySpan<float> rightDescriptor, bool reverseRightDescriptor)
+    private static double Distance(ReadOnlySpan<float> leftDescriptor, ReadOnlySpan<float> rightDescriptor, bool reverseRightDescriptor)
     {
         if (leftDescriptor.Length == 0 || leftDescriptor.Length != rightDescriptor.Length)
         {

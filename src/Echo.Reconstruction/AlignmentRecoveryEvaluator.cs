@@ -1,18 +1,11 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 
 namespace Echo.Reconstruction;
 
-[Export(typeof(IAlignmentRecoveryEvaluator)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class AlignmentRecoveryEvaluator : IAlignmentRecoveryEvaluator
+public static class AlignmentRecoveryEvaluator
 {
-    [ImportingConstructor]
-    public AlignmentRecoveryEvaluator()
-    {
-    }
-
-    public AlignmentRecoveryAssessment Evaluate(ReconstructionScene established, ReconstructionScene proposed)
+    public static AlignmentRecoveryAssessment Evaluate(ReconstructionScene established, ReconstructionScene proposed)
     {
         var previous = Observations(established);
         var candidate = Observations(proposed);
@@ -41,7 +34,7 @@ public sealed class AlignmentRecoveryEvaluator : IAlignmentRecoveryEvaluator
         };
     }
 
-    private HashSet<ImageObservationKey> Observations(ReconstructionScene scene)
+    private static HashSet<ImageObservationKey> Observations(ReconstructionScene scene)
     {
         var result = new HashSet<ImageObservationKey>();
         foreach (var point in scene.Points)
@@ -52,7 +45,7 @@ public sealed class AlignmentRecoveryEvaluator : IAlignmentRecoveryEvaluator
         return result;
     }
 
-    private ImageObservationKey Key(string image, double[] pixel)
+    private static ImageObservationKey Key(string image, double[] pixel)
     {
         return new ImageObservationKey(image, (long)Math.Round(pixel[0] * 10), (long)Math.Round(pixel[1] * 10));
     }

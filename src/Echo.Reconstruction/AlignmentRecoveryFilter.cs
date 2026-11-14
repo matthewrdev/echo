@@ -1,24 +1,12 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Geometry;
 
 namespace Echo.Reconstruction;
 
-[Export(typeof(IAlignmentRecoveryFilter)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class AlignmentRecoveryFilter : IAlignmentRecoveryFilter
+public static class AlignmentRecoveryFilter
 {
-    private readonly ICameraGeometry geometry;
-    private readonly IImagePairVerifier verifier;
-
-    [ImportingConstructor]
-    public AlignmentRecoveryFilter(ICameraGeometry geometry, IImagePairVerifier verifier)
-    {
-        this.geometry = geometry;
-        this.verifier = verifier;
-    }
-
-    public List<ImagePair> Filter(ProjectData project, ReconstructionScene scene, IReadOnlyList<ImagePair> originalPairs,
+    public static List<ImagePair> Filter(ProjectData project, ReconstructionScene scene, IReadOnlyList<ImagePair> originalPairs,
         IReadOnlyList<ImagePair> proposedPairs, CancellationToken cancellation, Action<int, int>? progress = null)
     {
         var photos = new Dictionary<string, Photo>(StringComparer.Ordinal);
@@ -52,7 +40,7 @@ public sealed class AlignmentRecoveryFilter : IAlignmentRecoveryFilter
             var proposed = proposedPairs[index];
             var left = photos[original.A];
             var right = photos[original.B];
-            var filtered = verifier.Verify(left, right, original, cancellation);
+            var filtered = ImagePairVerifier.Verify(left, right, original, cancellation);
             output.Add(filtered);
             if (!cameras.TryGetValue(original.A, out var leftCamera) || !cameras.TryGetValue(original.B, out var rightCamera))
             {
@@ -84,7 +72,7 @@ public sealed class AlignmentRecoveryFilter : IAlignmentRecoveryFilter
                     continue;
                 }
                 var tolerance = 2.0 * Math.Min(left.Width, right.Width) / 1000;
-                if (geometry.Triangulate(left, right, leftCamera, rightCamera, match, tolerance) == null)
+                if (CameraGeometry.Triangulate(left, right, leftCamera, rightCamera, match, tolerance) == null)
                 {
                     continue;
                 }
@@ -95,9 +83,9 @@ public sealed class AlignmentRecoveryFilter : IAlignmentRecoveryFilter
         return output;
     }
 
-    private bool Agrees(Photo photo, CameraPose camera, V3 point, double[] pixel)
+    private static bool Agrees(Photo photo, CameraPose camera, V3 point, double[] pixel)
     {
-        var projected = geometry.ProjectPoint(photo, camera, point);
+        var projected = CameraGeometry.ProjectPoint(photo, camera, point);
         if (projected == null)
         {
             return false;
@@ -108,7 +96,7 @@ public sealed class AlignmentRecoveryFilter : IAlignmentRecoveryFilter
         return dx * dx + dy * dy <= tolerance * tolerance;
     }
 
-    private ImageObservationKey Key(string image, double[] pixel)
+    private static ImageObservationKey Key(string image, double[] pixel)
     {
         return new ImageObservationKey(image, (long)Math.Round(pixel[0] * 10), (long)Math.Round(pixel[1] * 10));
     }

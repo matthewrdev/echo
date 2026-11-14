@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using MathNet.Numerics.LinearAlgebra;
@@ -6,26 +5,17 @@ using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace Echo.Reconstruction;
 
-[Export(typeof(IRotationRefiner)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class RotationRefiner : IRotationRefiner
+public static class RotationRefiner
 {
-    private readonly ICameraGeometry cameraGeometry;
-
-    [ImportingConstructor]
-    public RotationRefiner(ICameraGeometry cameraGeometry)
+    private static double Residual(CameraPose camera, RotationObservation observation)
     {
-        this.cameraGeometry = cameraGeometry;
-    }
-
-    private double Residual(CameraPose camera, RotationObservation observation)
-    {
-        var ray = cameraGeometry.Rotate(camera.Rotation, observation.OwnRay).Unit;
-        var other = cameraGeometry.Rotate(observation.Other.Rotation, observation.OtherRay).Unit;
+        var ray = CameraGeometry.Rotate(camera.Rotation, observation.OwnRay).Unit;
+        var other = CameraGeometry.Rotate(observation.Other.Rotation, observation.OtherRay).Unit;
         var normal = (new V3(camera.Centre) - new V3(observation.Other.Centre)).Cross(other).Unit;
         return (ray).Dot(normal);
     }
 
-    public void Refine(CameraPose camera, List<CameraPose> cameras, Dictionary<string, Photo> images, List<ImagePair> pairs)
+    public static void Refine(CameraPose camera, List<CameraPose> cameras, Dictionary<string, Photo> images, List<ImagePair> pairs)
     {
         var observations = new List<RotationObservation>();
         var cameraLookup = new Dictionary<string, CameraPose>(cameras.Count, StringComparer.Ordinal);
@@ -51,8 +41,8 @@ public sealed class RotationRefiner : IRotationRefiner
                 observations.Add(new RotationObservation
                 {
                     Other = other,
-                    OwnRay = cameraGeometry.Ray(images[camera.ImageId], ownA ? match.A : match.B),
-                    OtherRay = cameraGeometry.Ray(images[otherId], ownA ? match.B : match.A)
+                    OwnRay = CameraGeometry.Ray(images[camera.ImageId], ownA ? match.A : match.B),
+                    OtherRay = CameraGeometry.Ray(images[otherId], ownA ? match.B : match.A)
                 });
             }
         }
@@ -80,7 +70,7 @@ public sealed class RotationRefiner : IRotationRefiner
             {
                 for (var axis = 0; axis < 3; axis++)
                 {
-                    cameraGeometry.Multiply(rotations[axis], original, perturbed);
+                    CameraGeometry.Multiply(rotations[axis], original, perturbed);
                     camera.Rotation = perturbed;
                     jacobian[axis] = (Residual(camera, o) - residual) / 1e-5;
                 }
@@ -103,13 +93,13 @@ public sealed class RotationRefiner : IRotationRefiner
         var step = normal.Solve(rhs);
         for (var axis = 0; axis < 3; axis++)
         {
-            camera.Rotation = cameraGeometry.Multiply(SmallRotation(axis, Math.Clamp(step[axis], -.01, .01)), camera.Rotation);
+            camera.Rotation = CameraGeometry.Multiply(SmallRotation(axis, Math.Clamp(step[axis], -.01, .01)), camera.Rotation);
         }
 
         camera.Source = "metadata + limited epipolar rotation refinement";
     }
 
-    private double[] SmallRotation(int axis, double angle)
+    private static double[] SmallRotation(int axis, double angle)
     {
         var c = Math.Cos(angle);
         var s = Math.Sin(angle);

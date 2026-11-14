@@ -9,19 +9,11 @@ namespace Echo.Reconstruction;
 public sealed class Reconstructor : IReconstructor
 {
     private readonly IBundleAdjuster bundleAdjuster;
-    private readonly ICameraGeometry cameraGeometry;
-    private readonly ICameraRegistrar cameraRegistrar;
-    private readonly IRotationRefiner rotationRefiner;
-    private readonly IImagePairVerifier pairVerifier;
 
     [ImportingConstructor]
-    public Reconstructor(ICameraRegistrar cameraRegistrar, IRotationRefiner rotationRefiner, IBundleAdjuster bundleAdjuster, ICameraGeometry cameraGeometry, IImagePairVerifier pairVerifier)
+    public Reconstructor(IBundleAdjuster bundleAdjuster)
     {
         this.bundleAdjuster = bundleAdjuster;
-        this.cameraGeometry = cameraGeometry;
-        this.cameraRegistrar = cameraRegistrar;
-        this.rotationRefiner = rotationRefiner;
-        this.pairVerifier = pairVerifier;
     }
 
     public ReconstructionScene Align(ProjectData project,
@@ -61,7 +53,7 @@ public sealed class Reconstructor : IReconstructor
         {
             if (images.TryGetValue(pair.A, out var left) && images.TryGetValue(pair.B, out var right))
             {
-                verifiedPairs.Add(pairVerifier.Verify(left, right, pair, cancellation));
+                verifiedPairs.Add(ImagePairVerifier.Verify(left, right, pair, cancellation));
             }
         }
         pairs = verifiedPairs;
@@ -78,8 +70,8 @@ public sealed class Reconstructor : IReconstructor
             result.Cameras.Add(new CameraPose
             {
                 ImageId = image.Id,
-                Centre = cameraGeometry.ToLocal(prior.Position, result.Origin).Array,
-                Rotation = cameraGeometry.AttitudeRotation(prior.Attitude)
+                Centre = CameraGeometry.ToLocal(prior.Position, result.Origin).Array,
+                Rotation = CameraGeometry.AttitudeRotation(prior.Attitude)
             });
         }
 
@@ -90,13 +82,13 @@ public sealed class Reconstructor : IReconstructor
             foreach (var pair in pairs.OrderByDescending(p => p.Matches.Count))
             {
                 cancellation.ThrowIfCancellationRequested();
-                var relative = cameraGeometry.EstimateRelative(images[pair.A], images[pair.B], pair.Matches);
+                var relative = CameraGeometry.EstimateRelative(images[pair.A], images[pair.B], pair.Matches);
                 if (relative == null)
                 {
                     continue;
                 }
 
-                var rotation = cameraGeometry.Transpose(relative.Rotation);
+                var rotation = CameraGeometry.Transpose(relative.Rotation);
                 result.Cameras.Add(new CameraPose
                 {
                     ImageId = pair.A,
@@ -107,7 +99,7 @@ public sealed class Reconstructor : IReconstructor
                     ImageId = pair.B,
                     Source = "visual-seed",
                     Rotation = rotation,
-                    Centre = (cameraGeometry.Rotate(rotation, new V3(relative.Translation)) * -1).Array
+                    Centre = (CameraGeometry.Rotate(rotation, new V3(relative.Translation)) * -1).Array
                 });
                 result.Frame = "unreferenced local frame, arbitrary scale";
                 break;
@@ -133,7 +125,7 @@ public sealed class Reconstructor : IReconstructor
                 for (var index = 1; index < result.Cameras.Count; index++)
                 {
                     cancellation.ThrowIfCancellationRequested();
-                    rotationRefiner.Refine(result.Cameras[index], result.Cameras, images, pairs);
+                    RotationRefiner.Refine(result.Cameras[index], result.Cameras, images, pairs);
                 }
             }
         }
@@ -159,7 +151,7 @@ public sealed class Reconstructor : IReconstructor
                     continue;
                 }
                 cancellation.ThrowIfCancellationRequested();
-                var pose = cameraRegistrar.Register(image, pairs, result.Points);
+                var pose = CameraRegistrar.Register(image, pairs, result.Points);
                 if (pose == null)
                 {
                     continue;
@@ -223,7 +215,7 @@ public sealed class Reconstructor : IReconstructor
 
             foreach (var match in pair.Matches)
             {
-                var triangulated = cameraGeometry.Triangulate(images[pair.A], images[pair.B], a, b, match, 18.0 * images[pair.A].Width / 1000);
+                var triangulated = CameraGeometry.Triangulate(images[pair.A], images[pair.B], a, b, match, 18.0 * images[pair.A].Width / 1000);
                 if (triangulated != null)
                 {
                     scene.Points.Add(new CloudPoint

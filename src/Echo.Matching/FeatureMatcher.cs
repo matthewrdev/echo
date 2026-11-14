@@ -7,17 +7,14 @@ namespace Echo.Matching;
 [Export(typeof(IFeatureMatcher)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class FeatureMatcher : IFeatureMatcher
 {
-    private readonly IDescriptorMatcher descriptors;
-
     [ImportingConstructor]
-    public FeatureMatcher(IDescriptorMatcher descriptors)
+    public FeatureMatcher()
     {
-        this.descriptors = descriptors;
     }
 
     public ImagePair Match(FeatureSet leftFeatures, FeatureSet rightFeatures, Settings settings, CancellationToken cancellation)
     {
-        var points = descriptors.Match<Feature>(CollectionsMarshal.AsSpan(leftFeatures.Features),
+        var points = DescriptorMatcher.Match<Feature>(CollectionsMarshal.AsSpan(leftFeatures.Features),
             CollectionsMarshal.AsSpan(rightFeatures.Features), settings, cancellation);
         var result = new ImagePair { A = leftFeatures.ImageId, B = rightFeatures.ImageId, Diagnostics = points.Diagnostics };
         foreach (var match in points.Matches)
@@ -33,7 +30,7 @@ public sealed class FeatureMatcher : IFeatureMatcher
             });
         }
 
-        var lines = descriptors.Match<LineFeature>(CollectionsMarshal.AsSpan(leftFeatures.Lines),
+        var lines = DescriptorMatcher.Match<LineFeature>(CollectionsMarshal.AsSpan(leftFeatures.Lines),
             CollectionsMarshal.AsSpan(rightFeatures.Lines), settings, cancellation, allowReversedDescriptor: true);
         foreach (var match in lines.Matches)
         {

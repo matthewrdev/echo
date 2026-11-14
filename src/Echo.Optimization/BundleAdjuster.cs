@@ -9,14 +9,9 @@ namespace Echo.Optimization;
 [Export(typeof(IBundleAdjuster)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class BundleAdjuster : IBundleAdjuster
 {
-    private readonly ICameraGeometry cameraGeometry;
-    private readonly IMatrix3Inverter matrixInverter;
-
     [ImportingConstructor]
-    public BundleAdjuster(ICameraGeometry cameraGeometry, IMatrix3Inverter matrixInverter)
+    public BundleAdjuster()
     {
-        this.cameraGeometry = cameraGeometry;
-        this.matrixInverter = matrixInverter;
     }
 
     public void Refine(ProjectData project,
@@ -51,7 +46,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             {
                 initial[i] = initial[i] with
                 {
-                    Centre = cameraGeometry.ToLocal(position, scene.Origin).Array
+                    Centre = CameraGeometry.ToLocal(position, scene.Origin).Array
                 };
             }
         }
@@ -108,7 +103,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             {
                 foreach (var observation in track.Observations)
                 {
-                    var p = cameraGeometry.ProjectPoint(photos[observation.Camera], cameras[observation.Camera], track.Point);
+                    var p = CameraGeometry.ProjectPoint(photos[observation.Camera], cameras[observation.Camera], track.Point);
                     if (p == null)
                     {
                         cost += 100000;
@@ -332,7 +327,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                     rotation = rotation.Unit * .07;
                 }
 
-                cameras[i].Rotation = cameraGeometry.Multiply(cameras[i].Rotation, Exponential(rotation));
+                cameras[i].Rotation = CameraGeometry.Multiply(cameras[i].Rotation, Exponential(rotation));
                 cameras[i].FocalPixels = Math.Clamp(cameras[i].FocalPixels * Math.Exp(Math.Clamp(delta[focalIndices[i]], -.025, .025)), photos[i].FocalPixels * .65, photos[i].FocalPixels * 1.5);
             }
 
@@ -520,7 +515,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             foreach (var o in observations)
             {
                 var camera = cameras[o.Camera];
-                var ray = cameraGeometry.Rotate(camera.Rotation, cameraGeometry.Ray(photos[o.Camera], o.Pixel, camera)).Unit.Array;
+                var ray = CameraGeometry.Rotate(camera.Rotation, CameraGeometry.Ray(photos[o.Camera], o.Pixel, camera)).Unit.Array;
                 for (var i = 0; i < 3; i++)
                 {
                     for (var j = 0; j < 3; j++)
@@ -580,7 +575,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             return false;
         }
 
-        var f = cameraGeometry.Focal(photo, camera);
+        var f = CameraGeometry.Focal(photo, camera);
         ReadOnlySpan<double> u = stackalloc double[3] { f / p.Z, 0, -f * p.X / (p.Z * p.Z) };
         ReadOnlySpan<double> v = stackalloc double[3] { 0, f / p.Z, -f * p.Y / (p.Z * p.Z) };
         var pu = evaluation.PointU.AsSpan();
@@ -621,7 +616,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
 
     private double Error(V3 point, Observation observation, Photo[] photos, List<CameraPose> cameras)
     {
-        var p = cameraGeometry.ProjectPoint(photos[observation.Camera], cameras[observation.Camera], point);
+        var p = CameraGeometry.ProjectPoint(photos[observation.Camera], cameras[observation.Camera], point);
         if (p == null)
         {
             return double.PositiveInfinity;
@@ -693,7 +688,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
 
     private void Inverse3(ReadOnlySpan<double> matrix, Span<double> inverse)
     {
-        matrixInverter.Invert(matrix, inverse);
+        Matrix3Inverter.Invert(matrix, inverse);
     }
 
     private double[] Exponential(V3 rotationVector)

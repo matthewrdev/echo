@@ -1,16 +1,8 @@
-using System.ComponentModel.Composition;
-
 namespace Echo.Geometry;
 
-[Export(typeof(IFrustumOverlap)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class FrustumOverlap : IFrustumOverlap
+public static class FrustumOverlap
 {
-    [ImportingConstructor]
-    public FrustumOverlap()
-    {
-    }
-
-    public double Score(CaptureFrustum leftView, CaptureFrustum rightView)
+    public static double Score(CaptureFrustum leftView, CaptureFrustum rightView)
     {
         var tolerance = leftView.Uncertainty + rightView.Uncertainty;
         var separation = (leftView.Centre - rightView.Centre).Length;
@@ -53,7 +45,7 @@ public sealed class FrustumOverlap : IFrustumOverlap
         return (1 + sharedSamples) / (1 + separation / Math.Min(leftView.Depth, rightView.Depth));
     }
 
-    private bool Separates(V3 axis, ReadOnlySpan<V3> leftVertices, ReadOnlySpan<V3> rightVertices, double tolerance)
+    private static bool Separates(V3 axis, ReadOnlySpan<V3> leftVertices, ReadOnlySpan<V3> rightVertices, double tolerance)
     {
         var length = axis.Length;
         if (length < 1e-10)
@@ -80,7 +72,7 @@ public sealed class FrustumOverlap : IFrustumOverlap
         return leftMinimum > rightMaximum + tolerance || rightMinimum > leftMaximum + tolerance;
     }
 
-    private int SharedSamples(CaptureFrustum sourceView, CaptureFrustum targetView)
+    private static int SharedSamples(CaptureFrustum sourceView, CaptureFrustum targetView)
     {
         var count = 0;
         for (var depthStep = 1; depthStep <= 3; depthStep++)

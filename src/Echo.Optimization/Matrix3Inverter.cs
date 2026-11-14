@@ -1,17 +1,10 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Optimization;
 
-[Export(typeof(IMatrix3Inverter)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class Matrix3Inverter : IMatrix3Inverter
+public static class Matrix3Inverter
 {
-    [ImportingConstructor]
-    public Matrix3Inverter()
-    {
-    }
-
-    public void Invert(ReadOnlySpan<double> matrix, Span<double> inverse)
+    public static void Invert(ReadOnlySpan<double> matrix, Span<double> inverse)
     {
         if (matrix.Length != 9 || inverse.Length != 9)
         {

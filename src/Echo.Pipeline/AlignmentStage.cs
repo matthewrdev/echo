@@ -16,12 +16,9 @@ public sealed class AlignmentStage : IPipelineStage
     private readonly IPlyWriter plyWriter;
     private readonly IGuidedFeatureMatcher guidedMatcher;
     private readonly IBundleAdjuster bundleAdjuster;
-    private readonly IAlignmentRecoveryFilter recoveryFilter;
-    private readonly IAlignmentRecoveryEvaluator recoveryEvaluator;
 
     [ImportingConstructor]
-    public AlignmentStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IReconstructor reconstructor,
-        IPlyWriter plyWriter, IGuidedFeatureMatcher guidedMatcher, IBundleAdjuster bundleAdjuster, IAlignmentRecoveryFilter recoveryFilter, IAlignmentRecoveryEvaluator recoveryEvaluator)
+    public AlignmentStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IReconstructor reconstructor, IPlyWriter plyWriter, IGuidedFeatureMatcher guidedMatcher, IBundleAdjuster bundleAdjuster)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
@@ -29,8 +26,6 @@ public sealed class AlignmentStage : IPipelineStage
         this.plyWriter = plyWriter;
         this.guidedMatcher = guidedMatcher;
         this.bundleAdjuster = bundleAdjuster;
-        this.recoveryFilter = recoveryFilter;
-        this.recoveryEvaluator = recoveryEvaluator;
     }
 
     public string Name => "alignment";
@@ -76,14 +71,14 @@ public sealed class AlignmentStage : IPipelineStage
             if (recoveredPairs > 0)
             {
                 context.ReportProgress(Name, $"Second alignment: jointly refining cameras and points with {recoveredPairs:N0} strengthened image pairs.");
-                var validated = recoveryFilter.Filter(project, scene, originalPairs, pairs, context.Cancellation,
+                var validated = AlignmentRecoveryFilter.Filter(project, scene, originalPairs, pairs, context.Cancellation,
                     (completed, total) => context.ReportProgress(Name, $"Second pass: checking image pair {completed:N0} of {total:N0} against existing 3D landmarks.", completed, total));
                 // Keep speculative recovery local until its support has been assessed.
                 var established = jsonCodec.Read<ReconstructionScene>(context.Store.PathFor(initial + "/scene.json"));
                 try
                 {
                     bundleAdjuster.Refine(project, scene, validated, context.Cancellation);
-                    assessment = recoveryEvaluator.Evaluate(established, scene);
+                    assessment = AlignmentRecoveryEvaluator.Evaluate(established, scene);
                 }
                 catch (EchoException error) when (error.ExitCode == 5)
                 {

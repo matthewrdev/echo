@@ -16,17 +16,15 @@ public sealed class AlignmentBenchmark
     private readonly IFileOperations files;
     private readonly IReconstructor reconstructor;
     private readonly IBundleAdjuster bundle;
-    private readonly IAlignmentRecoveryFilter recoveryFilter;
 
     [ImportingConstructor]
-    public AlignmentBenchmark(IProjectStoreFactory stores, IJsonCodec json, IFileOperations files, IReconstructor reconstructor, IBundleAdjuster bundle, IAlignmentRecoveryFilter recoveryFilter)
+    public AlignmentBenchmark(IProjectStoreFactory stores, IJsonCodec json, IFileOperations files, IReconstructor reconstructor, IBundleAdjuster bundle)
     {
         this.stores = stores;
         this.json = json;
         this.files = files;
         this.reconstructor = reconstructor;
         this.bundle = bundle;
-        this.recoveryFilter = recoveryFilter;
     }
 
     public int Run(string[] args)
@@ -73,7 +71,7 @@ public sealed class AlignmentBenchmark
         }
         if (index > 0)
         {
-            pairs = recoveryFilter.Filter(run.Snapshot, scene, originals, pairs, default);
+            pairs = AlignmentRecoveryFilter.Filter(run.Snapshot, scene, originals, pairs, default);
             bundle.Refine(run.Snapshot, scene, pairs, default, preview =>
             {
                 Console.WriteLine($"{clock.Elapsed.TotalSeconds:F1}s: second pass, {preview.Bundle?.AcceptedIterations ?? 0} accepted iterations");

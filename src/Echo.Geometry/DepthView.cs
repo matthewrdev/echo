@@ -4,22 +4,20 @@ namespace Echo.Geometry;
 
 public sealed class DepthView
 {
-    private readonly ICameraGeometry cameraGeometry;
 
-    public DepthView(ICameraGeometry cameraGeometry, Photo photo, CameraPose camera, DepthMap map)
+    public DepthView(Photo photo, CameraPose camera, DepthMap map)
     {
         var validDimensions = map.Width > 0 && map.Height > 0;
         if (!validDimensions || (long)map.Width * map.Height != map.Depth.Length)
         {
             throw new EchoException($"Invalid depth-map dimensions or sample count for image {map.ImageId}.", 5);
         }
-        this.cameraGeometry = cameraGeometry;
-        Projection = new CameraProjector(cameraGeometry, photo, camera);
+        Projection = new CameraProjector(photo, camera);
         Map = map;
         Camera = camera;
         Centre = new V3(camera.Centre);
-        Inverse = cameraGeometry.Transpose(camera.Rotation);
-        Focal = cameraGeometry.Focal(photo, camera) * map.Width / photo.Width;
+        Inverse = CameraGeometry.Transpose(camera.Rotation);
+        Focal = CameraGeometry.Focal(photo, camera) * map.Width / photo.Width;
     }
 
     public CameraProjector Projection
@@ -48,12 +46,12 @@ public sealed class DepthView
         get;
     }
 
-    public V3 Point(int x, int y, double depth) => Centre + cameraGeometry.Rotate(Camera.Rotation, new V3((x - Map.Width * .5) / Focal, (y - Map.Height * .5) / Focal, 1)) * depth;
+    public V3 Point(int x, int y, double depth) => Centre + CameraGeometry.Rotate(Camera.Rotation, new V3((x - Map.Width * .5) / Focal, (y - Map.Height * .5) / Focal, 1)) * depth;
 
     public bool TrySurfacePoint(V3 world, double relativeTolerance, out V3 surface)
     {
         surface = default;
-        var local = cameraGeometry.Rotate(Inverse, world - Centre);
+        var local = CameraGeometry.Rotate(Inverse, world - Centre);
         if (!(local.Z > 0) || !double.IsFinite(local.Z))
         {
             return false;
@@ -101,7 +99,7 @@ public sealed class DepthView
 
     public bool ReprojectsTo(V3 world, int x, int y, double pixelTolerance)
     {
-        var local = cameraGeometry.Rotate(Inverse, world - Centre);
+        var local = CameraGeometry.Rotate(Inverse, world - Centre);
         if (!(local.Z > 0))
         {
             return false;
@@ -113,7 +111,7 @@ public sealed class DepthView
 
     public double Difference(V3 world)
     {
-        var p = cameraGeometry.Rotate(Inverse, world - Centre);
+        var p = CameraGeometry.Rotate(Inverse, world - Centre);
         if (!(p.Z > 0) || !double.IsFinite(p.Z))
         {
             return double.NaN;

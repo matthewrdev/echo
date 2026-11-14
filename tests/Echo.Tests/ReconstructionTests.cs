@@ -10,7 +10,6 @@ namespace Echo.Tests;
 [Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ReconstructionTests
 {
-    private readonly Echo.Geometry.ICameraGeometry cameraGeometry;
     private readonly Echo.Imaging.IRasterImageService rasterImageService;
     private readonly Echo.Infrastructure.IJsonCodec jsonCodec;
     private readonly Echo.Infrastructure.IFileOperations fileOperations;
@@ -30,9 +29,8 @@ public sealed class ReconstructionTests
     private readonly CloudProcessingTests cloudProcessingTests;
     private readonly Echo.Pipeline.IStageResetService resetService;
     [ImportingConstructor]
-    public ReconstructionTests(Echo.Geometry.ICameraGeometry cameraGeometry, Echo.Imaging.IRasterImageService rasterImageService, Echo.Infrastructure.IJsonCodec jsonCodec, Echo.Infrastructure.IFileOperations fileOperations, Echo.Reconstruction.IReconstructor reconstructor, Echo.Optimization.IBundleAdjuster bundleAdjuster, Echo.Meshing.IMeshBuilder meshBuilder, Echo.Simplification.IEdgeCollapse edgeCollapse, Echo.Export.IGlbWriter glbWriter, Echo.Projects.IProjectStoreFactory storeFactory, Echo.Pipeline.IProcessor processor, ProcessingSettingsTests settingsTests, TextureTests textureTests, Echo.Pipeline.IStageResetService resetService, ProcessingEfficiencyTests efficiencyTests, LineFeatureTests lineTests, ResetCommandTests resetCommandTests, FeatureExtractionTests featureExtractionTests, CloudProcessingTests cloudProcessingTests)
+    public ReconstructionTests(Echo.Imaging.IRasterImageService rasterImageService, Echo.Infrastructure.IJsonCodec jsonCodec, Echo.Infrastructure.IFileOperations fileOperations, Echo.Reconstruction.IReconstructor reconstructor, Echo.Optimization.IBundleAdjuster bundleAdjuster, Echo.Meshing.IMeshBuilder meshBuilder, Echo.Simplification.IEdgeCollapse edgeCollapse, Echo.Export.IGlbWriter glbWriter, Echo.Projects.IProjectStoreFactory storeFactory, Echo.Pipeline.IProcessor processor, ProcessingSettingsTests settingsTests, TextureTests textureTests, Echo.Pipeline.IStageResetService resetService, ProcessingEfficiencyTests efficiencyTests, LineFeatureTests lineTests, ResetCommandTests resetCommandTests, FeatureExtractionTests featureExtractionTests, CloudProcessingTests cloudProcessingTests)
     {
-        this.cameraGeometry = cameraGeometry;
         this.rasterImageService = rasterImageService;
         this.jsonCodec = jsonCodec;
         this.fileOperations = fileOperations;
@@ -88,14 +86,14 @@ public sealed class ReconstructionTests
                 Longitude = 150,
                 Altitude = 100
             };
-            var east = cameraGeometry.ToLocal(new GeoPosition { Latitude = -33, Longitude = 150.00001, Altitude = 100 }, origin);
-            var north = cameraGeometry.ToLocal(new GeoPosition { Latitude = -32.99999, Longitude = 150, Altitude = 100 }, origin);
-            var up = cameraGeometry.ToLocal(new GeoPosition { Latitude = -33, Longitude = 150, Altitude = 101 }, origin);
+            var east = CameraGeometry.ToLocal(new GeoPosition { Latitude = -33, Longitude = 150.00001, Altitude = 100 }, origin);
+            var north = CameraGeometry.ToLocal(new GeoPosition { Latitude = -32.99999, Longitude = 150, Altitude = 100 }, origin);
+            var up = CameraGeometry.ToLocal(new GeoPosition { Latitude = -33, Longitude = 150, Altitude = 101 }, origin);
             Check(east.X > .8 && Math.Abs(east.Z) < .01, "East axis");
             Check(north.Z < -1 && Math.Abs(north.X) < .01, "North is -Z");
             Near(up.Y, 1, 1e-6);
-            var matrix = cameraGeometry.LocalToEcefMatrix(origin);
-            var ecef = cameraGeometry.Ecef(origin);
+            var matrix = CameraGeometry.LocalToEcefMatrix(origin);
+            var ecef = CameraGeometry.Ecef(origin);
             Near(matrix[3], ecef.X, 1e-8);
             Near(matrix[7], ecef.Y, 1e-8);
             Near(matrix[11], ecef.Z, 1e-8);
@@ -105,15 +103,15 @@ public sealed class ReconstructionTests
                 Longitude = 150.00001,
                 Altitude = 104
             };
-            var local = cameraGeometry.ToLocal(testGeo, origin);
-            var expected = cameraGeometry.Ecef(testGeo);
+            var local = CameraGeometry.ToLocal(testGeo, origin);
+            var expected = CameraGeometry.Ecef(testGeo);
             Near(matrix[0] * local.X + matrix[1] * local.Y + matrix[2] * local.Z + matrix[3], expected.X, 1e-6);
             Near(matrix[4] * local.X + matrix[5] * local.Y + matrix[6] * local.Z + matrix[7], expected.Y, 1e-6);
             Near(matrix[8] * local.X + matrix[9] * local.Y + matrix[10] * local.Z + matrix[11], expected.Z, 1e-6);
-            var rotation = cameraGeometry.AttitudeRotation(new Attitude { Yaw = 90, Pitch = -30 });
-            var right = cameraGeometry.Rotate(rotation, new V3(1, 0, 0));
-            var down = cameraGeometry.Rotate(rotation, new V3(0, 1, 0));
-            var forward = cameraGeometry.Rotate(rotation, new V3(0, 0, 1));
+            var rotation = CameraGeometry.AttitudeRotation(new Attitude { Yaw = 90, Pitch = -30 });
+            var right = CameraGeometry.Rotate(rotation, new V3(1, 0, 0));
+            var down = CameraGeometry.Rotate(rotation, new V3(0, 1, 0));
+            var forward = CameraGeometry.Rotate(rotation, new V3(0, 0, 1));
             Near(forward.X, Math.Sqrt(.75), 1e-9);
             Near(forward.Y, -.5, 1e-9);
             Near(((right).Cross(down)).Dot(forward), 1, 1e-9);
@@ -134,12 +132,12 @@ public sealed class ReconstructionTests
             var point = new V3(.7, .2, 11);
             var match = new Match
             {
-                A = cameraGeometry.Project(image, a, point)![..2],
-                B = cameraGeometry.Project(image, b, point)![..2]
+                A = CameraGeometry.Project(image, a, point)![..2],
+                B = CameraGeometry.Project(image, b, point)![..2]
             };
-            var recovered = cameraGeometry.Triangulate(image, image, a, b, match);
+            var recovered = CameraGeometry.Triangulate(image, image, a, b, match);
             Check(recovered != null && (recovered.Point - point).Length < 1e-8, "Metric triangulation");
-            Check(cameraGeometry.Triangulate(image, image, a, b, new Match { A = [400, 300], B = [600, 300] }) == null, "Behind camera rejection");
+            Check(CameraGeometry.Triangulate(image, image, a, b, new Match { A = [400, 300], B = [600, 300] }) == null, "Behind camera rejection");
         });
         tests.Run("Eight-point RANSAC handles a non-GPS image pair with outliers", () =>
         {
@@ -159,7 +157,7 @@ public sealed class ReconstructionTests
             for (var i = 0; i < 60; i++)
             {
                 var point = new V3(random.NextDouble() * 5 - 2, random.NextDouble() * 3 - 1, 6 + random.NextDouble() * 8);
-                matches.Add(new Match { A = cameraGeometry.Project(image, a, point)![..2], B = cameraGeometry.Project(image, b, point)![..2] });
+                matches.Add(new Match { A = CameraGeometry.Project(image, a, point)![..2], B = CameraGeometry.Project(image, b, point)![..2] });
             }
 
             for (var i = 0; i < 12; i++)
@@ -167,9 +165,9 @@ public sealed class ReconstructionTests
                 matches.Add(new Match { A = [random.Next(1000), random.Next(700)], B = [random.Next(1000), random.Next(700)] });
             }
 
-            var result = cameraGeometry.EstimateRelative(image, image, matches);
+            var result = CameraGeometry.EstimateRelative(image, image, matches);
             Check(result != null && result.Inliers.Count >= 55, "Visual relative pose");
-            var centre = cameraGeometry.Rotate(cameraGeometry.Transpose(result!.Rotation), new V3(result.Translation)) * -1;
+            var centre = CameraGeometry.Rotate(CameraGeometry.Transpose(result!.Rotation), new V3(result.Translation)) * -1;
             Check((centre.Unit).Dot(new V3(b.Centre).Unit) > .99, "Translation direction and cheirality");
         });
         tests.Run("Ground camera registers against GPS cameras with different intrinsics", () =>
@@ -214,19 +212,19 @@ public sealed class ReconstructionTests
             var ca = new CameraPose
             {
                 ImageId = "a",
-                Rotation = cameraGeometry.AttitudeRotation(new Attitude())
+                Rotation = CameraGeometry.AttitudeRotation(new Attitude())
             };
             var cb = new CameraPose
             {
                 ImageId = "b",
-                Centre = cameraGeometry.ToLocal(gpsB, origin).Array,
+                Centre = CameraGeometry.ToLocal(gpsB, origin).Array,
                 Rotation = ca.Rotation
             };
             var cg = new CameraPose
             {
                 ImageId = "ground",
                 Centre = [1, .4, -.2],
-                Rotation = cameraGeometry.AttitudeRotation(new Attitude { Yaw = 5, Pitch = -3 })
+                Rotation = CameraGeometry.AttitudeRotation(new Attitude { Yaw = 5, Pitch = -3 })
             };
             var ab = new ImagePair
             {
@@ -242,8 +240,8 @@ public sealed class ReconstructionTests
             for (var i = 0; i < 70; i++)
             {
                 var point = new V3(random.NextDouble() * 4 - 2, random.NextDouble() * 3 - 1, -8 - random.NextDouble() * 8);
-                ab.Matches.Add(new Match { A = cameraGeometry.Project(a, ca, point)![..2], B = cameraGeometry.Project(b, cb, point)![..2] });
-                bg.Matches.Add(new Match { A = cameraGeometry.Project(b, cb, point)![..2], B = cameraGeometry.Project(ground, cg, point)![..2] });
+                ab.Matches.Add(new Match { A = CameraGeometry.Project(a, ca, point)![..2], B = CameraGeometry.Project(b, cb, point)![..2] });
+                bg.Matches.Add(new Match { A = CameraGeometry.Project(b, cb, point)![..2], B = CameraGeometry.Project(ground, cg, point)![..2] });
             }
 
             var project = new ProjectData { Images = [a, b, ground] };
@@ -294,11 +292,11 @@ public sealed class ReconstructionTests
                 {
                     ImageId = image.Id,
                     Centre = [i * 1.2, i * .12, 0],
-                    Rotation = cameraGeometry.AttitudeRotation(image.Attitude),
+                    Rotation = CameraGeometry.AttitudeRotation(image.Attitude),
                     FocalPixels = 850
                 };
                 truth.Add(pose);
-                scene.Cameras.Add(new CameraPose { ImageId = image.Id, Centre = i == 0 ? pose.Centre : [i * 1.2 + .25 * Math.Sin(i), i * .12 + .2 * Math.Cos(i), .15 * Math.Sin(i)], Rotation = cameraGeometry.AttitudeRotation(new Attitude { Yaw = i * 3 + (i == 0 ? 0 : 1.5 * Math.Cos(i)), Pitch = i == 0 ? 0 : .9 * Math.Sin(i) }) });
+                scene.Cameras.Add(new CameraPose { ImageId = image.Id, Centre = i == 0 ? pose.Centre : [i * 1.2 + .25 * Math.Sin(i), i * .12 + .2 * Math.Cos(i), .15 * Math.Sin(i)], Rotation = CameraGeometry.AttitudeRotation(new Attitude { Yaw = i * 3 + (i == 0 ? 0 : 1.5 * Math.Cos(i)), Pitch = i == 0 ? 0 : .9 * Math.Sin(i) }) });
             }
 
             var random = new Random(125);
@@ -315,7 +313,7 @@ public sealed class ReconstructionTests
                     };
                     foreach (var point in points)
                     {
-                        pair.Matches.Add(new Match { A = cameraGeometry.Project(project.Images[a], truth[a], point)![..2], B = cameraGeometry.Project(project.Images[b], truth[b], point)![..2] });
+                        pair.Matches.Add(new Match { A = CameraGeometry.Project(project.Images[a], truth[a], point)![..2], B = CameraGeometry.Project(project.Images[b], truth[b], point)![..2] });
                     }
 
                     pairs.Add(pair);
@@ -629,7 +627,7 @@ public sealed class ReconstructionTests
                 Longitude = 150 + i * .000006,
                 Altitude = 100
             };
-            var cx = cameraGeometry.ToLocal(gps, origin).X;
+            var cx = CameraGeometry.ToLocal(gps, origin).X;
             using var image = new SKBitmap(320, 240);
             for (var y = 0; y < image.Height; y++)
             {

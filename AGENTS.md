@@ -3,7 +3,7 @@
 - The desktop is a native macOS SwiftUI/AppKit application. Use SceneKit/Metal for 3D viewing. Do not add Avalonia or another cross-platform desktop framework.
 - The CLI and processing subsystems are C#. Keep each subsystem in its own project.
 - Put one named type in each file, with the filename matching the type. Do not hide helper classes inside another class.
-- Compose C# services with MEF (`System.ComponentModel.Composition`). Export interfaces, use explicit `[ImportingConstructor]` constructors and readonly dependency fields. Resolve services only in the application composition root.
+- Use MEF (`System.ComponentModel.Composition`) for application services, I/O, resource planning and subsystem boundaries. Export meaningful service interfaces, use explicit `[ImportingConstructor]` constructors and readonly dependency fields. Resolve services only in the application composition root. Do not create interfaces or MEF exports for stateless calculation helpers merely to make them injectable.
 - Do not introduce static services, mutable global state, or primary constructors for classes. Stateless algorithm helpers such as `RandomSampleSelector` may be static: keep all inputs, including random generators, explicit and do not compose them with MEF. C# operator declarations are also permitted.
 - Name fields in lowerCamelCase without an underscore prefix. Use `this.` to disambiguate constructor assignments.
 - Use named types for domain data; do not expose positional tuples as contracts.

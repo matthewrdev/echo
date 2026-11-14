@@ -1,16 +1,8 @@
-using System.ComponentModel.Composition;
-
 namespace Echo.Features;
 
-[Export(typeof(IScaleSpaceExtrema)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class ScaleSpaceExtrema : IScaleSpaceExtrema
+public static class ScaleSpaceExtrema
 {
-    [ImportingConstructor]
-    public ScaleSpaceExtrema()
-    {
-    }
-
-    public List<ScaleKeypoint> Find(float[][] differences, int width, int height, CancellationToken cancellation)
+    public static List<ScaleKeypoint> Find(float[][] differences, int width, int height, CancellationToken cancellation)
     {
         var result = new List<ScaleKeypoint>();
         var locations = new HashSet<int>();
@@ -43,7 +35,7 @@ public sealed class ScaleSpaceExtrema : IScaleSpaceExtrema
         return result;
     }
 
-    private int Compare(ScaleKeypoint left, ScaleKeypoint right)
+    private static int Compare(ScaleKeypoint left, ScaleKeypoint right)
     {
         var response = right.Response.CompareTo(left.Response);
         if (response != 0)
@@ -59,7 +51,7 @@ public sealed class ScaleSpaceExtrema : IScaleSpaceExtrema
         return row != 0 ? row : left.X.CompareTo(right.X);
     }
 
-    private bool IsExtremum(float[][] differences, int width, int x, int y, int layer, float value)
+    private static bool IsExtremum(float[][] differences, int width, int x, int y, int layer, float value)
     {
         for (var scaleOffset = -1; scaleOffset <= 1; scaleOffset++)
         {
@@ -84,7 +76,7 @@ public sealed class ScaleSpaceExtrema : IScaleSpaceExtrema
         return true;
     }
 
-    private ScaleKeypoint? Refine(float[][] differences, int width, int height, int x, int y, int layer)
+    private static ScaleKeypoint? Refine(float[][] differences, int width, int height, int x, int y, int layer)
     {
         for (var iteration = 0; iteration < 5; iteration++)
         {

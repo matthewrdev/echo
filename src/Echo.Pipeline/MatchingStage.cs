@@ -13,16 +13,14 @@ public sealed class MatchingStage : IPipelineStage
     private readonly IJsonCodec jsonCodec;
     private readonly IFeatureMatcher featureMatcher;
     private readonly IImagePairSelector pairSelector;
-    private readonly IImagePairVerifier pairVerifier;
 
     [ImportingConstructor]
-    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IJsonCodec jsonCodec, IFeatureMatcher featureMatcher, IImagePairVerifier pairVerifier)
+    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IJsonCodec jsonCodec, IFeatureMatcher featureMatcher)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
         this.featureMatcher = featureMatcher;
         this.pairSelector = pairSelector;
-        this.pairVerifier = pairVerifier;
     }
 
     public string Name => "matching";
@@ -71,7 +69,7 @@ public sealed class MatchingStage : IPipelineStage
                                 });
                             }
 
-                            pairVerifier.Verify(photos[pair.A], photos[pair.B], matches, cancellation);
+                            ImagePairVerifier.Verify(photos[pair.A], photos[pair.B], matches, cancellation);
                             fileOperations.AtomicJson(Path.Combine(dir, "pair.json"), matches);
                         });
             pairUnits.Add(unit);

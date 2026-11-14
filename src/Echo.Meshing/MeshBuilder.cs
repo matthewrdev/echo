@@ -7,14 +7,12 @@ namespace Echo.Meshing;
 [Export(typeof(IMeshBuilder)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MeshBuilder : IMeshBuilder
 {
-    private readonly ICameraGeometry cameraGeometry;
     private readonly Grid[] corners = [new(0, 0, 0), new(1, 0, 0), new(1, 1, 0), new(0, 1, 0), new(0, 0, 1), new(1, 0, 1), new(1, 1, 1), new(0, 1, 1)];
     private readonly int[][] edges = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
 
     [ImportingConstructor]
-    public MeshBuilder(ICameraGeometry cameraGeometry)
+    public MeshBuilder()
     {
-        this.cameraGeometry = cameraGeometry;
     }
 
     public Surface Extract(FusedVolume volume, CancellationToken cancellation)
@@ -149,7 +147,7 @@ public sealed class MeshBuilder : IMeshBuilder
         for (var index = 0; index < maps.Count; index++)
         {
             var map = maps[index];
-            views[index] = new DepthView(cameraGeometry, photos[map.ImageId], cameras[map.ImageId], map);
+            views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
         }
         var result = new Surface();
         var vertices = new Dictionary<ChartVertex, int>();

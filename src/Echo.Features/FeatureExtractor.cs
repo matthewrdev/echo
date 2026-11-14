@@ -14,14 +14,12 @@ public sealed class FeatureExtractor : IFeatureExtractor
 {
     private readonly IRasterImageService rasterImageService;
     private readonly ILineDetector lines;
-    private readonly IScaleSpaceFeatures scaleFeatures;
 
     [ImportingConstructor]
-    public FeatureExtractor(IRasterImageService rasterImageService, ILineDetector lines, IScaleSpaceFeatures scaleFeatures)
+    public FeatureExtractor(IRasterImageService rasterImageService, ILineDetector lines)
     {
         this.rasterImageService = rasterImageService;
         this.lines = lines;
-        this.scaleFeatures = scaleFeatures;
     }
 
     public FeatureSet Extract(IProjectStore store, Photo photo, Settings settings, CancellationToken cancellation)
@@ -89,7 +87,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
     {
         if (settings.ScaleInvariantFeatures)
         {
-            candidates.ScaleFeatures = scaleFeatures.Detect(gray, width, height, settings.FeatureLimit, cancellation);
+            candidates.ScaleFeatures = ScaleSpaceFeatures.Detect(gray, width, height, settings.FeatureLimit, cancellation);
         }
         else
         {

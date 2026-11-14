@@ -11,15 +11,13 @@ namespace Echo.Benchmarks;
 public sealed class BundleBenchmark
 {
     private readonly IBundleAdjuster bundle;
-    private readonly ICameraGeometry geometry;
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
 
     [ImportingConstructor]
-    public BundleBenchmark(IBundleAdjuster bundle, ICameraGeometry geometry, IFileOperations files, IJsonCodec json)
+    public BundleBenchmark(IBundleAdjuster bundle, IFileOperations files, IJsonCodec json)
     {
         this.bundle = bundle;
-        this.geometry = geometry;
         this.files = files;
         this.json = json;
     }
@@ -44,7 +42,7 @@ public sealed class BundleBenchmark
             pixels[i] = new double[points.Length][];
             for (var p = 0; p < points.Length; p++)
             {
-                var projected = geometry.Project(photo, camera, points[p])!;
+                var projected = CameraGeometry.Project(photo, camera, points[p])!;
                 pixels[i][p] = [projected[0] + (random.NextDouble() - .5) * .6, projected[1] + (random.NextDouble() - .5) * .6];
             }
         }

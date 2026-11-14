@@ -7,12 +7,9 @@ namespace Echo.Fusion;
 [Export(typeof(IDepthFusion)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class DepthFusion : IDepthFusion
 {
-    private readonly ICameraGeometry cameraGeometry;
-
     [ImportingConstructor]
-    public DepthFusion(ICameraGeometry cameraGeometry)
+    public DepthFusion()
     {
-        this.cameraGeometry = cameraGeometry;
     }
 
     public FusedVolume Fuse(ProjectData project,
@@ -35,7 +32,7 @@ public sealed class DepthFusion : IDepthFusion
         for (var index = 0; index < maps.Count; index++)
         {
             var map = maps[index];
-            views[index] = new DepthView(cameraGeometry, photos[map.ImageId], cameras[map.ImageId], map);
+            views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
         }
         var depthCount = 0;
         foreach (var view in views)

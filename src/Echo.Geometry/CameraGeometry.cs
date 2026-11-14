@@ -1,30 +1,23 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace Echo.Geometry;
 
-[Export(typeof(ICameraGeometry)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class CameraGeometry : ICameraGeometry
+public static class CameraGeometry
 {
-    [ImportingConstructor]
-    public CameraGeometry()
-    {
-    }
+    public static V3 Rotate(double[] rotation, V3 vector) => new(rotation[0] * vector.X + rotation[1] * vector.Y + rotation[2] * vector.Z, rotation[3] * vector.X + rotation[4] * vector.Y + rotation[5] * vector.Z, rotation[6] * vector.X + rotation[7] * vector.Y + rotation[8] * vector.Z);
 
-    public V3 Rotate(double[] rotation, V3 vector) => new(rotation[0] * vector.X + rotation[1] * vector.Y + rotation[2] * vector.Z, rotation[3] * vector.X + rotation[4] * vector.Y + rotation[5] * vector.Z, rotation[6] * vector.X + rotation[7] * vector.Y + rotation[8] * vector.Z);
+    public static double[] Transpose(double[] rotation) => [rotation[0], rotation[3], rotation[6], rotation[1], rotation[4], rotation[7], rotation[2], rotation[5], rotation[8]];
 
-    public double[] Transpose(double[] rotation) => [rotation[0], rotation[3], rotation[6], rotation[1], rotation[4], rotation[7], rotation[2], rotation[5], rotation[8]];
-
-    public double[] Multiply(double[] leftMatrix, double[] rightMatrix)
+    public static double[] Multiply(double[] leftMatrix, double[] rightMatrix)
     {
         var r = new double[9];
         Multiply(leftMatrix, rightMatrix, r);
         return r;
     }
 
-    public void Multiply(ReadOnlySpan<double> leftMatrix, ReadOnlySpan<double> rightMatrix, Span<double> result)
+    public static void Multiply(ReadOnlySpan<double> leftMatrix, ReadOnlySpan<double> rightMatrix, Span<double> result)
     {
         result.Clear();
         for (var i = 0; i < 3; i++)
@@ -39,7 +32,7 @@ public sealed class CameraGeometry : ICameraGeometry
         }
     }
 
-    public double[] AttitudeRotation(Attitude attitude)
+    public static double[] AttitudeRotation(Attitude attitude)
     {
         var yaw = attitude.Yaw * Math.PI / 180;
         var pitch = attitude.Pitch * Math.PI / 180;
@@ -53,7 +46,7 @@ public sealed class CameraGeometry : ICameraGeometry
     }
 
     // WGS84 ECEF -> local East/Up/South. Unknown vertical datum is retained in the sidecar.
-    public V3 ToLocal(GeoPosition position, GeoPosition origin)
+    public static V3 ToLocal(GeoPosition position, GeoPosition origin)
     {
         var delta = Ecef(position) - Ecef(origin);
         var lat = origin.Latitude * Math.PI / 180;
@@ -64,7 +57,7 @@ public sealed class CameraGeometry : ICameraGeometry
         return new V3(east, up, -north);
     }
 
-    public double[] LocalToEcefMatrix(GeoPosition origin)
+    public static double[] LocalToEcefMatrix(GeoPosition origin)
     {
         var lat = origin.Latitude * Math.PI / 180;
         var lon = origin.Longitude * Math.PI / 180;
@@ -72,7 +65,7 @@ public sealed class CameraGeometry : ICameraGeometry
         return [-Math.Sin(lon), Math.Cos(lat) * Math.Cos(lon), Math.Sin(lat) * Math.Cos(lon), p.X, Math.Cos(lon), Math.Cos(lat) * Math.Sin(lon), Math.Sin(lat) * Math.Sin(lon), p.Y, 0, Math.Sin(lat), -Math.Cos(lat), p.Z, 0, 0, 0, 1];
     }
 
-    public V3 Ecef(GeoPosition position)
+    public static V3 Ecef(GeoPosition position)
     {
         const double a = 6378137;
         const double e2 = 6.69437999014e-3;
@@ -83,13 +76,13 @@ public sealed class CameraGeometry : ICameraGeometry
         return new V3((n + h) * Math.Cos(lat) * Math.Cos(lon), (n + h) * Math.Cos(lat) * Math.Sin(lon), (n * (1 - e2) + h) * Math.Sin(lat));
     }
 
-    public double Focal(Photo photo, CameraPose? camera = null) => camera?.FocalPixels > 0 ? camera.FocalPixels : photo.FocalPixels;
+    public static double Focal(Photo photo, CameraPose? camera = null) => camera?.FocalPixels > 0 ? camera.FocalPixels : photo.FocalPixels;
 
-    public V3 Ray(Photo photo, double[] pixel, CameraPose? camera = null) => new((pixel[0] - photo.Width * .5) / Focal(photo, camera), (pixel[1] - photo.Height * .5) / Focal(photo, camera), 1);
+    public static V3 Ray(Photo photo, double[] pixel, CameraPose? camera = null) => new((pixel[0] - photo.Width * .5) / Focal(photo, camera), (pixel[1] - photo.Height * .5) / Focal(photo, camera), 1);
 
-    public double[]? Project(Photo photo, CameraPose pose, V3 point) => ProjectPoint(photo, pose, point)?.Array;
+    public static double[]? Project(Photo photo, CameraPose pose, V3 point) => ProjectPoint(photo, pose, point)?.Array;
 
-    public V3? ProjectPoint(Photo photo, CameraPose pose, V3 point)
+    public static V3? ProjectPoint(Photo photo, CameraPose pose, V3 point)
     {
         var delta = point - new V3(pose.Centre);
         var rotation = pose.Rotation;
@@ -100,7 +93,7 @@ public sealed class CameraGeometry : ICameraGeometry
         return p.Z > 1e-8 ? new V3(Focal(photo, pose) * p.X / p.Z + photo.Width * .5, Focal(photo, pose) * p.Y / p.Z + photo.Height * .5, p.Z) : null;
     }
 
-    public Triangulated? Triangulate(Photo leftPhoto, Photo rightPhoto, CameraPose leftCamera, CameraPose rightCamera, Match match, double maximumReprojectionErrorPixels = 12)
+    public static Triangulated? Triangulate(Photo leftPhoto, Photo rightPhoto, CameraPose leftCamera, CameraPose rightCamera, Match match, double maximumReprojectionErrorPixels = 12)
     {
         var da = Rotate(leftCamera.Rotation, Ray(leftPhoto, match.A, leftCamera)).Unit;
         var db = Rotate(rightCamera.Rotation, Ray(rightPhoto, match.B, rightCamera)).Unit;
@@ -137,9 +130,9 @@ public sealed class CameraGeometry : ICameraGeometry
         : null;
     }
 
-    public double Square(double x) => x * x;
+    public static double Square(double x) => x * x;
 
-    public RelativePose? EstimateRelative(Photo leftPhoto, Photo rightPhoto, List<Match> matches)
+    public static RelativePose? EstimateRelative(Photo leftPhoto, Photo rightPhoto, List<Match> matches)
     {
         var verified = FundamentalMatrixEstimator.Estimate(matches, Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000.0, default);
         if (verified == null)
@@ -212,7 +205,7 @@ public sealed class CameraGeometry : ICameraGeometry
 
         return most >= 10 ? result : null;
     }
-    private Matrix<double> Calibration(Photo photo)
+    private static Matrix<double> Calibration(Photo photo)
     {
         return DenseMatrix.OfArray(new[,]
         {

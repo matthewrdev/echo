@@ -11,14 +11,12 @@ public sealed class ProcessingSettingsTests
 {
     private readonly IFeatureMatcher matcher;
     private readonly IImagePairSelector selector;
-    private readonly IFrustumOverlap overlap;
 
     [ImportingConstructor]
-    public ProcessingSettingsTests(IFeatureMatcher matcher, IImagePairSelector selector, IFrustumOverlap overlap)
+    public ProcessingSettingsTests(IFeatureMatcher matcher, IImagePairSelector selector)
     {
         this.matcher = matcher;
         this.selector = selector;
-        this.overlap = overlap;
     }
 
     internal void Run(TestSuite tests)
@@ -103,10 +101,10 @@ public sealed class ProcessingSettingsTests
             var upper = new CaptureFrustum(new V3(0, 10, 0), forward, .5, .5, 50, 0);
             var distant = new CaptureFrustum(new V3(0, 100, 0), forward, .5, .5, 50, 0);
             var away = new CaptureFrustum(new V3(0, 0, -10), backward, .5, .5, 50, 0);
-            Check(overlap.Score(lower, upper) > 0, "Different heights share viewing volume");
-            Check(overlap.Score(lower, distant) == 0, "Disjoint elevation ranges");
-            Check(overlap.Score(lower, away) == 0, "Nearby cameras looking away do not overlap");
-            Check(Math.Abs(overlap.Score(lower, upper) - overlap.Score(upper, lower)) < 1e-12, "Symmetric ranking");
+            Check(FrustumOverlap.Score(lower, upper) > 0, "Different heights share viewing volume");
+            Check(FrustumOverlap.Score(lower, distant) == 0, "Disjoint elevation ranges");
+            Check(FrustumOverlap.Score(lower, away) == 0, "Nearby cameras looking away do not overlap");
+            Check(Math.Abs(FrustumOverlap.Score(lower, upper) - FrustumOverlap.Score(upper, lower)) < 1e-12, "Symmetric ranking");
         });
         tests.Run("Spatial selection reaches other flight passes and uses altitude for GPS distance", () =>
         {

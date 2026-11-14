@@ -13,15 +13,13 @@ public sealed class ExportStage : IPipelineStage
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
     private readonly IGlbWriter glbWriter;
-    private readonly ICameraGeometry cameraGeometry;
 
     [ImportingConstructor]
-    public ExportStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IGlbWriter glbWriter, ICameraGeometry cameraGeometry)
+    public ExportStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IGlbWriter glbWriter)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
         this.glbWriter = glbWriter;
-        this.cameraGeometry = cameraGeometry;
     }
 
     public string Name => "export";
@@ -60,7 +58,7 @@ public sealed class ExportStage : IPipelineStage
                         scene.Frame,
                         scene.Origin,
                         referenced = scene.Origin != null,
-                        localToEcefRowMajor = scene.Origin == null ? null : cameraGeometry.LocalToEcefMatrix(scene.Origin),
+                        localToEcefRowMajor = scene.Origin == null ? null : CameraGeometry.LocalToEcefMatrix(scene.Origin),
                         axisConvention = "X east, Y up, Z south",
                         geographicDatum = "WGS84 horizontal",
                         verticalDatum = scene.Origin?.AltitudeDatum ?? "unreferenced",

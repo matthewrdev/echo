@@ -1,18 +1,10 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Geometry;
 
-[Export(typeof(IImagePairVerifier)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class ImagePairVerifier : IImagePairVerifier
+public static class ImagePairVerifier
 {
-
-    [ImportingConstructor]
-    public ImagePairVerifier()
-    {
-    }
-
-    public ImagePair Verify(Photo leftPhoto, Photo rightPhoto, ImagePair candidates, CancellationToken cancellation)
+    public static ImagePair Verify(Photo leftPhoto, Photo rightPhoto, ImagePair candidates, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         var threshold = Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000.0;

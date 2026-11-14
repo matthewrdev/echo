@@ -1,22 +1,12 @@
 using System.Buffers;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 
 namespace Echo.Depth;
 
-[Export(typeof(IDepthRangeEstimator)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class DepthRangeEstimator : IDepthRangeEstimator
+public static class DepthRangeEstimator
 {
-    private readonly ICameraGeometry geometry;
-
-    [ImportingConstructor]
-    public DepthRangeEstimator(ICameraGeometry geometry)
-    {
-        this.geometry = geometry;
-    }
-
-    public DepthSearchRange Estimate(ProjectData project, ReconstructionScene scene, Photo photo, CameraPose camera, CancellationToken cancellation)
+    public static DepthSearchRange Estimate(ProjectData project, ReconstructionScene scene, Photo photo, CameraPose camera, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         var settings = project.Settings;
@@ -53,7 +43,7 @@ public sealed class DepthRangeEstimator : IDepthRangeEstimator
         }
     }
 
-    private DepthSearchRange FromScene(ReconstructionScene scene, Photo photo, CameraPose camera,
+    private static DepthSearchRange FromScene(ReconstructionScene scene, Photo photo, CameraPose camera,
         Span<double> depths, Span<double> grouped, Span<byte> tiles, CancellationToken cancellation)
     {
         Span<int> observedCounts = stackalloc int[48];
@@ -68,7 +58,7 @@ public sealed class DepthRangeEstimator : IDepthRangeEstimator
         {
             cameras.Add(pose.ImageId, pose);
         }
-        var projector = new CameraProjector(geometry, photo, camera);
+        var projector = new CameraProjector(photo, camera);
         foreach (var point in scene.Points)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -150,7 +140,7 @@ public sealed class DepthRangeEstimator : IDepthRangeEstimator
         };
     }
 
-    private bool HasReliableTriangulation(CloudPoint point, Dictionary<string, CameraPose> cameras)
+    private static bool HasReliableTriangulation(CloudPoint point, Dictionary<string, CameraPose> cameras)
     {
         if (!cameras.TryGetValue(point.ImageA, out var first) || !cameras.TryGetValue(point.ImageB, out var second))
         {
@@ -179,7 +169,7 @@ public sealed class DepthRangeEstimator : IDepthRangeEstimator
         return finiteRays && crossSquared >= minimumSineSquared * lengthProduct;
     }
 
-    private DepthSearchRange FromTiles(Span<double> samples, Span<double> grouped, ReadOnlySpan<int> counts,
+    private static DepthSearchRange FromTiles(Span<double> samples, Span<double> grouped, ReadOnlySpan<int> counts,
         string source, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
@@ -207,7 +197,7 @@ public sealed class DepthRangeEstimator : IDepthRangeEstimator
         return new DepthSearchRange(near, far, samples[samples.Length / 2], samples.Length, source);
     }
 
-    private DepthSearchRange FromCameraBounds(ReconstructionScene scene, CancellationToken cancellation)
+    private static DepthSearchRange FromCameraBounds(ReconstructionScene scene, CancellationToken cancellation)
     {
         var minimum = new V3(double.PositiveInfinity, double.PositiveInfinity, double.PositiveInfinity);
         var maximum = new V3(double.NegativeInfinity, double.NegativeInfinity, double.NegativeInfinity);

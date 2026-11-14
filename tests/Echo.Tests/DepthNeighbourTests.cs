@@ -8,14 +8,9 @@ namespace Echo.Tests;
 [Export]
 public sealed class DepthNeighbourTests
 {
-    private readonly IDepthNeighbourSelector selector;
-    private readonly ICameraGeometry geometry;
-
     [ImportingConstructor]
-    public DepthNeighbourTests(IDepthNeighbourSelector selector, ICameraGeometry geometry)
+    public DepthNeighbourTests()
     {
-        this.selector = selector;
-        this.geometry = geometry;
     }
 
     internal void Run(TestSuite tests)
@@ -42,10 +37,10 @@ public sealed class DepthNeighbourTests
                     {
                         var candidates = scene.Cameras.Where(camera => camera.ImageId != reference.ImageId
                             && new V3(camera.Centre).Length > .05
-                            && geometry.Rotate(camera.Rotation, new V3(0, 0, 1)).Z > .8).ToList();
+                            && CameraGeometry.Rotate(camera.Rotation, new V3(0, 0, 1)).Z > .8).ToList();
                         var preferred = candidates.Where(camera => new V3(camera.Centre).Length >= Math.Clamp(median * .06, .75, 3)).ToList();
                         var expected = (preferred.Count < 2 ? candidates : preferred).OrderBy(camera => new V3(camera.Centre).Length).Take(limit).ToArray();
-                        var actual = selector.Select(scene, reference, median, limit, default);
+                        var actual = DepthNeighbourSelector.Select(scene, reference, median, limit, default);
                         if (!expected.SequenceEqual(actual))
                         {
                             throw new InvalidOperationException($"Neighbour selection changed for {count} cameras, limit {limit}, median {median}.");
@@ -59,12 +54,12 @@ public sealed class DepthNeighbourTests
                 new CameraPose { ImageId = "near", Centre = [1, 0, 0] },
                 new CameraPose { ImageId = "far", Centre = [4, 0, 0] }]
             };
-            if (selector.Select(fallback, reference, 100, 1, default)[0].ImageId != "near")
+            if (DepthNeighbourSelector.Select(fallback, reference, 100, 1, default)[0].ImageId != "near")
             {
                 throw new InvalidOperationException("One strong-baseline candidate must still fall back to the closer neighbour.");
             }
             fallback.Cameras.Add(new CameraPose { ImageId = "farther", Centre = [5, 0, 0] });
-            if (selector.Select(fallback, reference, 100, 1, default)[0].ImageId != "far")
+            if (DepthNeighbourSelector.Select(fallback, reference, 100, 1, default)[0].ImageId != "far")
             {
                 throw new InvalidOperationException("Two strong-baseline candidates must use preferred selection even with limit one.");
             }
@@ -72,7 +67,7 @@ public sealed class DepthNeighbourTests
             cancellation.Cancel();
             try
             {
-                selector.Select(fallback, reference, 100, 12, cancellation.Token);
+                DepthNeighbourSelector.Select(fallback, reference, 100, 12, cancellation.Token);
                 throw new InvalidOperationException("Selection ignored cancellation.");
             }
             catch (OperationCanceledException)

@@ -17,16 +17,14 @@ public sealed class ProcessingEfficiencyTests
     private readonly IDepthExecutionPlanner planner;
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
-    private readonly ICameraGeometry geometry;
 
     [ImportingConstructor]
-    public ProcessingEfficiencyTests(IRasterImageService images, IDepthExecutionPlanner planner, IJsonCodec json, IFileOperations files, ICameraGeometry geometry)
+    public ProcessingEfficiencyTests(IRasterImageService images, IDepthExecutionPlanner planner, IJsonCodec json, IFileOperations files)
     {
         this.images = images;
         this.planner = planner;
         this.json = json;
         this.files = files;
-        this.geometry = geometry;
     }
 
     internal void Run(TestSuite tests)
@@ -134,13 +132,13 @@ public sealed class ProcessingEfficiencyTests
         tests.Run("Cached camera projection preserves the original projection and cheirality", () =>
         {
             var photo = new Photo { Width = 4032, Height = 2268, FocalPixels = 3000 };
-            var camera = new CameraPose { Centre = [1, 2, 3], Rotation = geometry.AttitudeRotation(new Attitude { Yaw = 24, Pitch = -17 }) };
-            var projector = new CameraProjector(geometry, photo, camera);
+            var camera = new CameraPose { Centre = [1, 2, 3], Rotation = CameraGeometry.AttitudeRotation(new Attitude { Yaw = 24, Pitch = -17 }) };
+            var projector = new CameraProjector(photo, camera);
             var random = new Random(124);
             for (var i = 0; i < 100; i++)
             {
                 var point = new V3(random.NextDouble() * 20 - 10, random.NextDouble() * 20 - 10, random.NextDouble() * 30 - 15);
-                var original = geometry.Project(photo, camera, point);
+                var original = CameraGeometry.Project(photo, camera, point);
                 var cached = projector.Project(point);
                 Check((original == null) == !cached.HasValue, "Same behind-camera handling");
                 if (original != null)

@@ -11,13 +11,11 @@ namespace Echo.Texturing;
 [Export(typeof(ITextureRasterizer)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureRasterizer : ITextureRasterizer
 {
-    private readonly ICameraGeometry geometry;
     private readonly IRasterImageService images;
 
     [ImportingConstructor]
-    public TextureRasterizer(ICameraGeometry geometry, IRasterImageService images)
+    public TextureRasterizer(IRasterImageService images)
     {
-        this.geometry = geometry;
         this.images = images;
     }
 
@@ -48,7 +46,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
         {
             var photo = photos[group.Key];
             var camera = cameras[group.Key];
-            var projection = new CameraProjector(geometry, photo, camera);
+            var projection = new CameraProjector(photo, camera);
             using var source = SKBitmap.Decode(store.PathFor(photo.Source));
             var pixels = images.BorrowPixels(source, out var swapRedBlue);
             foreach (var index in group)

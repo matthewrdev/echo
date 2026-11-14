@@ -1,17 +1,10 @@
 using System.Buffers;
-using System.ComponentModel.Composition;
 
 namespace Echo.Features;
 
-[Export(typeof(IGaussianBlur)), PartCreationPolicy(CreationPolicy.Shared)]
-public sealed class GaussianBlur : IGaussianBlur
+public static class GaussianBlur
 {
-    [ImportingConstructor]
-    public GaussianBlur()
-    {
-    }
-
-    public void Apply(ReadOnlySpan<float> source, Span<float> destination, int width, int height, double sigma, CancellationToken cancellation)
+    public static void Apply(ReadOnlySpan<float> source, Span<float> destination, int width, int height, double sigma, CancellationToken cancellation)
     {
         var radius = (int)Math.Ceiling(4 * sigma);
         Span<double> kernel = stackalloc double[2 * radius + 1];

@@ -9,14 +9,12 @@ namespace Echo.Tests;
 [Export]
 public sealed class ScaleSpaceFeatureTests
 {
-    private readonly IScaleSpaceFeatures features;
     private readonly IFeatureMatcher matcher;
     private readonly IFileOperations files;
 
     [ImportingConstructor]
-    public ScaleSpaceFeatureTests(IScaleSpaceFeatures features, IFeatureMatcher matcher, IFileOperations files)
+    public ScaleSpaceFeatureTests(IFeatureMatcher matcher, IFileOperations files)
     {
-        this.features = features;
         this.matcher = matcher;
         this.files = files;
     }
@@ -41,8 +39,8 @@ public sealed class ScaleSpaceFeatureTests
                     transformed[y * width + x] = Sample(source, width, cosine * dx + sine * dy + width * .5, -sine * dx + cosine * dy + width * .5);
                 }
             }
-            var left = new FeatureSet { Features = features.Detect(source, width, width, 600, default) };
-            var right = new FeatureSet { Features = features.Detect(transformed, width, width, 600, default) };
+            var left = new FeatureSet { Features = ScaleSpaceFeatures.Detect(source, width, width, 600, default) };
+            var right = new FeatureSet { Features = ScaleSpaceFeatures.Detect(transformed, width, width, 600, default) };
             var pair = matcher.Match(left, right, new Settings(), default);
             var correct = 0;
             foreach (var match in pair.Matches)
@@ -61,14 +59,14 @@ public sealed class ScaleSpaceFeatureTests
             var hash = files.Hash(left);
             Parallel.For(0, 3, index =>
             {
-                features.Detect(new float[64 * 64], 64, 64, 32, default);
-                Check(files.Hash(new FeatureSet { Features = features.Detect(source, width, width, 600, default) }) == hash, "Concurrent pools must produce identical descriptors");
+                ScaleSpaceFeatures.Detect(new float[64 * 64], 64, 64, 32, default);
+                Check(files.Hash(new FeatureSet { Features = ScaleSpaceFeatures.Detect(source, width, width, 600, default) }) == hash, "Concurrent pools must produce identical descriptors");
             });
             using var cancelled = new CancellationTokenSource();
             cancelled.Cancel();
             try
             {
-                features.Detect(source, width, width, 600, cancelled.Token);
+                ScaleSpaceFeatures.Detect(source, width, width, 600, cancelled.Token);
                 throw new InvalidOperationException("Cancellation must abort extraction");
             }
             catch (OperationCanceledException)
