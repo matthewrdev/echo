@@ -3,6 +3,23 @@ import XCTest
 @testable import EchoDesktop
 
 final class ProcessingSettingsTests: XCTestCase {
+    func testSemanticSettingsInvalidateTheirConsumers() {
+        let original = ProcessingSettings()
+        let impact = ProcessingImpact()
+        var changed = original
+        changed.recoverCliffDepth = true
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .depth)
+        changed = original
+        changed.optimiseVegetation = true
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .mesh)
+        changed = original
+        changed.vegetationMeshToleranceMultiplier = 3
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .mesh)
+        changed = original
+        changed.vegetationTextureScale = 0.5
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .texture)
+    }
+
     func testOlderProjectSettingsDecodeAndNewControlsRoundTrip() throws {
         let old = Data(#"{"featureWidth":800,"textureSize":4096}"#.utf8)
         var settings = try JSONDecoder().decode(ProcessingSettings.self, from: old)
@@ -17,6 +34,12 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(settings.depthBackend, "auto")
         XCTAssertEqual(settings.meshIslandMode, .off)
         XCTAssertEqual(settings.meshIslandMinimumAreaPercent, 0.1)
+        XCTAssertFalse(settings.optimiseVegetation)
+        XCTAssertFalse(settings.recoverCliffDepth)
+        settings.optimiseVegetation = true
+        settings.recoverCliffDepth = true
+        settings.vegetationMeshToleranceMultiplier = 3
+        settings.vegetationTextureScale = 0.5
         settings.depthBackend = "metal-validated"
         settings.depthRangeAutomatic = false
         settings.depthNear = 5
@@ -48,6 +71,10 @@ final class ProcessingSettingsTests: XCTestCase {
         settings.meshIslandMode = .main
         settings.meshIslandMinimumAreaPercent = 2.5
         let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertTrue(restored.optimiseVegetation)
+        XCTAssertTrue(restored.recoverCliffDepth)
+        XCTAssertEqual(restored.vegetationMeshToleranceMultiplier, 3)
+        XCTAssertEqual(restored.vegetationTextureScale, 0.5)
         XCTAssertFalse(restored.detectLines)
         XCTAssertFalse(restored.scaleInvariantFeatures)
         XCTAssertFalse(restored.guidedAlignmentPass)

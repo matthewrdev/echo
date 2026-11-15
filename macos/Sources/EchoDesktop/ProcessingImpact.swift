@@ -22,7 +22,9 @@ struct ProcessingImpact {
         let oldDirectMetal = old.depthBackend == "auto" || old.depthBackend == "metal"
         let newDirectMetal = new.depthBackend == "auto" || new.depthBackend == "metal"
         let depth =
-            oldDirectMetal != newDirectMetal || old.depthWidth != new.depthWidth || old.depthPlanes != new.depthPlanes
+            old.recoverCliffDepth != new.recoverCliffDepth
+            || oldDirectMetal != newDirectMetal || old.depthWidth != new.depthWidth
+            || old.depthPlanes != new.depthPlanes
             || old.depthRefinementSamples != new.depthRefinementSamples || old.depthNeighbours != new.depthNeighbours
             || old.depthRangeAutomatic != new.depthRangeAutomatic
             || old.depthNear != new.depthNear || old.depthFar != new.depthFar
@@ -39,11 +41,14 @@ struct ProcessingImpact {
             || old.fusionIslandMinimumSizePercent != new.fusionIslandMinimumSizePercent
         if fusion { return .fusion }
         let mesh =
-            old.faceLimit != new.faceLimit || old.meshIslandMode != new.meshIslandMode
+            old.optimiseVegetation != new.optimiseVegetation
+            || old.vegetationMeshToleranceMultiplier != new.vegetationMeshToleranceMultiplier
+            || old.faceLimit != new.faceLimit || old.meshIslandMode != new.meshIslandMode
             || old.meshIslandMinimumAreaPercent != new.meshIslandMinimumAreaPercent
         if mesh { return .mesh }
         let texture =
-            old.textureSize != new.textureSize || old.textureJpegQuality != new.textureJpegQuality
+            old.vegetationTextureScale != new.vegetationTextureScale
+            || old.textureSize != new.textureSize || old.textureJpegQuality != new.textureJpegQuality
             || old.textureChartFaces != new.textureChartFaces || old.textureChartAngle != new.textureChartAngle
             || old.textureGutter != new.textureGutter
             || old.textureSuppressSky != new.textureSuppressSky

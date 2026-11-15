@@ -1,4 +1,5 @@
 enum ProcessingSettingsKey: String, CodingKey {
+    case optimiseVegetation, vegetationMeshToleranceMultiplier, vegetationTextureScale, recoverCliffDepth
     case depthBackend
     case scaleInvariantFeatures, guidedAlignmentPass
     case frustumPairNeighbours, pairSearchDistance

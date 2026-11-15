@@ -123,6 +123,11 @@ struct StageSettingsEditor: View {
                 IntegerSettingSlider(
                     title: "Refinement samples per level", value: $settings.depthRefinementSamples, range: 3...128)
                 IntegerSettingSlider(title: "Stereo neighbours", value: $settings.depthNeighbours, range: 1...32)
+                Toggle("Recover missing cliff detail", isOn: $settings.recoverCliffDepth)
+                Text(
+                    "Searches small rock gaps using finer source photographs and additional views. Requires two independent depth confirmations; existing samples stay fixed. The first semantic pass downloads a 228 MB model, then runs locally."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 Toggle("Automatic depth range", isOn: $settings.depthRangeAutomatic)
                 if settings.depthRangeAutomatic {
                     Text(
@@ -190,6 +195,16 @@ struct StageSettingsEditor: View {
                     "Removes disconnected observed volume before mesh extraction and hole closing. Region size uses the number of fusion samples. Main region only can also remove real detached objects. Nearby fragments joined by the fusion band may remain; Mesh island trimming can clean up later."
                 ).font(.caption).foregroundStyle(.secondary)
             case .mesh:
+                Toggle("Optimise vegetation", isOn: $settings.optimiseVegetation)
+                if settings.optimiseVegetation {
+                    DecimalSettingSlider(
+                        title: "Vegetation mesh tolerance multiplier",
+                        value: $settings.vegetationMeshToleranceMultiplier, range: 1...4, step: 0.25)
+                    Text(
+                        "Simplifies vegetation confirmed by multiple views. Rock, uncertain regions and vegetation boundaries keep their detail. Also enables a separate vegetation texture budget. The first pass downloads a 228 MB model; photographs stay local."
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
+                }
                 IntegerSettingSlider(title: "Triangle budget", value: $settings.faceLimit, range: 1...10_000_000)
                 Text(
                     "Reduces the reconstructed surface while preserving shape and boundaries. Flat areas use fewer triangles; complex areas retain more. Changing this budget reuses fusion. Topology may prevent reaching very low budgets."
@@ -208,6 +223,15 @@ struct StageSettingsEditor: View {
                     "Runs after hole closing. Small islands are measured by surface area, independent of triangle density. Main surface only removes every disconnected patch, including detached rocks. Connected protrusions are retained. Changing this setting rebuilds Mesh, Texture and Export."
                 ).font(.caption).foregroundStyle(.secondary)
             case .texture:
+                if settings.optimiseVegetation {
+                    DecimalSettingSlider(
+                        title: "Vegetation texture scale", value: $settings.vegetationTextureScale, range: 0.25...1,
+                        step: 0.05)
+                    Text(
+                        "Linear texel density relative to rock. 0.65 uses about 42% as many texels per surface area, leaving more atlas space for rock. Uncertain faces retain full quality. Layouts that waste space on extra padding are skipped."
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
+                }
                 Picker("Atlas size (px)", selection: $settings.textureSize) {
                     ForEach([256, 512, 1024, 2048, 4096, 8192], id: \.self) { Text("\($0)").tag($0) }
                 }.pickerStyle(.segmented)

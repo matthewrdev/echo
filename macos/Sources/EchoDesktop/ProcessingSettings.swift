@@ -1,6 +1,10 @@
 import Foundation
 
 struct ProcessingSettings: Codable {
+    var optimiseVegetation: Bool = false
+    var vegetationMeshToleranceMultiplier: Double = 2.5
+    var vegetationTextureScale: Double = 0.65
+    var recoverCliffDepth: Bool = false
     var scaleInvariantFeatures: Bool = true
     var guidedAlignmentPass: Bool = true
     var detectLines: Bool = true
@@ -55,6 +59,11 @@ struct ProcessingSettings: Codable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: ProcessingSettingsKey.self)
+        optimiseVegetation = try values.decodeIfPresent(Bool.self, forKey: .optimiseVegetation) ?? false
+        vegetationMeshToleranceMultiplier =
+            try values.decodeIfPresent(Double.self, forKey: .vegetationMeshToleranceMultiplier) ?? 2.5
+        vegetationTextureScale = try values.decodeIfPresent(Double.self, forKey: .vegetationTextureScale) ?? 0.65
+        recoverCliffDepth = try values.decodeIfPresent(Bool.self, forKey: .recoverCliffDepth) ?? false
         scaleInvariantFeatures = try values.decodeIfPresent(Bool.self, forKey: .scaleInvariantFeatures) ?? true
         guidedAlignmentPass = try values.decodeIfPresent(Bool.self, forKey: .guidedAlignmentPass) ?? true
         detectLines = try values.decodeIfPresent(Bool.self, forKey: .detectLines) ?? true
@@ -112,6 +121,10 @@ struct ProcessingSettings: Codable {
 
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: ProcessingSettingsKey.self)
+        try values.encode(optimiseVegetation, forKey: .optimiseVegetation)
+        try values.encode(vegetationMeshToleranceMultiplier, forKey: .vegetationMeshToleranceMultiplier)
+        try values.encode(vegetationTextureScale, forKey: .vegetationTextureScale)
+        try values.encode(recoverCliffDepth, forKey: .recoverCliffDepth)
         try values.encode(scaleInvariantFeatures, forKey: .scaleInvariantFeatures)
         try values.encode(guidedAlignmentPass, forKey: .guidedAlignmentPass)
         try values.encode(detectLines, forKey: .detectLines)
