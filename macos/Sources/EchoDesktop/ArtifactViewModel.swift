@@ -37,7 +37,7 @@ final class ArtifactViewModel: ObservableObject {
         case .cloud: return ["All points", "≥40%", "≥60%"]
         case .fusion: return FusionViewMode.allCases.map(\.rawValue)
         case .texture: return ["Textured model", "Atlas"]
-        case .mesh, .export: return ["Textured", "Solid", "Wireframe"]
+        case .mesh, .export: return MeshViewMode.allCases.map(\.rawValue)
         default: return []
         }
     }

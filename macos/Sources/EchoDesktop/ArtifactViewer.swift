@@ -63,6 +63,13 @@ struct ArtifactViewer: View {
                             ? "Fraction of tested neighbouring depth maps that agree with each point. Filters the display only; not a probability of correctness."
                             : "Saved artifact view")
             }
+            if [.mesh, .export].contains(workspace.selectedStage), model.mode == MeshViewMode.normals.rawValue {
+                Text("Face normals · RGB = X, Y, Z (−1…1)")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help(
+                        "Colors show each triangle’s normal from its winding, in model coordinates. They stay fixed as you orbit."
+                    )
+            }
             if workspace.stageStatus(workspace.selectedStage) == "Out of date" {
                 Label(
                     "These results use earlier inputs. Process again to rebuild this stage and its dependencies.",

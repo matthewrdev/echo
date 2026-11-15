@@ -19,9 +19,15 @@ final class CompletedMeshViewerTests: XCTestCase {
         XCTAssertEqual(asset.surface.vertices.count, asset.uvs.count)
         XCTAssertTrue(asset.surface.vertices.allSatisfy { $0.allSatisfy(\.isFinite) })
         XCTAssertTrue(asset.uvs.allSatisfy { $0.allSatisfy { $0.isFinite && $0 >= 0 && $0 <= 1 } })
+        for mode in MeshViewMode.allCases {
+            try render(asset: asset, file: file, mode: mode, device: device)
+        }
+    }
+
+    private func render(asset: GlbAsset, file: URL, mode: MeshViewMode, device: MTLDevice) throws {
         let scene = NativeSceneFactory().make(
             reconstruction: nil, points: [], photos: [], root: file.deletingLastPathComponent(),
-            surface: asset.surface, uvs: asset.uvs, texture: asset.image)
+            surface: asset.surface, uvs: asset.uvs, texture: asset.image, meshMode: mode)
         let geometry = try XCTUnwrap(scene.rootNode.childNode(withName: "artifact", recursively: false)?.geometry)
         XCTAssertEqual(geometry.elements.first?.primitiveCount, asset.surface.faces.count)
         let camera = try XCTUnwrap(scene.rootNode.childNode(withName: "viewer-camera", recursively: false))
@@ -40,7 +46,7 @@ final class CompletedMeshViewerTests: XCTestCase {
             let folder = URL(fileURLWithPath: output)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
-                to: folder.appendingPathComponent("completed-glb-native-viewer.png"))
+                to: folder.appendingPathComponent("completed-glb-\(mode.rawValue.lowercased())-native-viewer.png"))
         }
     }
 }

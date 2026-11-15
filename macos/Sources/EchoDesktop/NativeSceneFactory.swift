@@ -5,7 +5,7 @@ final class NativeSceneFactory {
     func make(
         reconstruction: ReconstructionScene?, points: [CloudPoint], photos: [Photo], root: URL,
         surface: Surface? = nil, uvs: [[Double]] = [], texture: NSImage? = nil,
-        wireframe: Bool = false, photoPlanes: Bool = false, cloudGeometry: SCNGeometry? = nil
+        meshMode: MeshViewMode = .textured, photoPlanes: Bool = false, cloudGeometry: SCNGeometry? = nil
     ) -> SCNScene {
         let scene = SCNScene()
         scene.background.contents = NSColor.windowBackgroundColor
@@ -41,24 +41,7 @@ final class NativeSceneFactory {
         }
 
         if let surface {
-            let vertices = surface.vertices.map(vector)
-            var sources = [SCNGeometrySource(vertices: vertices)]
-            if uvs.count == vertices.count {
-                // Saved atlas and GLB coordinates start at the top-left, as do SceneKit image textures.
-                sources.append(SCNGeometrySource(textureCoordinates: uvs.map { CGPoint(x: $0[0], y: $0[1]) }))
-            }
-            let indices = surface.faces.flatMap { $0.map(UInt32.init) }
-            let element = SCNGeometryElement(indices: indices, primitiveType: .triangles)
-            let geometry = SCNGeometry(sources: sources, elements: [element])
-            let material = SCNMaterial()
-            material.diffuse.contents = texture ?? NSColor(calibratedWhite: 0.72, alpha: 1)
-            material.diffuse.magnificationFilter = .linear
-            material.diffuse.minificationFilter = .linear
-            material.diffuse.mipFilter = .linear
-            material.isDoubleSided = true
-            material.fillMode = wireframe ? .lines : .fill
-            material.lightingModel = .constant
-            geometry.materials = [material]
+            let geometry = SurfaceGeometryBuilder().make(surface: surface, uvs: uvs, texture: texture, mode: meshMode)
             let node = SCNNode(geometry: geometry)
             node.name = "artifact"
             scene.rootNode.addChildNode(node)

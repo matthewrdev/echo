@@ -170,7 +170,7 @@ final class SavedArtifactReader: ArtifactReader {
             let surface: Surface = try read(surfaceFile)
             let scene = scenes.make(
                 reconstruction: nil, points: [], photos: [], root: root, surface: surface,
-                uvs: artifact.uvs, texture: image, wireframe: false)
+                uvs: artifact.uvs, texture: image)
             return ArtifactPresentation(
                 title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue,
                 metricScale: metricScale())
@@ -178,7 +178,7 @@ final class SavedArtifactReader: ArtifactReader {
             let asset = try glb.read(folder.appendingPathComponent("cliff.glb"))
             let scene = scenes.make(
                 reconstruction: nil, points: [], photos: [], root: root, surface: asset.surface,
-                uvs: asset.uvs, texture: mode == "Textured" ? asset.image : nil, wireframe: mode == "Wireframe")
+                uvs: asset.uvs, texture: asset.image, meshMode: MeshViewMode(rawValue: mode) ?? .textured)
             return ArtifactPresentation(
                 title: stage.title, detail: "\(asset.surface.faces.count.formatted()) triangles · actual exported GLB",
                 scene: scene, sceneIdentity: run.id + stage.rawValue, metricScale: metricScale())
@@ -240,7 +240,7 @@ final class SavedArtifactReader: ArtifactReader {
             }
             let scene = scenes.make(
                 reconstruction: reconstruction, points: points, photos: photos, root: root,
-                surface: surface, uvs: uvs, texture: texture, wireframe: mode == "Wireframe",
+                surface: surface, uvs: uvs, texture: texture, meshMode: MeshViewMode(rawValue: mode) ?? .textured,
                 cloudGeometry: cloudGeometry)
             var inspection: SparseInspectionData?
             if stage == .alignment, let reconstruction {
