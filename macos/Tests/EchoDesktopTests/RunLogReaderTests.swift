@@ -4,6 +4,27 @@ import XCTest
 @testable import EchoDesktop
 
 final class RunLogReaderTests: XCTestCase {
+    func testFullHistorySurvivesPollingAndReaderRecreation() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let folder = root.appendingPathComponent("runs/test")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = folder.appendingPathComponent("events.ndjson")
+        let lines = (1...1200).map { index in
+            "{\"sequence\":\(index),\"timestamp\":\"2026-11-15T01:00:00.000Z\",\"type\":\"stageProgress\",\"payload\":{\"stage\":\"mesh\",\"message\":\"Message \(index)\"}}"
+        }
+        try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
+        let reader = RunLogReader(formatter: RunEventFormatter())
+        for _ in 0..<2 {
+            let entries = try await reader.read(root: root.path, runID: "test")
+            XCTAssertEqual(entries.count, 1200)
+            XCTAssertEqual(entries.first?.message, "Message 1")
+            XCTAssertEqual(entries.last?.message, "Message 1200")
+        }
+        let reopened = try await RunLogReader(formatter: RunEventFormatter()).read(root: root.path, runID: "test")
+        XCTAssertEqual(reopened.count, 1200)
+    }
+
     func testFeatureCheckpointUsesPhotoAndCountsWhileOldEventsRemainReadable() throws {
         let formatter = RunEventFormatter()
         let current = Data(

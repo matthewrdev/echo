@@ -24,12 +24,6 @@ actor RunLogReader {
             }
             cursor.pending.removeSubrange(...newline)
         }
-        // Keep recent messages for every stage, even after a long later stage.
-        var counts: [String: Int] = [:]
-        cursor.entries = cursor.entries.reversed().filter { entry in
-            counts[entry.stage, default: 0] += 1
-            return counts[entry.stage, default: 0] <= 60
-        }.reversed()
         cursors[path.path] = cursor
         return cursor.entries
     }

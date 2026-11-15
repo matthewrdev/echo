@@ -2,24 +2,22 @@ import Foundation
 
 final class ProcessCLIClient: CLIClient {
     private let executable: URL
+    private let commandLog: CLICommandLog?
 
-    init(executable: URL) {
+    init(executable: URL, commandLog: CLICommandLog? = nil) {
         self.executable = executable
+        self.commandLog = commandLog
     }
 
     func execute(_ arguments: [String], progress: @escaping @Sendable (String) -> Void) async throws -> Data {
-        let executable = executable
+        let invocation = CLICommandInvocation(executable: executable, arguments: arguments)
+        await commandLog?.record(invocation)
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let process = Process()
-                    if executable.pathExtension == "dll" {
-                        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                        process.arguments = ["dotnet", executable.path] + arguments
-                    } else {
-                        process.executableURL = executable
-                        process.arguments = arguments
-                    }
+                    process.executableURL = URL(fileURLWithPath: invocation.executable)
+                    process.arguments = invocation.arguments
 
                     let standardOutput = Pipe()
                     let standardError = Pipe()

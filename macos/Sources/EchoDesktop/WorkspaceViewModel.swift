@@ -9,6 +9,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private var recordedRoot = ""
     private let logReader: RunLogReader
     private let eventFormatter: RunEventFormatter
+    private let commandLog: CLICommandLog?
     private var refreshing = false
 
     @Published var recentProjects: [RecentProject]
@@ -27,6 +28,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var sheet: WorkspaceSheet?
     @Published var mapFocusPhotoID: String?
     @Published var logs: [RunLogEntry] = []
+    @Published var commands: [CLICommandInvocation] = []
+    @Published var commandLogError: String?
     @Published var workingRun: RunData?
     @Published var cancelRequested = false
     @Published var cancellationRequestedAt: Date?
@@ -35,11 +38,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var status = "Open or create a project to begin."
     @Published var errorMessage: String?
     @Published var pendingChange: ProjectEditRequest?
-    @Published var recentEvents: [String] = []
 
     init(
         client: ProjectClient, project: String, logReader: RunLogReader, eventFormatter: RunEventFormatter,
-        recentProjectStore: RecentProjectStore, clipboard: TextClipboard
+        recentProjectStore: RecentProjectStore, clipboard: TextClipboard, commandLog: CLICommandLog? = nil
     ) {
         self.clipboard = clipboard
         self.recentProjectStore = recentProjectStore
@@ -47,6 +49,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         self.logReader = logReader
         self.eventFormatter = eventFormatter
         self.client = client
+        self.commandLog = commandLog
         root = project
     }
 
@@ -226,6 +229,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             } else {
                 logs = []
             }
+            commands = await commandLog?.entries(root: requestedRoot) ?? []
+            commandLogError = await commandLog?.persistenceError(root: requestedRoot)
             if !busy {
                 status = result.1.run.map { "\($0.target.capitalized) · \($0.status)" } ?? "Ready to import photos."
             }
@@ -262,6 +267,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         inspection = nil
         runs = []
         logs = []
+        commands = []
+        commandLogError = nil
         selectedPhotoID = nil
         openingError = nil
         recordedRoot = ""
@@ -275,6 +282,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         runs = []
         workingRun = nil
         logs = []
+        commands = []
+        commandLogError = nil
         openingProject = true
         openingError = nil
         Task { await reload() }
@@ -488,8 +497,6 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     private func receive(_ line: String) {
-        recentEvents.append(line)
-        if recentEvents.count > 150 { recentEvents.removeFirst() }
         guard let data = line.data(using: .utf8),
             let record = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return }

@@ -10,7 +10,8 @@ struct EchoApplication: App {
 
     init() {
         let options = LaunchOptions(arguments: CommandLine.arguments, bundle: .main)
-        let cli = ProcessCLIClient(executable: options.cli)
+        let commandLog = CLICommandLog()
+        let cli = ProcessCLIClient(executable: options.cli, commandLog: commandLog)
         let projects = CLIProjectClient(cli: cli)
         _runtimeInfo = StateObject(
             wrappedValue: RuntimeInfoViewModel(
@@ -26,7 +27,7 @@ struct EchoApplication: App {
         let workspace = WorkspaceViewModel(
             client: projects, project: options.project, logReader: RunLogReader(formatter: formatter),
             eventFormatter: formatter, recentProjectStore: UserDefaultsRecentProjectStore(defaults: .standard),
-            clipboard: SystemTextClipboard())
+            clipboard: SystemTextClipboard(), commandLog: commandLog)
         _workspace = StateObject(wrappedValue: workspace)
         _artifacts = StateObject(wrappedValue: ArtifactViewModel(reader: reader))
         appDelegate.termination = ApplicationTerminationCoordinator(
