@@ -8,9 +8,9 @@ struct ProcessingSettings: Codable {
     var lineMinimumLength: Int = 24
     var lineGradientThreshold: Double = 0.015
     var lineSplitRegions: Bool = true
-    var featureWidth: Int = 1000
+    var featureWidth: Int = 2000
     var bundleIterations: Int = 25
-    var featureLimit: Int = 800
+    var featureLimit: Int = 6000
     var pairWindow: Int = 5
     var matchAllPairs: Bool = false
     var gpsPairNeighbours: Int = 3
@@ -62,9 +62,9 @@ struct ProcessingSettings: Codable {
         lineMinimumLength = try values.decodeIfPresent(Int.self, forKey: .lineMinimumLength) ?? 24
         lineGradientThreshold = try values.decodeIfPresent(Double.self, forKey: .lineGradientThreshold) ?? 0.015
         lineSplitRegions = try values.decodeIfPresent(Bool.self, forKey: .lineSplitRegions) ?? true
-        featureWidth = try values.decodeIfPresent(Int.self, forKey: .featureWidth) ?? 1000
+        featureWidth = try values.decodeIfPresent(Int.self, forKey: .featureWidth) ?? 2000
         bundleIterations = try values.decodeIfPresent(Int.self, forKey: .bundleIterations) ?? 25
-        featureLimit = try values.decodeIfPresent(Int.self, forKey: .featureLimit) ?? 800
+        featureLimit = try values.decodeIfPresent(Int.self, forKey: .featureLimit) ?? 6000
         pairWindow = try values.decodeIfPresent(Int.self, forKey: .pairWindow) ?? 5
         matchAllPairs = try values.decodeIfPresent(Bool.self, forKey: .matchAllPairs) ?? false
         gpsPairNeighbours = try values.decodeIfPresent(Int.self, forKey: .gpsPairNeighbours) ?? 3

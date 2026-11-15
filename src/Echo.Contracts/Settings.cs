@@ -9,9 +9,9 @@ public sealed class Settings
     public int LineMinimumLength { get; set; } = 24;
     public double LineGradientThreshold { get; set; } = .015;
     public bool LineSplitRegions { get; set; } = true;
-    public int FeatureWidth { get; set; } = 1000;
+    public int FeatureWidth { get; set; } = 2000;
     public int BundleIterations { get; set; } = 25;
-    public int FeatureLimit { get; set; } = 800;
+    public int FeatureLimit { get; set; } = 6000;
     public int PairWindow { get; set; } = 5;
     public bool MatchAllPairs
     {
