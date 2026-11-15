@@ -37,7 +37,7 @@ public sealed class TextureStage : IPipelineStage
             meshPath,
             alignment,
             project.Settings.TextureSize,
-            textureVersion = 13,
+            textureVersion = 14,
             project.Settings.VegetationTextureScale,
             project.Settings.TextureJpegQuality,
             project.Settings.TextureChartFaces,

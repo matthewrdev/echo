@@ -120,7 +120,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 target[index] = target[index].WithAlpha(255);
             }
         }
-        TexturePadding.Extend(target, size, project.Settings.TextureGutter, cancellation);
+        TexturePadding.Extend(target, size, texture.GutterPixels > 0 ? texture.GutterPixels : project.Settings.TextureGutter, cancellation);
         TextureBackground.Fill(target, size, cancellation);
 
         for (var i = 0; i < target.Length; i++)

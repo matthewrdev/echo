@@ -5,6 +5,15 @@ namespace Echo.Texturing;
 
 public sealed class TextureResult
 {
+    public int MinimumAtlasSize
+    {
+        get; set;
+    }
+    public int GutterPixels
+    {
+        get; set;
+    }
+    public List<TextureAtlasVariant> Variants { get; set; } = [];
     public int VegetationChartCount
     {
         get; set;
@@ -57,5 +66,5 @@ public sealed class TextureResult
     {
         get; set;
     }
-    public string Layout { get; set; } = "Connected non-overlapping UV charts; coherent source views; global exposure and local seam correction; antialiased perspective-correct projection; nearest-texel gutters and smooth background padding";
+    public string Layout { get; set; } = "Validated conformal charts with distortion-limited adjacent merging; shared UVs and whole-pixel gutters down to the minimum atlas size; coherent source views; global exposure and local seam correction; antialiased perspective-correct projection; nearest-texel gutters and smooth background padding";
 }

@@ -36,6 +36,8 @@ public sealed class TextureBaker : ITextureBaker
         var result = new TextureResult
         {
             Size = size,
+            MinimumAtlasSize = layout.MinimumAtlasSize,
+            GutterPixels = layout.GutterPixels,
             Surface = surface,
             MeshFile = "mesh.json",
             ChartCount = patches.Count,
@@ -75,6 +77,37 @@ public sealed class TextureBaker : ITextureBaker
         result.CoverageFraction = rasterizer.Paint(store, project, scene, surface, result, patches, atlas, cancellation);
         progress?.Invoke("Encoding the photographic texture atlas…");
         images.Save(atlas, output, SKEncodedImageFormat.Jpeg, project.Settings.TextureJpegQuality);
+        SaveVariants(atlas, result, output, project.Settings.TextureJpegQuality, cancellation, progress);
         return result;
     }
+
+    private void SaveVariants(SKBitmap atlas, TextureResult result, string output, int quality,
+        CancellationToken cancellation, Action<string>? progress)
+    {
+        SKBitmap? previous = null;
+        try
+        {
+            for (var size = result.Size / 2; size >= result.MinimumAtlasSize; size /= 2)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                progress?.Invoke($"Filtering {size:N0} × {size:N0} atlas with shared UVs…");
+                var reduced = TextureAtlasDownsampler.Half(previous ?? atlas, cancellation);
+                previous?.Dispose();
+                previous = reduced;
+                var filename = Path.GetFileNameWithoutExtension(output) + $"-{size}.jpg";
+                images.Save(reduced, Path.Combine(Path.GetDirectoryName(output) ?? ".", filename), SKEncodedImageFormat.Jpeg, quality);
+                result.Variants.Add(new TextureAtlasVariant
+                {
+                    Size = size,
+                    GutterPixels = result.GutterPixels * size / result.Size,
+                    File = filename
+                });
+            }
+        }
+        finally
+        {
+            previous?.Dispose();
+        }
+    }
+
 }

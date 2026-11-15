@@ -2,6 +2,14 @@ namespace Echo.Texturing;
 
 public sealed class TextureLayout
 {
+    public int MinimumAtlasSize
+    {
+        get; init;
+    }
+    public int GutterPixels
+    {
+        get; init;
+    }
     public IReadOnlyList<TexturePatch> Patches { get; init; } = [];
     public double TexelsPerWorldUnit
     {
