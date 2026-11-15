@@ -27,5 +27,22 @@ public sealed class TextureResult
     {
         get; set;
     }
-    public string Layout { get; set; } = "Connected mesh charts, non-overlapping planar UVs, perspective-correct photographic baking and dilated gutters";
+    [JsonIgnore]
+    public TextureSeamCorrections? Corrections
+    {
+        get; set;
+    }
+    public int SeamEdges
+    {
+        get; set;
+    }
+    public double MeanSeamDifferenceBefore
+    {
+        get; set;
+    }
+    public double MeanSeamDifferenceAfter
+    {
+        get; set;
+    }
+    public string Layout { get; set; } = "Connected non-overlapping UV charts; coherent source views; global exposure and local seam correction; antialiased perspective-correct projection; nearest-texel gutters and smooth background padding";
 }

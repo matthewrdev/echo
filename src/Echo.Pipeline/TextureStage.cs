@@ -37,11 +37,13 @@ public sealed class TextureStage : IPipelineStage
             meshPath,
             alignment,
             project.Settings.TextureSize,
-            textureVersion = 8,
+            textureVersion = 10,
             project.Settings.TextureJpegQuality,
             project.Settings.TextureChartFaces,
             project.Settings.TextureChartAngle,
-            project.Settings.TextureGutter
+            project.Settings.TextureGutter,
+            project.Settings.TextureSuppressSky,
+            project.Settings.TextureSkyMarginPixels
         }, dir =>
                 {
                     var result = textureBaker.Bake(store, project, scene, surface, Path.Combine(dir, "atlas.jpg"), cancellation, message => context.ReportProgress(Name, message));

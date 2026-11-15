@@ -32,6 +32,8 @@ public sealed class Settings
     public double FusionDetailMultiplier { get; set; } = 1;
     public IslandTrimMode FusionIslandMode { get; set; } = IslandTrimMode.Off;
     public double FusionIslandMinimumSizePercent { get; set; } = .1;
+    public bool TextureSuppressSky { get; set; } = false;
+    public int TextureSkyMarginPixels { get; set; } = 8;
     public int TextureJpegQuality { get; set; } = 92;
     public int TextureChartFaces { get; set; } = 512;
     public double TextureChartAngle { get; set; } = 60;
@@ -100,6 +102,7 @@ public sealed class Settings
             || TextureJpegQuality is < 25 or > 100
             || TextureChartFaces is < 16 or > 8192
             || TextureGutter is < 1 or > 16
+            || TextureSkyMarginPixels is < 1 or > 64
             || !double.IsFinite(TextureChartAngle)
             || TextureChartAngle is < 10 or > 80;
         var invalidSettings = invalidAlignmentSettings

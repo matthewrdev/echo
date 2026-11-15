@@ -13,14 +13,17 @@ public sealed class TextureBaker : ITextureBaker
     private readonly ITexturePatchPacker patchPacker;
     private readonly ITextureRasterizer rasterizer;
     private readonly IRasterImageService images;
+    private readonly ITextureSeamLeveler seamLeveler;
 
     [ImportingConstructor]
-    public TextureBaker(ITexturePatchBuilder patchBuilder, ITexturePatchPacker patchPacker, ITextureRasterizer rasterizer, IRasterImageService images)
+    public TextureBaker(ITexturePatchBuilder patchBuilder, ITexturePatchPacker patchPacker, ITextureRasterizer rasterizer,
+        IRasterImageService images, ITextureSeamLeveler seamLeveler)
     {
         this.patchBuilder = patchBuilder;
         this.patchPacker = patchPacker;
         this.rasterizer = rasterizer;
         this.images = images;
+        this.seamLeveler = seamLeveler;
     }
 
     public TextureResult Bake(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
@@ -54,6 +57,11 @@ public sealed class TextureBaker : ITextureBaker
             }
         }
 
+        progress?.Invoke("Levelling exposure and colour differences along photographic seams…");
+        result.Corrections = seamLeveler.Compute(store, project, scene, surface, cancellation);
+        result.SeamEdges = result.Corrections.SeamEdges;
+        result.MeanSeamDifferenceBefore = result.Corrections.MeanDifferenceBefore;
+        result.MeanSeamDifferenceAfter = result.Corrections.MeanDifferenceAfter;
         progress?.Invoke("Baking source photographs into the packed mesh UVs…");
         using var atlas = new SKBitmap(size, size);
         result.CoverageFraction = rasterizer.Paint(store, project, scene, surface, result, patches, atlas, cancellation);

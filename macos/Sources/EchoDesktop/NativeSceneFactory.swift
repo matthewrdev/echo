@@ -52,6 +52,9 @@ final class NativeSceneFactory {
             let geometry = SCNGeometry(sources: sources, elements: [element])
             let material = SCNMaterial()
             material.diffuse.contents = texture ?? NSColor(calibratedWhite: 0.72, alpha: 1)
+            material.diffuse.magnificationFilter = .linear
+            material.diffuse.minificationFilter = .linear
+            material.diffuse.mipFilter = .linear
             material.isDoubleSided = true
             material.fillMode = wireframe ? .lines : .fill
             material.lightingModel = .constant

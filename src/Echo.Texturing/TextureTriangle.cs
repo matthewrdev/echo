@@ -57,6 +57,6 @@ internal sealed class TextureTriangle
 
     private double Cross(SKPoint a, SKPoint b, SKPoint c)
     {
-        return (double)(b.X - a.X) * (c.Y - a.Y) - (double)(b.Y - a.Y) * (c.X - a.X);
+        return ((double)b.X - a.X) * ((double)c.Y - a.Y) - ((double)b.Y - a.Y) * ((double)c.X - a.X);
     }
 }

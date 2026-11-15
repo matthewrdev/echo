@@ -117,7 +117,7 @@ public sealed class GlbWriter : IGlbWriter
                 new
                 {
                     magFilter = 9729,
-                    minFilter = 9729,
+                    minFilter = 9987,
                     wrapS = 33071,
                     wrapT = 33071
 }

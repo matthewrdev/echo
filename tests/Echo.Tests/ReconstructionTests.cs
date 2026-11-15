@@ -515,6 +515,23 @@ public sealed class ReconstructionTests
                 var resumed = processor.Execute(store, "export", default, first.Id);
                 Check(resumed.Snapshot.Settings.TextureSize == 256 && resumed.Artifacts["texture"] == first.Artifacts["texture"], "Resume uses immutable snapshot");
             });
+            tests.Run("Early island cleanup and sky sampling invalidate only their own downstream stages", () =>
+            {
+                var before = store.GetRun();
+                store.Edit(p => p.Settings.FusionIslandMode = IslandTrimMode.Main);
+                var trimmed = processor.Execute(store, "export", default);
+                Check(trimmed.Artifacts["cloud"] == before.Artifacts["cloud"], "Early island cleanup reuses the dense cloud");
+                Check(trimmed.Artifacts["fusion"] != before.Artifacts["fusion"] && trimmed.Artifacts["mesh"] != before.Artifacts["mesh"], "Early cleanup rebuilds fusion and meshing");
+                using var report = JsonDocument.Parse(File.ReadAllText(store.PathFor(trimmed.Artifacts["fusion"] + "/fusion.report.json")));
+                Check(report.RootElement.GetProperty("islandTrimming").GetProperty("mode").GetString() == "main", "Early cleanup is recorded in the fusion artifact");
+                store.Edit(p => p.Settings.TextureSuppressSky = true);
+                var guarded = processor.Execute(store, "export", default);
+                Check(guarded.Artifacts["mesh"] == trimmed.Artifacts["mesh"], "Sky suppression preserves geometry");
+                Check(guarded.Artifacts["texture"] != trimmed.Artifacts["texture"], "Sky suppression changes the baked texture checkpoint");
+                store.Edit(p => p.Settings.TextureSkyMarginPixels = 16);
+                var wider = processor.Execute(store, "export", default);
+                Check(wider.Artifacts["mesh"] == guarded.Artifacts["mesh"] && wider.Artifacts["texture"] != guarded.Artifacts["texture"], "Sky margin affects texture only");
+            });
             tests.Run("Stage setting edits invalidate dependent artifacts while earlier work is reused", () =>
             {
                 var before = store.GetRun();

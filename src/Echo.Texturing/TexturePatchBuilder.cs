@@ -19,7 +19,11 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
     public IReadOnlyList<TexturePatch> Build(ProjectData project, ReconstructionScene scene, Surface mesh, CancellationToken cancellation)
     {
         var minimumNormalAgreement = Math.Cos(project.Settings.TextureChartAngle * Math.PI / 180);
-        var neighbours = Adjacency(mesh);
+        var photos = project.Images.ToDictionary(photo => photo.Id);
+        var cameras = scene.Cameras.ToDictionary(camera => camera.ImageId);
+        var projections = scene.Cameras.ToDictionary(camera => camera.ImageId,
+            camera => new CameraProjector(photos[camera.ImageId], camera));
+        var neighbours = SurfaceTopologyBuilder.Build(mesh, cancellation).Neighbours;
         var assigned = new bool[mesh.Faces.Count];
         var points = new V3[mesh.Vertices.Count];
         for (var index = 0; index < points.Length; index++)
@@ -27,14 +31,17 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
             points[index] = new V3(mesh.Vertices[index]);
         }
         var normals = new V3[mesh.Faces.Count];
+        var areas = new double[mesh.Faces.Count];
         for (var index = 0; index < normals.Length; index++)
         {
             var face = mesh.Faces[index];
-            normals[index] = (points[face[1]] - points[face[0]]).Cross(points[face[2]] - points[face[0]]).Unit;
+            var normal = (points[face[1]] - points[face[0]]).Cross(points[face[2]] - points[face[0]]);
+            areas[index] = normal.Length;
+            normals[index] = normal.Unit;
         }
-        var cells = new List<TextureCell>();
         var patches = new List<TexturePatch>();
-        for (var seed = 0; seed < mesh.Faces.Count; seed++)
+        var seeds = Enumerable.Range(0, mesh.Faces.Count).OrderByDescending(index => areas[index]);
+        foreach (var seed in seeds)
         {
             cancellation.ThrowIfCancellationRequested();
             if (assigned[seed])
@@ -44,65 +51,25 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
 
             var face = mesh.Faces[seed];
             var origin = points[face[0]];
-            var normal = normals[seed];
             var right = (points[face[1]] - origin).Unit;
-            var down = normal.Cross(right).Unit;
+            var tangent = new TextureChartProjection(null, origin, right, normals[seed].Cross(right), 1);
             var cellSize = Math.Max(1e-4, (points[face[1]] - origin).Length * 4);
-            var patch = new TexturePatch();
-            var pending = new Queue<int>();
-            var visited = new HashSet<int>();
-            var occupied = new Dictionary<TextureCell, List<TextureTriangle>>();
-            pending.Enqueue(seed);
-            while (pending.TryDequeue(out var index) && patch.Faces.Count < project.Settings.TextureChartFaces)
+            var patch = Grow(seed, tangent, cellSize, project.Settings.TextureChartFaces, minimumNormalAgreement,
+                mesh, points, normals, areas, neighbours, assigned, cancellation);
+            var image = mesh.SourceImages[seed];
+            projections.TryGetValue(image, out var camera);
+            var pixelOrigin = camera?.Project(origin);
+            if (pixelOrigin.HasValue)
             {
-                if (assigned[index] || !visited.Add(index) || normal.Dot(normals[index]) < minimumNormalAgreement)
+                var scale = pixelOrigin.Value.Z / CameraGeometry.Focal(photos[image], cameras[image]);
+                var photographic = new TextureChartProjection(camera, pixelOrigin.Value, default, default, scale);
+                var alternative = Grow(seed, photographic, cellSize, project.Settings.TextureChartFaces, minimumNormalAgreement,
+                    mesh, points, normals, areas, neighbours, assigned, cancellation);
+                // Tangent planes retain texel density on flat regions. A source view
+                // can unfold more of a curved region without adding chart boundaries.
+                if (alternative.Faces.Count > patch.Faces.Count)
                 {
-                    continue;
-                }
-
-                var vertices = mesh.Faces[index];
-                var projected = new SKPoint[3];
-                for (var corner = 0; corner < 3; corner++)
-                {
-                    var local = points[vertices[corner]] - origin;
-                    projected[corner] = new SKPoint((float)local.Dot(right), (float)local.Dot(down));
-                }
-                var triangle = new TextureTriangle
-                {
-                    Points = projected,
-                    Bounds = new SKRect(Math.Min(projected[0].X, Math.Min(projected[1].X, projected[2].X)),
-                        Math.Min(projected[0].Y, Math.Min(projected[1].Y, projected[2].Y)),
-                        Math.Max(projected[0].X, Math.Max(projected[1].X, projected[2].X)),
-                        Math.Max(projected[0].Y, Math.Max(projected[1].Y, projected[2].Y)))
-                };
-                FillCells(triangle.Bounds, cellSize, cells);
-                if (Overlaps(cells, occupied, triangle))
-                {
-                    continue;
-                }
-
-                assigned[index] = true;
-                patch.Faces.Add(index);
-                patch.Triangles.Add(vertices);
-                for (var corner = 0; corner < 3; corner++)
-                {
-                    patch.Coordinates[vertices[corner]] = [projected[corner].X, projected[corner].Y];
-                    var adjacent = neighbours[index * 3 + corner];
-                    if (adjacent >= 0 && !assigned[adjacent])
-                    {
-                        pending.Enqueue(adjacent);
-                    }
-                }
-
-                foreach (var cell in cells)
-                {
-                    if (!occupied.TryGetValue(cell, out var bucket))
-                    {
-                        bucket = [];
-                        occupied.Add(cell, bucket);
-                    }
-
-                    bucket.Add(triangle);
+                    patch = alternative;
                 }
             }
 
@@ -111,6 +78,10 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
                 throw new EchoException("Cannot unwrap a degenerate surface triangle.", 5);
             }
 
+            foreach (var index in patch.Faces)
+            {
+                assigned[index] = true;
+            }
             orienter.Orient(patch);
             patches.Add(patch);
         }
@@ -118,46 +89,93 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         return patches.OrderByDescending(p => p.Bounds.Height).ToArray();
     }
 
-    private int[] Adjacency(Surface mesh)
+    private TexturePatch Grow(int seed, TextureChartProjection projection, double cellSize, int maximumFaces,
+        double minimumNormalAgreement, Surface mesh, V3[] points, V3[] normals, double[] areas,
+        int[] neighbours, bool[] assigned, CancellationToken cancellation)
     {
-        var positions = new Dictionary<V3, int>();
-        var welded = new int[mesh.Vertices.Count];
-        for (var index = 0; index < welded.Length; index++)
+        var patch = new TexturePatch();
+        var pending = new Queue<int>();
+        var visited = new HashSet<int>();
+        var occupied = new Dictionary<TextureCell, List<TextureTriangle>>();
+        var cells = new List<TextureCell>();
+        var orientation = 0;
+        pending.Enqueue(seed);
+        while (pending.TryDequeue(out var index) && patch.Faces.Count < maximumFaces)
         {
-            var point = new V3(mesh.Vertices[index]);
-            if (!positions.TryGetValue(point, out var id))
+            cancellation.ThrowIfCancellationRequested();
+            var unavailable = assigned[index] || !visited.Add(index);
+            if (unavailable)
             {
-                id = positions.Count;
-                positions.Add(point, id);
+                continue;
             }
 
-            welded[index] = id;
-        }
-
-        var neighbours = new int[mesh.Faces.Count * 3];
-        Array.Fill(neighbours, -1);
-        var edges = new Dictionary<TextureEdge, int>();
-        for (var index = 0; index < mesh.Faces.Count; index++)
-        {
-            var face = mesh.Faces[index];
+            var vertices = mesh.Faces[index];
+            var projected = new SKPoint[3];
+            var projectable = true;
             for (var corner = 0; corner < 3; corner++)
             {
-                var a = welded[face[corner]];
-                var b = welded[face[(corner + 1) % 3]];
-                var edge = new TextureEdge(Math.Min(a, b), Math.Max(a, b));
-                if (edges.TryGetValue(edge, out var other))
+                var coordinate = projection.Project(points[vertices[corner]]);
+                if (!coordinate.HasValue)
                 {
-                    neighbours[index * 3 + corner] = other / 3;
-                    neighbours[other] = index;
+                    projectable = false;
+                    break;
                 }
-                else
+                projected[corner] = new SKPoint((float)coordinate.Value.X, (float)coordinate.Value.Y);
+            }
+            if (!projectable)
+            {
+                continue;
+            }
+
+            var area = ((double)projected[1].X - projected[0].X) * ((double)projected[2].Y - projected[0].Y)
+                - ((double)projected[1].Y - projected[0].Y) * ((double)projected[2].X - projected[0].X);
+            var distorted = !double.IsFinite(area) || Math.Abs(area) < areas[index] * .1 || Math.Abs(area) > areas[index] * 10;
+            if (distorted || (orientation != 0 && Math.Sign(area) != orientation))
+            {
+                continue;
+            }
+
+            var triangle = new TextureTriangle
+            {
+                Points = projected,
+                Bounds = new SKRect(Math.Min(projected[0].X, Math.Min(projected[1].X, projected[2].X)),
+                    Math.Min(projected[0].Y, Math.Min(projected[1].Y, projected[2].Y)),
+                    Math.Max(projected[0].X, Math.Max(projected[1].X, projected[2].X)),
+                    Math.Max(projected[0].Y, Math.Max(projected[1].Y, projected[2].Y)))
+            };
+            FillCells(triangle.Bounds, cellSize, cells);
+            if (Overlaps(cells, occupied, triangle))
+            {
+                continue;
+            }
+
+            orientation = Math.Sign(area);
+            patch.Faces.Add(index);
+            patch.Triangles.Add(vertices);
+            for (var corner = 0; corner < 3; corner++)
+            {
+                patch.Coordinates[vertices[corner]] = [projected[corner].X, projected[corner].Y];
+                var adjacent = neighbours[index * 3 + corner];
+                var connected = adjacent >= 0 && !assigned[adjacent]
+                    && normals[index].Dot(normals[adjacent]) >= minimumNormalAgreement;
+                if (connected)
                 {
-                    edges.Add(edge, index * 3 + corner);
+                    pending.Enqueue(adjacent);
                 }
             }
-        }
 
-        return neighbours;
+            foreach (var cell in cells)
+            {
+                if (!occupied.TryGetValue(cell, out var bucket))
+                {
+                    bucket = [];
+                    occupied.Add(cell, bucket);
+                }
+
+                bucket.Add(triangle);
+            }
+        }
+        return patch;
     }
 
     private bool Overlaps(List<TextureCell> cells, Dictionary<TextureCell, List<TextureTriangle>> occupied, TextureTriangle triangle)

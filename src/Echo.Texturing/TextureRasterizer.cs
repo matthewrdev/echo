@@ -39,16 +39,29 @@ public sealed class TextureRasterizer : ITextureRasterizer
         target.Clear();
         var photos = project.Images.ToDictionary(p => p.Id);
         var cameras = scene.Cameras.ToDictionary(c => c.ImageId);
+        var needsCompletion = mesh.SourceImages.Any(string.IsNullOrEmpty);
+        var welded = needsCompletion ? SurfaceTopologyBuilder.Build(mesh, cancellation).WeldedVertices : [];
+        var vertexCount = welded.Length > 0 ? welded.Max() + 1 : 0;
+        var colourSums = new V3[vertexCount];
+        var colourWeights = new int[vertexCount];
         long painted = 0;
         Span<V3> projected = stackalloc V3[3];
+        Span<V3> corrections = stackalloc V3[3];
         Span<TextureCoordinate> uv = stackalloc TextureCoordinate[3];
         foreach (var group in Enumerable.Range(0, mesh.Faces.Count).GroupBy(i => mesh.SourceImages[i]))
         {
+            if (string.IsNullOrEmpty(group.Key))
+            {
+                continue;
+            }
             var photo = photos[group.Key];
             var camera = cameras[group.Key];
             var projection = new CameraProjector(photo, camera);
             using var source = SKBitmap.Decode(store.PathFor(photo.Source));
             var pixels = images.BorrowPixels(source, out var swapRedBlue);
+            var skyGuard = project.Settings.TextureSuppressSky
+                ? TextureSkyGuardBuilder.Build(pixels, source.Width, source.Height, swapRedBlue, project.Settings.TextureSkyMarginPixels, cancellation)
+                : null;
             foreach (var index in group)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -57,15 +70,58 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 {
                     projected[corner] = projection.Project(new V3(mesh.Vertices[face[corner]]))
                         ?? throw new EchoException("Texture source lies behind its assigned camera.");
+                    var offsets = texture.Corrections?.CornerOffsets;
+                    corrections[corner] = offsets is { Length: > 0 } ? offsets[index * 3 + corner] : default;
                     var coordinate = texture.Uvs[face[corner]];
                     uv[corner] = new TextureCoordinate(coordinate[0], coordinate[1]);
+                    if (needsCompletion)
+                    {
+                        var pixel = TextureSampling.Bilinear(pixels, source.Width, source.Height, projected[corner].X, projected[corner].Y, skyGuard);
+                        var colour = new V3(swapRedBlue ? pixel.Blue : pixel.Red, pixel.Green, swapRedBlue ? pixel.Red : pixel.Blue) + corrections[corner];
+                        colour = new V3(Math.Clamp(colour.X, 0, 255), Math.Clamp(colour.Y, 0, 255), Math.Clamp(colour.Z, 0, 255));
+                        var vertex = welded[face[corner]];
+                        colourSums[vertex] += colour;
+                        colourWeights[vertex]++;
+                    }
                 }
-                painted += PaintTriangle(target, size, pixels, source.Width, source.Height, uv, projected, swapRedBlue);
+                painted += PaintTriangle(target, size, pixels, source.Width, source.Height, uv, projected, corrections, swapRedBlue, skyGuard: skyGuard);
             }
             GC.KeepAlive(source);
         }
 
-        Pad(target, size, project.Settings.TextureGutter, cancellation);
+        if (needsCompletion)
+        {
+            var colours = TextureColourCompletion.Extend(mesh, welded, colourSums, colourWeights, cancellation);
+            Span<V3> fill = stackalloc V3[3];
+            for (var index = 0; index < mesh.Faces.Count; index++)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                if (!string.IsNullOrEmpty(mesh.SourceImages[index]))
+                {
+                    continue;
+                }
+                var face = mesh.Faces[index];
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var coordinate = texture.Uvs[face[corner]];
+                    uv[corner] = new TextureCoordinate(coordinate[0], coordinate[1]);
+                    fill[corner] = colours[welded[face[corner]]];
+                }
+                painted += PaintTriangle(target, size, [], 0, 0, uv, [], [], false, fill);
+            }
+        }
+
+        // Alpha temporarily records subpixel coverage, never opacity. Make every
+        // covered texel opaque before extending colours outside UV island edges.
+        for (var index = 0; index < target.Length; index++)
+        {
+            if (target[index].Alpha != 0)
+            {
+                target[index] = target[index].WithAlpha(255);
+            }
+        }
+        TexturePadding.Extend(target, size, project.Settings.TextureGutter, cancellation);
+        TextureBackground.Fill(target, size, cancellation);
 
         for (var i = 0; i < target.Length; i++)
         {
@@ -83,7 +139,9 @@ public sealed class TextureRasterizer : ITextureRasterizer
         return (double)painted / (size * size);
     }
 
-    private long PaintTriangle(Span<SKColor> target, int size, ReadOnlySpan<SKColor> source, int width, int height, ReadOnlySpan<TextureCoordinate> uv, ReadOnlySpan<V3> projected, bool swapRedBlue)
+    private long PaintTriangle(Span<SKColor> target, int size, ReadOnlySpan<SKColor> source, int width, int height,
+        ReadOnlySpan<TextureCoordinate> uv, ReadOnlySpan<V3> projected, ReadOnlySpan<V3> corrections,
+        bool swapRedBlue, ReadOnlySpan<V3> fill = default, TextureSkyGuard? skyGuard = null)
     {
         var x0 = uv[0].X * size;
         var y0 = uv[0].Y * size;
@@ -106,100 +164,65 @@ public sealed class TextureRasterizer : ITextureRasterizer
         {
             for (var x = left; x <= right; x++)
             {
-                var a = ((y1 - y2) * (x + .5 - x2) + (x2 - x1) * (y + .5 - y2)) / determinant;
-                var b = ((y2 - y0) * (x + .5 - x2) + (x0 - x2) * (y + .5 - y2)) / determinant;
-                var c = 1 - a - b;
-                var outside = a < -1e-7 || b < -1e-7 || c < -1e-7;
-                if (outside)
+                var red = 0;
+                var green = 0;
+                var blue = 0;
+                var coverage = 0;
+                for (var sampleY = 0; sampleY < 2; sampleY++)
+                {
+                    for (var sampleX = 0; sampleX < 2; sampleX++)
+                    {
+                        var px = x + .25 + sampleX * .5;
+                        var py = y + .25 + sampleY * .5;
+                        var a = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / determinant;
+                        var b = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / determinant;
+                        var c = 1 - a - b;
+                        var outside = a < -1e-7 || b < -1e-7 || c < -1e-7;
+                        if (outside)
+                        {
+                            continue;
+                        }
+
+                        if (fill.Length == 3)
+                        {
+                            var colour = fill[0] * a + fill[1] * b + fill[2] * c;
+                            red += (int)Math.Clamp(colour.X, 0, 255);
+                            green += (int)Math.Clamp(colour.Y, 0, 255);
+                            blue += (int)Math.Clamp(colour.Z, 0, 255);
+                        }
+                        else
+                        {
+                            var depth = a * projected[0].Z + b * projected[1].Z + c * projected[2].Z;
+                            var sx = (a * projected[0].X * projected[0].Z + b * projected[1].X * projected[1].Z + c * projected[2].X * projected[2].Z) / depth;
+                            var sy = (a * projected[0].Y * projected[0].Z + b * projected[1].Y * projected[1].Z + c * projected[2].Y * projected[2].Z) / depth;
+                            var colour = TextureSampling.Bilinear(source, width, height, sx, sy, skyGuard);
+                            var correction = corrections[0] * a + corrections[1] * b + corrections[2] * c;
+                            red += (int)Math.Clamp((swapRedBlue ? colour.Blue : colour.Red) + correction.X, 0, 255);
+                            green += (int)Math.Clamp(colour.Green + correction.Y, 0, 255);
+                            blue += (int)Math.Clamp((swapRedBlue ? colour.Red : colour.Blue) + correction.Z, 0, 255);
+                        }
+                        coverage++;
+                    }
+                }
+                if (coverage == 0)
                 {
                     continue;
                 }
 
-                var depth = a * projected[0].Z + b * projected[1].Z + c * projected[2].Z;
-                var sx = (a * projected[0].X * projected[0].Z + b * projected[1].X * projected[1].Z + c * projected[2].X * projected[2].Z) / depth;
-                var sy = (a * projected[0].Y * projected[0].Z + b * projected[1].Y * projected[1].Z + c * projected[2].Y * projected[2].Z) / depth;
                 var index = y * size + x;
-                if (target[index].Alpha == 0)
+                var previous = target[index];
+                if (previous.Alpha == 0)
                 {
                     painted++;
                 }
-
-                var colour = Sample(source, width, height, sx, sy);
-                target[index] = swapRedBlue ? new SKColor(colour.Blue, colour.Green, colour.Red) : colour;
+                var total = previous.Alpha + coverage;
+                target[index] = new SKColor((byte)((red + previous.Red * previous.Alpha) / total),
+                    (byte)((green + previous.Green * previous.Alpha) / total),
+                    (byte)((blue + previous.Blue * previous.Alpha) / total), (byte)Math.Min(255, total));
             }
         }
 
         return painted;
     }
 
-    private SKColor Sample(ReadOnlySpan<SKColor> source, int width, int height, double x, double y)
-    {
-        x = Math.Clamp(x, 0, width - 1.001);
-        y = Math.Clamp(y, 0, height - 1.001);
-        var ix = (int)x;
-        var iy = (int)y;
-        var dx = x - ix;
-        var dy = y - iy;
-        var a = source[iy * width + ix];
-        var b = source[iy * width + ix + 1];
-        var c = source[(iy + 1) * width + ix];
-        var d = source[(iy + 1) * width + ix + 1];
-        byte Blend(byte aa, byte bb, byte cc, byte dd) => (byte)Math.Clamp(
-            aa * (1 - dx) * (1 - dy) + bb * dx * (1 - dy) + cc * (1 - dx) * dy + dd * dx * dy, 0, 255);
-        return new SKColor(Blend(a.Red, b.Red, c.Red, d.Red), Blend(a.Green, b.Green, c.Green, d.Green), Blend(a.Blue, b.Blue, c.Blue, d.Blue));
-    }
-
-    private void Pad(Span<SKColor> pixels, int size, int gutter, CancellationToken cancellation)
-    {
-        var left = 0;
-        var top = 0;
-        var right = size - 1;
-        var bottom = size - 1;
-        var changed = new List<int>();
-        for (var iteration = 0; iteration < gutter; iteration++)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            changed.Clear();
-            for (var y = top; y <= bottom; y++)
-            {
-                for (var x = left; x <= right; x++)
-                {
-                    var index = y * size + x;
-                    if (pixels[index].Alpha != 0)
-                    {
-                        continue;
-                    }
-
-                    var color = Neighbour(pixels, size, x, y, left, top, right, bottom);
-                    if (color.Alpha == 255)
-                    {
-                        pixels[index] = color.WithAlpha(1);
-                        changed.Add(index);
-                    }
-                }
-            }
-
-            foreach (var index in changed)
-            {
-                pixels[index] = pixels[index].WithAlpha(255);
-            }
-        }
-    }
-
-    private SKColor Neighbour(ReadOnlySpan<SKColor> pixels, int size, int x, int y, int left, int top, int right, int bottom)
-    {
-        for (var yy = Math.Max(top, y - 1); yy <= Math.Min(bottom, y + 1); yy++)
-        {
-            for (var xx = Math.Max(left, x - 1); xx <= Math.Min(right, x + 1); xx++)
-            {
-                var color = pixels[yy * size + xx];
-                if (color.Alpha == 255)
-                {
-                    return color;
-                }
-            }
-        }
-
-        return SKColors.Transparent;
-    }
 }

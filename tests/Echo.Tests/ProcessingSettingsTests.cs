@@ -75,6 +75,8 @@ public sealed class ProcessingSettingsTests
                 new Settings { FusionIslandMinimumSizePercent = double.NaN },
                 new Settings { FusionIslandMinimumSizePercent = -1 },
                 new Settings { FusionIslandMinimumSizePercent = 101 },
+                new Settings { TextureSkyMarginPixels = 0 },
+                new Settings { TextureSkyMarginPixels = 65 },
                 new Settings { TextureJpegQuality = 101 },
                 new Settings { TextureGutter = 0 },
                 new Settings { DepthWidth = 8193 },

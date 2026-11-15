@@ -15,19 +15,285 @@ public sealed class TextureTests
     private readonly IRasterImageService images;
     private readonly ITexturePatchPacker packer;
     private readonly ITextureRasterizer rasterizer;
+    private readonly ITextureSeamLeveler seamLeveler;
+    private readonly ITexturePatchBuilder patchBuilder;
 
     [ImportingConstructor]
-    public TextureTests(ITextureBaker baker, IProjectStoreFactory stores, IRasterImageService images, ITexturePatchPacker packer, ITextureRasterizer rasterizer)
+    public TextureTests(ITextureBaker baker, IProjectStoreFactory stores, IRasterImageService images,
+        ITexturePatchPacker packer, ITextureRasterizer rasterizer, ITextureSeamLeveler seamLeveler,
+        ITexturePatchBuilder patchBuilder)
     {
         this.baker = baker;
         this.stores = stores;
         this.images = images;
         this.packer = packer;
         this.rasterizer = rasterizer;
+        this.seamLeveler = seamLeveler;
+        this.patchBuilder = patchBuilder;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Sky suppression changes baked skyline colour without changing the surface or source image", () =>
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "echo-sky-texture-" + Guid.NewGuid().ToString("N"));
+            var store = stores.Open(directory);
+            store.Init("sky guard");
+            try
+            {
+                using var photo = new SKBitmap(128, 128);
+                photo.Pixels = Enumerable.Range(0, 128 * 128).Select(index => index / 128 < 64
+                    ? new SKColor(100, 170, 230) : new SKColor(80, 110, 60)).ToArray();
+                images.Save(photo, store.PathFor("source.png"), SKEncodedImageFormat.Png);
+                var sourceBytes = File.ReadAllBytes(store.PathFor("source.png"));
+                var project = new ProjectData
+                {
+                    Images = [new Photo { Id = "a", Source = "source.png", Width = 128, Height = 128, FocalPixels = 64 }],
+                    Settings = new Settings { TextureSize = 256, TextureJpegQuality = 100 }
+                };
+                var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
+                var mesh = new Surface
+                {
+                    Vertices = [[-1, -.3, 10], [1, -.3, 10], [1, .3, 10], [-1, .3, 10]],
+                    Faces = [[0, 1, 2], [0, 2, 3]],
+                    SourceImages = ["a", "a"]
+                };
+                var before = baker.Bake(store, project, scene, mesh, store.PathFor("before.jpg"), default);
+                project.Settings.TextureSuppressSky = true;
+                var after = baker.Bake(store, project, scene, mesh, store.PathFor("after.jpg"), default);
+                var face = before.Surface!.Faces[0];
+                var x = (int)(face.Average(vertex => before.Uvs[vertex][0]) * 256);
+                var y = (int)(face.Average(vertex => before.Uvs[vertex][1]) * 256);
+                using var first = SKBitmap.Decode(store.PathFor("before.jpg"));
+                using var second = SKBitmap.Decode(store.PathFor("after.jpg"));
+                Check(first.GetPixel(x, y).Blue > 150 && second.GetPixel(x, y).Blue < 90, "Baking actually uses the guarded foreground sample");
+                Check(before.Uvs.Zip(after.Uvs).All(pair => pair.First.SequenceEqual(pair.Second)), "UV layout is unchanged");
+                Check(after.Surface!.Faces.Count == mesh.Faces.Count && mesh.SourceImages.All(id => id == "a"), "No face or source assignment is removed");
+                Check(sourceBytes.SequenceEqual(File.ReadAllBytes(store.PathFor("source.png"))), "Original photographs are never edited");
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
+        });
+        tests.Run("Unseen completed regions keep all geometry and smoothly inherit colour across UV splits", () =>
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "echo-colour-completion-" + Guid.NewGuid().ToString("N"));
+            var store = stores.Open(directory);
+            store.Init("colour completion test");
+            try
+            {
+                using var bitmap = new SKBitmap(128, 128);
+                bitmap.Erase(new SKColor(54, 132, 78));
+                images.Save(bitmap, store.PathFor("a.png"), SKEncodedImageFormat.Png);
+                var project = new ProjectData
+                {
+                    Images = [new Photo { Id = "a", Source = "a.png", Width = 128, Height = 128, FocalPixels = 64 }],
+                    Settings = new Settings { TextureSize = 256, TextureChartFaces = 2, TextureJpegQuality = 100 }
+                };
+                var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
+                var mesh = new Surface
+                {
+                    Vertices = [[-2, -2, 10], [2, -2, 10], [2, 2, 10], [-2, 2, 10], [0, 0, 10],
+                        [-2, -2, 10], [2, -2, 10], [-2, -4, 10], [2, -4, 10]],
+                    Faces = [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4], [5, 7, 8], [5, 8, 6]],
+                    SourceImages = ["", "", "", "", "a", "a"]
+                };
+                var output = store.PathFor("atlas.jpg");
+                var texture = baker.Bake(store, project, scene, mesh, output, default);
+                Check(texture.Surface!.Faces.Count == 6, "Texturing retains the complete surface");
+                Check(texture.Surface.SourceImages.Count(string.IsNullOrEmpty) == 4, "Inferred colours are not labelled as measured photographs");
+                using var atlas = SKBitmap.Decode(output);
+                foreach (var face in texture.Surface.Faces)
+                {
+                    var x = face.Average(vertex => texture.Uvs[vertex][0]) * texture.Size;
+                    var y = face.Average(vertex => texture.Uvs[vertex][1]) * texture.Size;
+                    var colour = atlas.GetPixel((int)x, (int)y);
+                    var matches = Math.Abs(colour.Red - 54) < 4 && Math.Abs(colour.Green - 132) < 4 && Math.Abs(colour.Blue - 78) < 4;
+                    Check(matches, "Missing-photo triangles use surrounding surface colour across all UV charts");
+                }
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
+        });
+        tests.Run("Grazing photographic views retain undistorted planar UV charts", () =>
+        {
+            var project = new ProjectData
+            {
+                Images = [new Photo { Id = "a", Width = 128, Height = 128, FocalPixels = 64 }]
+            };
+            var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
+            var mesh = new Surface
+            {
+                Vertices = [[.1, -2, 10], [.1, 2, 10], [.1, 2, 20], [.1, -2, 20]],
+                Faces = [[0, 1, 2], [0, 2, 3]],
+                SourceImages = ["a", "a"]
+            };
+            var patches = patchBuilder.Build(project, scene, mesh, default);
+            Check(patches.Count == 1 && patches[0].Faces.Count == 2, "A grazing view does not split or discard a flat region");
+            var coordinates = patches[0].Coordinates;
+            foreach (var face in mesh.Faces)
+            {
+                var a = coordinates[face[0]];
+                var b = coordinates[face[1]];
+                var c = coordinates[face[2]];
+                var area = Math.Abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) * .5;
+                Check(Math.Abs(area - 20) < 1e-5, "The tangent chart preserves surface area instead of collapsing its UVs");
+            }
+        });
+        tests.Run("Source-view UV charts follow smooth relief without breaking into triangular islands", () =>
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "echo-curved-chart-" + Guid.NewGuid().ToString("N"));
+            var store = stores.Open(directory);
+            store.Init("curved chart test");
+            try
+            {
+                using var bitmap = new SKBitmap(128, 128);
+                bitmap.Erase(SKColors.CornflowerBlue);
+                images.Save(bitmap, store.PathFor("a.png"), SKEncodedImageFormat.Png);
+                var project = new ProjectData
+                {
+                    Images = [new Photo { Id = "a", Source = "a.png", Width = 128, Height = 128, FocalPixels = 70 }],
+                    Settings = new Settings { TextureSize = 256, TextureChartFaces = 256, TextureChartAngle = 45 }
+                };
+                var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
+                project.Images.Add(new Photo { Id = "b", Source = "a.png", Width = 128, Height = 128, FocalPixels = 70 });
+                scene.Cameras.Add(new CameraPose { ImageId = "b" });
+                var mesh = new Surface();
+                for (var y = 0; y <= 4; y++)
+                {
+                    for (var x = 0; x <= 8; x++)
+                    {
+                        var horizontal = (x - 4) * 1.25;
+                        mesh.Vertices.Add([horizontal, y - 2, 10 + 2 * Math.Cos(horizontal * .5)]);
+                    }
+                }
+                for (var y = 0; y < 4; y++)
+                {
+                    for (var x = 0; x < 8; x++)
+                    {
+                        var a = y * 9 + x;
+                        mesh.Faces.Add([a, a + 1, a + 10]);
+                        mesh.Faces.Add([a, a + 10, a + 9]);
+                        mesh.SourceImages.AddRange(["a", "b"]);
+                    }
+                }
+                var result = baker.Bake(store, project, scene, mesh, store.PathFor("atlas.jpg"), default);
+                Check(result.ChartCount == 1, "A visible curved region stays one UV chart even when source photographs change");
+                Check(result.Surface!.Faces.Count == 64, "Chart construction retains the complete curved surface");
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
+        });
+        tests.Run("Photographic seam levelling removes exposure steps while preserving image detail", () =>
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "echo-seam-" + Guid.NewGuid().ToString("N"));
+            var store = stores.Open(directory);
+            store.Init("seam correction test");
+            try
+            {
+                var project = new ProjectData();
+                var scene = new ReconstructionScene();
+                foreach (var id in new[] { "a", "b" })
+                {
+                    using var bitmap = new SKBitmap(64, 64);
+                    for (var y = 0; y < 64; y++)
+                    {
+                        for (var x = 0; x < 64; x++)
+                        {
+                            var intensity = (byte)((id == "a" ? 80 : 130) + (y % 8 < 4 ? 30 : 0));
+                            bitmap.SetPixel(x, y, new SKColor(intensity, intensity, intensity));
+                        }
+                    }
+                    images.Save(bitmap, store.PathFor(id + ".png"), SKEncodedImageFormat.Png);
+                    project.Images.Add(new Photo { Id = id, Source = id + ".png", Width = 64, Height = 64, FocalPixels = 32 });
+                    scene.Cameras.Add(new CameraPose { ImageId = id });
+                }
+                var mesh = new Surface
+                {
+                    Vertices = [[-4, -2, 10], [0, -2, 10], [0, 2, 10], [-4, 2, 10],
+                        [0, -2, 10], [4, -2, 10], [4, 2, 10], [0, 2, 10]],
+                    Faces = [[0, 1, 2], [0, 2, 3], [4, 5, 6], [4, 6, 7]],
+                    SourceImages = ["a", "a", "b", "b"]
+                };
+                var correction = seamLeveler.Compute(store, project, scene, mesh, default);
+                Check(correction.SeamEdges == 1, "Camera-split duplicate vertices share a seam");
+                Check(Math.Abs(correction.MeanDifferenceBefore - 50) < 1e-8, "The measured exposure step is fifty intensity levels");
+                Check(correction.MeanDifferenceAfter < .01, "The corrected seam matches on both sides");
+                for (var corner = 0; corner < correction.CornerOffsets.Length; corner++)
+                {
+                    var expected = corner < 6 ? 25 : -25;
+                    Check(Math.Abs(correction.CornerOffsets[corner].X - expected) < .1,
+                        "A constant exposure difference gives a constant offset, preserving the thirty-level stripe contrast");
+                }
+                Check(mesh.Vertices.Count == 8 && mesh.Faces.Count == 4, "Colour correction does not change geometry");
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
+        });
+        tests.Run("Atlas gutters copy nearest source texels and shared triangle edges are antialiased", () =>
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "echo-texture-edges-" + Guid.NewGuid().ToString("N"));
+            var store = stores.Open(directory);
+            store.Init("texture edge test");
+            try
+            {
+                using var source = new SKBitmap(64, 64);
+                for (var y = 0; y < 64; y++)
+                {
+                    for (var x = 0; x < 64; x++)
+                    {
+                        source.SetPixel(x, y, new SKColor((byte)(x * 4), (byte)(y * 4), 100));
+                    }
+                }
+                images.Save(source, store.PathFor("source.png"), SKEncodedImageFormat.Png);
+                var project = new ProjectData
+                {
+                    Images = [new Photo { Id = "a", Source = "source.png", Width = 64, Height = 64, FocalPixels = 32 }],
+                    Settings = new Settings { TextureGutter = 4 }
+                };
+                var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
+                var mesh = new Surface
+                {
+                    Vertices = [[-7.5, -7.5, 10], [7.5, -7.5, 10], [7.5, 7.5, 10], [-7.5, 7.5, 10]],
+                    Faces = [[0, 1, 2], [0, 2, 3]],
+                    SourceImages = ["a", "a"]
+                };
+                var texture = new TextureResult
+                {
+                    Size = 64,
+                    Uvs = [[.125, .125], [.875, .125], [.875, .875], [.125, .875]]
+                };
+                using var atlas = new SKBitmap(64, 64);
+                rasterizer.Paint(store, project, scene, mesh, texture, [], atlas, default);
+                Check(atlas.GetPixel(59, 30) == atlas.GetPixel(55, 30), "Padding takes the nearest boundary colour without diagonal smearing");
+                Check(atlas.GetPixel(30, 59) == atlas.GetPixel(30, 55), "Padding is symmetric along both axes");
+                Check(atlas.GetPixel(63, 30).Alpha == 255 && atlas.GetPixel(63, 30).Blue == 100,
+                    "Unused atlas space continues the photographic colours instead of forming a dark outline");
+
+                source.Erase(SKColors.Red);
+                images.Save(source, store.PathFor("source.png"), SKEncodedImageFormat.Png);
+                source.Erase(SKColors.Blue);
+                images.Save(source, store.PathFor("blue.png"), SKEncodedImageFormat.Png);
+                project.Images.Add(new Photo { Id = "b", Source = "blue.png", Width = 64, Height = 64, FocalPixels = 32 });
+                scene.Cameras.Add(new CameraPose { ImageId = "b" });
+                mesh.SourceImages[1] = "b";
+                rasterizer.Paint(store, project, scene, mesh, texture, [], atlas, default);
+                var edge = atlas.GetPixel(30, 30);
+                Check(edge.Red is > 100 and < 155 && edge.Blue is > 100 and < 155, "Subpixel coverage blends a shared diagonal rather than choosing the last triangle");
+                Check(atlas.GetPixel(40, 20) == SKColors.Red && atlas.GetPixel(20, 40) == SKColors.Blue, "Antialiasing preserves triangle interiors");
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
+        });
         tests.Run("Rotated UV islands pack densely without overlapping or losing gutter separation", () =>
         {
             var patches = Enumerable.Range(0, 36).Select(_ =>
