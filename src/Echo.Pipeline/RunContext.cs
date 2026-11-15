@@ -85,6 +85,9 @@ public sealed class RunContext
             "feature-image" => "features",
             "features-preview" => "features",
             "match-pair" => "matching",
+            "semantic-image" => "depth",
+            "semantics" => "depth",
+            "cliff-depth-image" => "depth",
             "depth-image" => "depth",
             "depth-preview" => "depth",
             "alignment-preview" => "alignment",
@@ -245,6 +248,9 @@ public sealed class RunContext
                 "alignment-preview" => "alignment",
                 "alignment-initial" => "alignment",
                 "alignment-guided-pair" => "alignment",
+                "semantic-image" => "depth",
+                "semantics" => "depth",
+                "cliff-depth-image" => "depth",
                 "depth-image" => "depth",
                 _ => stage
             };

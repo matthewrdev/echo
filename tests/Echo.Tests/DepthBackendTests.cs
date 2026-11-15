@@ -20,10 +20,12 @@ public sealed class DepthBackendTests
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
     private readonly IDepthExecutionPlanner planner;
+    private readonly ISceneSemanticArtifacts semantics;
+    private readonly ICliffRecoveryArtifacts recovery;
 
     [ImportingConstructor]
     public DepthBackendTests(IRasterImageService images, IProjectStoreFactory stores, IDepthEstimator composedEstimator,
-        IRunContextFactory contexts, IFileOperations files, IJsonCodec json, IDepthExecutionPlanner planner)
+        IRunContextFactory contexts, IFileOperations files, IJsonCodec json, IDepthExecutionPlanner planner, ISceneSemanticArtifacts semantics, ICliffRecoveryArtifacts recovery)
     {
         this.images = images;
         this.stores = stores;
@@ -32,6 +34,8 @@ public sealed class DepthBackendTests
         this.files = files;
         this.json = json;
         this.planner = planner;
+        this.semantics = semantics;
+        this.recovery = recovery;
     }
 
     internal void Run(TestSuite tests)
@@ -150,7 +154,7 @@ public sealed class DepthBackendTests
                         fixture = "backend"
                     }, directory => files.AtomicJson(Path.Combine(directory, "scene.json"), scene));
                     context.Publish("alignment", alignment);
-                    new DepthStage(files, json, composedEstimator, planner).Execute(context);
+                    new DepthStage(files, json, composedEstimator, planner, semantics, recovery).Execute(context);
                     context.Complete();
                     var unit = context.DepthUnits()[0];
                     var actual = json.Read<DepthMap>(store.PathFor(unit + "/depth.json"));
@@ -196,7 +200,7 @@ public sealed class DepthBackendTests
         var context = contexts.Create(store, run, default, null);
         context.Start();
         context.Publish("alignment", alignment);
-        new DepthStage(files, json, composedEstimator, planner).Execute(context);
+        new DepthStage(files, json, composedEstimator, planner, semantics, recovery).Execute(context);
         context.Complete();
         return context;
     }

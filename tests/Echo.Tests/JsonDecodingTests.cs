@@ -44,6 +44,9 @@ public sealed class JsonDecodingTests
             RoundTrip(new DenseCloudReport());
             RoundTrip(new FusedVolume());
             RoundTrip(new Surface());
+            RoundTrip(new SemanticMap { ImageId = "photo", Width = 2, Height = 1, Vegetation = [255, 0], Rock = [0, 255] });
+            RoundTrip(new bool[] { true, false });
+            RoundTrip(new Settings { OptimiseVegetation = true, RecoverCliffDepth = true, VegetationMeshToleranceMultiplier = 3, VegetationTextureScale = .5 });
             RoundTrip(new TextureResult { MeshFile = "mesh.json", Uvs = [[0.25, 0.75]], Size = 256 });
             RoundTrip(new Dictionary<string, string> { ["image"] = "artifact/path" });
             RoundTrip(new List<string> { "artifact/path" });
@@ -53,6 +56,7 @@ public sealed class JsonDecodingTests
             var settings = Read<Settings>("{}");
             Check(settings.MeshIslandMode == IslandTrimMode.Off && settings.MeshIslandMinimumAreaPercent == .1, "Missing fields retain compatible defaults");
             Check(settings.FusionIslandMode == IslandTrimMode.Off && settings.FusionIslandMinimumSizePercent == .1, "Early trimming remains opt-in");
+            Check(!settings.OptimiseVegetation && !settings.RecoverCliffDepth, "Semantic passes remain opt-in for old projects");
             Check(!settings.TextureSuppressSky && settings.TextureSkyMarginPixels == 8, "Sky suppression remains opt-in");
             foreach (var mode in Enum.GetValues<IslandTrimMode>())
             {

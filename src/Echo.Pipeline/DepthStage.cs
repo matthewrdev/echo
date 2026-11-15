@@ -12,14 +12,18 @@ public sealed class DepthStage : IPipelineStage
     private readonly IJsonCodec jsonCodec;
     private readonly IDepthEstimator depthEstimator;
     private readonly IDepthExecutionPlanner executionPlanner;
+    private readonly ISceneSemanticArtifacts semanticArtifacts;
+    private readonly ICliffRecoveryArtifacts cliffRecovery;
 
     [ImportingConstructor]
-    public DepthStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IDepthEstimator depthEstimator, IDepthExecutionPlanner executionPlanner)
+    public DepthStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IDepthEstimator depthEstimator, IDepthExecutionPlanner executionPlanner, ISceneSemanticArtifacts semanticArtifacts, ICliffRecoveryArtifacts cliffRecovery)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
         this.depthEstimator = depthEstimator;
         this.executionPlanner = executionPlanner;
+        this.semanticArtifacts = semanticArtifacts;
+        this.cliffRecovery = cliffRecovery;
     }
 
     public string Name => "depth";
@@ -32,6 +36,8 @@ public sealed class DepthStage : IPipelineStage
         var cancellation = context.Cancellation;
         var alignment = context.Artifact("alignment");
         var scene = jsonCodec.Read<ReconstructionScene>(store.PathFor(alignment + "/scene.json"));
+        var semantics = project.Settings.OptimiseVegetation || project.Settings.RecoverCliffDepth
+            ? semanticArtifacts.Build(context) : new Dictionary<string, SemanticMap>();
         var depthUnits = new string[scene.Cameras.Count];
         var previewUnits = context.Run.Artifacts.ContainsKey("depthPreview")
             ? context.ReadArtifact<Dictionary<string, string>>("depthPreview", "units.json")
@@ -114,9 +120,18 @@ public sealed class DepthStage : IPipelineStage
             }
         });
 
+        var originalUnits = depthUnits;
+        if (project.Settings.RecoverCliffDepth)
+        {
+            depthUnits = cliffRecovery.Build(context, scene, originalUnits, semantics);
+        }
         var artifact = context.Build("depth", depthUnits, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), depthUnits);
+            if (project.Settings.RecoverCliffDepth)
+            {
+                fileOperations.AtomicJson(Path.Combine(directory, "original-units.json"), originalUnits);
+            }
         }, () => new ProcessingMetadata { SourceArtifacts = depthUnits.ToList() });
         context.Publish("depth", artifact);
     }

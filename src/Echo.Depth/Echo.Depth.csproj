@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="../Echo.SceneSemantics/Echo.SceneSemantics.csproj" />
     <InternalsVisibleTo Include="Echo.Tests" />
     <InternalsVisibleTo Include="Echo.Benchmarks" />
     <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />

@@ -2,6 +2,10 @@ namespace Echo.Contracts;
 
 public sealed class Settings
 {
+    public bool OptimiseVegetation { get; set; } = false;
+    public double VegetationMeshToleranceMultiplier { get; set; } = 2.5;
+    public double VegetationTextureScale { get; set; } = .65;
+    public bool RecoverCliffDepth { get; set; } = false;
     public bool ScaleInvariantFeatures { get; set; } = true;
     public bool GuidedAlignmentPass { get; set; } = true;
     public bool DetectLines { get; set; } = true;
@@ -110,7 +114,11 @@ public sealed class Settings
         var invalidIslandSettings = !Enum.IsDefined(MeshIslandMode)
             || !double.IsFinite(MeshIslandMinimumAreaPercent)
             || MeshIslandMinimumAreaPercent is < 0 or > 100;
-        var invalidSettings = invalidAlignmentSettings
+        var invalidSemanticSettings = !double.IsFinite(VegetationMeshToleranceMultiplier)
+            || VegetationMeshToleranceMultiplier is < 1 or > 4
+            || !double.IsFinite(VegetationTextureScale)
+            || VegetationTextureScale is < .25 or > 1;
+        var invalidSettings = invalidSemanticSettings || invalidAlignmentSettings
             || invalidLines
             || invalidLineThreshold
             || invalidMatchingSettings

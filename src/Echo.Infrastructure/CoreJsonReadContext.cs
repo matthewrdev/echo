@@ -21,6 +21,8 @@ namespace Echo.Infrastructure;
 [JsonSerializable(typeof(DenseCloudOverview))]
 [JsonSerializable(typeof(FusedVolume))]
 [JsonSerializable(typeof(Surface))]
+[JsonSerializable(typeof(SemanticMap))]
+[JsonSerializable(typeof(bool[]))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(List<string>))]
 public partial class CoreJsonReadContext : JsonSerializerContext

@@ -1,0 +1,63 @@
+using System.ComponentModel.Composition;
+using Echo.Contracts;
+using Echo.Depth;
+using Echo.Infrastructure;
+
+namespace Echo.Pipeline;
+
+[Export(typeof(ICliffRecoveryArtifacts)), PartCreationPolicy(CreationPolicy.Shared)]
+public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
+{
+    private readonly ICliffDepthRecovery recovery;
+    private readonly IJsonCodec json;
+    private readonly IFileOperations files;
+
+    [ImportingConstructor]
+    public CliffRecoveryArtifacts(ICliffDepthRecovery recovery, IJsonCodec json, IFileOperations files)
+    {
+        this.recovery = recovery;
+        this.json = json;
+        this.files = files;
+    }
+
+    public string[] Build(RunContext context, ReconstructionScene scene, string[] originalUnits, IReadOnlyDictionary<string, SemanticMap> semantics)
+    {
+        // All confirmations use the original maps. New estimates cannot provide
+        // circular support for one another, regardless of image processing order.
+        var maps = originalUnits.Select(unit => json.Read<DepthMap>(context.Store.PathFor(unit + "/depth.json"))).ToArray();
+        var units = new string[maps.Length];
+        var photos = context.Images.ToDictionary(photo => photo.Id);
+        for (var index = 0; index < maps.Length; index++)
+        {
+            context.Cancellation.ThrowIfCancellationRequested();
+            var map = maps[index];
+            var photo = photos[map.ImageId];
+            units[index] = context.Build("cliff-depth-image", new
+            {
+                originalUnits,
+                map.ImageId,
+                alignment = context.Artifact("alignment"),
+                semantics = context.Artifact("semantics"),
+                context.Run.Snapshot.Settings.DepthNeighbours
+            }, directory =>
+            {
+                var result = recovery.Recover(context.Store, context.Run.Snapshot, scene, map, maps, semantics[map.ImageId], context.Cancellation,
+                    message => context.ReportProgress("depth", $"{photo.Name} · {message}", index, maps.Length));
+                files.AtomicJson(Path.Combine(directory, "depth.json"), result.Map);
+                files.AtomicJson(Path.Combine(directory, "recovery.report.json"), new
+                {
+                    map.ImageId,
+                    result.SearchedSamples,
+                    result.RecoveredSamples,
+                    result.SourceImageWidth,
+                    result.Neighbours,
+                    preservedSamples = map.Depth.Count(value => float.IsFinite(value) && value > 0),
+                    method = "Bounded missing-rock stereo search; two original depth confirmations and two photographic confirmations; no generative geometry"
+                });
+            }, () => new ProcessingMetadata { SourceArtifacts = [.. originalUnits, context.Artifact("semantics"), context.Artifact("alignment")] },
+                algorithmVersion: "echo-cliff-recovery1");
+            context.ReportProgress("depth", $"Cliff recovery checked · {photo.Name} · {index + 1}/{maps.Length}", index + 1, maps.Length);
+        }
+        return units;
+    }
+}

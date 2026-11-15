@@ -114,7 +114,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                         item.Bytes += new FileInfo(file).Length;
                         item.FileCount++;
                     }
-                    foreach (var name in new[] { "units.json", "recovery.json" })
+                    foreach (var name in new[] { "units.json", "recovery.json", "original-units.json" })
                     {
                         var index = Path.Combine(directory, name);
                         if (File.Exists(index))
@@ -244,6 +244,10 @@ public sealed class ArtifactStorageService : IArtifactStorageService
 
     private int StageOrder(string key)
     {
+        if (key == "semantics")
+        {
+            return Array.IndexOf(stages, "depth");
+        }
         var stage = key.EndsWith("Preview", StringComparison.Ordinal) ? key[..^7] : key;
         var index = Array.IndexOf(stages, stage);
         return index < 0 ? stages.Length : index;

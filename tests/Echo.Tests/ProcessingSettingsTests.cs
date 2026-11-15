@@ -58,6 +58,9 @@ public sealed class ProcessingSettingsTests
         {
             foreach (var settings in new[]
             {
+                new Settings { OptimiseVegetation = true, VegetationTextureScale = double.NaN },
+                new Settings { VegetationTextureScale = 0 },
+                new Settings { VegetationMeshToleranceMultiplier = 5 },
                 new Settings { LineGradientThreshold = double.NaN },
                 new Settings { LineGradientThreshold = 0 },
                 new Settings { MatchRatioThreshold = double.NaN },

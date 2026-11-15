@@ -46,6 +46,26 @@ public sealed class ArtifactStorageTests
             }
             Check(Directory.Exists(store.PathFor(cloud)), "Other downstream bytes remain available to storage browser");
         }));
+        tests.Run("Semantic mask cleanup invalidates reconstruction and retains original depth provenance", () => WithProject(store =>
+        {
+            var unit = SaveArtifact(store, "semantic-image", "plant-mask");
+            var semantics = SaveArtifact(store, "semantics", "index");
+            files.AtomicJson(store.PathFor(semantics + "/units.json"), new Dictionary<string, string> { ["photo"] = unit });
+            var original = SaveArtifact(store, "depth-image", "original");
+            var depth = SaveArtifact(store, "depth", "recovered");
+            files.AtomicJson(store.PathFor(depth + "/original-units.json"), new[] { original });
+            var alignment = SaveArtifact(store, "alignment", "kept");
+            var cloud = SaveArtifact(store, "cloud", "output");
+            var run = SaveRun(store, alignment, depth, cloud);
+            run.Artifacts["semantics"] = semantics;
+            files.AtomicJson(store.PathFor($"runs/{run.Id}/run.json"), run);
+            var inventory = storage.Inspect(store);
+            Check(inventory.Artifacts.Single(item => item.Path == original).Runs.Contains(run.Id), "Original maps are part of recovery provenance");
+            var plan = storage.Plan(store, unit);
+            Check(plan.AffectedRuns[run.Id] == "depth", "Deleting semantic evidence invalidates Depth and downstream outputs");
+            storage.Delete(store, unit, plan.Token);
+            Check(store.GetRun(run.Id).Artifacts.Count == 1, "No dangling semantic or downstream run references");
+        }));
         tests.Run("Purge is confirmed, rejects stale previews and active jobs, and preserves inputs", () => WithProject(store =>
         {
             SaveArtifact(store, "alignment", "test");
