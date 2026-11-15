@@ -37,9 +37,15 @@ struct ProcessingSettings: Codable {
     var cloudReprojectionTolerancePixels: Double = 1.5
     var cloudMinimumParallaxDegrees: Double = 0.5
     var fusionDetailMultiplier: Double = 1
+    var fusionIslandMode: IslandTrimMode = .off
+    var fusionIslandMinimumSizePercent: Double = 0.1
+    var textureSuppressSky: Bool = false
+    var textureSkyMarginPixels: Int = 8
     var textureSize: Int = 8192
     var textureJpegQuality: Int = 92
     var faceLimit: Int = 1_500_000
+    var meshIslandMode: IslandTrimMode = .off
+    var meshIslandMinimumAreaPercent: Double = 0.1
     var textureChartFaces: Int = 512
     var textureChartAngle: Double = 60
     var textureGutter: Int = 4
@@ -87,9 +93,17 @@ struct ProcessingSettings: Codable {
         cloudMinimumParallaxDegrees =
             try values.decodeIfPresent(Double.self, forKey: .cloudMinimumParallaxDegrees) ?? 0.5
         fusionDetailMultiplier = try values.decodeIfPresent(Double.self, forKey: .fusionDetailMultiplier) ?? 1
+        fusionIslandMode = try values.decodeIfPresent(IslandTrimMode.self, forKey: .fusionIslandMode) ?? .off
+        fusionIslandMinimumSizePercent =
+            try values.decodeIfPresent(Double.self, forKey: .fusionIslandMinimumSizePercent) ?? 0.1
+        textureSuppressSky = try values.decodeIfPresent(Bool.self, forKey: .textureSuppressSky) ?? false
+        textureSkyMarginPixels = try values.decodeIfPresent(Int.self, forKey: .textureSkyMarginPixels) ?? 8
         textureSize = try values.decodeIfPresent(Int.self, forKey: .textureSize) ?? 8192
         textureJpegQuality = try values.decodeIfPresent(Int.self, forKey: .textureJpegQuality) ?? 92
         faceLimit = try values.decodeIfPresent(Int.self, forKey: .faceLimit) ?? 1_500_000
+        meshIslandMode = try values.decodeIfPresent(IslandTrimMode.self, forKey: .meshIslandMode) ?? .off
+        meshIslandMinimumAreaPercent =
+            try values.decodeIfPresent(Double.self, forKey: .meshIslandMinimumAreaPercent) ?? 0.1
         textureChartFaces = try values.decodeIfPresent(Int.self, forKey: .textureChartFaces) ?? 512
         textureChartAngle = try values.decodeIfPresent(Double.self, forKey: .textureChartAngle) ?? 60
         textureGutter = try values.decodeIfPresent(Int.self, forKey: .textureGutter) ?? 4
@@ -134,9 +148,15 @@ struct ProcessingSettings: Codable {
         try values.encode(cloudReprojectionTolerancePixels, forKey: .cloudReprojectionTolerancePixels)
         try values.encode(cloudMinimumParallaxDegrees, forKey: .cloudMinimumParallaxDegrees)
         try values.encode(fusionDetailMultiplier, forKey: .fusionDetailMultiplier)
+        try values.encode(fusionIslandMode, forKey: .fusionIslandMode)
+        try values.encode(fusionIslandMinimumSizePercent, forKey: .fusionIslandMinimumSizePercent)
+        try values.encode(textureSuppressSky, forKey: .textureSuppressSky)
+        try values.encode(textureSkyMarginPixels, forKey: .textureSkyMarginPixels)
         try values.encode(textureSize, forKey: .textureSize)
         try values.encode(textureJpegQuality, forKey: .textureJpegQuality)
         try values.encode(faceLimit, forKey: .faceLimit)
+        try values.encode(meshIslandMode, forKey: .meshIslandMode)
+        try values.encode(meshIslandMinimumAreaPercent, forKey: .meshIslandMinimumAreaPercent)
         try values.encode(textureChartFaces, forKey: .textureChartFaces)
         try values.encode(textureChartAngle, forKey: .textureChartAngle)
         try values.encode(textureGutter, forKey: .textureGutter)
@@ -162,12 +182,22 @@ struct ProcessingSettings: Codable {
             return
                 "\(cloudNeighbours) neighbours · \(cloudMinimumSupport) required supporting views · \((cloudDepthTolerance * 100).formatted())% relative depth tolerance"
         case .fusion:
+            let trimming =
+                fusionIslandMode == .off
+                ? "island trimming off" : fusionIslandMode == .main ? "main region only" : "trim small regions"
             return
-                "\(fusionDetailMultiplier.formatted())× fusion detail budget · \(faceLimit.formatted()) target triangles"
-        case .mesh: return "Up to \(faceLimit.formatted()) triangles"
+                "Automatic surface resolution · \(fusionDetailMultiplier.formatted())× fusion detail budget · \(trimming)"
+        case .mesh:
+            let islands =
+                meshIslandMode == .main
+                ? "main surface only"
+                : meshIslandMode == .small
+                    ? "trim islands below \(meshIslandMinimumAreaPercent.formatted())% area"
+                    : "island trimming off"
+            return "Up to \(faceLimit.formatted()) triangles · \(islands)"
         case .texture:
             return
-                "\(textureSize) × \(textureSize) texture · JPEG \(textureJpegQuality) · \(textureChartFaces) faces per chart · \(textureChartAngle)° chart angle · \(textureGutter) px gutter"
+                "\(textureSize) × \(textureSize) texture · JPEG \(textureJpegQuality) · \(textureChartFaces) faces per chart · \(textureChartAngle)° chart angle · \(textureGutter) px gutter · sky guard \(textureSuppressSky ? "\(textureSkyMarginPixels) px" : "off")"
         case .export: return "GLB + georeference sidecar · structural validation \(exportValidate ? "on" : "off")"
         }
     }

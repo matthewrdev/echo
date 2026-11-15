@@ -8,6 +8,8 @@ enum ProcessingSettingsKey: String, CodingKey {
     case cloudReprojectionTolerancePixels, cloudMinimumParallaxDegrees
     case depthRefinementSamples, depthNeighbours, depthRangeAutomatic
     case textureChartFaces, textureChartAngle, textureGutter
+    case meshIslandMode, meshIslandMinimumAreaPercent
+    case fusionIslandMode, fusionIslandMinimumSizePercent, textureSuppressSky, textureSkyMarginPixels
     case featureWidth, bundleIterations, featureLimit, pairWindow, matchAllPairs, gpsPairNeighbours,
         matchRatioThreshold, matchDistanceThreshold, depthWidth, depthPlanes, depthNear, depthFar, cloudNeighbours,
         cloudMinimumSupport, cloudDepthTolerance, fusionDetailMultiplier, textureSize, textureJpegQuality, faceLimit,

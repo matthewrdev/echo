@@ -173,13 +173,40 @@ struct StageSettingsEditor: View {
                     title: "Detail budget multiplier", value: $settings.fusionDetailMultiplier, range: 0.25...16,
                     step: 0.25)
                 Text(
-                    "Higher values allow a finer voxel grid at the cost of memory and time. The mesh triangle budget still limits the surface; extra budget cannot add unobserved detail."
+                    "Resolution follows the source photographs and verified surface samples, within a separate memory budget. Higher values allow finer reconstruction at the cost of memory and time. The final triangle budget does not change fusion resolution."
                 ).foregroundStyle(.secondary)
+                Picker("Trim islands before meshing", selection: $settings.fusionIslandMode) {
+                    Text("Off").tag(IslandTrimMode.off)
+                    Text("Remove small regions").tag(IslandTrimMode.small)
+                    Text("Keep main region only").tag(IslandTrimMode.main)
+                }
+                if settings.fusionIslandMode == .small {
+                    DecimalSettingSlider(
+                        title: "Minimum region size (% of main region)",
+                        value: $settings.fusionIslandMinimumSizePercent,
+                        range: 0...100, step: 0.01)
+                }
+                Text(
+                    "Removes disconnected observed volume before mesh extraction and hole closing. Region size uses the number of fusion samples. Main region only can also remove real detached objects. Nearby fragments joined by the fusion band may remain; Mesh island trimming can clean up later."
+                ).font(.caption).foregroundStyle(.secondary)
             case .mesh:
                 IntegerSettingSlider(title: "Triangle budget", value: $settings.faceLimit, range: 1...10_000_000)
                 Text(
-                    "Limits surface extraction and simplification, and informs the fusion grid. Higher values preserve more recovered detail but cannot fill unobserved surfaces."
+                    "Reduces the reconstructed surface while preserving shape and boundaries. Flat areas use fewer triangles; complex areas retain more. Changing this budget reuses fusion. Topology may prevent reaching very low budgets."
                 ).foregroundStyle(.secondary)
+                Picker("Island trimming", selection: $settings.meshIslandMode) {
+                    Text("Off").tag(IslandTrimMode.off)
+                    Text("Remove small islands").tag(IslandTrimMode.small)
+                    Text("Keep main surface only").tag(IslandTrimMode.main)
+                }
+                if settings.meshIslandMode == .small {
+                    DecimalSettingSlider(
+                        title: "Minimum island area (% of main surface)",
+                        value: $settings.meshIslandMinimumAreaPercent, range: 0...100, step: 0.01)
+                }
+                Text(
+                    "Runs after hole closing. Small islands are measured by surface area, independent of triangle density. Main surface only removes every disconnected patch, including detached rocks. Connected protrusions are retained. Changing this setting rebuilds Mesh, Texture and Export."
+                ).font(.caption).foregroundStyle(.secondary)
             case .texture:
                 Picker("Atlas size (px)", selection: $settings.textureSize) {
                     ForEach([256, 512, 1024, 2048, 4096, 8192], id: \.self) { Text("\($0)").tag($0) }
@@ -191,6 +218,15 @@ struct StageSettingsEditor: View {
                     step: 1)
                 IntegerSettingSlider(title: "Island padding (px)", value: $settings.textureGutter, range: 1...16)
                 IntegerSettingSlider(title: "JPEG quality", value: $settings.textureJpegQuality, range: 25...100)
+                Toggle("Reduce sky colour bleed", isOn: $settings.textureSuppressSky)
+                if settings.textureSuppressSky {
+                    IntegerSettingSlider(
+                        title: "Skyline safety margin (source px)", value: $settings.textureSkyMarginPixels,
+                        range: 1...64)
+                }
+                Text(
+                    "Detects smooth sky-coloured regions touching the top of a photo, then samples slightly inside the foreground near that edge. Start with 8 px. Larger margins can soften edge detail. This is a conservative heuristic; pale objects can be mistaken for sky and large projection errors need a geometry fix. Only Texture and Export are rebuilt."
+                ).font(.caption).foregroundStyle(.secondary)
                 Text(
                     "The atlas is square. Larger charts and wider angles reduce seams but can increase distortion. More pixels preserve detail; higher JPEG quality reduces compression loss and increases file size."
                 ).foregroundStyle(.secondary)

@@ -33,13 +33,22 @@ struct ProcessingImpact {
             || old.cloudReprojectionTolerancePixels != new.cloudReprojectionTolerancePixels
             || old.cloudMinimumParallaxDegrees != new.cloudMinimumParallaxDegrees
         if cloud { return .cloud }
-        if old.fusionDetailMultiplier != new.fusionDetailMultiplier || old.faceLimit != new.faceLimit { return .fusion }
-        if old.textureSize != new.textureSize || old.textureJpegQuality != new.textureJpegQuality
+        let fusion =
+            old.fusionDetailMultiplier != new.fusionDetailMultiplier
+            || old.fusionIslandMode != new.fusionIslandMode
+            || old.fusionIslandMinimumSizePercent != new.fusionIslandMinimumSizePercent
+        if fusion { return .fusion }
+        let mesh =
+            old.faceLimit != new.faceLimit || old.meshIslandMode != new.meshIslandMode
+            || old.meshIslandMinimumAreaPercent != new.meshIslandMinimumAreaPercent
+        if mesh { return .mesh }
+        let texture =
+            old.textureSize != new.textureSize || old.textureJpegQuality != new.textureJpegQuality
             || old.textureChartFaces != new.textureChartFaces || old.textureChartAngle != new.textureChartAngle
             || old.textureGutter != new.textureGutter
-        {
-            return .texture
-        }
+            || old.textureSuppressSky != new.textureSuppressSky
+            || old.textureSkyMarginPixels != new.textureSkyMarginPixels
+        if texture { return .texture }
         if old.exportValidate != new.exportValidate { return .export }
         return nil
     }

@@ -15,6 +15,8 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertTrue(settings.depthRangeAutomatic)
         XCTAssertEqual(settings.depthMemoryBudgetMb, 0)
         XCTAssertEqual(settings.depthBackend, "auto")
+        XCTAssertEqual(settings.meshIslandMode, .off)
+        XCTAssertEqual(settings.meshIslandMinimumAreaPercent, 0.1)
         settings.depthBackend = "metal-validated"
         settings.depthRangeAutomatic = false
         settings.depthNear = 5
@@ -43,6 +45,8 @@ final class ProcessingSettingsTests: XCTestCase {
         settings.fusionDetailMultiplier = 2
         settings.textureJpegQuality = 99
         settings.textureGutter = 8
+        settings.meshIslandMode = .main
+        settings.meshIslandMinimumAreaPercent = 2.5
         let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(settings))
         XCTAssertFalse(restored.detectLines)
         XCTAssertFalse(restored.scaleInvariantFeatures)
@@ -70,8 +74,73 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(restored.fusionDetailMultiplier, 2)
         XCTAssertEqual(restored.textureJpegQuality, 99)
         XCTAssertEqual(restored.textureGutter, 8)
+        XCTAssertEqual(restored.meshIslandMode, .main)
+        XCTAssertEqual(restored.meshIslandMinimumAreaPercent, 2.5)
         XCTAssertEqual(restored.frustumPairNeighbours, 24)
         XCTAssertEqual(restored.pairSearchDistance, 350)
+    }
+
+    func testIslandTrimmingModesRoundTripAndInvalidateMeshOnwards() throws {
+        let original = ProcessingSettings()
+        for mode in [IslandTrimMode.small, .main] {
+            var settings = original
+            settings.meshIslandMode = mode
+            let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(settings))
+            XCTAssertEqual(restored.meshIslandMode, mode)
+            XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: restored), .mesh)
+            XCTAssertTrue(restored.summary(for: .mesh).contains(mode == .main ? "main surface only" : "0.1%"))
+        }
+        var changed = original
+        changed.meshIslandMinimumAreaPercent = 2
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .mesh)
+        XCTAssertEqual(ProcessingImpact().stages(from: .mesh), [.mesh, .texture, .export])
+    }
+
+    func testIslandModesPreserveWireNamesAndRejectInvalidValues() throws {
+        for mode in IslandTrimMode.allCases {
+            let source = Data(
+                "{\"fusionIslandMode\":\"\(mode.rawValue)\",\"meshIslandMode\":\"\(mode.rawValue)\"}".utf8)
+            let settings = try JSONDecoder().decode(ProcessingSettings.self, from: source)
+            XCTAssertEqual(settings.fusionIslandMode, mode)
+            XCTAssertEqual(settings.meshIslandMode, mode)
+            let encoded = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: JSONEncoder().encode(settings)) as? [String: Any])
+            XCTAssertEqual(encoded["fusionIslandMode"] as? String, mode.rawValue)
+            XCTAssertEqual(encoded["meshIslandMode"] as? String, mode.rawValue)
+        }
+        for field in ["fusionIslandMode", "meshIslandMode"] {
+            for value in ["\"invalid\"", "0", "\"0\""] {
+                XCTAssertThrowsError(
+                    try JSONDecoder().decode(ProcessingSettings.self, from: Data("{\"\(field)\":\(value)}".utf8)))
+            }
+        }
+    }
+
+    func testEarlyTrimmingAndSkyGuardRoundTripAtTheirOwnStages() throws {
+        let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
+        XCTAssertEqual(original.fusionIslandMode, .off)
+        XCTAssertFalse(original.textureSuppressSky)
+        XCTAssertEqual(original.textureSkyMarginPixels, 8)
+        var changed = original
+        changed.fusionIslandMode = .main
+        changed.fusionIslandMinimumSizePercent = 2
+        changed.textureSuppressSky = true
+        changed.textureSkyMarginPixels = 16
+        let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(changed))
+        XCTAssertEqual(restored.fusionIslandMode, .main)
+        XCTAssertEqual(restored.fusionIslandMinimumSizePercent, 2)
+        XCTAssertTrue(restored.textureSuppressSky)
+        XCTAssertEqual(restored.textureSkyMarginPixels, 16)
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: restored), .fusion)
+        changed = original
+        changed.fusionIslandMinimumSizePercent = 2
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .fusion)
+        changed = original
+        changed.textureSuppressSky = true
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .texture)
+        changed = original
+        changed.textureSkyMarginPixels = 16
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .texture)
     }
 
     func testAutomaticDepthMemoryBudgetRoundTripsWithoutInvalidatingSavedMaps() throws {
@@ -147,7 +216,7 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .features)
         changed = original
         changed.faceLimit = 2_000_000
-        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .fusion)
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .mesh)
         changed = original
         changed.frustumPairNeighbours = 24
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .matching)
