@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="../Echo.SurfaceCompletion/Echo.SurfaceCompletion.csproj" />
     <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
     <ProjectReference Include="../Echo.Projects/Echo.Projects.csproj" />
     <ProjectReference Include="../Echo.Features/Echo.Features.csproj" />

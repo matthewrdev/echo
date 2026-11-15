@@ -367,7 +367,7 @@ public sealed class ReconstructionTests
                     }
                 }
 
-                Near(area, 29 * 19, .001);
+                Near(area, 30 * 20, .001);
                 Check(used.Count - edges.Count + surface.Faces.Count == 1, "A disk remains a disk without new holes");
                 Check(surface.Vertices.All(p => Math.Abs(p[2] - .25) < 1e-6), "Extracted surface depth");
             }
@@ -514,6 +514,46 @@ public sealed class ReconstructionTests
                 Check(second.Artifacts["texture"] != first.Artifacts["texture"], "Texture invalidation");
                 var resumed = processor.Execute(store, "export", default, first.Id);
                 Check(resumed.Snapshot.Settings.TextureSize == 256 && resumed.Artifacts["texture"] == first.Artifacts["texture"], "Resume uses immutable snapshot");
+            });
+            tests.Run("A triangle-budget edit reuses fusion and rebuilds only the mesh and downstream artifacts", () =>
+            {
+                var before = store.GetRun();
+                store.Edit(p => p.Settings.FaceLimit = 400);
+                var changed = processor.Execute(store, "export", default);
+                foreach (var stage in new[] { "alignment", "depth", "cloud", "fusion" })
+                {
+                    Check(changed.Artifacts[stage] == before.Artifacts[stage], "Triangle budgets preserve " + stage);
+                }
+                foreach (var stage in new[] { "mesh", "texture", "export" })
+                {
+                    Check(changed.Artifacts[stage] != before.Artifacts[stage], "Triangle budgets rebuild " + stage);
+                }
+            });
+            tests.Run("Island trimming edits reuse fusion and rebuild the completed mesh and downstream artifacts", () =>
+            {
+                foreach (var mode in new[] { IslandTrimMode.Small, IslandTrimMode.Main })
+                {
+                    var before = store.GetRun();
+                    store.Edit(p => p.Settings.MeshIslandMode = mode);
+                    var changed = processor.Execute(store, "export", default);
+                    foreach (var stage in new[] { "alignment", "depth", "cloud", "fusion" })
+                    {
+                        Check(changed.Artifacts[stage] == before.Artifacts[stage], "Island trimming preserves " + stage);
+                    }
+                    foreach (var stage in new[] { "mesh", "texture", "export" })
+                    {
+                        Check(changed.Artifacts[stage] != before.Artifacts[stage], "Island trimming rebuilds " + stage);
+                    }
+                    using var report = JsonDocument.Parse(File.ReadAllText(store.PathFor(changed.Artifacts["mesh"] + "/mesh.report.json")));
+                    var trimming = report.RootElement.GetProperty("islandTrimming");
+                    Check(trimming.GetProperty("mode").GetString() == mode.ToString().ToLowerInvariant() && trimming.GetProperty("inputComponents").GetInt32() > 0,
+                        "Mesh reports the requested post-completion trimming pass");
+                }
+                var previous = store.GetRun();
+                store.Edit(p => p.Settings.MeshIslandMinimumAreaPercent = 1);
+                var thresholdChanged = processor.Execute(store, "export", default);
+                Check(thresholdChanged.Artifacts["fusion"] == previous.Artifacts["fusion"], "Area threshold retains fusion");
+                Check(thresholdChanged.Artifacts["mesh"] != previous.Artifacts["mesh"], "Area threshold changes the mesh checkpoint");
             });
             tests.Run("Early island cleanup and sky sampling invalidate only their own downstream stages", () =>
             {

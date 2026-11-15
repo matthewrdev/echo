@@ -9,6 +9,10 @@ internal sealed class Vertex
         get; set;
     }
     public double[] Quadric { get; } = new double[16];
+    public int PlaneCount
+    {
+        get; set;
+    }
     public HashSet<int> Faces { get; } = [];
     public int Revision
     {

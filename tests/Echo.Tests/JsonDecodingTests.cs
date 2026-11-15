@@ -34,6 +34,8 @@ public sealed class JsonDecodingTests
             RoundTrip(new RunData());
             RoundTrip(new Artifact());
             RoundTrip(new Settings());
+            RoundTrip(new Settings { MeshIslandMode = IslandTrimMode.Main, MeshIslandMinimumAreaPercent = 2.5 });
+            RoundTrip(new Settings { FusionIslandMode = IslandTrimMode.Small, FusionIslandMinimumSizePercent = 1.5, TextureSuppressSky = true, TextureSkyMarginPixels = 16 });
             RoundTrip(new Photo());
             RoundTrip(new List<Hint> { new Hint() });
             RoundTrip(new FeatureSet { ImageId = "photo", Features = [new Feature { X = 1.25, Y = 2.5, Descriptor = [0.1f, 0.2f] }] });
@@ -45,6 +47,58 @@ public sealed class JsonDecodingTests
             RoundTrip(new TextureResult { MeshFile = "mesh.json", Uvs = [[0.25, 0.75]], Size = 256 });
             RoundTrip(new Dictionary<string, string> { ["image"] = "artifact/path" });
             RoundTrip(new List<string> { "artifact/path" });
+        });
+        tests.Run("Older projects preserve disabled island trimming until explicitly enabled", () =>
+        {
+            var settings = Read<Settings>("{}");
+            Check(settings.MeshIslandMode == IslandTrimMode.Off && settings.MeshIslandMinimumAreaPercent == .1, "Missing fields retain compatible defaults");
+            Check(settings.FusionIslandMode == IslandTrimMode.Off && settings.FusionIslandMinimumSizePercent == .1, "Early trimming remains opt-in");
+            Check(!settings.TextureSuppressSky && settings.TextureSkyMarginPixels == 8, "Sky suppression remains opt-in");
+            foreach (var mode in Enum.GetValues<IslandTrimMode>())
+            {
+                settings.MeshIslandMode = mode;
+                settings.Validate();
+                RoundTrip(settings);
+            }
+        });
+        tests.Run("Typed island modes preserve legacy JSON and checkpoint inputs while rejecting unknown values", () =>
+        {
+            foreach (var mode in Enum.GetValues<IslandTrimMode>())
+            {
+                var wire = mode.ToString().ToLowerInvariant();
+                var legacy = Read<Settings>($$"""{"fusionIslandMode":"{{wire}}","meshIslandMode":"{{wire}}"}""");
+                Check(legacy.FusionIslandMode == mode && legacy.MeshIslandMode == mode, "Existing string settings decode as typed modes");
+                Check(json.Clone(legacy).FusionIslandMode == mode, "Run snapshots preserve typed modes");
+                using var document = JsonDocument.Parse(json.Encode(legacy));
+                Check(document.RootElement.GetProperty("fusionIslandMode").GetString() == wire
+                    && document.RootElement.GetProperty("meshIslandMode").GetString() == wire, "Saved mode names remain unchanged");
+                Check(json.Encode(new
+                {
+                    fusionIslandMode = mode,
+                    meshIslandMode = mode
+                }) == json.Encode(new
+                {
+                    fusionIslandMode = wire,
+                    meshIslandMode = wire
+                }),
+                    "Checkpoint input bytes remain identical after the type change");
+            }
+            foreach (var field in new[] { "fusionIslandMode", "meshIslandMode" })
+            {
+                foreach (var value in new[] { "\"invalid\"", "0", "999", "\"0\"", "null" })
+                {
+                    var rejected = false;
+                    try
+                    {
+                        Read<Settings>($$"""{"{{field}}":{{value}}}""");
+                    }
+                    catch (JsonException)
+                    {
+                        rejected = true;
+                    }
+                    Check(rejected, $"Unsupported mode {value} must be rejected for {field}");
+                }
+            }
         });
         tests.Run("Span depth reader preserves float bits and out-of-order contracts", () =>
         {

@@ -1,0 +1,106 @@
+using Echo.Contracts;
+
+namespace Echo.Meshing;
+
+internal static class VolumeGapRepair
+{
+    public static Dictionary<Grid, float> Complete(FusedVolume volume, CancellationToken cancellation)
+    {
+        var samples = volume.Samples.ToDictionary(s => new Grid(s.X, s.Y, s.Z), s => s.Distance);
+        var candidates = new HashSet<Grid>();
+        foreach (var key in samples.Keys)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            for (var axis = 0; axis < 3; axis++)
+            {
+                var x = axis == 0 ? 1 : 0;
+                var y = axis == 1 ? 1 : 0;
+                var z = axis == 2 ? 1 : 0;
+                if (samples.ContainsKey(key.Add(x, y, z)))
+                {
+                    continue;
+                }
+                for (var span = 2; span <= 8; span++)
+                {
+                    if (!samples.ContainsKey(key.Add(x * span, y * span, z * span)))
+                    {
+                        continue;
+                    }
+                    for (var step = 1; step < span; step++)
+                    {
+                        candidates.Add(key.Add(x * step, y * step, z * step));
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Interpolate bounded gaps bracketed on two independent axes. Read only
+        // the original field, so completion cannot recursively expand a scan.
+        // Agreement between the two interpolants rejects discontinuities while
+        // allowing a locally planar ground surface to span sparse observations.
+        var repaired = new Dictionary<Grid, float>();
+        foreach (var key in candidates)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var count = 0;
+            double sum = 0;
+            double weight = 0;
+            var minimum = double.PositiveInfinity;
+            var maximum = double.NegativeInfinity;
+            for (var axis = 0; axis < 3; axis++)
+            {
+                var x = axis == 0 ? 1 : 0;
+                var y = axis == 1 ? 1 : 0;
+                var z = axis == 2 ? 1 : 0;
+                var beforeStep = Bracket(samples, key, -x, -y, -z, out var before);
+                var afterStep = Bracket(samples, key, x, y, z, out var after);
+                var span = beforeStep + afterStep;
+                var bracketed = beforeStep > 0 && afterStep > 0 && span <= 8;
+                if (!bracketed)
+                {
+                    continue;
+                }
+
+                var value = ((double)before * afterStep + (double)after * beforeStep) / span;
+                if (!double.IsFinite(value) || Math.Abs(before - after) > volume.VoxelSize * span * 2)
+                {
+                    count = 0;
+                    break;
+                }
+
+                minimum = Math.Min(minimum, value);
+                maximum = Math.Max(maximum, value);
+                var confidence = 1.0 / (span * span);
+                sum += value * confidence;
+                weight += confidence;
+                count++;
+            }
+
+            if (count >= 2 && maximum - minimum <= volume.VoxelSize * .5)
+            {
+                repaired.Add(key, (float)(sum / weight));
+            }
+        }
+
+        foreach (var entry in repaired)
+        {
+            samples.Add(entry.Key, entry.Value);
+        }
+
+        return samples;
+    }
+
+    private static int Bracket(Dictionary<Grid, float> samples, Grid key, int x, int y, int z, out float value)
+    {
+        for (var step = 1; step < 8; step++)
+        {
+            if (samples.TryGetValue(key.Add(x * step, y * step, z * step), out value))
+            {
+                return step;
+            }
+        }
+        value = 0;
+        return 0;
+    }
+}

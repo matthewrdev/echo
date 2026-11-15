@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" />
+    <NativeSource Include="Native/**/*.h;Native/**/*.inl;Native/EchoPoisson.cpp" />
+    <Content Include="obj/$(Configuration)/native/echo-poisson" Link="echo-poisson" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+  </ItemGroup>
+  <Target Name="BuildPoissonHelper" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="@(NativeSource);../../scripts/build-poisson.sh" Outputs="obj/$(Configuration)/native/echo-poisson">
+    <Exec Command="bash ../../scripts/build-poisson.sh &quot;obj/$(Configuration)/native&quot;" />
+  </Target>
+</Project>

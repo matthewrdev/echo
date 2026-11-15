@@ -68,22 +68,24 @@ public sealed class ExportStage : IPipelineStage
                     });
                     fileOperations.AtomicJson(Path.Combine(dir, "cliff.report.json"), new
                     {
-                        schemaVersion = 1,
+                        schemaVersion = 2,
                         imageCount = images.Count,
                         cameras = scene.Cameras.Count,
                         points = scene.Points.Count,
                         scene.Bundle,
                         faces = surface.Faces.Count,
+                        inferredColourFaces = surface.SourceImages.Count(string.IsNullOrEmpty),
                         textureSize = tex.Size,
                         tex.CoverageFraction,
                         scene.Unplaced,
                         warnings = scene.Warnings,
-                        geometry = "Multiview-validated dense cloud, TSDF fusion and surface nets; unknown regions remain open. Shared photographic texture charts.",
+                        geometry = "Multiview-validated dense cloud, uncertainty-aware TSDF, consistent tetrahedral extraction, screened Poisson gap completion bounded to the observed neighbourhood, and adaptive simplification. Completed regions are inferred geometry; unseen regions retain geometry with smoothly interpolated boundary colours. Graph-cut photographic regions, exposure and seam correction, antialiased charts with padded gutters and mipmap filtering.",
                         alignment,
                         cloud = cloudPath,
                         fusion = fusionPath,
                         requestedTriangles = project.Settings.FaceLimit,
-                        targetReached = surface.Faces.Count >= project.Settings.FaceLimit * .8
+                        triangleBudgetIsCeiling = true,
+                        targetReached = surface.Faces.Count <= project.Settings.FaceLimit
                     });
                     if (project.Settings.ExportValidate)
                     {

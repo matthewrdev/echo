@@ -52,6 +52,8 @@ public sealed class Settings
     public double DepthFar { get; set; } = 100;
     public int TextureSize { get; set; } = 8192;
     public int FaceLimit { get; set; } = 1500000;
+    public IslandTrimMode MeshIslandMode { get; set; } = IslandTrimMode.Off;
+    public double MeshIslandMinimumAreaPercent { get; set; } = .1;
 
     public void Validate()
     {
@@ -105,6 +107,9 @@ public sealed class Settings
             || TextureSkyMarginPixels is < 1 or > 64
             || !double.IsFinite(TextureChartAngle)
             || TextureChartAngle is < 10 or > 80;
+        var invalidIslandSettings = !Enum.IsDefined(MeshIslandMode)
+            || !double.IsFinite(MeshIslandMinimumAreaPercent)
+            || MeshIslandMinimumAreaPercent is < 0 or > 100;
         var invalidSettings = invalidAlignmentSettings
             || invalidLines
             || invalidLineThreshold
@@ -118,7 +123,8 @@ public sealed class Settings
             || invalidDepthExecution
             || invalidDepthResolution
             || invalidDepthRange
-            || invalidOutputSettings;
+            || invalidOutputSettings
+            || invalidIslandSettings;
 
         if (invalidSettings)
         {

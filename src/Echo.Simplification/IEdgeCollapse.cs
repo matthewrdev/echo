@@ -4,5 +4,5 @@ namespace Echo.Simplification;
 
 public interface IEdgeCollapse
 {
-    Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation);
+    Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation, double detailTolerance = 0);
 }

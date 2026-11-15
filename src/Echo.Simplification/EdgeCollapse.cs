@@ -13,9 +13,14 @@ public sealed class EdgeCollapse : IEdgeCollapse
     {
     }
 
-    public Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation)
+    public Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation, double detailTolerance = 0)
     {
-        if (sourceMesh.Faces.Count <= targetFaceCount)
+        cancellation.ThrowIfCancellationRequested();
+        if (!double.IsFinite(detailTolerance) || detailTolerance < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(detailTolerance));
+        }
+        if (sourceMesh.Faces.Count <= targetFaceCount && detailTolerance == 0)
         {
             return sourceMesh;
         }
@@ -49,6 +54,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             plane[3] = -(normal).Dot(a);
             foreach (var v in f)
             {
+                vertices[v].PlaneCount++;
                 for (var r = 0; r < 4; r++)
                 {
                     for (var c = 0; c < 4; c++)
@@ -153,7 +159,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     }
                 }
 
-                error += (va.Position - vb.Position).Length * 1e-8;
+                error = Math.Max(0, error) / (va.PlaneCount + vb.PlaneCount);
                 if (error < best)
                 {
                     best = error;
@@ -161,7 +167,8 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 }
             }
 
-            queue.Enqueue(new Candidate(a, b, va.Revision, vb.Revision, bestPoint), best);
+            var priority = best + (va.Position - vb.Position).Length * 1e-8;
+            queue.Enqueue(new Candidate(a, b, va.Revision, vb.Revision, bestPoint, best), priority);
         }
 
         var edges = new HashSet<Edge>();
@@ -228,11 +235,22 @@ public sealed class EdgeCollapse : IEdgeCollapse
         var affectedSet = new HashSet<int>();
         var touched = new HashSet<int>();
         var updatedNeighbours = new HashSet<int>();
+        var survivingTriangles = new HashSet<TriangleKey>();
+        Span<int> triangle = stackalloc int[3];
         Span<V3> old = stackalloc V3[3];
         Span<V3> next = stackalloc V3[3];
-        while (remaining > targetFaceCount && queue.TryDequeue(out var edge, out _))
+        // A face ceiling alone leaves uniformly tessellated meshes untouched.
+        // Continue below it while RMS distance to the accumulated source planes
+        // is small. Normalizing by plane count keeps the tolerance in distance
+        // units instead of growing with the number of contributing planes.
+        var maximumDetailError = detailTolerance * detailTolerance;
+        while (queue.TryDequeue(out var edge, out _))
         {
             cancellation.ThrowIfCancellationRequested();
+            if (remaining <= targetFaceCount && (detailTolerance == 0 || edge.Error > maximumDetailError))
+            {
+                continue;
+            }
             var a = vertices[edge.A];
             var b = vertices[edge.B];
             if (a.Removed || b.Removed || a.Revision != edge.RevisionA || b.Revision != edge.RevisionB)
@@ -288,6 +306,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 }
             }
             var valid = true;
+            survivingTriangles.Clear();
             foreach (var fi in affected)
             {
                 if (commonFaces.Contains(fi))
@@ -301,6 +320,13 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     var vertex = face[corner];
                     old[corner] = vertices[vertex].Position;
                     next[corner] = vertex == edge.A || vertex == edge.B ? edge.Position : old[corner];
+                    triangle[corner] = vertex == edge.B ? edge.A : vertex;
+                }
+                triangle.Sort();
+                if (!survivingTriangles.Add(new TriangleKey(triangle[0], triangle[1], triangle[2])))
+                {
+                    valid = false;
+                    break;
                 }
                 var oldNormal = (old[1] - old[0]).Cross(old[2] - old[0]);
                 var newNormal = (next[1] - next[0]).Cross(next[2] - next[0]);
@@ -353,6 +379,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
 
             a.Position = edge.Position;
+            a.PlaneCount += b.PlaneCount;
             for (var i = 0; i < 16; i++)
             {
                 a.Quadric[i] += b.Quadric[i];
