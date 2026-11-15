@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Fusion;
+using Echo.Geometry;
 using Echo.Meshing;
 using Grid = Echo.Fusion.Grid;
 
@@ -21,6 +22,71 @@ public sealed class FusionQualityTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Fusion weights depth precision across near and distant capture passes", () =>
+        {
+            var fixture = new FusionFixture();
+            for (var index = 0; index < 6; index++)
+            {
+                AddPlane(fixture, "distant-" + index, 98, 0);
+                fixture.Scene.Cameras[^1].Centre = [0, 0, -90];
+            }
+            var volume = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud,
+                new FusionResourcePlan(25600000, 100000), default);
+            var mesh = meshes.Extract(volume, default);
+            Check(mesh.Vertices.Count > 0 && mesh.Vertices.All(point => Math.Abs(point[2] - 10) < .25),
+                "Two close views constrain the surface despite six less precise distant estimates of a foreground layer");
+        });
+        tests.Run("Fusion removes a ghost layer contradicted by observed free space", () =>
+        {
+            var fixture = new FusionFixture();
+            foreach (var map in fixture.Maps)
+            {
+                Array.Fill(map.Depth, 8f);
+            }
+            for (var view = 0; view < 4; view++)
+            {
+                AddPlane(fixture, "background-" + view, 10, (view - 1.5) * .2);
+            }
+            var original = fixture.Cloud.Samples.ToArray();
+            foreach (var point in original)
+            {
+                fixture.Cloud.Samples.Add(new DenseSample(point.X, point.Y, 8, 0, 0, 0, 0, 1));
+            }
+
+            var volume = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud,
+                new FusionResourcePlan(25600000, 100000), default);
+            var mesh = meshes.Extract(volume, default);
+            Check(mesh.Vertices.Count > 0, "The measured background surface remains reconstructable");
+            Check(mesh.Vertices.All(point => Math.Abs(point[2] - 10) < 1e-6), "Two erroneous foreground views cannot create a hull across four observed free-space rays");
+        });
+        tests.Run("Fusion visibility evidence excludes missing depths and depth discontinuities", () =>
+        {
+            var fixture = new FusionFixture();
+            var view = fixture.Views[0];
+            var point = view.Point(31, 31, 8);
+            var observed = view.Observe(point, .01);
+            Check(observed.IsValid && observed.HasFullCoverage && observed.Distance == 2, "Continuous depth establishes empty space before its surface");
+            Check(view.Observe(view.Point(31, 31, 12), .01).Distance == -2, "A closer surface reports occlusion, not free space");
+            view.Map.Depth[32 * 64 + 32] = 0;
+            var partial = view.Observe(point, .01);
+            Check(partial.IsValid && !partial.HasFullCoverage, "A missing interpolation corner cannot carve a surface");
+            view.Map.Depth[32 * 64 + 32] = 20;
+            Check(!view.Observe(point, .01).IsValid, "A foreground/background boundary cannot invent an intermediate surface");
+            Array.Fill(view.Map.Depth, float.NaN);
+            Check(!view.Observe(point, .01).IsValid, "Non-finite depths provide no visibility evidence");
+            Check(!view.Observe(new V3(0, 0, -1), .01).IsValid, "Points behind the camera provide no evidence");
+            Check(!view.Observe(new V3(1e100, 0, 1), .01).IsValid, "Unprojectable coordinates are rejected before integer conversion");
+        });
+        tests.Run("Occluded and unknown depth views do not erase an observed fusion surface", () =>
+        {
+            var fixture = new FusionFixture();
+            AddPlane(fixture, "occluder", 7, 0);
+            AddPlane(fixture, "missing", 0, 0);
+            var volume = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud,
+                new FusionResourcePlan(25600000, 100000), default);
+            var mesh = meshes.Extract(volume, default);
+            Check(mesh.Vertices.All(point => Math.Abs(point[2] - 10) < 1e-6), "Only observable rays constrain the zero crossing");
+        });
         tests.Run("Fusion island trimming removes whole regions before extraction and preserves the retained field", () =>
         {
             var volume = new FusedVolume { VoxelSize = .5, InputSamples = 999, ConsistentSamples = 800 };
@@ -166,6 +232,13 @@ public sealed class FusionQualityTests
             {
             }
         });
+    }
+
+    private void AddPlane(FusionFixture fixture, string id, float depth, double offset)
+    {
+        fixture.Project.Images.Add(new Photo { Id = id, Width = 64, Height = 64, FocalPixels = 64 });
+        fixture.Scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [offset, 0, 0] });
+        fixture.Maps.Add(new DepthMap { ImageId = id, Width = 64, Height = 64, Depth = Enumerable.Repeat(depth, 64 * 64).ToArray() });
     }
 
     private void Check(bool condition, string message)

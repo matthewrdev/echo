@@ -111,6 +111,61 @@ public sealed class DepthView
 
     public double Difference(V3 world) => Difference(world, out _);
 
+    public DepthObservation Observe(V3 world, double relativeTolerance)
+    {
+        var local = CameraGeometry.Rotate(Inverse, world - Centre);
+        if (!(local.Z > 0) || !double.IsFinite(local.Z))
+        {
+            return default;
+        }
+
+        var x = local.X / local.Z * Focal + Map.Width * .5;
+        var y = local.Y / local.Z * Focal + Map.Height * .5;
+        var insideX = x >= 0 && x < Map.Width - 1;
+        var insideY = y >= 0 && y < Map.Height - 1;
+        if (!insideX || !insideY)
+        {
+            return default;
+        }
+
+        var ix = (int)x;
+        var iy = (int)y;
+        var minimum = double.PositiveInfinity;
+        var maximum = double.NegativeInfinity;
+        double sum = 0;
+        double weight = 0;
+        var complete = true;
+        for (var dy = 0; dy <= 1; dy++)
+        {
+            for (var dx = 0; dx <= 1; dx++)
+            {
+                var depth = Map.Depth[(iy + dy) * Map.Width + ix + dx];
+                if (!(depth > 0) || !float.IsFinite(depth))
+                {
+                    complete = false;
+                    continue;
+                }
+
+                minimum = Math.Min(minimum, depth);
+                maximum = Math.Max(maximum, depth);
+                var w = (dx == 0 ? 1 - (x - ix) : x - ix) * (dy == 0 ? 1 - (y - iy) : y - iy);
+                sum += depth * w;
+                weight += w;
+            }
+        }
+
+        var tolerance = Math.Max(local.Z * relativeTolerance, local.Z / Focal * 2);
+        // Interpolation across a depth discontinuity cannot establish either a
+        // surface or empty space. Partial samples can support a surface, but
+        // only a fully valid neighbourhood can supply free-space evidence.
+        if (weight < .5 || maximum - minimum > tolerance * 2)
+        {
+            return default;
+        }
+
+        return new DepthObservation(sum / weight - local.Z, local.Z, complete);
+    }
+
     public double Difference(V3 world, out double cameraDepth)
     {
         var p = CameraGeometry.Rotate(Inverse, world - Centre);

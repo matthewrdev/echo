@@ -67,18 +67,42 @@ public sealed class DepthFusion : IDepthFusion
                     var count = 0;
                     foreach (var view in views)
                     {
-                        var distance = view.Difference(world, out var cameraDepth);
-                        // Spatial sampling and depth uncertainty are different.
-                        // Refining the grid must not reject depths that passed the
-                        // cloud's relative-depth / two-pixel agreement tolerance.
-                        var uncertainty = FusionDepthUncertainty.Radius(cameraDepth, view.Focal, project.Settings.CloudDepthTolerance);
-                        var truncation = Math.Max(voxel * 3, uncertainty * 2);
-                        if (!double.IsFinite(distance) || Math.Abs(distance) > truncation)
+                        var observation = view.Observe(world, project.Settings.CloudDepthTolerance);
+                        if (!observation.IsValid)
                         {
                             continue;
                         }
 
-                        var w = 1 - .5 * Math.Abs(distance) / truncation;
+                        var distance = observation.Distance;
+                        // Spatial sampling and depth uncertainty are different.
+                        // Refining the grid must not reject depths that passed the
+                        // cloud's relative-depth / two-pixel agreement tolerance.
+                        var uncertainty = FusionDepthUncertainty.Radius(observation.CameraDepth, view.Focal, project.Settings.CloudDepthTolerance);
+                        var truncation = Math.Max(voxel * 3, uncertainty * 2);
+                        // Equal relative error means larger world-space
+                        // uncertainty at longer range. Integrate by precision,
+                        // so a distant flight pass cannot overwhelm close detail.
+                        var precision = 1 / (uncertainty * uncertainty);
+                        if (distance < -truncation)
+                        {
+                            // A surface in front of this voxel occludes it.
+                            continue;
+                        }
+
+                        if (distance > truncation)
+                        {
+                            if (observation.HasFullCoverage)
+                            {
+                                // The observed surface lies farther along this
+                                // ray: integrate positive, truncated free space
+                                // rather than silently accepting a ghost layer.
+                                sum += truncation * .5 * precision;
+                                weight += .5 * precision;
+                            }
+                            continue;
+                        }
+
+                        var w = (1 - .5 * Math.Abs(distance) / truncation) * precision;
                         sum += distance * w;
                         weight += w;
                         count++;

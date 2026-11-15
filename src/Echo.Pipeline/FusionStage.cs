@@ -46,7 +46,7 @@ public sealed class FusionStage : IPipelineStage
             depthUnits,
             alignment,
             resources.MaximumGridSamples,
-            fusionVersion = 4,
+            fusionVersion = 6,
             project.Settings.CloudDepthTolerance,
             project.Settings.FusionDetailMultiplier,
             project.Settings.FusionIslandMode,
@@ -90,7 +90,7 @@ public sealed class FusionStage : IPipelineStage
                             trimming.RemovedRegions,
                             trimming.RemovedSamples
                         },
-                        method = "Projective TSDF; resolution follows verified source-camera footprints and a separate memory budget; the integration band respects input depth uncertainty independently of voxel spacing; at least two observed depths per retained voxel; unobserved space is not filled."
+                        method = "Precision-weighted projective TSDF; continuous valid depths contribute truncated free-space evidence in front of the measured surface; occluded and unknown space do not vote; at least two nearby observed depths per retained voxel; resolution and integration uncertainty are independent."
                     });
                 });
         context.Publish("fusion", fusionPath);
