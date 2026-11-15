@@ -20,7 +20,7 @@ Echo is in active development. Reconstruction quality is experimental; inspect t
 To build from source, install Xcode and the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), then launch the desktop app:
 
 ```bash
-./scripts/desktop
+./macos.command
 ```
 
 Create a project, import overlapping JPEG, PNG or TIFF photographs, and choose a processing stage. Convert camera RAW files before importing. Use **Trim similar photos** to exclude redundant captures without deleting originals.
