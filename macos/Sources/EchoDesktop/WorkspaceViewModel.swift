@@ -11,6 +11,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private let eventFormatter: RunEventFormatter
     private let commandLog: CLICommandLog?
     private var refreshing = false
+    let projectThumbnails: ProjectThumbnailLoader?
 
     @Published var recentProjects: [RecentProject]
     @Published var openingProject = false
@@ -41,7 +42,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     init(
         client: ProjectClient, project: String, logReader: RunLogReader, eventFormatter: RunEventFormatter,
-        recentProjectStore: RecentProjectStore, clipboard: TextClipboard, commandLog: CLICommandLog? = nil
+        recentProjectStore: RecentProjectStore, clipboard: TextClipboard, commandLog: CLICommandLog? = nil,
+        projectThumbnails: ProjectThumbnailLoader? = nil
     ) {
         self.clipboard = clipboard
         self.recentProjectStore = recentProjectStore
@@ -50,6 +52,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         self.eventFormatter = eventFormatter
         self.client = client
         self.commandLog = commandLog
+        self.projectThumbnails = projectThumbnails
         root = project
     }
 
@@ -258,6 +261,42 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     func removeRecent(_ project: RecentProject) {
         recentProjects = recentProjectStore.remove(path: project.path)
+    }
+
+    func renameRecent(_ project: RecentProject, name: String) async throws {
+        guard canEdit, !openingProject else { throw CLIError(message: "Wait for the current operation to finish.") }
+        busy = true
+        defer { busy = false }
+        try await client.command(
+            root: project.path, arguments: ["project", "rename", "--name", name], progress: { _ in })
+        recentProjects = recentProjectStore.rename(path: project.path, name: name)
+        openingError = nil
+    }
+
+    func deleteRecent(_ project: RecentProject) {
+        guard canEdit, !openingProject else { return }
+        busy = true
+        openingError = nil
+        Task {
+            defer { busy = false }
+            do {
+                let inspection = try await client.inspect(root: project.path, run: "latest")
+                let alert = NSAlert()
+                alert.messageText = "Delete “\(project.name)” from disk?"
+                alert.informativeText =
+                    "This permanently deletes the entire project folder, including imported photos, saved runs and meshes. This cannot be undone.\n\n\(project.path)"
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "Cancel")
+                alert.addButton(withTitle: "Delete from Disk").hasDestructiveAction = true
+                guard alert.runModal() == .alertSecondButtonReturn else { return }
+                try await client.command(
+                    root: project.path, arguments: ["project", "delete", "--confirm", inspection.project.id],
+                    progress: { _ in })
+                recentProjects = recentProjectStore.remove(path: project.path)
+            } catch {
+                openingError = error.localizedDescription
+            }
+        }
     }
 
     func showProjects() {

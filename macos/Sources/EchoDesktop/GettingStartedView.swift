@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GettingStartedView: View {
     @ObservedObject var workspace: WorkspaceViewModel
+    @State private var renamingProject: RecentProject?
 
     var body: some View {
         HStack(alignment: .top, spacing: 50) {
@@ -51,8 +52,7 @@ struct GettingStartedView: View {
                                     workspace.openRecent(project)
                                 } label: {
                                     HStack(alignment: .top, spacing: 12) {
-                                        Image(systemName: "folder.fill").font(.title2).foregroundStyle(
-                                            Color.accentColor)
+                                        RecentProjectThumbnail(project: project, loader: workspace.projectThumbnails)
                                         VStack(alignment: .leading, spacing: 5) {
                                             Text(project.name).font(.headline)
                                             Text(project.path).font(.caption).foregroundStyle(.secondary).lineLimit(2)
@@ -66,11 +66,17 @@ struct GettingStartedView: View {
                                     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
                                         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
                                         .contentShape(Rectangle())
-                                }.buttonStyle(.plain).disabled(workspace.openingProject || workspace.busy)
+                                }.buttonStyle(.plain)
                                     .help("Reopen \(project.path)")
                                     .contextMenu {
+                                        Button("Rename…") { renamingProject = project }
+                                        Divider()
                                         Button("Remove from recents") { workspace.removeRecent(project) }
+                                        Button("Delete from Disk…", role: .destructive) {
+                                            workspace.deleteRecent(project)
+                                        }
                                     }
+                                    .disabled(workspace.openingProject || workspace.busy)
                             }
                         }
                     }.frame(maxHeight: 460)
@@ -79,5 +85,8 @@ struct GettingStartedView: View {
         }
         .padding(50).frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .sheet(item: $renamingProject) { project in
+            RenameProjectView(project: project, workspace: workspace)
+        }
     }
 }

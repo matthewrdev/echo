@@ -22,6 +22,14 @@ final class UserDefaultsRecentProjectStore: RecentProjectStore {
 
     func remove(path: String) -> [RecentProject] { save(load().filter { $0.path != path }) }
 
+    func rename(path: String, name: String) -> [RecentProject] {
+        save(
+            load().map { project in
+                project.path == path
+                    ? RecentProject(path: project.path, name: name, lastOpened: project.lastOpened) : project
+            })
+    }
+
     private func save(_ projects: [RecentProject]) -> [RecentProject] {
         if let data = try? JSONEncoder().encode(projects) { defaults.set(data, forKey: key) }
         return projects

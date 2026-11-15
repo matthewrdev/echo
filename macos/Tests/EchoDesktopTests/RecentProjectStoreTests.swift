@@ -4,6 +4,22 @@ import XCTest
 @testable import EchoDesktop
 
 final class RecentProjectStoreTests: XCTestCase {
+    func testRenamingPreservesRecencyAndFolderPath() throws {
+        let suite = "EchoTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UserDefaultsRecentProjectStore(defaults: defaults)
+        _ = store.record(path: "/private/tmp/first.echo", name: "First")
+        let original = try XCTUnwrap(store.load().first)
+        _ = store.record(path: "/private/tmp/second.echo", name: "Second")
+        _ = store.rename(path: original.path, name: "Renamed")
+
+        let saved = UserDefaultsRecentProjectStore(defaults: defaults).load()
+        XCTAssertEqual(saved.map(\.name), ["Second", "Renamed"])
+        XCTAssertEqual(saved.last?.lastOpened, original.lastOpened)
+        XCTAssertEqual(saved.last?.path, original.path)
+    }
+
     func testReopeningMovesProjectToFrontAndPersistsUpdatedName() throws {
         let suite = "EchoTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

@@ -27,7 +27,8 @@ struct EchoApplication: App {
         let workspace = WorkspaceViewModel(
             client: projects, project: options.project, logReader: RunLogReader(formatter: formatter),
             eventFormatter: formatter, recentProjectStore: UserDefaultsRecentProjectStore(defaults: .standard),
-            clipboard: SystemTextClipboard(), commandLog: commandLog)
+            clipboard: SystemTextClipboard(), commandLog: commandLog,
+            projectThumbnails: ProjectThumbnailLoader(scenes: NativeSceneFactory(), json: json, glb: GlbAssetReader()))
         _workspace = StateObject(wrappedValue: workspace)
         _artifacts = StateObject(wrappedValue: ArtifactViewModel(reader: reader))
         appDelegate.termination = ApplicationTerminationCoordinator(
