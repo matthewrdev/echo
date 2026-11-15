@@ -17,7 +17,7 @@ public sealed class DepthFusion : IDepthFusion
         IReadOnlyList<DepthMap> maps,
         DenseCloudData cloud,
         FusionResourcePlan resources,
-        CancellationToken cancellation)
+        CancellationToken cancellation, Action<string>? progress = null)
     {
         var photos = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
@@ -35,7 +35,8 @@ public sealed class DepthFusion : IDepthFusion
             var map = maps[index];
             views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
         }
-        var grid = FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation);
+        var grid = FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress);
+        progress?.Invoke($"Fusion resolution: requested {grid.RequestedVoxelSize:G6} m; using {grid.VoxelSize:G6} m across {grid.Keys.Length:N0} grid samples.");
         var voxel = grid.VoxelSize;
         var keys = grid.Keys;
         var result = new FusedVolume

@@ -13,6 +13,6 @@ public sealed class FusionResourcePlanner : IFusionResourcePlanner
 
     public FusionResourcePlan Plan(Settings settings)
     {
-        return FusionMemoryBudget.Resolve(settings.FusionDetailMultiplier, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
+        return FusionMemoryBudget.Resolve(settings.FusionMemoryBudgetMb, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
     }
 }

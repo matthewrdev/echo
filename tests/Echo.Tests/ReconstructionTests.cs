@@ -555,6 +555,29 @@ public sealed class ReconstructionTests
                 Check(thresholdChanged.Artifacts["fusion"] == previous.Artifacts["fusion"], "Area threshold retains fusion");
                 Check(thresholdChanged.Artifacts["mesh"] != previous.Artifacts["mesh"], "Area threshold changes the mesh checkpoint");
             });
+            tests.Run("Fusion memory, fixed spacing and fallback policy invalidate fusion while reusing depth and cloud", () =>
+            {
+                var edits = new Action<Settings>[]
+                {
+                    settings => settings.FusionMemoryBudgetMb = settings.FusionMemoryBudgetMb == 128 ? 256 : 128,
+                    settings => settings.FusionVoxelSize = jsonCodec.Read<FusedVolume>(store.PathFor(store.GetRun().Artifacts["fusion"] + "/volume.json")).VoxelSize,
+                    settings => settings.FusionAllowCoarserResolution = true
+                };
+                foreach (var edit in edits)
+                {
+                    var before = store.GetRun();
+                    store.Edit(project => edit(project.Settings));
+                    var changed = processor.Execute(store, "export", default);
+                    foreach (var stage in new[] { "alignment", "depth", "cloud" })
+                    {
+                        Check(changed.Artifacts[stage] == before.Artifacts[stage], "Fusion controls preserve " + stage);
+                    }
+                    foreach (var stage in new[] { "fusion", "mesh", "texture", "export" })
+                    {
+                        Check(changed.Artifacts[stage] != before.Artifacts[stage], "Fusion controls rebuild " + stage);
+                    }
+                }
+            });
             tests.Run("Early island cleanup and sky sampling invalidate only their own downstream stages", () =>
             {
                 var before = store.GetRun();

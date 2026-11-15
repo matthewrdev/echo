@@ -33,4 +33,5 @@ composition.Resolve<FinalHoleRepairTests>().Run(scaleTests);
 composition.Resolve<SurfaceIslandTests>().Run(scaleTests);
 composition.Resolve<SkyGuardTests>().Run(scaleTests);
 composition.Resolve<FusionQualityTests>().Run(scaleTests);
+composition.Resolve<FusionSettingsTests>().Run(scaleTests);
 return Math.Max(scaleTests.Finish(), composition.Resolve<ReconstructionTests>().Run());

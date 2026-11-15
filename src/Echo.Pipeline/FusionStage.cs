@@ -46,15 +46,19 @@ public sealed class FusionStage : IPipelineStage
             depthUnits,
             alignment,
             resources.MaximumGridSamples,
-            fusionVersion = 6,
+            fusionVersion = 7,
             project.Settings.CloudDepthTolerance,
             project.Settings.FusionDetailMultiplier,
+            project.Settings.FusionVoxelSize,
+            project.Settings.FusionAllowCoarserResolution,
             project.Settings.FusionIslandMode,
             project.Settings.FusionIslandMinimumSizePercent
         }, dir =>
                 {
                     var cloud = cloudBuilder.Read(store.PathFor(cloudPath + "/cloud.ply"), jsonCodec.Read<DenseCloudReport>(store.PathFor(cloudPath + "/cloud.json")));
-                    var volume = depthFusion.Fuse(project, scene, maps, cloud, resources, cancellation);
+                    context.ReportProgress(Name, $"Fusion working-memory budget: {resources.MemoryBudgetBytes / 1073741824.0:G4} GiB. Source images, depth maps and the dense cloud use additional memory.");
+                    var volume = depthFusion.Fuse(project, scene, maps, cloud, resources, cancellation,
+                        message => context.ReportProgress(Name, message));
                     if (project.Settings.FusionIslandMode != IslandTrimMode.Off)
                     {
                         context.ReportProgress(Name, "Removing disconnected fusion regions before meshing…");

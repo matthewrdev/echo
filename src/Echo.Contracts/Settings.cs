@@ -34,6 +34,9 @@ public sealed class Settings
     public double CloudReprojectionTolerancePixels { get; set; } = 1.5;
     public double CloudMinimumParallaxDegrees { get; set; } = .5;
     public double FusionDetailMultiplier { get; set; } = 1;
+    public int FusionMemoryBudgetMb { get; set; } = 0;
+    public double FusionVoxelSize { get; set; } = 0;
+    public bool FusionAllowCoarserResolution { get; set; } = false;
     public IslandTrimMode FusionIslandMode { get; set; } = IslandTrimMode.Off;
     public double FusionIslandMinimumSizePercent { get; set; } = .1;
     public bool TextureSuppressSky { get; set; } = false;
@@ -86,6 +89,8 @@ public sealed class Settings
             || CloudMinimumParallaxDegrees is < 0 or > 10;
         var invalidFusionSettings = !double.IsFinite(FusionDetailMultiplier)
             || FusionDetailMultiplier < .25 || FusionDetailMultiplier > 16;
+        var invalidFusionMemory = FusionMemoryBudgetMb != 0 && FusionMemoryBudgetMb is < 64 or > 524287;
+        var invalidFusionResolution = !double.IsFinite(FusionVoxelSize) || FusionVoxelSize < 0;
         var invalidFusionIslands = !Enum.IsDefined(FusionIslandMode)
             || !double.IsFinite(FusionIslandMinimumSizePercent)
             || FusionIslandMinimumSizePercent is < 0 or > 100;
@@ -127,6 +132,8 @@ public sealed class Settings
             || invalidCloudSettings
             || invalidCloudGeometry
             || invalidFusionSettings
+            || invalidFusionMemory
+            || invalidFusionResolution
             || invalidFusionIslands
             || invalidDepthExecution
             || invalidDepthResolution

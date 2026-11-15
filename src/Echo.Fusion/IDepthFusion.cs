@@ -9,5 +9,5 @@ public interface IDepthFusion
         IReadOnlyList<DepthMap> maps,
         DenseCloudData cloud,
         FusionResourcePlan resources,
-        CancellationToken cancellation);
+        CancellationToken cancellation, Action<string>? progress = null);
 }

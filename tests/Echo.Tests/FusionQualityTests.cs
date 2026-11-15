@@ -183,6 +183,7 @@ public sealed class FusionQualityTests
         tests.Run("Fusion memory limits coarsen the complete grid instead of discarding coverage", () =>
         {
             var fixture = new FusionFixture();
+            fixture.Project.Settings.FusionAllowCoarserResolution = true;
             var grid = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, new FusionResourcePlan(256000, 1000), default);
             Check(grid.Keys.Length <= 1000 && grid.VoxelSize > grid.RequestedVoxelSize, "The actual candidate count obeys the limit");
             var keys = grid.Keys.ToHashSet();
@@ -202,10 +203,11 @@ public sealed class FusionQualityTests
             var detailed = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, new Settings { FusionDetailMultiplier = 4 }, resources, default);
             Check(detailed.VoxelSize == normal.VoxelSize * .5, "Higher detail halves spacing when memory permits");
             var capacity = 8L * 1024 * 1024 * 1024;
-            foreach (var detail in new[] { .25, 1, 16 })
+            foreach (var capacityMultiplier in new[] { 1, 4, 8 })
             {
-                var plan = FusionMemoryBudget.Resolve(detail, capacity);
-                Check(plan.MemoryBudgetBytes <= capacity / 4, "Fusion scratch leaves room for source maps and cloud");
+                var available = capacity * capacityMultiplier;
+                var plan = FusionMemoryBudget.Resolve(0, available);
+                Check(plan.MemoryBudgetBytes == available / 4, "Automatic fusion memory scales with the workstation without the former 4 GiB ceiling");
                 Check(plan.MaximumGridSamples * 256L <= plan.MemoryBudgetBytes, "The candidate limit matches the memory estimate");
             }
         });
