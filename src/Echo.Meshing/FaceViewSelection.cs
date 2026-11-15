@@ -12,6 +12,7 @@ internal static class FaceViewSelection
         var scales = new double[mesh.Faces.Count];
         var selected = new int[mesh.Faces.Count];
         Array.Fill(selected, -1);
+        var visibility = new SurfaceTriangleIndex(mesh, cancellation);
         progress?.Invoke("Checking source photograph visibility and detail…");
         Parallel.For(0, mesh.Faces.Count, new ParallelOptions
         {
@@ -32,7 +33,7 @@ internal static class FaceViewSelection
             {
                 var view = views[viewIndex];
                 var score = Score(view, photos[view.Camera.ImageId], a, b, c, centre, normal);
-                if (!(score > 0))
+                if (!(score > 0) || visibility.HasOccluder(view.Centre, centre))
                 {
                     continue;
                 }
@@ -62,7 +63,6 @@ internal static class FaceViewSelection
         if (selected.Any(view => view < 0) && views.Count > 0)
         {
             progress?.Invoke("Checking geometric visibility across completed gaps…");
-            var visibility = new SurfaceTriangleIndex(mesh, cancellation);
             Parallel.For(0, selected.Length, new ParallelOptions
             {
                 CancellationToken = cancellation,

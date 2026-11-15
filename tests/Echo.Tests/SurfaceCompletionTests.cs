@@ -23,6 +23,40 @@ public sealed class SurfaceCompletionTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Completion cannot place a hull across observed free space", () =>
+        {
+            var fixture = new FusionFixture();
+            var photo = new Photo { Id = "c", Width = 64, Height = 64, FocalPixels = 64 };
+            var map = new DepthMap { ImageId = "c", Width = 64, Height = 64, Depth = Enumerable.Repeat(10f, 4096).ToArray() };
+            fixture.Views.Add(new DepthView(photo, new CameraPose { ImageId = "c", Centre = [.5, 0, 0] }, map));
+            var surface = new Surface
+            {
+                Vertices = [[-1, -1, 8], [1, -1, 8], [0, 1, 8],
+                    [-1, -1, 10], [1, -1, 10], [0, 1, 10],
+                    [-1, -1, 12], [1, -1, 12], [0, 1, 12]],
+                Faces = [[0, 1, 2], [3, 4, 5], [6, 7, 8]],
+                SourceImages = ["a", "b", ""]
+            };
+            var filtered = SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, default);
+            Check(filtered.Faces.Count == 2 && filtered.Vertices.All(point => point[2] >= 10), "The foreground hull is rejected while measured and occluded surfaces remain");
+            Check(filtered.SourceImages.SequenceEqual(new[] { "b", "" }), "Photograph assignments and inferred-colour markers follow their retained faces");
+            Check(surface.Faces.Count == 3 && surface.Vertices.Count == 9, "Visibility checks preserve the input");
+            Check(SurfaceVisibilityFilter.Filter(surface, fixture.Views.Take(2).ToArray(), .01, default).Faces.Count == 3,
+                "Two isolated contradictory views are insufficient to erase a surface");
+            for (var index = 0; index < 4; index++)
+            {
+                var distant = new DepthMap { ImageId = "distant-" + index, Width = 64, Height = 64, Depth = Enumerable.Repeat(98f, 4096).ToArray() };
+                fixture.Views.Add(new DepthView(photo, new CameraPose { Centre = [0, 0, -90] }, distant));
+            }
+            Check(SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, default).Faces.Count == 2,
+                "Four uncertain distant views cannot outvote three precise close views");
+            foreach (var view in fixture.Views)
+            {
+                Array.Fill(view.Map.Depth, 0f);
+            }
+            Check(SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, default).Faces.Count == 3, "Unknown depths do not erase inferred patches");
+            Expect<OperationCanceledException>(() => SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, new CancellationToken(true)));
+        });
         tests.Run("Completion samples weld texture seams and orient mixed winding toward observed cameras", () =>
         {
             var surface = new Surface
@@ -97,6 +131,14 @@ public sealed class SurfaceCompletionTests
             var retained = meshes.AssignCameras(project, scene, [map], surface, default, retainUnobserved: true);
             Check(retained.Faces.Count == 2 && retained.SourceImages.Count(string.IsNullOrEmpty) == 1,
                 "Completion keeps hidden geometry and marks its colour as inferred instead of assigning an occluded photograph");
+            Array.Fill(map.Depth, 10f);
+            foreach (var vertex in surface.Vertices.Skip(3))
+            {
+                vertex[2] = 9.8;
+            }
+            var overlappingDepth = meshes.AssignCameras(project, scene, [map], surface, default, retainUnobserved: true);
+            Check(overlappingDepth.SourceImages.Count(string.IsNullOrEmpty) == 1,
+                "Depth tolerance cannot make a photograph see through a foreground triangle");
         });
         tests.Run("Poisson worker output rejects invalid sizes, coordinates and indices", () =>
         {

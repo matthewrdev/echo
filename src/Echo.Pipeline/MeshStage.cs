@@ -51,6 +51,7 @@ public sealed class MeshStage : IPipelineStage
             fusionPath,
             depthUnits,
             alignment,
+            completionVersion = 3,
             project.Settings.FaceLimit,
             project.Settings.MeshIslandMode,
             project.Settings.MeshIslandMinimumAreaPercent
@@ -65,6 +66,12 @@ public sealed class MeshStage : IPipelineStage
                     {
                         reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation);
                     }
+                    context.ReportProgress(Name, "Removing surfaces contradicted by visible depth rays before completion…");
+                    var facesBeforeVisibility = reduced.Faces.Count;
+                    reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation);
+                    var rejectedBeforeCompletion = facesBeforeVisibility - reduced.Faces.Count;
+                    var rejectedAfterCompletion = 0;
+                    context.ReportProgress(Name, $"Rejected {rejectedBeforeCompletion:N0} triangles contradicted by observed empty space.");
                     var completed = SurfaceSupportFilter.HasGaps(reduced, cancellation);
                     var mesh = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
                         message => context.ReportProgress(Name, message), retainUnobserved: !completed);
@@ -76,6 +83,11 @@ public sealed class MeshStage : IPipelineStage
                         var supported = SurfaceSupportFilter.Filter(reconstructed, mesh, volume.VoxelSize * 24, cancellation);
                         context.ReportProgress(Name, "Adapting the completed surface to its geometric detail…");
                         reduced = edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance);
+                        context.ReportProgress(Name, "Checking completed surfaces against observed empty space…");
+                        facesBeforeVisibility = reduced.Faces.Count;
+                        reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation);
+                        rejectedAfterCompletion = facesBeforeVisibility - reduced.Faces.Count;
+                        context.ReportProgress(Name, $"Rejected {rejectedAfterCompletion:N0} completed triangles contradicted by observed empty space.");
                         mesh = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
                             message => context.ReportProgress(Name, message), retainUnobserved: true);
                     }
@@ -102,6 +114,11 @@ public sealed class MeshStage : IPipelineStage
                         volume.VoxelSize,
                         detailTolerance,
                         completed,
+                        visibilityFiltering = new
+                        {
+                            rejectedBeforeCompletion,
+                            rejectedAfterCompletion
+                        },
                         completionDistance = completed ? volume.VoxelSize * 24 : 0,
                         islandTrimming = new
                         {
@@ -112,8 +129,8 @@ public sealed class MeshStage : IPipelineStage
                             trimming.RemovedFaces,
                             trimming.RemovedArea
                         },
-                        method = "Oriented screened Poisson completion, adaptive simplification and graph-cut photographic view selection",
-                        note = "Completed regions interpolate the surrounding observed surface. They are inferred geometry, not additional measurements. Distant extrapolation is removed before simplification and photographic visibility checks."
+                        method = "Visibility-constrained screened Poisson completion, adaptive simplification and graph-cut photographic view selection",
+                        note = "Completed regions are inferred geometry. Distant extrapolation and surfaces contradicted by multiple visible depth rays are removed; missing and occluded depths remain neutral."
                     });
                 });
         context.Publish("mesh", meshPath);
