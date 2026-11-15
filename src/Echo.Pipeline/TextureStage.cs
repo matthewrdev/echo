@@ -37,7 +37,8 @@ public sealed class TextureStage : IPipelineStage
             meshPath,
             alignment,
             project.Settings.TextureSize,
-            textureVersion = 10,
+            textureVersion = 13,
+            project.Settings.VegetationTextureScale,
             project.Settings.TextureJpegQuality,
             project.Settings.TextureChartFaces,
             project.Settings.TextureChartAngle,
@@ -46,7 +47,9 @@ public sealed class TextureStage : IPipelineStage
             project.Settings.TextureSkyMarginPixels
         }, dir =>
                 {
-                    var result = textureBaker.Bake(store, project, scene, surface, Path.Combine(dir, "atlas.jpg"), cancellation, message => context.ReportProgress(Name, message));
+                    var vegetation = project.Settings.OptimiseVegetation
+                        ? jsonCodec.Read<bool[]>(store.PathFor(meshPath + "/vegetation.json")) : null;
+                    var result = textureBaker.Bake(store, project, scene, surface, Path.Combine(dir, "atlas.jpg"), cancellation, message => context.ReportProgress(Name, message), vegetation);
                     fileOperations.AtomicJson(Path.Combine(dir, "mesh.json"), result.Surface!);
                     fileOperations.AtomicJson(Path.Combine(dir, "texture.json"), result);
                 });

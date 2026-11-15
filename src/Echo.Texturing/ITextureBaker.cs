@@ -10,5 +10,5 @@ public interface ITextureBaker
         ReconstructionScene scene,
         Surface mesh,
         string output,
-CancellationToken cancellation, Action<string>? progress = null);
+CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null);
 }

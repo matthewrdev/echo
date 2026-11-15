@@ -16,7 +16,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         this.orienter = orienter;
     }
 
-    public IReadOnlyList<TexturePatch> Build(ProjectData project, ReconstructionScene scene, Surface mesh, CancellationToken cancellation)
+    public IReadOnlyList<TexturePatch> Build(ProjectData project, ReconstructionScene scene, Surface mesh, CancellationToken cancellation, IReadOnlyList<bool>? vegetationFaces = null)
     {
         var minimumNormalAgreement = Math.Cos(project.Settings.TextureChartAngle * Math.PI / 180);
         var photos = project.Images.ToDictionary(photo => photo.Id);
@@ -55,7 +55,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
             var tangent = new TextureChartProjection(null, origin, right, normals[seed].Cross(right), 1);
             var cellSize = Math.Max(1e-4, (points[face[1]] - origin).Length * 4);
             var patch = Grow(seed, tangent, cellSize, project.Settings.TextureChartFaces, minimumNormalAgreement,
-                mesh, points, normals, areas, neighbours, assigned, cancellation);
+                mesh, points, normals, areas, neighbours, assigned, cancellation, vegetationFaces);
             var image = mesh.SourceImages[seed];
             projections.TryGetValue(image, out var camera);
             var pixelOrigin = camera?.Project(origin);
@@ -64,7 +64,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
                 var scale = pixelOrigin.Value.Z / CameraGeometry.Focal(photos[image], cameras[image]);
                 var photographic = new TextureChartProjection(camera, pixelOrigin.Value, default, default, scale);
                 var alternative = Grow(seed, photographic, cellSize, project.Settings.TextureChartFaces, minimumNormalAgreement,
-                    mesh, points, normals, areas, neighbours, assigned, cancellation);
+                    mesh, points, normals, areas, neighbours, assigned, cancellation, vegetationFaces);
                 // Tangent planes retain texel density on flat regions. A source view
                 // can unfold more of a curved region without adding chart boundaries.
                 if (alternative.Faces.Count > patch.Faces.Count)
@@ -91,7 +91,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
 
     private TexturePatch Grow(int seed, TextureChartProjection projection, double cellSize, int maximumFaces,
         double minimumNormalAgreement, Surface mesh, V3[] points, V3[] normals, double[] areas,
-        int[] neighbours, bool[] assigned, CancellationToken cancellation)
+        int[] neighbours, bool[] assigned, CancellationToken cancellation, IReadOnlyList<bool>? vegetationFaces)
     {
         var patch = new TexturePatch();
         var pending = new Queue<int>();
@@ -103,7 +103,8 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         while (pending.TryDequeue(out var index) && patch.Faces.Count < maximumFaces)
         {
             cancellation.ThrowIfCancellationRequested();
-            var unavailable = assigned[index] || !visited.Add(index);
+            var differentMaterial = vegetationFaces != null && vegetationFaces[index] != vegetationFaces[seed];
+            var unavailable = assigned[index] || !visited.Add(index) || differentMaterial;
             if (unavailable)
             {
                 continue;

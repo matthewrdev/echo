@@ -5,6 +5,19 @@ namespace Echo.Texturing;
 
 public sealed class TextureResult
 {
+    public int VegetationChartCount
+    {
+        get; set;
+    }
+    public double VegetationTextureScale { get; set; } = 1;
+    public double TexelsPerWorldUnit
+    {
+        get; set;
+    }
+    public double BaselineTexelsPerWorldUnit
+    {
+        get; set;
+    }
     [JsonIgnore]
     public Surface? Surface
     {

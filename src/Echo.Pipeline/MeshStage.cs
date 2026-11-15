@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.SceneSemantics;
 using Echo.Infrastructure;
 using Echo.Meshing;
 using Echo.Simplification;
@@ -46,12 +47,21 @@ public sealed class MeshStage : IPipelineStage
         var depthUnits = context.DepthUnits();
         var maps = context.DepthMaps();
         var fusionPath = context.Artifact("fusion");
+        var semanticsPath = project.Settings.OptimiseVegetation ? context.Artifact("semantics") : null;
+        var semanticUnits = semanticsPath == null ? new Dictionary<string, string>()
+            : context.ReadArtifact<Dictionary<string, string>>("semantics", "units.json");
+        var semantics = semanticUnits.ToDictionary(pair => pair.Key,
+            pair => jsonCodec.Read<SemanticMap>(store.PathFor(pair.Value + "/semantics.json")));
         var meshPath = context.Build("mesh", new
         {
             fusionPath,
             depthUnits,
             alignment,
             completionVersion = 4,
+            vegetationVersion = 2,
+            semanticsPath,
+            project.Settings.OptimiseVegetation,
+            project.Settings.VegetationMeshToleranceMultiplier,
             project.Settings.FaceLimit,
             project.Settings.MeshIslandMode,
             project.Settings.MeshIslandMinimumAreaPercent
@@ -96,6 +106,18 @@ public sealed class MeshStage : IPipelineStage
                     {
                         reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation);
                     }
+                    var vegetationRemovedFaces = 0;
+                    if (project.Settings.OptimiseVegetation)
+                    {
+                        context.ReportProgress(Name, "Allocating fewer triangles to vegetation confirmed by multiple visible photographs…");
+                        var labels = SurfaceVegetationClassifier.Classify(reduced, project, scene, maps, semantics, cancellation);
+                        var tolerances = SurfaceVegetationClassifier.Tolerances(reduced, labels,
+                            detailTolerance * project.Settings.VegetationMeshToleranceMultiplier);
+                        var before = reduced.Faces.Count;
+                        reduced = edgeCollapse.Reduce(reduced, before, cancellation, vertexTolerances: tolerances);
+                        vegetationRemovedFaces = before - reduced.Faces.Count;
+                        context.ReportProgress(Name, $"Removed {vegetationRemovedFaces:N0} vegetation triangles; rock and material boundaries remain fixed.");
+                    }
                     var mesh = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
                         message => context.ReportProgress(Name, message), retainUnobserved: true);
                     if (project.Settings.MeshIslandMode != IslandTrimMode.Off)
@@ -109,10 +131,17 @@ public sealed class MeshStage : IPipelineStage
                     {
                         context.ReportProgress(Name, $"Removed {trimming.RemovedComponents:N0} disconnected islands ({trimming.RemovedFaces:N0} triangles).");
                     }
+                    if (project.Settings.OptimiseVegetation)
+                    {
+                        var labels = SurfaceVegetationClassifier.Classify(mesh, project, scene, maps, semantics, cancellation);
+                        var faces = mesh.Faces.Select(face => face.All(vertex => labels[vertex])).ToArray();
+                        fileOperations.AtomicJson(Path.Combine(dir, "vegetation.json"), faces);
+                    }
                     fileOperations.AtomicJson(Path.Combine(dir, "mesh.json"), mesh);
                     plyWriter.Write(Path.Combine(dir, "mesh.ply"), mesh.Vertices.ToArray(), mesh.Faces.ToArray());
                     fileOperations.AtomicJson(Path.Combine(dir, "mesh.report.json"), new
                     {
+                        vegetationRemovedFaces,
                         extractedFaces = extracted.Faces.Count,
                         reducedFaces = reduced.Faces.Count,
                         texturedFaces = mesh.Faces.Count,

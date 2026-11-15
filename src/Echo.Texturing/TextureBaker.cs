@@ -9,33 +9,41 @@ namespace Echo.Texturing;
 [Export(typeof(ITextureBaker)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureBaker : ITextureBaker
 {
-    private readonly ITexturePatchBuilder patchBuilder;
-    private readonly ITexturePatchPacker patchPacker;
+    private readonly ITextureLayoutPlanner layoutPlanner;
     private readonly ITextureRasterizer rasterizer;
     private readonly IRasterImageService images;
     private readonly ITextureSeamLeveler seamLeveler;
 
     [ImportingConstructor]
-    public TextureBaker(ITexturePatchBuilder patchBuilder, ITexturePatchPacker patchPacker, ITextureRasterizer rasterizer,
+    public TextureBaker(ITextureLayoutPlanner layoutPlanner, ITextureRasterizer rasterizer,
         IRasterImageService images, ITextureSeamLeveler seamLeveler)
     {
-        this.patchBuilder = patchBuilder;
-        this.patchPacker = patchPacker;
+        this.layoutPlanner = layoutPlanner;
         this.rasterizer = rasterizer;
         this.images = images;
         this.seamLeveler = seamLeveler;
     }
 
     public TextureResult Bake(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
-        string output, CancellationToken cancellation, Action<string>? progress = null)
+        string output, CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null)
     {
-        progress?.Invoke("Unwrapping connected surface charts…");
-        var patches = patchBuilder.Build(project, scene, mesh, cancellation);
+        var layout = layoutPlanner.Plan(project, scene, mesh, cancellation, progress, vegetationFaces);
+        var patches = layout.Patches;
+        var vegetationCharts = layout.VegetationChartCount;
         var size = project.Settings.TextureSize;
-        progress?.Invoke($"Packing {patches.Count:N0} UV islands with rotation and padding…");
-        var scale = patchPacker.Pack(patches, size, project.Settings.TextureGutter, cancellation);
+        var scale = layout.TexelsPerWorldUnit;
         var surface = new Surface();
-        var result = new TextureResult { Size = size, Surface = surface, MeshFile = "mesh.json", ChartCount = patches.Count };
+        var result = new TextureResult
+        {
+            Size = size,
+            Surface = surface,
+            MeshFile = "mesh.json",
+            ChartCount = patches.Count,
+            VegetationChartCount = vegetationCharts,
+            VegetationTextureScale = vegetationCharts == 0 ? 1 : project.Settings.VegetationTextureScale,
+            TexelsPerWorldUnit = scale,
+            BaselineTexelsPerWorldUnit = layout.BaselineTexelsPerWorldUnit
+        };
         foreach (var patch in patches)
         {
             cancellation.ThrowIfCancellationRequested();

@@ -17,11 +17,17 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
 
     public double Pack(IReadOnlyList<TexturePatch> patches, int size, int gutter, CancellationToken cancellation = default)
     {
+        return TryPack(patches, size, gutter, cancellation)
+            ?? throw new EchoException("Texture atlas is too small for its patches. Increase atlas size or the maximum triangles per chart.", 5);
+    }
+
+    public double? TryPack(IReadOnlyList<TexturePatch> patches, int size, int gutter, CancellationToken cancellation = default)
+    {
         var ordered = patches.OrderByDescending(p => Math.Max(p.Bounds.Width, p.Bounds.Height))
             .ThenByDescending(p => p.Bounds.Width * p.Bounds.Height).ToArray();
         if (!TryPack(ordered, size, gutter, 0))
         {
-            throw new EchoException("Texture atlas is too small for its patches. Increase atlas size or the maximum triangles per chart.", 5);
+            return null;
         }
 
         double area = 0;

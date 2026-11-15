@@ -13,14 +13,20 @@ public sealed class EdgeCollapse : IEdgeCollapse
     {
     }
 
-    public Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation, double detailTolerance = 0)
+    public Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation, double detailTolerance = 0, IReadOnlyList<double>? vertexTolerances = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!double.IsFinite(detailTolerance) || detailTolerance < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(detailTolerance));
         }
-        if (sourceMesh.Faces.Count <= targetFaceCount && detailTolerance == 0)
+        if (vertexTolerances != null && (vertexTolerances.Count != sourceMesh.Vertices.Count
+            || vertexTolerances.Any(value => !double.IsFinite(value) || value < 0)))
+        {
+            throw new ArgumentException("Expected a finite nonnegative tolerance per source vertex.", nameof(vertexTolerances));
+        }
+        var tolerances = vertexTolerances?.ToArray();
+        if (sourceMesh.Faces.Count <= targetFaceCount && detailTolerance == 0 && tolerances == null)
         {
             return sourceMesh;
         }
@@ -118,6 +124,10 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 b = t;
             }
 
+            if (tolerances != null && (tolerances[a] == 0 || tolerances[b] == 0))
+            {
+                return;
+            }
             var va = vertices[a];
             var vb = vertices[b];
             var qa = va.Quadric;
@@ -247,7 +257,8 @@ public sealed class EdgeCollapse : IEdgeCollapse
         while (queue.TryDequeue(out var edge, out _))
         {
             cancellation.ThrowIfCancellationRequested();
-            if (remaining <= targetFaceCount && (detailTolerance == 0 || edge.Error > maximumDetailError))
+            var allowedError = tolerances == null ? maximumDetailError : Math.Pow(Math.Min(tolerances[edge.A], tolerances[edge.B]), 2);
+            if (remaining <= targetFaceCount && (allowedError == 0 || edge.Error > allowedError))
             {
                 continue;
             }
@@ -378,6 +389,10 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 }
             }
 
+            if (tolerances != null)
+            {
+                tolerances[edge.A] = Math.Min(tolerances[edge.A], tolerances[edge.B]);
+            }
             a.Position = edge.Position;
             a.PlaneCount += b.PlaneCount;
             for (var i = 0; i < 16; i++)
