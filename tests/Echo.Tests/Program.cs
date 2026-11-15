@@ -29,6 +29,7 @@ composition.Resolve<FeatureSetCacheTests>().Run(scaleTests);
 composition.Resolve<OrderedWorkTests>().Run(scaleTests);
 composition.Resolve<ImageStageConcurrencyTests>().Run(scaleTests);
 composition.Resolve<MeshQualityTests>().Run(scaleTests);
+composition.Resolve<PhotographSelectionTests>().Run(scaleTests);
 composition.Resolve<SurfaceCompletionTests>().Run(scaleTests);
 composition.Resolve<FinalHoleRepairTests>().Run(scaleTests);
 composition.Resolve<SurfaceIslandTests>().Run(scaleTests);

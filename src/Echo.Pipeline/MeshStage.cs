@@ -58,6 +58,7 @@ public sealed class MeshStage : IPipelineStage
             depthUnits,
             alignment,
             completionVersion = 4,
+            photographSelectionVersion = 2,
             vegetationVersion = 2,
             semanticsPath,
             project.Settings.OptimiseVegetation,
@@ -118,19 +119,22 @@ public sealed class MeshStage : IPipelineStage
                         vegetationRemovedFaces = before - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Removed {vegetationRemovedFaces:N0} vegetation triangles; rock and material boundaries remain fixed.");
                     }
-                    var mesh = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
-                        message => context.ReportProgress(Name, message), retainUnobserved: true);
                     if (project.Settings.MeshIslandMode != IslandTrimMode.Off)
                     {
                         context.ReportProgress(Name, "Trimming disconnected islands after surface completion…");
                     }
-                    var trimming = SurfaceIslandTrimmer.Trim(mesh, project.Settings.MeshIslandMode,
+                    var trimming = SurfaceIslandTrimmer.Trim(reduced, project.Settings.MeshIslandMode,
                         project.Settings.MeshIslandMinimumAreaPercent, cancellation);
-                    mesh = trimming.Surface;
                     if (trimming.InputComponents.HasValue)
                     {
                         context.ReportProgress(Name, $"Removed {trimming.RemovedComponents:N0} disconnected islands ({trimming.RemovedFaces:N0} triangles).");
                     }
+                    // Removed fragments must not continue to occlude photographs
+                    // of the surviving surface during source assignment.
+                    var mesh = meshBuilder.AssignCameras(project, scene, maps, trimming.Surface, cancellation,
+                        message => context.ReportProgress(Name, message), retainUnobserved: true);
+                    var photographCoverage = SurfacePhotographCoverage.Measure(mesh, cancellation);
+                    context.ReportProgress(Name, $"Photographs assigned to {photographCoverage.Faces - photographCoverage.InferredFaces:N0}/{photographCoverage.Faces:N0} triangles. Inferred colour covers {photographCoverage.InferredAreaPercent:F2}% of total surface area, including hidden and completed surfaces.");
                     if (project.Settings.OptimiseVegetation)
                     {
                         var labels = SurfaceVegetationClassifier.Classify(mesh, project, scene, maps, semantics, cancellation);
@@ -146,6 +150,7 @@ public sealed class MeshStage : IPipelineStage
                         reducedFaces = reduced.Faces.Count,
                         texturedFaces = mesh.Faces.Count,
                         inferredColourFaces = mesh.SourceImages.Count(string.IsNullOrEmpty),
+                        photographCoverage,
                         requestedFaceLimit = project.Settings.FaceLimit,
                         volume.VoxelSize,
                         detailTolerance,

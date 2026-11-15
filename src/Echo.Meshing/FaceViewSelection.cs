@@ -13,7 +13,8 @@ internal static class FaceViewSelection
         var selected = new int[mesh.Faces.Count];
         Array.Fill(selected, -1);
         var visibility = new SurfaceTriangleIndex(mesh, cancellation);
-        progress?.Invoke("Checking source photograph visibility and detail…");
+        var checkedFaces = 0;
+        progress?.Invoke("Checking source visibility and detail in original photograph pixels…");
         Parallel.For(0, mesh.Faces.Count, new ParallelOptions
         {
             CancellationToken = cancellation,
@@ -26,29 +27,25 @@ internal static class FaceViewSelection
             var c = new V3(mesh.Vertices[face[2]]);
             var centre = (a + b + c) / 3;
             var cross = (b - a).Cross(c - a);
-            var normal = cross.Unit;
             scales[index] = Math.Sqrt(cross.Length);
             var options = new List<FaceViewCandidate>(33);
             for (var viewIndex = 0; viewIndex < views.Count; viewIndex++)
             {
                 var view = views[viewIndex];
-                var score = Score(view, photos[view.Camera.ImageId], a, b, c, centre, normal);
+                var density = FaceViewResolution.Density(view, photos[view.Camera.ImageId], a, b, c);
+                var score = density > 0 ? Score(view, a, b, c, centre, density) : 0;
                 if (!(score > 0) || visibility.HasOccluder(view.Centre, centre))
                 {
                     continue;
                 }
                 var insert = options.FindIndex(option => option.Cost < score);
-                options.Insert(insert < 0 ? options.Count : insert, new FaceViewCandidate(viewIndex, score));
-                if (options.Count > 32)
-                {
-                    options.RemoveAt(32);
-                }
+                options.Insert(insert < 0 ? options.Count : insert, new FaceViewCandidate(viewIndex, score, density));
             }
             if (options.Count > 0)
             {
+                RetainDetail(options);
                 selected[index] = options[0].View;
                 var best = options[0].Cost;
-                options.RemoveAll(option => option.Cost < best * .5);
                 for (var option = 0; option < options.Count; option++)
                 {
                     options[option] = options[option] with
@@ -58,6 +55,11 @@ internal static class FaceViewSelection
                 }
             }
             candidates[index] = options.ToArray();
+            var completed = Interlocked.Increment(ref checkedFaces);
+            if (completed % 50000 == 0 || completed == mesh.Faces.Count)
+            {
+                progress?.Invoke($"Source photograph candidates: {completed:N0}/{mesh.Faces.Count:N0} triangles…");
+            }
         });
 
         if (selected.Any(view => view < 0) && views.Count > 0)
@@ -78,35 +80,32 @@ internal static class FaceViewSelection
                 var b = new V3(mesh.Vertices[face[1]]);
                 var c = new V3(mesh.Vertices[face[2]]);
                 var centre = (a + b + c) / 3;
-                var normal = (b - a).Cross(c - a).Unit;
                 var options = new List<FaceViewCandidate>();
                 for (var viewIndex = 0; viewIndex < views.Count; viewIndex++)
                 {
                     var view = views[viewIndex];
                     var photo = photos[view.Camera.ImageId];
-                    var covered = Inside(view, photo, a) && Inside(view, photo, b) && Inside(view, photo, c);
+                    var density = FaceViewResolution.Density(view, photo, a, b, c);
                     // Missing depth is not evidence of an occluder. For inferred
                     // patches, use the completed surface's line of sight instead.
                     // A contradictory measured depth never enters this fallback.
-                    if (!covered || double.IsFinite(view.Difference(centre)))
+                    if (!(density > 0) || double.IsFinite(view.Difference(centre)))
                     {
                         continue;
                     }
-                    var direction = view.Centre - centre;
-                    var score = Math.Abs(normal.Dot(direction.Unit)) * view.Focal / direction.Length;
-                    if (!(score > 0) || visibility.HasOccluder(view.Centre, centre))
+                    if (visibility.HasOccluder(view.Centre, centre))
                     {
                         continue;
                     }
-                    options.Add(new FaceViewCandidate(viewIndex, score));
+                    options.Add(new FaceViewCandidate(viewIndex, density, density));
                 }
                 if (options.Count > 0)
                 {
-                    options = options.OrderByDescending(option => option.Cost).Take(32).ToList();
+                    options = options.OrderByDescending(option => option.Cost).ToList();
+                    RetainDetail(options);
                     var best = options[0].Cost;
                     selected[index] = options[0].View;
-                    candidates[index] = options.Where(option => option.Cost >= best * .5)
-                        .Select(option => option with { Cost = -Math.Log(option.Cost / best) }).ToArray();
+                    candidates[index] = options.Select(option => option with { Cost = -Math.Log(option.Cost / best) }).ToArray();
                 }
             });
         }
@@ -135,13 +134,21 @@ internal static class FaceViewSelection
         return selected;
     }
 
-    private static double Score(DepthView view, Photo photo, V3 a, V3 b, V3 c, V3 centre, V3 normal)
+    internal static void RetainDetail(List<FaceViewCandidate> candidates)
     {
-        var covered = Inside(view, photo, a) && Inside(view, photo, b) && Inside(view, photo, c);
-        if (!covered)
+        // Keep at least 90% of the best available linear photographic resolution.
+        // Seam regularisation can choose among comparable views, but cannot spend
+        // most of the available image detail just to avoid a source transition.
+        var bestDensity = candidates.Max(candidate => candidate.Density);
+        candidates.RemoveAll(candidate => candidate.Density < bestDensity * .81);
+        if (candidates.Count > 32)
         {
-            return 0;
+            candidates.RemoveRange(32, candidates.Count - 32);
         }
+    }
+
+    private static double Score(DepthView view, V3 a, V3 b, V3 c, V3 centre, double density)
+    {
         var direction = view.Centre - centre;
         var distance = direction.Length;
         var tolerance = Math.Max(distance * .025, distance / view.Focal * 3);
@@ -176,18 +183,6 @@ internal static class FaceViewSelection
             confidence = .6;
         }
 
-        return confidence * Math.Abs(normal.Dot(direction.Unit)) * view.Focal / distance / (1 + Math.Abs(difference));
-    }
-
-    private static bool Inside(DepthView view, Photo photo, V3 point)
-    {
-        var pixel = view.Projection.Project(point);
-        if (!pixel.HasValue)
-        {
-            return false;
-        }
-        var insideX = pixel.Value.X >= 1 && pixel.Value.X < photo.Width - 1;
-        var insideY = pixel.Value.Y >= 1 && pixel.Value.Y < photo.Height - 1;
-        return insideX && insideY;
+        return confidence * density / (1 + .25 * Math.Abs(difference) / tolerance);
     }
 }
