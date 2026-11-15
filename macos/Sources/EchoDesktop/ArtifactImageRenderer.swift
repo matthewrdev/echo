@@ -49,31 +49,6 @@ final class ArtifactImageRenderer {
         return NSImage(cgImage: image, size: NSSize(width: map.width, height: map.height))
     }
 
-    func volume(_ volume: FusedVolume, axis: String, slice: Double) throws -> NSImage {
-        func coordinate(_ sample: VolumeSample) -> Int { axis == "X" ? sample.x : axis == "Y" ? sample.y : sample.z }
-        let minimum = volume.samples.map(coordinate).min() ?? 0
-        let maximum = volume.samples.map(coordinate).max() ?? 1
-        let selected = Int(Double(minimum) + Double(maximum - minimum) * slice)
-        let samples = volume.samples.filter { abs(coordinate($0) - selected) <= 1 }
-        let context = try canvas(width: 1000, height: 1000)
-        context.setFillColor(NSColor.black.cgColor)
-        context.fill(CGRect(x: 0, y: 0, width: 1000, height: 1000))
-        let horizontal = samples.map { axis == "X" ? $0.z : $0.x }
-        let vertical = samples.map { axis == "Y" ? $0.z : $0.y }
-        let left = horizontal.min() ?? 0
-        let bottom = vertical.min() ?? 0
-        let span = max(1, max((horizontal.max() ?? 1) - left, (vertical.max() ?? 1) - bottom))
-        let scale = 960.0 / Double(span)
-        for (index, sample) in samples.enumerated() {
-            context.setFillColor((sample.distance < 0 ? NSColor.systemBlue : NSColor.systemOrange).cgColor)
-            context.fill(
-                CGRect(
-                    x: 20 + Double(horizontal[index] - left) * scale, y: 20 + Double(vertical[index] - bottom) * scale,
-                    width: max(2, scale), height: max(2, scale)))
-        }
-        return try image(context)
-    }
-
     private func load(_ url: URL) throws -> CGImage {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
             let image = CGImageSourceCreateImageAtIndex(source, 0, nil)

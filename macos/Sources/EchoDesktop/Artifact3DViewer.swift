@@ -30,7 +30,14 @@ struct Artifact3DViewer: View {
                 .overlay(alignment: .bottomTrailing) {
                     VStack(alignment: .trailing, spacing: 10) {
                         SceneViewControls(
-                            controller: controller, showGround: $showGround, metricScale: presentation.metricScale)
+                            controller: controller, showGround: $showGround, metricScale: presentation.metricScale
+                        )
+                        .padding(presentation.fusion == nil ? 0 : 6)
+                        .background {
+                            if presentation.fusion != nil {
+                                RoundedRectangle(cornerRadius: 6).fill(.regularMaterial)
+                            }
+                        }
                         Text(presentation.detail).font(.caption).foregroundStyle(.secondary)
                             .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
                             .padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))

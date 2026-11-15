@@ -129,7 +129,7 @@ final class SceneInspectionTests: XCTestCase {
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
             featureMatches: FeatureMatchIndexer(json: json),
             depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
-            json: json)
+            fusion: SavedFusionArtifactReader(json: json, scenes: NativeSceneFactory()), json: json)
         let presentation = try await reader.load(
             root: root, run: run, stage: .alignment, unit: nil, mode: "", slice: 0.5)
         let inspection = try XCTUnwrap(presentation.sparseInspection)

@@ -18,7 +18,7 @@ final class LiveDepthPreviewTests: XCTestCase {
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
             featureMatches: FeatureMatchIndexer(json: json),
             depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
-            json: json)
+            fusion: SavedFusionArtifactReader(json: json, scenes: NativeSceneFactory()), json: json)
         let saved = try await reader.units(root: root, run: run, stage: .depth)
         XCTAssertGreaterThanOrEqual(saved.count, 2)
         let completed = Array(saved.reversed().prefix(2))

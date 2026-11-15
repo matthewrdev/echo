@@ -21,7 +21,7 @@ final class SavedArtifactIntegrationTests: XCTestCase {
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
             featureMatches: FeatureMatchIndexer(json: json),
             depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
-            json: json)
+            fusion: SavedFusionArtifactReader(json: json, scenes: NativeSceneFactory()), json: json)
         XCTAssertFalse(run.snapshot.images.isEmpty)
 
         for stage in PipelineStage.allCases {

@@ -8,16 +8,19 @@ final class SavedArtifactReader: ArtifactReader {
     private let featureMatches: FeatureMatchIndexer
     private let json: ArtifactJSONReader
     private let depths: SavedDepthArtifactReader
+    private let fusion: SavedFusionArtifactReader
 
     init(
         scenes: NativeSceneFactory, images: ArtifactImageRenderer, glb: GlbAssetReader,
-        featureMatches: FeatureMatchIndexer, depths: SavedDepthArtifactReader, json: ArtifactJSONReader
+        featureMatches: FeatureMatchIndexer, depths: SavedDepthArtifactReader, fusion: SavedFusionArtifactReader,
+        json: ArtifactJSONReader
     ) {
         self.featureMatches = featureMatches
         self.scenes = scenes
         self.images = images
         self.glb = glb
         self.depths = depths
+        self.fusion = fusion
         self.json = json
     }
 
@@ -151,11 +154,7 @@ final class SavedArtifactReader: ArtifactReader {
         case .depth:
             return try await depths.load(root: root, run: run, unit: unit, mode: mode)
         case .fusion:
-            let volume: FusedVolume = try read(folder.appendingPathComponent("volume.preview.json"))
-            return ArtifactPresentation(
-                title: stage.title,
-                detail: "Sampled volume slice · voxel \(volume.voxelSize.formatted()) m · blue inside / orange outside",
-                image: try images.volume(volume, axis: mode, slice: slice))
+            return try await fusion.load(folder: folder, mode: mode, slice: slice, metricScale: metricScale())
         case .texture:
             guard let image = NSImage(contentsOf: folder.appendingPathComponent("atlas.jpg")) else {
                 throw CLIError(message: "Cannot open texture atlas.")

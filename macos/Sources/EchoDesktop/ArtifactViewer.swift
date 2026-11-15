@@ -87,14 +87,18 @@ struct ArtifactViewer: View {
 
                 }.font(.caption)
             }
-            if workspace.selectedStage == .fusion {
+            if workspace.selectedStage == .fusion, let info = model.presentation?.fusion {
+                FusionLegendView(info: info)
+            }
+            if workspace.selectedStage == .fusion, FusionViewMode(selection: model.mode).axis != nil {
                 HStack {
-                    Text("Volume slice")
+                    Text("Slice position")
                     Slider(
                         value: $model.slice, in: 0...1,
                         onEditingChanged: { editing in
                             if !editing { Task { await model.load() } }
-                        })
+                        }
+                    ).accessibilityLabel("Fusion slice position")
                 }
             }
             HStack(alignment: .top, spacing: 12) {

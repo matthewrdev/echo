@@ -65,7 +65,7 @@ final class SavedDepthArtifactReaderTests: XCTestCase {
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
             featureMatches: FeatureMatchIndexer(json: json),
             depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
-            json: json)
+            fusion: SavedFusionArtifactReader(json: json, scenes: NativeSceneFactory()), json: json)
         let units = try await reader.units(root: root, run: run, stage: .depth)
         for unit in units.prefix(3) {
             let start = Date()

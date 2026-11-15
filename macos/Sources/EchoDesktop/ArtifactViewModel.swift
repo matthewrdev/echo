@@ -35,7 +35,7 @@ final class ArtifactViewModel: ObservableObject {
         case .alignment: return []
         case .depth: return ["Depth", "Confidence"]
         case .cloud: return ["All points", "≥40%", "≥60%"]
-        case .fusion: return ["X", "Y", "Z"]
+        case .fusion: return FusionViewMode.allCases.map(\.rawValue)
         case .texture: return ["Textured model", "Atlas"]
         case .mesh, .export: return ["Textured", "Solid", "Wireframe"]
         default: return []
@@ -106,6 +106,11 @@ final class ArtifactViewModel: ObservableObject {
     }
 
     func selectMode(_ value: String) {
+        if stage == .fusion, let axis = FusionViewMode(selection: value).axis,
+            let preferred = presentation?.fusion?.preferredSlices[axis]
+        {
+            slice = preferred
+        }
         mode = value
         Task { await load() }
     }

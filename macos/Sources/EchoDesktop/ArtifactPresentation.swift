@@ -13,4 +13,5 @@ struct ArtifactPresentation {
     var sceneIdentity: String = ""
     var sparseInspection: SparseInspectionData?
     var metricScale = false
+    var fusion: FusionPresentationInfo?
 }
