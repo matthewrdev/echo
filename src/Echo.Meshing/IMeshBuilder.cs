@@ -7,6 +7,9 @@ public interface IMeshBuilder
     Surface Extract(FusedVolume volume, CancellationToken cancellation);
     void FillHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
         Surface geometry, double voxelSize, CancellationToken cancellation);
+
+    SurfaceHoleRepairResult RepairFinalHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
+        Surface geometry, double voxelSize, CancellationToken cancellation);
     Surface AssignCameras(ProjectData project,
         ReconstructionScene scene,
         IReadOnlyList<DepthMap> maps,

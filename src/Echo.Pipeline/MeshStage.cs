@@ -51,7 +51,7 @@ public sealed class MeshStage : IPipelineStage
             fusionPath,
             depthUnits,
             alignment,
-            completionVersion = 3,
+            completionVersion = 4,
             project.Settings.FaceLimit,
             project.Settings.MeshIslandMode,
             project.Settings.MeshIslandMinimumAreaPercent
@@ -73,14 +73,14 @@ public sealed class MeshStage : IPipelineStage
                     var rejectedAfterCompletion = 0;
                     context.ReportProgress(Name, $"Rejected {rejectedBeforeCompletion:N0} triangles contradicted by observed empty space.");
                     var completed = SurfaceSupportFilter.HasGaps(reduced, cancellation);
-                    var mesh = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
-                        message => context.ReportProgress(Name, message), retainUnobserved: !completed);
                     if (completed)
                     {
-                        var reconstructed = surfaceReconstructor.Reconstruct(mesh, scene, volume.VoxelSize, cancellation,
+                        var observed = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
+                            message => context.ReportProgress(Name, message));
+                        var reconstructed = surfaceReconstructor.Reconstruct(observed, scene, volume.VoxelSize, cancellation,
                             message => context.ReportProgress(Name, message));
                         context.ReportProgress(Name, "Restricting surface completion to the scanned neighbourhood…");
-                        var supported = SurfaceSupportFilter.Filter(reconstructed, mesh, volume.VoxelSize * 24, cancellation);
+                        var supported = SurfaceSupportFilter.Filter(reconstructed, observed, volume.VoxelSize * 24, cancellation);
                         context.ReportProgress(Name, "Adapting the completed surface to its geometric detail…");
                         reduced = edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance);
                         context.ReportProgress(Name, "Checking completed surfaces against observed empty space…");
@@ -88,9 +88,16 @@ public sealed class MeshStage : IPipelineStage
                         reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation);
                         rejectedAfterCompletion = facesBeforeVisibility - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Rejected {rejectedAfterCompletion:N0} completed triangles contradicted by observed empty space.");
-                        mesh = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
-                            message => context.ReportProgress(Name, message), retainUnobserved: true);
                     }
+                    context.ReportProgress(Name, "Repairing small enclosed holes after visibility cleanup…");
+                    var finalRepair = meshBuilder.RepairFinalHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation);
+                    context.ReportProgress(Name, $"Closed {finalRepair.RepairedHoles:N0} small holes with {finalRepair.AddedFaces:N0} triangles.");
+                    if (reduced.Faces.Count > project.Settings.FaceLimit)
+                    {
+                        reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation);
+                    }
+                    var mesh = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
+                        message => context.ReportProgress(Name, message), retainUnobserved: true);
                     if (project.Settings.MeshIslandMode != IslandTrimMode.Off)
                     {
                         context.ReportProgress(Name, "Trimming disconnected islands after surface completion…");
@@ -119,6 +126,7 @@ public sealed class MeshStage : IPipelineStage
                             rejectedBeforeCompletion,
                             rejectedAfterCompletion
                         },
+                        finalHoleRepair = finalRepair,
                         completionDistance = completed ? volume.VoxelSize * 24 : 0,
                         islandTrimming = new
                         {

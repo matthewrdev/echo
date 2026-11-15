@@ -27,39 +27,9 @@ public static class SurfaceVisibilityFilter
         }, index =>
         {
             var face = surface.Faces[index];
-            var centre = (new V3(surface.Vertices[face[0]]) + new V3(surface.Vertices[face[1]])
-                + new V3(surface.Vertices[face[2]])) / 3;
-            var supporting = 0.0;
-            var contradicted = 0.0;
-            var freeSpace = 0;
-            foreach (var view in views)
-            {
-                var observation = view.Observe(centre, relativeTolerance);
-                if (!observation.IsValid)
-                {
-                    continue;
-                }
-
-                var tolerance = Math.Max(observation.CameraDepth * relativeTolerance * 2,
-                    observation.CameraDepth / view.Focal * 4);
-                // A distant, uncertain observation must not outvote a closer
-                // measurement simply because that flight pass has more photos.
-                var precision = 1 / (tolerance * tolerance);
-                if (Math.Abs(observation.Distance) <= tolerance)
-                {
-                    supporting += precision;
-                }
-                else if (observation.HasFullCoverage && observation.Distance > tolerance)
-                {
-                    freeSpace++;
-                    contradicted += precision;
-                }
-            }
-
-            // Unknown and occluded space are deliberately neutral. Reject an
-            // inferred sheet only when multiple visible rays contradict it and
-            // carry more precision than observations supporting the surface.
-            rejected[index] = freeSpace >= 3 && contradicted > supporting;
+            var triangle = new SurfaceTriangle(new V3(surface.Vertices[face[0]]),
+                new V3(surface.Vertices[face[1]]), new V3(surface.Vertices[face[2]]));
+            rejected[index] = SurfaceVisibilityEvidence.Contradicts(triangle, views, relativeTolerance);
         });
 
         var result = new Surface();

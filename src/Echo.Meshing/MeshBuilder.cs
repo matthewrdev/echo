@@ -73,18 +73,23 @@ public sealed class MeshBuilder : IMeshBuilder
         return result;
     }
 
+    public SurfaceHoleRepairResult RepairFinalHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
+        Surface geometry, double voxelSize, CancellationToken cancellation)
+    {
+        ValidateRepair(geometry, voxelSize, cancellation);
+        var views = MeshDepthViews.Build(project, scene, maps);
+        var originalFaces = geometry.Faces.Count;
+        // The final pass repairs only bounded, nearly planar internal loops.
+        // It cannot connect fragments or extrapolate the scan perimeter.
+        var repaired = SurfaceHoleRepair.Fill(geometry, voxelSize, cancellation,
+            acceptsTriangle: triangle => !SurfaceVisibilityEvidence.Contradicts(triangle, views, project.Settings.CloudDepthTolerance));
+        return new SurfaceHoleRepairResult(repaired, geometry.Faces.Count - originalFaces);
+    }
+
     public void FillHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
         Surface geometry, double voxelSize, CancellationToken cancellation)
     {
-        cancellation.ThrowIfCancellationRequested();
-        if (!(voxelSize > 0) || !double.IsFinite(voxelSize))
-        {
-            throw new ArgumentOutOfRangeException(nameof(voxelSize));
-        }
-        if (geometry.SourceImages.Count != 0)
-        {
-            throw new EchoException("Complete surface geometry before assigning texture photographs.", 5);
-        }
+        ValidateRepair(geometry, voxelSize, cancellation);
         var views = MeshDepthViews.Build(project, scene, maps);
         bool Observed(V3 point)
         {
@@ -110,5 +115,18 @@ public sealed class MeshBuilder : IMeshBuilder
         }
         GroundSurfaceCompletion.Fill(geometry, voxelSize, Observed, cancellation);
         SurfaceHoleRepair.Fill(geometry, voxelSize, cancellation, Observed);
+    }
+
+    private void ValidateRepair(Surface geometry, double voxelSize, CancellationToken cancellation)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        if (!(voxelSize > 0) || !double.IsFinite(voxelSize))
+        {
+            throw new ArgumentOutOfRangeException(nameof(voxelSize));
+        }
+        if (geometry.SourceImages.Count != 0)
+        {
+            throw new EchoException("Complete surface geometry before assigning texture photographs.", 5);
+        }
     }
 }

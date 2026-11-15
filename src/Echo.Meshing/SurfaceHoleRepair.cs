@@ -5,12 +5,14 @@ namespace Echo.Meshing;
 
 internal static class SurfaceHoleRepair
 {
-    public static void Fill(Surface mesh, double voxelSize, CancellationToken cancellation, Func<V3, bool>? supportsSurface = null)
+    public static int Fill(Surface mesh, double voxelSize, CancellationToken cancellation,
+        Func<V3, bool>? supportsSurface = null, Func<SurfaceTriangle, bool>? acceptsTriangle = null)
     {
         var maximumLoop = supportsSurface == null ? 256 : 8192;
         var edges = CollectEdges(mesh, cancellation);
         var loops = SurfaceBoundaryLoops.Find(mesh, cancellation);
         SurfaceTriangleIndex? index = null;
+        var repaired = 0;
         foreach (var boundary in loops)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -36,27 +38,59 @@ internal static class SurfaceHoleRepair
                 index ??= new SurfaceTriangleIndex(mesh, cancellation);
                 patch = CurvedHoleTriangulation.Fill(mesh, loop, edges, index, cancellation);
             }
-            if (patch != null && (!requiresObservation || ObservedPatch(mesh, patch, supportsSurface!, cancellation)))
+            if (patch == null)
             {
-                mesh.Faces.AddRange(patch);
-                foreach (var face in patch)
+                continue;
+            }
+            if (requiresObservation && !ObservedPatch(mesh, patch, supportsSurface!, cancellation))
+            {
+                continue;
+            }
+            if (acceptsTriangle != null)
+            {
+                index ??= new SurfaceTriangleIndex(mesh, cancellation);
+                if (!AcceptedPatch(mesh, patch, acceptsTriangle, index, cancellation))
                 {
-                    index?.Add(new SurfaceTriangle(new V3(mesh.Vertices[face[0]]), new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]])));
-                    for (var corner = 0; corner < 3; corner++)
-                    {
-                        var from = face[corner];
-                        var to = face[(corner + 1) % 3];
-                        var key = new SurfaceEdge(Math.Min(from, to), Math.Max(from, to));
-                        edges[key] = edges.TryGetValue(key, out var existing)
-                            ? existing with
-                            {
-                                Count = existing.Count + 1
-                            }
-                            : new BoundaryEdge(from, to, patchNormal, 1);
-                    }
+                    continue;
+                }
+            }
+
+            repaired++;
+            mesh.Faces.AddRange(patch);
+            foreach (var face in patch)
+            {
+                index?.Add(new SurfaceTriangle(new V3(mesh.Vertices[face[0]]), new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]])));
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var from = face[corner];
+                    var to = face[(corner + 1) % 3];
+                    var key = new SurfaceEdge(Math.Min(from, to), Math.Max(from, to));
+                    edges[key] = edges.TryGetValue(key, out var existing)
+                        ? existing with
+                        {
+                            Count = existing.Count + 1
+                        }
+                        : new BoundaryEdge(from, to, patchNormal, 1);
                 }
             }
         }
+        return repaired;
+    }
+
+    private static bool AcceptedPatch(Surface mesh, List<int[]> patch, Func<SurfaceTriangle, bool> acceptsTriangle,
+        SurfaceTriangleIndex index, CancellationToken cancellation)
+    {
+        foreach (var face in patch)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var triangle = new SurfaceTriangle(new V3(mesh.Vertices[face[0]]),
+                new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]]));
+            if (!acceptsTriangle(triangle) || index.Intersects(triangle))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static Dictionary<SurfaceEdge, BoundaryEdge> CollectEdges(Surface mesh, CancellationToken cancellation)
