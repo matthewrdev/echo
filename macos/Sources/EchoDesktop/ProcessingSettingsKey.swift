@@ -6,6 +6,7 @@ enum ProcessingSettingsKey: String, CodingKey {
     case detectLines, lineLimit, lineMinimumLength, lineGradientThreshold, lineSplitRegions
     case depthConcurrency, depthWorkerThreads, depthMemoryBudgetMb
     case cloudWorkerThreads, cloudBatchRows
+    case fusionMemoryBudgetMb, fusionVoxelSize, fusionAllowCoarserResolution
     case cloudReprojectionTolerancePixels, cloudMinimumParallaxDegrees
     case depthRefinementSamples, depthNeighbours, depthRangeAutomatic
     case textureChartFaces, textureChartAngle, textureGutter

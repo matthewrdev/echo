@@ -41,6 +41,9 @@ struct ProcessingSettings: Codable {
     var cloudReprojectionTolerancePixels: Double = 1.5
     var cloudMinimumParallaxDegrees: Double = 0.5
     var fusionDetailMultiplier: Double = 1
+    var fusionMemoryBudgetMb: Int = 0
+    var fusionVoxelSize: Double = 0
+    var fusionAllowCoarserResolution: Bool = false
     var fusionIslandMode: IslandTrimMode = .off
     var fusionIslandMinimumSizePercent: Double = 0.1
     var textureSuppressSky: Bool = false
@@ -102,6 +105,10 @@ struct ProcessingSettings: Codable {
         cloudMinimumParallaxDegrees =
             try values.decodeIfPresent(Double.self, forKey: .cloudMinimumParallaxDegrees) ?? 0.5
         fusionDetailMultiplier = try values.decodeIfPresent(Double.self, forKey: .fusionDetailMultiplier) ?? 1
+        fusionMemoryBudgetMb = try values.decodeIfPresent(Int.self, forKey: .fusionMemoryBudgetMb) ?? 0
+        fusionVoxelSize = try values.decodeIfPresent(Double.self, forKey: .fusionVoxelSize) ?? 0
+        fusionAllowCoarserResolution =
+            try values.decodeIfPresent(Bool.self, forKey: .fusionAllowCoarserResolution) ?? false
         fusionIslandMode = try values.decodeIfPresent(IslandTrimMode.self, forKey: .fusionIslandMode) ?? .off
         fusionIslandMinimumSizePercent =
             try values.decodeIfPresent(Double.self, forKey: .fusionIslandMinimumSizePercent) ?? 0.1
@@ -161,6 +168,9 @@ struct ProcessingSettings: Codable {
         try values.encode(cloudReprojectionTolerancePixels, forKey: .cloudReprojectionTolerancePixels)
         try values.encode(cloudMinimumParallaxDegrees, forKey: .cloudMinimumParallaxDegrees)
         try values.encode(fusionDetailMultiplier, forKey: .fusionDetailMultiplier)
+        try values.encode(fusionMemoryBudgetMb, forKey: .fusionMemoryBudgetMb)
+        try values.encode(fusionVoxelSize, forKey: .fusionVoxelSize)
+        try values.encode(fusionAllowCoarserResolution, forKey: .fusionAllowCoarserResolution)
         try values.encode(fusionIslandMode, forKey: .fusionIslandMode)
         try values.encode(fusionIslandMinimumSizePercent, forKey: .fusionIslandMinimumSizePercent)
         try values.encode(textureSuppressSky, forKey: .textureSuppressSky)
@@ -198,8 +208,15 @@ struct ProcessingSettings: Codable {
             let trimming =
                 fusionIslandMode == .off
                 ? "island trimming off" : fusionIslandMode == .main ? "main region only" : "trim small regions"
-            return
-                "Automatic surface resolution · \(fusionDetailMultiplier.formatted())× fusion detail budget · \(trimming)"
+            let resolution =
+                fusionVoxelSize > 0
+                ? "\((fusionVoxelSize * 100).formatted()) cm voxels"
+                : "Automatic resolution · \(fusionDetailMultiplier.formatted())× detail"
+            let memory =
+                fusionMemoryBudgetMb == 0
+                ? "Automatic memory" : "\((Double(fusionMemoryBudgetMb) / 1024).formatted()) GiB budget"
+            let fallback = fusionAllowCoarserResolution ? "coarsening allowed" : "preserve resolution"
+            return "\(resolution) · \(memory) · \(fallback) · \(trimming)"
         case .mesh:
             let islands =
                 meshIslandMode == .main

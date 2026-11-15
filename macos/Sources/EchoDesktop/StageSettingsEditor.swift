@@ -174,12 +174,7 @@ struct StageSettingsEditor: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
             case .fusion:
-                DecimalSettingSlider(
-                    title: "Detail budget multiplier", value: $settings.fusionDetailMultiplier, range: 0.25...16,
-                    step: 0.25)
-                Text(
-                    "Resolution follows the source photographs and verified surface samples, within a separate memory budget. Higher values allow finer reconstruction at the cost of memory and time. The final triangle budget does not change fusion resolution."
-                ).foregroundStyle(.secondary)
+                FusionSettingsEditor(settings: $settings)
                 Picker("Trim islands before meshing", selection: $settings.fusionIslandMode) {
                     Text("Off").tag(IslandTrimMode.off)
                     Text("Remove small regions").tag(IslandTrimMode.small)

@@ -3,6 +3,30 @@ import XCTest
 @testable import EchoDesktop
 
 final class ProcessingSettingsTests: XCTestCase {
+    func testFusionMemoryAndResolutionRoundTripAndInvalidateFusion() throws {
+        let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
+        XCTAssertEqual(original.fusionMemoryBudgetMb, 0)
+        XCTAssertEqual(original.fusionVoxelSize, 0)
+        XCTAssertFalse(original.fusionAllowCoarserResolution)
+        var changed = original
+        changed.fusionMemoryBudgetMb = 32_768
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .fusion)
+        changed = original
+        changed.fusionVoxelSize = 0.05
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .fusion)
+        changed = original
+        changed.fusionAllowCoarserResolution = true
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .fusion)
+        changed.fusionMemoryBudgetMb = 32_768
+        changed.fusionVoxelSize = 0.05
+        let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(changed))
+        XCTAssertEqual(restored.fusionMemoryBudgetMb, 32_768)
+        XCTAssertEqual(restored.fusionVoxelSize, 0.05)
+        XCTAssertTrue(restored.fusionAllowCoarserResolution)
+        XCTAssertTrue(restored.summary(for: .fusion).contains("32 GiB"))
+        XCTAssertTrue(restored.summary(for: .fusion).contains("5 cm"))
+    }
+
     func testSemanticSettingsInvalidateTheirConsumers() {
         let original = ProcessingSettings()
         let impact = ProcessingImpact()

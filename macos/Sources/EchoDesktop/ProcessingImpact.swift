@@ -37,6 +37,9 @@ struct ProcessingImpact {
         if cloud { return .cloud }
         let fusion =
             old.fusionDetailMultiplier != new.fusionDetailMultiplier
+            || old.fusionMemoryBudgetMb != new.fusionMemoryBudgetMb
+            || old.fusionVoxelSize != new.fusionVoxelSize
+            || old.fusionAllowCoarserResolution != new.fusionAllowCoarserResolution
             || old.fusionIslandMode != new.fusionIslandMode
             || old.fusionIslandMinimumSizePercent != new.fusionIslandMinimumSizePercent
         if fusion { return .fusion }
