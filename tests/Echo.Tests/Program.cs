@@ -26,4 +26,5 @@ composition.Resolve<GaussianBlurTests>().Run(scaleTests);
 composition.Resolve<FeatureSetCacheTests>().Run(scaleTests);
 composition.Resolve<OrderedWorkTests>().Run(scaleTests);
 composition.Resolve<ImageStageConcurrencyTests>().Run(scaleTests);
+composition.Resolve<FusionQualityTests>().Run(scaleTests);
 return Math.Max(scaleTests.Finish(), composition.Resolve<ReconstructionTests>().Run());

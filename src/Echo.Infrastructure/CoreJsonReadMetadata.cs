@@ -1,6 +1,8 @@
 using System.ComponentModel.Composition;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using Echo.Contracts;
 
 namespace Echo.Infrastructure;
 
@@ -15,7 +17,11 @@ public sealed class CoreJsonReadMetadata : IJsonReadMetadata
         context = new CoreJsonReadContext(new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true
+            PropertyNameCaseInsensitive = true,
+            Converters =
+            {
+                new JsonStringEnumConverter<IslandTrimMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false)
+            }
         });
     }
 

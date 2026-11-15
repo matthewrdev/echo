@@ -30,6 +30,8 @@ public sealed class Settings
     public double CloudReprojectionTolerancePixels { get; set; } = 1.5;
     public double CloudMinimumParallaxDegrees { get; set; } = .5;
     public double FusionDetailMultiplier { get; set; } = 1;
+    public IslandTrimMode FusionIslandMode { get; set; } = IslandTrimMode.Off;
+    public double FusionIslandMinimumSizePercent { get; set; } = .1;
     public int TextureJpegQuality { get; set; } = 92;
     public int TextureChartFaces { get; set; } = 512;
     public double TextureChartAngle { get; set; } = 60;
@@ -76,6 +78,9 @@ public sealed class Settings
             || CloudMinimumParallaxDegrees is < 0 or > 10;
         var invalidFusionSettings = !double.IsFinite(FusionDetailMultiplier)
             || FusionDetailMultiplier < .25 || FusionDetailMultiplier > 16;
+        var invalidFusionIslands = !Enum.IsDefined(FusionIslandMode)
+            || !double.IsFinite(FusionIslandMinimumSizePercent)
+            || FusionIslandMinimumSizePercent is < 0 or > 100;
         var invalidDepthMemory = DepthMemoryBudgetMb != 0 && DepthMemoryBudgetMb is < 256 or > 32768;
         var invalidDepthExecution = DepthConcurrency is < 1 or > 16
             || DepthWorkerThreads is < 0 or > 256
@@ -106,6 +111,7 @@ public sealed class Settings
             || invalidCloudSettings
             || invalidCloudGeometry
             || invalidFusionSettings
+            || invalidFusionIslands
             || invalidDepthExecution
             || invalidDepthResolution
             || invalidDepthRange

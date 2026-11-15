@@ -33,6 +33,7 @@ public sealed class CheckpointStore : ICheckpointStore
         var version = algorithmVersion ?? stage switch
         {
             "alignment" => "echo-0.1.0-bundle5",
+            "fusion" => "echo-0.1.0-tsdf4",
             "mesh" => "echo-0.1.0-surface4",
             "texture" => "echo-0.1.0-charts2",
             "export" => "echo-0.1.0-geo3",

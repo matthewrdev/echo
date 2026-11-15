@@ -109,9 +109,12 @@ public sealed class DepthView
         return dx * dx + dy * dy <= pixelTolerance * pixelTolerance;
     }
 
-    public double Difference(V3 world)
+    public double Difference(V3 world) => Difference(world, out _);
+
+    public double Difference(V3 world, out double cameraDepth)
     {
         var p = CameraGeometry.Rotate(Inverse, world - Centre);
+        cameraDepth = p.Z;
         if (!(p.Z > 0) || !double.IsFinite(p.Z))
         {
             return double.NaN;

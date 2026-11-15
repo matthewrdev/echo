@@ -8,5 +8,6 @@ public interface IDepthFusion
         ReconstructionScene scene,
         IReadOnlyList<DepthMap> maps,
         DenseCloudData cloud,
-CancellationToken cancellation);
+        FusionResourcePlan resources,
+        CancellationToken cancellation);
 }
