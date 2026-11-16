@@ -3,6 +3,7 @@ using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
 using Echo.Storage;
+using Echo.Telemetry;
 using System.Diagnostics;
 
 namespace Echo.Pipeline;
@@ -28,6 +29,7 @@ public sealed class RunContext : IDisposable
     private long diskWrittenBytes;
     private long pageEvictions;
     private long cachePeakBytes;
+    private readonly ProcessingTelemetryTracker telemetry;
 
     public RunContext(IProjectStore store,
         RunData run,
@@ -35,7 +37,8 @@ public sealed class RunContext : IDisposable
         Action<object>? output,
         ICheckpointStore checkpoints,
         IJsonCodec jsonCodec,
-        IFileOperations fileOperations, IBulkArtifactStore bulk, ProcessingResourcePlan resources, ProcessingMemoryTracker memory)
+        IFileOperations fileOperations, IBulkArtifactStore bulk, ProcessingResourcePlan resources, ProcessingMemoryTracker memory,
+        ProcessingTelemetryTracker telemetry)
     {
         Store = store;
         Run = run;
@@ -47,6 +50,7 @@ public sealed class RunContext : IDisposable
         this.bulk = bulk;
         Resources = resources;
         Memory = memory;
+        this.telemetry = telemetry;
         eventOptions = new JsonSerializerOptions(jsonCodec.Options)
         {
             WriteIndented = false
@@ -149,6 +153,7 @@ public sealed class RunContext : IDisposable
         var paging = data?.Statistics;
         return new ResourceProgress
         {
+            Processor = telemetry.Sample(Memory.ProcessIds()),
             WorkingSetBytes = usage.ResidentBytes,
             PeakWorkingSetBytes = usage.PeakBytes,
             ManagedBytes = usage.ManagedBytes,

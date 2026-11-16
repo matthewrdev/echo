@@ -12,6 +12,16 @@ struct RunProgress: Decodable {
     let total: Int?
     let updated: String?
 
+    var fractionCompleted: Double? {
+        guard let completed, let total, total > 0 else { return nil }
+        return min(1, max(0, Double(completed) / Double(total)))
+    }
+
+    var countSummary: String? {
+        guard let completed, let total, let fractionCompleted else { return nil }
+        return "\(completed.formatted()) of \(total.formatted()) \(unit ?? "items") · \(Int(fractionCompleted * 100))%"
+    }
+
     var updatedAt: Date? {
         guard let updated else { return nil }
         let parser = ISO8601DateFormatter()

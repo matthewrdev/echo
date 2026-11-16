@@ -12,9 +12,11 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private let commandLog: CLICommandLog?
     private var refreshing = false
     let projectThumbnails: ProjectThumbnailLoader?
+    let telemetry = TelemetryHistory()
 
     @Published var recentProjects: [RecentProject]
     @Published var openingProject = false
+    @Published var showsTelemetry = false
     @Published var openingError: String?
     @Published var root: String
     @Published var inspection: Inspection?
@@ -77,7 +79,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     var isWorking: Bool { busy || activeRun != nil }
     var showsProgress: Bool {
         let needsAttention = ["failed", "needs-input"].contains(inspection?.run?.status ?? "")
-        return isWorking || needsAttention
+        return isWorking || needsAttention || showsTelemetry
     }
     var viewingDescription: String {
         selectedRun == "latest" ? "Following latest results" : "Viewing saved run \(selectedRun.prefix(8))"
@@ -110,6 +112,21 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         return inspection?.run == nil
             ? "Choose a stage, then Process to that stage. Earlier stages run automatically."
             : "Choose a stage tab to inspect its saved output."
+    }
+
+    var progressActivity: String {
+        guard isWorking, !cancelRequested, let progress = workingRun?.progress,
+            let operation = progress.operation, !operation.isEmpty, progress.phase != "checking"
+        else { return progressTitle }
+        return operation
+    }
+
+    var progressDetail: String {
+        if cancelRequested { return "Stopping… completed checkpoints are retained." }
+        if isWorking, let progress = workingRun?.progress, let counts = progress.countSummary {
+            return counts
+        }
+        return progressMessage
     }
 
     var firstOutdatedStage: PipelineStage? {
@@ -232,6 +249,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
                 cancelRequested = false
                 cancellationRequestedAt = nil
             }
+            let measuredRun = workingRun ?? result.1.run
+            telemetry.record(root: requestedRoot, runID: measuredRun?.id, resources: measuredRun?.progress?.resources)
             if let run = result.1.run {
                 logs = try await logReader.read(root: requestedRoot, runID: run.id)
             } else {
@@ -308,6 +327,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         guard canEdit else { return }
         root = ""
         workingRun = nil
+        telemetry.record(root: root, runID: nil, resources: nil)
+        showsTelemetry = false
         inspection = nil
         runs = []
         logs = []
@@ -325,6 +346,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         inspection = nil
         runs = []
         workingRun = nil
+        telemetry.record(root: root, runID: nil, resources: nil)
+        showsTelemetry = false
         logs = []
         commands = []
         commandLogError = nil

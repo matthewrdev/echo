@@ -19,22 +19,6 @@ struct Artifact3DViewer: View {
                         observationIndex = 0
                     }
                 )
-                .overlay(alignment: .topLeading) {
-                    if let data = presentation.cloudInspection, !data.cameras.isEmpty {
-                        Menu {
-                            Button("Clear camera selection") { selected = nil }
-                            Divider()
-                            ForEach(data.cameraIDs, id: \.self) { imageID in
-                                Button(data.photos[imageID]?.name ?? imageID) { selected = .camera(imageID) }
-                            }
-                        } label: {
-                            Label("Select camera", systemImage: "camera")
-                        }
-                        .fixedSize().font(.caption).padding(8)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8)).padding(10)
-                        .help("Select a camera here or click its marker to highlight points inside its field of view")
-                    }
-                }
                 .overlay(alignment: .bottomLeading) {
                     if let data = presentation.cloudInspection, let scene = presentation.scene,
                         case .camera(let imageID) = selected

@@ -2,6 +2,10 @@ namespace Echo.Contracts;
 
 public sealed class ResourceProgress
 {
+    public ProcessorProgress? Processor
+    {
+        get; set;
+    }
     public DateTimeOffset SampledAt { get; set; } = DateTimeOffset.UtcNow;
     public long WorkingSetBytes
     {

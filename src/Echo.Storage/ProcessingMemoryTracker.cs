@@ -25,6 +25,14 @@ public sealed class ProcessingMemoryTracker : IDisposable
         return new WorkerMemoryRegistration(this, id);
     }
 
+    public IReadOnlyList<int> ProcessIds()
+    {
+        lock (gate)
+        {
+            return new[] { process.Id }.Concat(workers.Keys).ToArray();
+        }
+    }
+
     public MemoryUsage Sample()
     {
         lock (gate)

@@ -1,6 +1,7 @@
 import Foundation
 
 struct ResourceProgress: Decodable {
+    var processor: ProcessorProgress? = nil
     let sampledAt: String?
     let workingSetBytes: Int64
     let peakWorkingSetBytes: Int64
@@ -12,6 +13,15 @@ struct ResourceProgress: Decodable {
     let diskWrittenBytes: Int64
     let pageEvictions: Int64
     let scratchBytes: Int64
+
+    var sampledDate: Date? {
+        guard let sampledAt else { return nil }
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = parser.date(from: sampledAt) { return date }
+        parser.formatOptions = [.withInternetDateTime]
+        return parser.date(from: sampledAt)
+    }
 
     var summary: String {
         let gib = 1_073_741_824.0

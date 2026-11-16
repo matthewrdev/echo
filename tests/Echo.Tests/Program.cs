@@ -5,6 +5,11 @@ using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(ReconstructionTests).Assembly, typeof(Processor).Assembly, typeof(CommandApplication).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly);
 var scaleTests = new TestSuite();
+composition.Resolve<ProcessingTelemetryTests>().Run(scaleTests);
+if (args.Contains("--telemetry", StringComparer.Ordinal))
+{
+    return scaleTests.Finish();
+}
 if (args.Contains("--run-recovery", StringComparer.Ordinal))
 {
     composition.Resolve<RunRecoveryTests>().Run(scaleTests);

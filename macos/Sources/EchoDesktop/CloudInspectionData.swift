@@ -6,14 +6,6 @@ struct CloudInspectionData {
     let cameras: [String: CameraPose]
     let frustums: [String: CameraFrustum]
 
-    var cameraIDs: [String] {
-        cameras.keys.sorted {
-            let left = photos[$0]?.name ?? $0
-            let right = photos[$1]?.name ?? $1
-            return left == right ? $0 < $1 : left < right
-        }
-    }
-
     init(root: URL, cameras: [CameraPose], photos: [Photo]) {
         self.root = root
         self.photos = Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) })
