@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="A practical photogrammetry workbook: concepts, algorithms, Echo implementation, exercises and further reading.">
+<title>From photographs to surfaces · The Echo workbook</title>
+<style>
+:root { color-scheme: light; --paper:#f6f4ed; --white:#fffef9; --ink:#253530; --muted:#59685f; --line:#d6dcd2; --green:#1c6655; --soft:#e8efe5; --ochre:#8d571d; --warm:#f5ead5; --red:#9c3a32; --mono:ui-monospace,SFMono-Regular,Consolas,monospace; }
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; scroll-padding-top:24px; }
+body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+a { color:var(--green); text-underline-offset:3px; overflow-wrap:anywhere; }
+a:hover { color:#123f34; }
+button,input,textarea { font:inherit; }
+button,.button { background:var(--white); border:1px solid var(--line); border-radius:6px; color:var(--ink); padding:8px 13px; cursor:pointer; text-decoration:none; line-height:1.4; }
+button:hover,.button:hover { border-color:var(--green); background:var(--soft); }
+:focus-visible { outline:3px solid #b17836; outline-offset:4px; }
+.skip { position:absolute; left:12px; top:-80px; z-index:5; background:var(--white); padding:10px; }
+.skip:focus { top:12px; }
+.layout { display:grid; grid-template-columns:245px minmax(0,1fr); max-width:1440px; margin:auto; }
+aside { padding:32px 23px; border-right:1px solid var(--line); }
+.sidebar { position:sticky; top:22px; max-height:calc(100vh - 44px); overflow-y:auto; padding:4px; }
+.brand { font-size:18px; font-weight:750; letter-spacing:.14em; margin:0 0 4px; }
+.eyebrow { text-transform:uppercase; letter-spacing:.13em; font-size:12px; color:var(--green); font-weight:700; }
+.sidebar p { font-size:13px; line-height:1.5; color:var(--muted); }
+nav ol { list-style:none; margin:20px 0; padding:0; }
+nav a { display:flex; gap:10px; padding:6px 8px; font-size:13px; line-height:1.45; text-decoration:none; border-left:2px solid transparent; color:var(--muted); }
+nav a span { font:11px/1.7 var(--mono); color:var(--green); flex:0 0 22px; white-space:nowrap; }
+nav a.active { color:var(--ink); border-color:var(--green); background:var(--soft); }
+nav a.done::after { content:'✓'; margin-left:auto; color:var(--green); }
+progress { width:100%; height:6px; accent-color:var(--green); }
+.small { font-size:13px; color:var(--muted); }
+main { min-width:0; padding:58px clamp(24px,5vw,88px) 100px; max-width:1100px; }
+header { padding-bottom:50px; border-bottom:1px solid var(--line); }
+h1,h2 { font-family:Georgia,"Times New Roman",serif; font-weight:400; letter-spacing:-.035em; line-height:1.12; }
+h1 { font-size:clamp(42px,5.1vw,70px); max-width:780px; margin:20px 0; }
+h2 { font-size:clamp(32px,3.3vw,45px); margin:14px 0 25px; }
+h3 { font-size:20px; line-height:1.4; margin:32px 0 12px; }
+h4 { font-size:16px; margin:24px 0 8px; }
+p { margin:0 0 17px; }
+.lead { font-size:20px; line-height:1.6; max-width:690px; }
+.toolbar { display:flex; flex-wrap:wrap; gap:9px; margin-top:24px; align-items:center; }
+.toolbar label { font-size:13px; }
+.chapter { padding:55px 0 40px; border-bottom:1px solid var(--line); }
+.chapter-top { display:flex; justify-content:space-between; gap:15px; align-items:center; flex-wrap:wrap; }
+.completion { font-size:13px; color:var(--muted); display:inline-flex; align-items:center; gap:7px; cursor:pointer; }
+input[type=checkbox] { width:17px; height:17px; accent-color:var(--green); }
+.goal { padding:14px 0 14px 18px; border-left:3px solid var(--green); margin:0 0 25px; color:var(--muted); }
+.concept,.echo,.worked,.exercise { padding:20px 24px; margin:24px 0; border-radius:6px; }
+.concept { background:var(--soft); }
+.echo { border:1px solid var(--line); background:var(--white); }
+.worked { background:var(--warm); }
+.exercise { border-top:2px solid var(--green); background:var(--white); }
+.concept > :last-child,.echo > :last-child,.worked > :last-child,.exercise > :last-child { margin-bottom:0; }
+.label { font:700 11px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:.12em; text-transform:uppercase; display:block; color:var(--green); margin-bottom:10px; }
+.worked .label { color:var(--ochre); }
+.note { padding-left:15px; border-left:3px solid #b17836; color:var(--muted); }
+ul,ol { padding-left:24px; margin:12px 0 20px; }
+li { margin:8px 0; }
+li > ul,li > ol { margin-bottom:12px; }
+code { font-family:var(--mono); font-size:.85em; padding:2px 4px; background:#e9eae3; border-radius:3px; overflow-wrap:anywhere; }
+.formula { font:15px/1.8 var(--mono); padding:16px 20px; border-left:3px solid var(--ochre); background:var(--warm); margin:20px 0; overflow-wrap:anywhere; }
+.table-wrap { overflow-x:auto; margin:22px 0; }
+table { border-collapse:collapse; width:100%; font-size:14px; }
+th,td { text-align:left; vertical-align:top; border-bottom:1px solid var(--line); padding:12px 10px; }
+th { color:var(--green); font-weight:650; }
+caption { text-align:left; font-size:13px; color:var(--muted); margin-bottom:10px; }
+.reading { font-size:14px; margin:24px 0; }
+.reading p { margin-bottom:9px; }
+details { margin:12px 0; border:1px solid var(--line); padding:12px 16px; border-radius:5px; }
+summary { cursor:pointer; font-weight:650; }
+details[open] summary { margin-bottom:12px; }
+textarea { width:100%; min-height:135px; resize:vertical; padding:12px; border:1px solid var(--line); border-radius:5px; color:var(--ink); background:var(--white); }
+.notes-label { display:block; font-size:14px; margin:16px 0 6px; font-weight:600; }
+.print-note { display:none; white-space:pre-wrap; overflow-wrap:anywhere; }
+.pipeline { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; list-style:none; padding:0; counter-reset:step; }
+.pipeline li { border-top:2px solid var(--green); padding:13px 0 8px; margin:0; }
+.pipeline a { font-weight:650; text-decoration:none; display:block; }
+.pipeline span { display:block; font-size:13px; color:var(--muted); line-height:1.5; margin-top:6px; }
+figure { margin:28px 0; }
+figcaption { font-size:13px; color:var(--muted); margin-top:10px; }
+svg { display:block; width:100%; height:auto; overflow:visible; }
+svg text { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--ink); font-size:15px; }
+.lab { margin:26px 0; border:1px solid var(--line); padding:22px; border-radius:6px; background:var(--white); }
+.lab-grid { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+.lab label { display:block; font-size:14px; font-weight:600; }
+input[type=range] { width:100%; accent-color:var(--green); margin:10px 0; }
+.readout { font-family:var(--mono); padding:12px 0; color:var(--green); font-weight:600; }
+.glossary { display:grid; grid-template-columns:160px minmax(0,1fr); gap:10px 20px; }
+.glossary dt { font-weight:650; }
+.glossary dd { margin:0 0 10px; }
+.status { min-height:1.4em; }
+.footer { margin-top:35px; font-size:13px; color:var(--muted); }
+.no-js { padding:14px; background:var(--warm); }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+@media(max-width:1000px) { .layout { grid-template-columns:205px minmax(0,1fr); } aside { padding:25px 15px; } main { padding:40px 28px 80px; } }
+@media(max-width:740px) { .layout { display:block; } aside { border-right:0; border-bottom:1px solid var(--line); padding:18px 22px; } .sidebar { position:static; max-height:none; overflow:visible; } .sidebar nav ol { display:grid; grid-template-columns:1fr 1fr; margin:15px 0; } main { padding:30px 22px 60px; } .chapter { padding-top:38px; } .lab-grid { grid-template-columns:1fr; gap:8px; } .pipeline { grid-template-columns:1fr 1fr; } .concept,.echo,.worked,.exercise,.lab { padding:17px; } .glossary { grid-template-columns:1fr; gap:0; } .glossary dd { margin-bottom:16px; } }
+@media(max-width:740px) { svg text { font-size:22px; } }
+@media(max-width:390px) { .pipeline { grid-template-columns:1fr; } main { padding-left:16px; padding-right:16px; } .sidebar nav ol { grid-template-columns:1fr; } }
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+@media print { @page { margin:18mm; } :root { --paper:#fff; --white:#fff; } body { font-size:10.5pt; line-height:1.55; } .layout { display:block; } aside,.toolbar,.completion,.skip,.no-print,.lab input,.lab label,textarea,.notes-label { display:none!important; } main { max-width:none; padding:0; } h1 { font-size:38pt; } h2 { font-size:27pt; } h3 { font-size:15pt; } header { padding:0 0 20px; } .chapter { break-before:page; padding:0; border:0; } .chapter:first-of-type { break-before:auto; } h2,h3,h4,summary { break-after:avoid; } figure,.worked,.formula,.lab { break-inside:avoid; } .print-note:not(:empty) { display:block; border:1px solid #aaa; padding:12px; margin:14px 0; } .table-wrap { overflow:visible; } .reading a { overflow-wrap:anywhere; } .reading a[href^="https"]::after { content:' (' attr(href) ')'; font-size:8pt; } .concept,.echo,.exercise { padding:12px 14px; } .glossary { grid-template-columns:130px minmax(0,1fr); } a { color:inherit; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to workbook</a>
+<div class="layout">
+<aside><div class="sidebar">
+<p class="brand">ECHO / FIELDNOTES</p><p>A workbook in photogrammetry.<br>Read. Sketch. Explain. Inspect.</p>
+<nav aria-label="Workbook chapters"><ol>
+<li><a href="#start"><span>00</span> The whole journey</a></li>
+<li><a href="#foundations"><span>01</span> Cameras &amp; capture</a></li>
+<li><a href="#features"><span>02</span> Features &amp; descriptors</a></li>
+<li><a href="#matching"><span>03</span> Matching &amp; geometry</a></li>
+<li><a href="#alignment"><span>04</span> Alignment &amp; refinement</a></li>
+<li><a href="#depth"><span>05</span> Depth &amp; stereo</a></li>
+<li><a href="#cloud"><span>06</span> Dense point clouds</a></li>
+<li><a href="#fusion"><span>07</span> Volumetric fusion</a></li>
+<li><a href="#mesh"><span>08</span> Surfaces &amp; completion</a></li>
+<li><a href="#texture"><span>09</span> Photographic texture</a></li>
+<li><a href="#export"><span>10</span> Export &amp; checkpoints</a></li>
+<li><a href="#review"><span>11</span> Investigation lab</a></li>
+<li><a href="#glossary"><span>A–Z</span> Glossary &amp; reading path</a></li>
+</ol></nav>
+<label class="small" for="study-progress" id="progress-label">0 of 12 chapters reviewed</label>
+<progress id="study-progress" value="0" max="12" aria-labelledby="progress-label"></progress>
+<p class="small">Notes and progress stay in this browser when storage is available. Export a backup before moving the file or changing browsers.</p>
+</div></aside>
+<main id="content">
+<header>
+<div class="eyebrow">An illustrated learning workbook · November 2026</div>
+<h1>From photographs<br>to surfaces.</h1>
+<p class="lead">Learn how Echo turns a collection of overlapping photographs into a textured 3D model—one concept, algorithm and inspection at a time.</p>
+<p>This workbook starts with everyday explanations, then opens up the machinery: feature descriptors, epipolar geometry, camera estimation, bundle adjustment, stereo depth, TSDF fusion, surface completion and texture atlases.</p>
+<p class="small">Implementation baseline: Echo commit <code>a1fa517</code>, inspected 16 November 2026. Numerical examples and diagrams are teaching illustrations, not measurements from an Echo run. Defaults describe this source revision; existing projects may have different settings.</p>
+<div class="toolbar no-print">
+<button id="print-book" type="button">Print / save as PDF</button>
+<button id="export-notes" type="button">Export notes</button>
+<button id="import-notes" type="button">Import notes</button>
+<input id="notes-file" type="file" accept="application/json,.json" hidden>
+<label><input id="print-answers" type="checkbox"> Include answers when printing</label>
+</div>
+<p id="save-status" class="small status no-print" role="status" aria-live="polite">Your workbook is ready.</p>
+<noscript><p class="no-js">All chapters, diagrams and answer sections work without JavaScript. Interactive examples, automatic note saving and progress tracking require JavaScript. Use your browser’s Print command to print this workbook.</p></noscript>
+</header>
+<section class="chapter" id="start" data-chapter="00">
+<div class="chapter-top"><span class="eyebrow">Chapter 00 · Orientation</span></div>
+<h2>The whole journey</h2>
+<p class="goal">By the end, explain why Echo needs several different representations of the same cliff.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>You and a friend photograph a climbing wall from different places. You recognise the same holds in both photos. Those shared clues help you work out where you were standing and where the holds are. You add more detail, build a triangle skin over it, and put the photographs’ colours onto that skin.</p></div>
+<p>A photograph flattens a 3D scene onto a 2D image. Photogrammetry tries to recover the missing spatial information using agreement between overlapping views. The challenge is circular: camera locations help locate scene points, and scene points help locate cameras. The first part of the pipeline solves this relationship using a manageable set of distinctive landmarks. Later stages estimate far more surface detail.</p>
+<ol class="pipeline" aria-label="Echo pipeline, in processing order">
+<li><a href="#features">1 → Features</a><span>Photographs → recognisable 2D details</span></li>
+<li><a href="#matching">2 → Matching</a><span>Details → links between photographs</span></li>
+<li><a href="#alignment">3 → Alignment</a><span>Links → cameras + sparse 3D points</span></li>
+<li><a href="#depth">4 → Depth</a><span>Aligned photos → per-view distances</span></li>
+<li><a href="#cloud">5 → Dense cloud</a><span>Distances → validated coloured dots</span></li>
+<li><a href="#fusion">6 → Fusion</a><span>Depth evidence → a shared 3D field</span></li>
+<li><a href="#mesh">7 → Mesh</a><span>Field → connected triangle surface</span></li>
+<li><a href="#texture">8 → Texture</a><span>Surface + photos → photographic skin</span></li>
+<li><a href="#export">9 → Export</a><span>Geometry + colour → portable model</span></li>
+</ol>
+<h3>Three ideas that organise everything</h3>
+<p><strong>Correspondence:</strong> which observations refer to the same physical thing? <strong>Geometry:</strong> where are the cameras and surfaces? <strong>Appearance:</strong> what colours should a viewer display? These questions interact, but success at one does not guarantee success at the others. A realistic photograph projected onto a flat plane can look convincing from one angle.</p>
+<div class="table-wrap"><table><caption>The representations you will inspect</caption><thead><tr><th>Representation</th><th>What it contains</th><th>What it cannot establish by itself</th></tr></thead><tbody>
+<tr><td>Feature set</td><td>2D coordinates and appearance descriptors</td><td>Depth or physical scale</td></tr>
+<tr><td>Sparse cloud</td><td>Triangulated landmarks supporting camera alignment</td><td>A complete surface</td></tr>
+<tr><td>Depth map</td><td>Depth samples in one camera’s view</td><td>Hidden sides of the scene</td></tr>
+<tr><td>Dense cloud</td><td>Many 3D points, colours and support information</td><td>Connections between points</td></tr>
+<tr><td>Fused volume</td><td>Distance estimates on a spatial grid</td><td>A directly renderable triangle model</td></tr>
+<tr><td>Textured mesh</td><td>Triangles, UV coordinates and a colour image</td><td>Whether a plausible-looking region was observed or inferred</td></tr>
+</tbody></table></div>
+<h3>How to use this workbook</h3>
+<p>On your first pass, read the green concept boxes and inspect the diagrams. On a second pass, follow the numbered algorithms and work the examples. On a third pass, open a saved Echo reconstruction and answer each chapter’s inspection question. Write your answer before opening the suggested answer; being able to explain the process is more useful than recognising the terminology.</p>
+<p>The sidebar checkboxes track review, not mastery. Each chapter includes space for an explanation, a sketch description or observations from your own project. Export your notes as JSON for a portable backup. Import replaces notes for matching workbook fields and asks before doing so.</p>
+<div class="exercise"><span class="label">Review 00</span><p>A model has beautiful photographic cracks but looks flat when shown without its texture. Which representation was hiding the problem?</p><details class="answer"><summary>Suggested answer</summary><p>The texture supplied the visual cracks while the mesh lacked their geometric relief. Inspect depth maps, the dense cloud and the untextured mesh to find where shape detail was lost. Increasing texture resolution cannot create missing relief.</p></details></div>
+<div class="reading"><p><strong>Read next:</strong> <a href="https://colmap.github.io/tutorial.html">COLMAP’s reconstruction tutorial</a> — skim the SfM and MVS introductions for a second description of the overall process.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Pipeline/Processor.cs">Processor.cs</a> orders and runs the stages. The following chapters link the algorithms behind them.</p></div>
+</section>
+
+<section class="chapter" id="foundations" data-chapter="01">
+<div class="chapter-top"><span class="eyebrow">Chapter 01 · Before the pipeline</span></div>
+<h2>Cameras, capture &amp; parallax</h2>
+<p class="goal">Distinguish image position, camera pose, focal length, depth and real-world scale.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>A photo tells you which direction a rock is in, but not how far away it is. A second photo from another place gives another direction. Together, the directions can locate the rock.</p></div>
+<h3>The pinhole-camera idea</h3>
+<p>Imagine a tiny hole in a box. Light from a scene point passes through the hole to a spot on the image. A simplified camera model uses this geometry even though a real camera has a lens. In camera coordinates, a point is <code>(X, Y, Z)</code>; <code>Z</code> is its forward depth. Its image position depends on the ratios <code>X/Z</code> and <code>Y/Z</code>.</p>
+<div class="formula">u = f × X / Z + cₓ<br>v = f × Y / Z + cᵧ</div>
+<p>Here <code>u, v</code> are pixel coordinates, <code>f</code> is focal length measured in pixels, and <code>cₓ, cᵧ</code> locate the image centre. Focal length in pixels is different from a lens’s millimetre specification: it relates viewing angle to image resolution. These internal camera properties are <strong>intrinsics</strong>. The camera’s position and rotation in the scene are <strong>extrinsics</strong>, or its <strong>pose</strong>.</p>
+<div class="echo"><span class="label">Echo’s model</span><p>Echo’s projection uses a shared focal value for the horizontal and vertical directions and assumes the principal point is at the image centre. Alignment can refine focal lengths. The reconstructor explicitly reports that it does not perform lens-distortion calibration or survey control. This is a practical limitation to remember with strongly distorted lenses or measurement-sensitive work.</p></div>
+<h3>Parallax and baseline</h3>
+<p><strong>Baseline</strong> is the distance between camera positions. <strong>Parallax</strong> is the change in a point’s viewing direction. A distant cliff seen from nearly identical locations produces weak parallax. Small errors in feature location can then create large errors in estimated depth. A wider baseline can improve geometric leverage, but excessive viewpoint change makes appearance matching harder and reveals different occlusions.</p>
+<div class="lab" id="stereo-lab">
+<span class="label">Explore · Simplified parallel cameras</span>
+<p>This teaching model fixes focal length at 1,000 pixels. Change baseline or depth to see how disparity changes. Echo handles general camera poses; this schematic is not to scale and isolates one relationship.</p>
+<div class="lab-grid"><div><label for="baseline">Camera baseline <output id="baseline-value">1.0 m</output></label><input type="range" id="baseline" min="0.1" max="4" step="0.1" value="1"></div><div><label for="scene-depth">Point depth <output id="depth-value">10 m</output></label><input type="range" id="scene-depth" min="5" max="40" step="1" value="10"></div></div>
+<svg viewBox="0 0 620 240" role="img" aria-labelledby="stereo-title stereo-desc"><title id="stereo-title">Two viewing rays meet at a scene point</title><desc id="stereo-desc">A top-down schematic shows two cameras at the bottom and a point above them. Greater camera separation opens the angle between the rays.</desc><line x1="40" y1="195" x2="580" y2="195" stroke="#d6dcd2"/><path id="stereo-rays" d="M270 195 L310 80 L350 195" fill="none" stroke="#1c6655" stroke-width="2.5"/><circle id="camera-left" cx="270" cy="195" r="7" fill="#1c6655"/><circle id="camera-right" cx="350" cy="195" r="7" fill="#1c6655"/><circle id="scene-point" cx="310" cy="80" r="7" fill="#a76b29"/><text id="point-label" x="324" y="74">Scene point</text><text id="camera-left-label" x="230" y="225">Camera A</text><text id="camera-right-label" x="350" y="225">Camera B</text></svg>
+<p class="readout" id="stereo-result" aria-live="polite">Disparity = 100 px · about 0.10 m depth change for 1 px disparity error</p>
+</div>
+<div class="formula">For parallel, rectified cameras: disparity d = f × B / Z<br>Depth Z = f × B / d<br>Small-error estimate: |ΔZ| ≈ Z² × |Δd| / (f × B)</div>
+<p>These formulas explain why distance hurts depth precision and why resizing images affects the pixel-scale calculation. They assume a rectified stereo arrangement; do not insert arbitrary raw-image coordinate differences into them.</p>
+<h3>Capture as a connected network</h3>
+<p>Photographs should form a chain of overlapping observations with redundant connections. A single bridge photo between two otherwise separate groups is fragile: if that photo fails to match, the reconstruction can split. Move between exposures, retain substantial overlap, and include different heights or angles when you need overhangs. Photographing only the front cannot measure a hidden back surface.</p>
+<p>Stable, sharp, textured surfaces are easier than shiny, transparent or moving ones. Repeated patterns can create false matches. A blank wall offers little evidence. These are failures of available information, not merely settings that need increasing.</p>
+<div class="worked"><span class="label">Worked example · Scale ambiguity</span><p>A toy cliff photographed nearby and a much larger cliff photographed farther away can produce equivalent image geometry. Visual reconstruction therefore needs an external length or position reference to establish physical scale. Echo can use GPS/hints, but approximate location information does not make the resulting model survey-grade.</p></div>
+<div class="exercise"><span class="label">Review 01</span><ol><li>With <code>f = 1,000 px</code>, <code>B = 1 m</code> and <code>d = 50 px</code>, what is depth?</li><li>What happens to disparity if baseline doubles?</li><li>Why does rotating a camera in one place fail to provide a useful translational baseline?</li></ol><details class="answer"><summary>Suggested answers</summary><p>1. Depth is 20 m. 2. It doubles to 100 px for the same point in this simplified geometry. 3. The camera centre does not move, so the new image does not add a second spatial origin for triangulation. Rotation can reveal more scene coverage but does not by itself determine depths.</p></details></div>
+<div class="reading"><p><strong>Accessible:</strong> <a href="https://docs.opencv.org/4.x/dd/d53/tutorial_py_depthmap.html">OpenCV: depth from stereo images</a>. <strong>Reference:</strong> <a href="https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html">Camera projection and calibration</a>.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Geometry/CameraGeometry.cs">CameraGeometry.cs</a> · <a href="../src/Echo.Reconstruction/Reconstructor.cs">Reconstructor.cs</a></p></div>
+</section>
+
+<section class="chapter" id="features" data-chapter="02">
+<div class="chapter-top"><span class="eyebrow">Chapter 02 · Pipeline stage: features</span></div>
+<h2>Features &amp; descriptors</h2>
+<p class="goal">Explain the difference between finding an interesting location and describing its appearance.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>First, circle recognisable spots in each photograph. Then write a short description of the pattern around each spot so you can find it in another photograph—even if it is bigger or turned around.</p></div>
+<h3>Detection versus description</h3>
+<p>A <strong>detector</strong> proposes locations. A <strong>descriptor</strong> turns the nearby appearance into numbers. A point’s image coordinates identify where it is within one image; its descriptor helps establish which point it corresponds to in another. A descriptor is not a unique physical ID: different rock cracks can have similar patterns.</p>
+<p>A long, uniform edge is hard to locate along its own direction. A corner, junction or distinct blob supplies more localisation information. Good features should recur across images and remain recognisable under moderate viewpoint, scale and lighting changes. No detector is invariant to every change.</p>
+<h3>Echo’s scale-space algorithm</h3>
+<ol><li><strong>Prepare the image.</strong> Resize and convert to greyscale. Matching initially depends on intensity structure.</li><li><strong>Build a Gaussian pyramid.</strong> Make progressively blurred versions. A Gaussian blur averages nearby pixels with greater weight near the centre.</li><li><strong>Subtract neighbouring blur levels.</strong> These difference-of-Gaussian images emphasise structures at particular sizes.</li><li><strong>Find scale-space extrema.</strong> Look for distinctive maxima or minima across image position and blur level. Downsample to another octave to detect larger structures economically.</li><li><strong>Estimate orientation.</strong> Build a histogram of local gradient directions and use strong peaks as reference directions.</li><li><strong>Describe the neighbourhood.</strong> Rotate the sampling frame to the reference direction, collect gradient histograms, normalise, clip large entries and normalise again.</li><li><strong>Retain the strongest candidates.</strong> Apply the configured feature budget and map coordinates back to the original image size.</li></ol>
+<div class="echo"><span class="label">Implementation detail</span><p>This is a SIFT-style implementation within Echo. The descriptor has a 4 × 4 spatial grid with 8 orientation bins per cell: <strong>4 × 4 × 8 = 128 numbers</strong>. Echo’s orientation histogram uses 36 bins and can assign multiple strong orientations. The descriptor is L2-normalised, entries are capped at 0.2, and it is normalised again. These statements describe Echo’s code; they do not imply it uses OpenCV’s SIFT implementation.</p></div>
+<figure><svg viewBox="0 0 600 180" role="img" aria-labelledby="descriptor-title"><title id="descriptor-title">A feature neighbourhood becomes sixteen local direction histograms and a 128-number descriptor</title><rect x="16" y="18" width="144" height="144" fill="#e8efe5" stroke="#1c6655"/><path d="M52 18V162 M88 18V162 M124 18V162 M16 54H160 M16 90H160 M16 126H160" stroke="#a7bcae"/><path d="M30 42L43 30 M67 41L78 30 M99 40L113 28 M134 41L146 29 M30 76L43 64 M67 76L79 64 M99 77L111 65 M134 77L146 65" stroke="#1c6655" stroke-width="3"/><text x="185" y="66">16 cells</text><text x="185" y="95">× 8 direction bins</text><text x="185" y="124">= 128 values</text><rect x="385" y="35" width="190" height="112" rx="4" fill="#f5ead5"/><text x="403" y="72">[0.02, 0.11, 0.04,</text><text x="403" y="99"> 0.00, …, 0.08]</text><text x="403" y="128">Descriptor</text></svg><figcaption>Schematic values. Gradient direction describes how brightness changes locally; it is not a surface normal in 3D.</figcaption></figure>
+<h3>Echo’s additional clues</h3>
+<p>Line detection is enabled by default. Echo also detects junctions where lines meet, adding potentially useful localisation cues for cracks and edges. Line descriptors are matched separately; a matched line segment should not be mistaken for a finished 3D line reconstruction. When scale-invariant features are disabled, the feature extractor takes a separate corner-based path.</p>
+<div class="worked"><span class="label">Reason through it</span><p>Two photos show the same hold at 30 pixels and 60 pixels across. A fixed-size descriptor window may cover the whole hold in one photo and only its centre in the other. Detecting an appropriate scale and sampling a corresponding neighbourhood makes the descriptions more comparable.</p></div>
+<p><strong>Inspect in Echo:</strong> are features spread across the rock you care about, or mostly on trees and background detail? A high count concentrated in one corner is weaker coverage than a well-distributed set.</p>
+<div class="exercise"><span class="label">Review 02</span><p>Explain why 6,000 detected features do not mean 6,000 correct matches. What would happen if you raised the feature budget on a completely blank wall?</p><details class="answer"><summary>Suggested answer</summary><p>Features are independently detected candidates. They can be absent from other views, look ambiguous, belong to moving objects or be poorly localised. Increasing a budget cannot add image structure that was never captured; it may retain weaker, noisier candidates instead.</p></details></div>
+<div class="reading"><p><strong>Accessible:</strong> <a href="https://docs.opencv.org/4.x/da/df5/tutorial_py_sift_intro.html">SIFT explained with images</a>. <strong>Original paper:</strong> <a href="https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf">Lowe, Distinctive Image Features from Scale-Invariant Keypoints</a>.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Features/FeatureExtractor.cs">FeatureExtractor.cs</a> · <a href="../src/Echo.Features/ScaleSpaceFeatures.cs">ScaleSpaceFeatures.cs</a> · <a href="../src/Echo.Features/GradientDescriptor.cs">GradientDescriptor.cs</a></p></div>
+</section>
+
+<section class="chapter" id="matching" data-chapter="03">
+<div class="chapter-top"><span class="eyebrow">Chapter 03 · Pipeline stage: matching</span></div>
+<h2>Matching &amp; geometric verification</h2>
+<p class="goal">Explain why “looks similar” and “fits the same scene geometry” are separate tests.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>Lots of jigsaw pieces have similar colours. First choose pieces that look promising. Then check whether their shapes actually fit together.</p></div>
+<h3>First choose which photographs to compare</h3>
+<p>For <code>N</code> photos, comparing every unordered pair gives <code>N(N−1)/2</code> pairs. That is 4,950 pairs for 100 photos and 499,500 for 1,000. Most may not overlap. Echo selects candidates using capture sequence, spatial proximity, viewing overlap and supplied hints, with an all-pairs setting available. Pair selection can omit a useful connection, so matching quality depends on this earlier decision too.</p>
+<h3>Three descriptor checks</h3>
+<ol><li><strong>Nearest neighbour:</strong> find the descriptor with the smallest difference.</li><li><strong>Mutual agreement:</strong> A’s best candidate must also choose A as its best candidate. This discourages many details collapsing onto one lookalike.</li><li><strong>Ambiguity and distance:</strong> the best candidate must beat the runner-up sufficiently and be close enough in absolute descriptor distance.</li></ol>
+<div class="formula">Echo descriptor distance D(a,b) = Σᵢ(aᵢ − bᵢ)²<br>Ratio condition: Dbest &lt; threshold × Dsecond<br>Absolute condition: Dbest ≤ distance limit</div>
+<p class="note">Echo uses <strong>squared Euclidean distances</strong> here. Its default ratio threshold of 0.72 is applied directly to those squared values; it corresponds to about 0.849 on ordinary Euclidean-distance ratios. Do not copy a threshold from another implementation without checking which distance it uses.</p>
+<div class="lab"><span class="label">Explore · Ambiguous or distinctive?</span><p>The best squared distance is fixed at 0.20. Move the runner-up’s squared distance. The other descriptor gates are assumed to pass; geometric verification still comes later.</p><label for="runner-distance">Runner-up squared distance <output id="runner-value">0.50</output></label><input id="runner-distance" type="range" min="0.20" max="0.80" step="0.01" value="0.50"><p id="ratio-result" class="readout" aria-live="polite">0.20 / 0.50 = 0.40 → passes the 0.72 ratio test</p></div>
+<h3>Epipolar geometry: a powerful constraint</h3>
+<p>A point in photo A defines a ray into the world. From camera B, possible positions along that ray project onto an <strong>epipolar line</strong>. Its matching observation should lie on that line. A <strong>fundamental matrix</strong>, F, encodes this relation between two images without needing the final 3D scene.</p>
+<div class="formula">x′ᵀ F x ≈ 0, where x = [u, v, 1]ᵀ</div>
+<p>The exact equation is less important than its role: a match must fit a common relationship shared by the pair, not merely resemble one patch. Noise means matches lie near the line rather than exactly on it. Echo uses a Sampson-style error, an approximation to geometric correction error, to score agreement.</p>
+<h3>RANSAC: find a trustworthy consensus</h3>
+<ol><li>Randomly select a small subset of candidate matches.</li><li>Fit a model to that subset.</li><li>Count how many other matches agree within a tolerance: the <strong>inliers</strong>.</li><li>Repeat, keeping a strong consensus and refining it using its inliers.</li></ol>
+<div class="echo"><span class="label">Echo’s specific path</span><p>Echo fits the fundamental matrix with normalised eight-point samples, requires at least 12 supporting matches for an estimate, and adapts its RANSAC iteration limit. Promising consensuses are refitted. The pixel threshold scales with image size. Matching records verification flags; alignment rechecks geometry and consumes the filtered matches. Manual tie points are retained as explicit constraints but do not count as proof of an automatically verified geometric fit.</p></div>
+<p><strong>Why normalisation matters:</strong> raw pixel coordinates can be large and unevenly distributed. Moving and scaling them into a better numerical range makes the matrix estimation better conditioned. <strong>Why RANSAC is not a guarantee:</strong> repeated structure or poorly conditioned geometry can produce a misleading consensus. The later reconstruction still needs triangulation and consistency checks.</p>
+<div class="exercise"><span class="label">Review 03</span><p>Candidate A has best/second squared distances 0.20/0.25. Candidate B has 0.20/0.50. Which passes Echo’s 0.72 ratio check? Why can the passing match still be wrong?</p><details class="answer"><summary>Suggested answer</summary><p>A has ratio 0.80 and fails. B has ratio 0.40 and passes. B is distinctive among the candidates, but its best candidate can still be a wrong lookalike, a moving object or a false geometric correspondence. Descriptor tests are necessary filters, not physical proof.</p></details></div>
+<div class="reading"><p><strong>Accessible:</strong> <a href="https://docs.opencv.org/4.x/dc/dc3/tutorial_py_matcher.html">Feature matching</a> · <a href="https://docs.opencv.org/4.x/da/de9/tutorial_py_epipolar_geometry.html">Epipolar geometry with diagrams</a>.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Pipeline/ImagePairSelector.cs">ImagePairSelector.cs</a> · <a href="../src/Echo.Matching/DescriptorMatcher.cs">DescriptorMatcher.cs</a> · <a href="../src/Echo.Geometry/FundamentalMatrixEstimator.cs">FundamentalMatrixEstimator.cs</a> · <a href="../src/Echo.Geometry/ImagePairVerifier.cs">ImagePairVerifier.cs</a></p></div>
+</section>
+<section class="chapter" id="alignment" data-chapter="04">
+<div class="chapter-top"><span class="eyebrow">Chapter 04 · Pipeline stage: alignment</span></div>
+<h2>Locating cameras, refining structure</h2>
+<p class="goal">Understand triangulation, camera registration, reprojection error and bundle adjustment as parts of one estimation problem.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>You have photographs taken from unknown places. Move pretend cameras and pretend landmarks around until the pretend photos line up with the real ones. First get a rough arrangement; then carefully improve it.</p></div>
+<h3>4.1 Establish a starting arrangement</h3>
+<p>Optimisation needs a useful starting point. Echo can seed camera poses from available location and attitude information. Otherwise it tries strongly matched image pairs. With camera intrinsics, their fundamental matrix can be converted into an <strong>essential matrix</strong>, which constrains relative rotation and translation direction. Recovering a relative pose does not supply an absolute distance between cameras.</p>
+<p>Echo decomposes the relative geometry into candidate poses and tests points in front of the cameras. This is the <strong>cheirality</strong> check: a mathematically possible solution with the scene behind a camera is not a physically useful reconstruction.</p>
+<h3>4.2 Triangulate sparse landmarks</h3>
+<p>Cast viewing rays from the cameras through corresponding image locations. Real rays usually do not meet perfectly because of noise, lens-model error and imperfect camera estimates. Triangulation chooses a point consistent with those rays and checks its projections. A tiny intersection angle is unstable: a small angular change can move the intersection a long way.</p>
+<h3>4.3 Register additional cameras</h3>
+<p>Once some 3D points exist, find their corresponding 2D observations in a new photo. Estimating a camera from these 3D-to-2D correspondences is the camera-resection or <strong>Perspective-n-Point</strong> problem. Echo’s registration path uses calibrated direct linear estimation with RANSAC, followed by the shared refinement process. It is not necessary to claim a particular library PnP solver to understand the role.</p>
+<h3>4.4 Bundle adjustment</h3>
+<p><strong>Reprojection</strong> means projecting an estimated 3D point back into an estimated camera. <strong>Reprojection error</strong> is the distance in pixels from that projection to the actual observed feature. Bundle adjustment changes camera and point parameters together to reduce these discrepancies across the whole set of observations.</p>
+<div class="formula">Conceptual objective:<br>sum of robust reprojection penalties + camera/focal prior penalties</div>
+<div class="worked"><span class="label">Worked example · A single observation</span><p>A detected feature is at pixel (400, 300). The current model projects the landmark to (403, 304). The reprojection error is √(3² + 4²) = 5 pixels. Moving the landmark can reduce that error in one photo but increase it in another. Joint optimisation finds a compromise across the observations.</p></div>
+<p>Echo groups observations into <strong>tracks</strong>, representing one landmark across multiple photos. It adjusts camera positions and rotations, landmark positions, and shared focal parameters for matching camera groups. GPS acts as a soft prior where available: the optimisation can trade a position change against image agreement. It also restrains focal changes.</p>
+<details><summary>Inside the solver: damping, robust weights and the Schur complement</summary><p>Echo builds a local quadratic approximation to the current fitting problem. Large image residuals receive reduced influence through robust weighting. Damping, controlled by a parameter often called lambda, makes proposed updates more conservative when a solve is unreliable or a step worsens the objective.</p><p>The point variables occur in small blocks. Echo eliminates those blocks to form a camera system, solves that system with Cholesky factorisation, then recovers point updates. This block elimination is the Schur-complement idea: exploit the problem’s structure rather than solve one undifferentiated giant system.</p><p>Improving steps are accepted and damping is reduced; failed steps are rejected and damping increases. This is a Levenberg–Marquardt-style strategy. A good initialisation still matters because a local optimiser cannot guarantee the globally correct scene.</p></details>
+<h3>4.5 Guided recovery and a second assessment</h3>
+<p>Echo’s optional guided pass uses estimated pair geometry to constrain another search for matches. Recovered correspondences are checked against established 3D landmarks before another joint refinement. An evaluator compares the result with the established alignment; a rejected or unstable recovery leaves the original verified scene in place. The setting is enabled by default in this revision.</p>
+<p><strong>Inspect in Echo:</strong> camera placement should form a plausible capture path, and the sparse cloud should resemble the intended scene. Check unplaced images and the bundle report. Low reprojection error alone does not prove correct scale, complete coverage or absence of systematic lens error.</p>
+<div class="exercise"><span class="label">Review 04</span><ol><li>Explain bundle adjustment without using the words “optimise” or “minimise”.</li><li>Why would GPS be treated as a soft prior rather than unquestionable truth?</li><li>Why is a recovery pass allowed to return to the initial solution?</li></ol><details class="answer"><summary>Suggested answers</summary><p>1. Move the virtual cameras and landmarks together until their projected locations line up better with the measured spots in all photos. 2. GPS positions can be noisy and may conflict with visual evidence. 3. Additional matches can be wrong or destabilise a previously consistent solution; more correspondences are useful only when they improve reliable support.</p></details></div>
+<div class="reading"><p><strong>Overview:</strong> <a href="https://colmap.github.io/tutorial.html#sparse-reconstruction">Sparse reconstruction</a>. <strong>Deeper:</strong> <a href="https://ceres-solver.readthedocs.io/latest/nnls_tutorial.html#bundle-adjustment">Ceres’s bundle-adjustment explanation</a> — a conceptual reference; Echo implements its own solver.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Reconstruction/Reconstructor.cs">Reconstructor.cs</a> · <a href="../src/Echo.Reconstruction/CameraRegistrar.cs">CameraRegistrar.cs</a> · <a href="../src/Echo.Optimization/BundleAdjuster.cs">BundleAdjuster.cs</a> · <a href="../src/Echo.Reconstruction/AlignmentRecoveryEvaluator.cs">AlignmentRecoveryEvaluator.cs</a></p></div>
+</section>
+
+<section class="chapter" id="depth" data-chapter="05">
+<div class="chapter-top"><span class="eyebrow">Chapter 05 · Pipeline stage: depth</span></div>
+<h2>Depth from multiple views</h2>
+<p class="goal">Explain how a depth hypothesis becomes a patch comparison, and why missing depth can be a sensible result.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>Pretend a patch of rock is 5 metres away, then 6, then 7. For each guess, work out where it would appear in the other photographs. Keep a distance only when the pictures agree well enough.</p></div>
+<h3>5.1 Plan the search</h3>
+<p>Echo uses the aligned sparse scene to estimate a useful distance interval, unless configured to use a manual one. It selects neighbouring cameras with compatible viewing directions and favours useful separation when suitable candidates exist. The closest camera is not always the best stereo partner: its baseline may be too small to constrain depth.</p>
+<h3>5.2 Search in inverse depth</h3>
+<p>The global candidate depths are spaced uniformly in <strong>inverse depth</strong>, <code>1/Z</code>. In simple stereo geometry, disparity is proportional to inverse depth, so this spreads candidates more evenly in image displacement than uniform metre steps. This is a depth-hypothesis search using fronto-parallel patches, not a claim that the code runs a generic PatchMatch implementation.</p>
+<div class="worked"><span class="label">Worked example · Five search planes</span><p>For an interval from 2 to 10 scene units, inverse depth runs from 0.5 to 0.1. Five equally spaced inverse-depth samples are 0.5, 0.4, 0.3, 0.2 and 0.1. Their depths are <strong>2, 2.5, 3.33, 5 and 10</strong>. Notice how the depth gaps widen farther from the camera.</p></div>
+<h3>5.3 Compare a warped patch</h3>
+<ol><li>Take a 5 × 5 set of greyscale samples around the reference pixel. Subtract its average brightness.</li><li>For a proposed depth, place that small patch on a plane facing the reference camera.</li><li>Project its samples into a neighbouring camera using the estimated camera geometry.</li><li>Sample the neighbour’s image and compare the brightness variation using normalised cross-correlation.</li><li>Repeat across depths and views, retaining a supported low-cost candidate.</li></ol>
+<div class="formula">Patch cost = 1 − normalised correlation<br>Similar brightness patterns → correlation near 1 → cost near 0</div>
+<p>Normalisation makes the comparison less sensitive to simple brightness shifts and scaling. It does not fix strong shadows, reflections, changed content or incorrect geometry. A patch with almost no intensity variation has little evidence to correlate. Echo rejects such weak patches.</p>
+<div class="echo"><span class="label">Echo’s acceptance logic</span><p>When enough usable neighbours exist, the cost combines the two best supporting views, allowing another neighbour to be occluded or unsuitable. Poor matches are rejected. During global search, comparably good but geometrically distinct alternatives are treated as ambiguous. A local interpolation around a well-shaped cost minimum can refine the selected depth between sampled hypotheses.</p></div>
+<h3>5.4 Coarse-to-fine refinement</h3>
+<p>Echo starts at a small image width, up to 160 pixels, and increases resolution to the configured depth width. Coarse estimates guide a smaller search at the next level. If a coarse estimate is missing or rejected, the finer level can search the full interval again: failure at a blurry level does not establish that no surface exists. Unsupported samples are filtered at each level.</p>
+<p>The resulting depth is measured along the camera’s forward axis in this model, rather than always being the Euclidean range along a normalised ray. Off-axis pixels therefore need the camera model when converted into world points.</p>
+<h3>5.5 Optional semantic filtering and cliff recovery</h3>
+<p>When enabled by relevant settings, Echo runs a local segmentation model to estimate sky, vegetation and rock labels. Sky suppression removes depth estimates in sky regions. These labels are predictions, so they can be mistaken; they do not directly supply metric depth.</p>
+<p>Cliff recovery targets bounded missing regions classified as rock. It examines finer source imagery, searches near supported depth anchors and checks photometric and geometric support against the <em>original</em> depth maps. Newly recovered values do not validate one another in a circular chain. Existing valid samples are preserved. This is a targeted second measurement attempt; the later Poisson completion stage has a different role.</p>
+<div class="note"><p><strong>Confidence is not a probability.</strong> Echo’s stereo confidence is derived from matching cost. A value such as 0.92 does not mean “92% chance that the depth is correct”. Similar-looking wrong patches or incorrect camera poses can still score well.</p></div>
+<p><strong>Inspect in Echo:</strong> look for coherent surfaces, missing regions, suspicious sky depths and edges that bleed between foreground and background. Compare each suspicious region with its source photographs before changing search density.</p>
+<div class="exercise"><span class="label">Review 05</span><p>Two widely different depths produce almost equally good patch matches. Should the system simply choose the lower-cost one? How is cliff recovery different from smoothing a hole shut?</p><details class="answer"><summary>Suggested answer</summary><p>The match is ambiguous; a tiny cost advantage may be noise. Rejecting the estimate can be safer than creating false geometry. Cliff recovery searches the photographs for additional evidence and validates it against original depth maps. Surface smoothing or completion imposes geometric continuity where measurements may still be absent.</p></details></div>
+<div class="reading"><p><strong>Accessible:</strong> <a href="https://docs.opencv.org/4.x/dd/d53/tutorial_py_depthmap.html">Stereo depth intuition</a>. <strong>Context:</strong> <a href="https://colmap.github.io/tutorial.html#multi-view-stereo">Multi-View Stereo</a>.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Depth/DepthEstimator.cs">DepthEstimator.cs</a> · <a href="../src/Echo.Depth/DepthNeighbourSelector.cs">DepthNeighbourSelector.cs</a> · <a href="../src/Echo.Depth/CliffDepthRecovery.cs">CliffDepthRecovery.cs</a> · <a href="../src/Echo.Pipeline/CliffRecoveryArtifacts.cs">CliffRecoveryArtifacts.cs</a></p></div>
+</section>
+
+<section class="chapter" id="cloud" data-chapter="06">
+<div class="chapter-top"><span class="eyebrow">Chapter 06 · Pipeline stage: cloud</span></div>
+<h2>From depth maps to coloured points</h2>
+<p class="goal">Distinguish image-space depth, world-space points and cross-view consistency.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>Each reliable distance tells you where to place a coloured pin in space. Before keeping a pin, ask whether another photograph agrees that something belongs there.</p></div>
+<h3>6.1 Back-project each candidate</h3>
+<p>Projection maps a 3D point into an image. <strong>Back-projection</strong> takes an image pixel and an estimated depth back into 3D. A camera-space point is constructed using the focal length and image centre, rotated into world orientation, then translated by the camera centre.</p>
+<div class="formula">Camera point = Z × [(u−cₓ)/f, (v−cᵧ)/f, 1]<br>World point = camera centre + camera-to-world rotation × camera point</div>
+<div class="worked"><span class="label">Worked example</span><p>At <code>u−cₓ = 100 px</code>, <code>v−cᵧ = 0</code>, <code>f = 1,000 px</code>, and <code>Z = 10</code>, the point is <code>(1, 0, 10)</code> in camera coordinates. Its distance from the camera centre is √101 ≈ 10.05, illustrating the difference between forward depth and radial range.</p></div>
+<h3>6.2 Ask neighbouring maps to corroborate it</h3>
+<ol><li>Reject invalid or non-positive depths.</li><li>Construct the candidate world point.</li><li>Check that a neighbouring camera provides enough angular separation to be useful.</li><li>Project into that view and compare with its estimated surface depth.</li><li>Reproject the neighbour’s surface estimate into the reference image and check the pixel discrepancy.</li><li>Retain the point if enough neighbours support it, then attach its source colour.</li></ol>
+<div class="echo"><span class="label">Echo’s default gates</span><p>This revision considers up to 8 cloud neighbours, requires support from at least 1 neighbour, uses a relative depth tolerance of 0.01, a reprojection tolerance of 1.5 pixels and a minimum parallax angle of 0.5°. These are implementation defaults, not universal recommendations. Cloud confidence stores the fraction of selected neighbours that supported the sample; it differs from stereo matching confidence.</p></div>
+<h3>What “dense” does and does not mean</h3>
+<p>The cloud samples many more image locations than the sparse landmarks used for camera alignment. It still has holes where evidence fails. Multiple images can contribute nearby or overlapping samples; this cloud is not automatically a unique, perfectly uniform set of surface points. It has no triangle connectivity and does not decide what lies between points.</p>
+<p><strong>Inspect in Echo:</strong> a second layer behind the cliff can indicate inconsistent depths or alignment. Floating specks can indicate weak support. A large hole can result from either missing measurements or strict validation. Check earlier representations to distinguish the two.</p>
+<div class="exercise"><span class="label">Review 06</span><p>Why is support from a nearly identical camera position less informative than support from a view with useful parallax? If the cloud has a hole but depth maps contain samples there, where would you investigate?</p><details class="answer"><summary>Suggested answer</summary><p>Nearly parallel rays constrain distance weakly and can share similar ambiguity. In the second case, investigate cloud consistency checks, neighbour selection, parallax and reprojection disagreements. The samples may exist but fail to corroborate one another.</p></details></div>
+<div class="reading"><p><strong>Visual introduction:</strong> <a href="https://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html">Open3D: point clouds</a> — focus on what point sets look like and how sampling changes them.</p><p><strong>Echo source:</strong> <a href="../src/Echo.DenseCloud/CloudBuilder.cs">CloudBuilder.cs</a> · <a href="../src/Echo.Geometry/DepthView.cs">DepthView.cs</a></p></div>
+</section>
+
+<section class="chapter" id="fusion" data-chapter="07">
+<div class="chapter-top"><span class="eyebrow">Chapter 07 · Pipeline stage: fusion</span></div>
+<h2>Combining evidence in a volume</h2>
+<p class="goal">Explain a signed distance field, weighted fusion, truncation and the difference between unknown space and observed empty space.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>Several people measure the same wall, but their rulers disagree slightly. Combine the readings, trust the more precise ones more, and write the answer into a grid around the wall.</p></div>
+<h3>7.1 A field instead of a pile of points</h3>
+<p>A voxel is a small cell in 3D space. A <strong>signed distance field</strong> assigns distance-like values around a surface. Its zero crossing marks the surface. Echo uses a projective TSDF: <strong>truncated signed distance function</strong>. Each camera contributes distance evidence based on its depth observation. “Projective” matters: these are camera-based distance estimates, not necessarily exact shortest distances to the final surface.</p>
+<figure><svg viewBox="0 0 620 170" role="img" aria-labelledby="tsdf-title"><title id="tsdf-title">A one-dimensional slice through the signed distance field</title><line x1="28" y1="87" x2="592" y2="87" stroke="#59685f" stroke-width="2"/><line x1="338" y1="28" x2="338" y2="135" stroke="#a76b29" stroke-width="4"/><circle cx="56" cy="87" r="9" fill="#1c6655"/><text x="22" y="145">Camera</text><text x="104" y="51">In front: positive</text><text x="362" y="51">Behind: negative</text><text x="283" y="161">Surface: zero</text><text x="125" y="113">+0.4</text><text x="237" y="113">+0.1</text><text x="386" y="113">−0.1</text><text x="505" y="113">unknown</text><path d="M489 72L515 101 M489 101L515 72" stroke="#9c3a32" stroke-width="2"/></svg><figcaption>Conceptual slice using Echo’s front-positive sign convention. Far behind a measured surface is occluded; a camera cannot vote confidently about what exists there.</figcaption></figure>
+<h3>7.2 Weighted integration</h3>
+<div class="formula">Fused value D = Σ(wᵢ × dᵢ) / Σwᵢ</div>
+<p>Here each <code>dᵢ</code> is distance evidence at one grid location and <code>wᵢ</code> is its weight. The zero crossing of the combined field becomes a candidate surface. Averaging can reduce independent measurement noise, but systematic alignment errors do not disappear just because many readings are combined.</p>
+<div class="lab"><span class="label">Explore · Two measurements at one location</span><p>Measurement A contributes +0.02; B contributes −0.04. Hold B’s weight at 1 and change A’s weight. Units are arbitrary scene units. This demonstrates the weighted average only, not Echo’s full integration logic.</p><label for="fusion-weight">Weight of A <output id="fusion-weight-value">4</output></label><input type="range" id="fusion-weight" min="1" max="10" step="1" value="4"><p class="readout" id="fusion-result" aria-live="polite">(4 × 0.02 − 0.04) / 5 = +0.0080</p></div>
+<h3>7.3 Truncation and uncertainty</h3>
+<p>Distance observations are most meaningful near their measured surface. A truncation band limits their influence farther away. Echo estimates a depth uncertainty radius from both relative depth tolerance and projected pixel footprint. It derives precision from inverse squared uncertainty, then tapers weights within the integration band.</p>
+<div class="echo"><span class="label">Echo’s integration choices</span><ul><li>The uncertainty radius is the larger of <code>depth × relative tolerance</code> and approximately two projected pixels.</li><li>The truncation extent is the larger of three voxel widths and twice the uncertainty radius.</li><li>Far behind a measured surface, the observation does not vote.</li><li>Far in front, continuous valid coverage can contribute capped, reduced-weight free-space evidence.</li><li>Retained voxels need support from at least two nearby observed depths. Free-space evidence alone does not count as that near-surface support.</li></ul></div>
+<h3>7.4 Resolution is a separate decision</h3>
+<p>Voxel size controls how finely the field is sampled. Measurement uncertainty controls how strongly observations are trusted and how broadly they are integrated. Smaller voxels do not make noisy measurements more accurate. Halving cell width could require roughly eight times as many cells for a fully filled fixed volume; Echo’s sparse planning and storage mean its actual growth depends on the occupied region.</p>
+<p>Echo plans bounds and resources using the reconstruction evidence, integrates the depth maps and can remove disconnected fusion regions when configured. The dense cloud supports planning; fusion still uses depth observations and visibility, rather than simply replacing each cloud point with a cube.</p>
+<div class="worked"><span class="label">The distinction to remember</span><p><strong>Observed empty:</strong> a valid depth ray reaches the wall, so the segment before the wall provides evidence of free space. <strong>Unknown:</strong> there was no usable depth measurement. <strong>Occluded:</strong> the wall blocks what lies behind it. Treating all three as empty would erase real surfaces.</p></div>
+<div class="exercise"><span class="label">Review 07</span><p>A foreground branch hides the cliff in one camera. Should that camera vote to remove the cliff? Why can reducing voxel size increase detail and still fail to improve accuracy?</p><details class="answer"><summary>Suggested answer</summary><p>No: the cliff is behind the branch’s measured surface and is occluded in that view. Smaller voxels can represent finer spatial variation, including finer noise, but do not repair incorrect depths or camera alignment. Resolution is representational capacity, while accuracy depends on the evidence and model.</p></details></div>
+<div class="reading"><p><strong>Practical:</strong> <a href="https://www.open3d.org/docs/release/tutorial/pipelines/rgbd_integration.html#tsdf-volume-integration">TSDF integration example</a>. <strong>Foundational:</strong> <a href="https://graphics.stanford.edu/papers/volrange/">Curless &amp; Levoy: integrating range images</a>.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Fusion/DepthFusion.cs">DepthFusion.cs</a> · <a href="../src/Echo.Fusion/FusionAccumulator.cs">FusionAccumulator.cs</a> · <a href="../src/Echo.Fusion/FusionDepthUncertainty.cs">FusionDepthUncertainty.cs</a></p></div>
+</section>
+<section class="chapter" id="mesh" data-chapter="08">
+<div class="chapter-top"><span class="eyebrow">Chapter 08 · Pipeline stage: mesh</span></div>
+<h2>Surface extraction, repair &amp; completion</h2>
+<p class="goal">Separate extracting supported shape, reducing complexity and inferring missing surface.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>The distance grid tells you where the rock’s skin should be. Make that skin from triangles. Remove triangles that add little useful shape, fix small tears, and carefully infer some missing pieces.</p></div>
+<h3>8.1 Extract the zero crossing</h3>
+<p>Within a grid cell, positive and negative distance values indicate that the surface passes between them. Echo divides each eligible cube into six tetrahedra using a consistent body diagonal. For each tetrahedron, it finds edges whose endpoint signs differ and interpolates the zero position on those edges. The resulting polygon becomes one or two triangles.</p>
+<div class="formula">Edge interpolation fraction t = valueA / (valueA − valueB)<br>Surface position = A + t × (B − A)</div>
+<div class="worked"><span class="label">Worked example · Find the surface</span><p>An edge runs from position 0 to position 1. Its endpoint field values are +0.2 and −0.3. Then <code>t = 0.2 / (0.2 − (−0.3)) = 0.4</code>. The surface crosses 40% of the way along the edge. It does not have to pass through the middle.</p></div>
+<p>Adjacent cells must agree on how they share faces and vertices. Echo’s consistent tetrahedral subdivision avoids contradictory face diagonals in ambiguous configurations. Shared crossings reuse vertices, including zero crossings exactly on lattice vertices. The extraction path performs bounded grid-gap repair first; absence of arbitrary distant samples is not permission to mesh all space.</p>
+<h3>8.2 Simplify with quadric error</h3>
+<p>A detailed grid can produce many more triangles than a viewer needs. <strong>Edge collapse</strong> replaces the endpoints of a mesh edge with one vertex and updates neighbouring faces. A <strong>quadric error metric</strong> summarises how far candidate vertices would move away from local surface planes. Collapsing low-error edges first usually spends fewer triangles on flat areas and retains more near changing shape.</p>
+<div class="echo"><span class="label">Echo’s variation</span><p>Echo evaluates endpoint and midpoint candidates, with special handling around open boundaries. It normalises accumulated plane error and uses boundary constraints to discourage cutting away corners of otherwise flat patches. Detail tolerances and per-vertex tolerances can influence reduction. <code>FaceLimit</code> is a ceiling: the algorithm is not trying to manufacture exactly that many useful triangles.</p></div>
+<p>This simplifier preserves an approximation of the input mesh, which may already contain mistakes. A perfectly simplified wrong surface remains wrong. Also, a texture can preserve the appearance of a tiny crack after geometric simplification removes its relief.</p>
+<h3>8.3 Repair observed holes and reject contradictions</h3>
+<p>Small holes can be supported by nearby depth evidence and repaired locally. Echo then checks surfaces against visible depth rays. If multiple views say space in front of the observed surface is empty, a triangle occupying that space is contradicted. Missing and occluded observations are treated differently from those explicit contradictions.</p>
+<h3>8.4 Screened Poisson completion</h3>
+<p>When gaps remain, Echo builds <strong>oriented samples</strong>: points with normals indicating surface direction. Poisson reconstruction fits a smooth implicit surface guided by that orientation field. The screened variant also includes point-position constraints to pull the surface toward the supplied samples. An adaptive octree concentrates solver resolution where needed.</p>
+<p>Echo calls a bundled native Poisson worker. It chooses octree depth from scene extent and voxel scale, within bounds. This produces a reconstructed surface, not merely an operation that stitches existing boundary vertices together. Inferred regions can bridge missing coverage; their smoothness does not establish that the hidden cliff really has that shape.</p>
+<details><summary>A little more mathematics: what does Poisson solve?</summary><p>Imagine an indicator function whose values distinguish the inside and outside of a shape. Its spatial change is concentrated near the surface. Oriented samples suggest how that function should change. Poisson reconstruction seeks a function whose gradient agrees with a vector field built from the normals, leading to a Poisson equation. Screening adds constraints at sampled points. Extracting a level set of the solution yields a surface.</p><p>You do not need to solve the equation to use the idea: normals give local orientation; a global smoothness model connects the evidence. The connection can extend into areas without measurements.</p></details>
+<h3>8.5 Constrain and clean the completed surface</h3>
+<ol><li>Restrict reconstruction to the neighbourhood of the observed surface. Echo’s support filter is called with a distance based on 24 voxel widths in this revision.</li><li>Adaptively simplify the completed mesh.</li><li>Reject completed triangles contradicted by observed empty space.</li><li>Repair small enclosed holes left by cleanup and enforce the face budget as needed.</li><li>Optionally simplify confirmed vegetation more aggressively while protecting relevant boundaries, and optionally trim disconnected mesh islands.</li></ol>
+<p class="note">Poisson’s tendency to close a surface does not guarantee that Echo’s final mesh is watertight. Support filtering, visibility filtering and later edits can leave boundaries. Nor is a watertight mesh automatically a faithful measurement.</p>
+<h3>8.6 Select photographs for faces</h3>
+<p>Before texture baking, Echo chooses which photographs will colour the mesh. It evaluates visible candidate views and their photographic detail. A <strong>graph</strong> treats neighbouring faces as connected nodes; a label identifies the source photo for each face.</p>
+<div class="formula">Photo-selection energy = per-face view cost + penalties for seams between neighbours</div>
+<p>Choosing the sharpest view independently for every triangle could create a patchwork of tiny colour discontinuities. Echo’s alpha-expansion graph-cut passes consider coordinated switches of groups of faces to a photograph. Visibility remains a hard constraint, and accepted switches reduce the combined objective. This balances local image quality with coherent regions; it is not a guarantee of a globally optimal labelling.</p>
+<div class="exercise"><span class="label">Review 08</span><ol><li>Why might a mesh look more complete after Poisson but contain less directly observed information?</li><li>What does the quadric metric try to preserve?</li><li>Why select source images jointly for neighbouring faces?</li></ol><details class="answer"><summary>Suggested answers</summary><p>1. Completion adds geometry in gaps by applying a surface model; it does not create new photographs. 2. It approximates the local surface planes and hence shape under edge collapses. 3. Independent choices can alternate rapidly between photos and create distracting seams. A joint objective encourages coherent regions while retaining suitable detail and visibility.</p></details></div>
+<div class="reading"><p><strong>Visual introduction:</strong> <a href="https://www.open3d.org/docs/release/tutorial/geometry/surface_reconstruction.html">Surface reconstruction examples</a>. <strong>Original work:</strong> <a href="https://www.cs.cmu.edu/~garland/quadrics/">Garland &amp; Heckbert: quadric simplification</a> · <a href="https://hhoppe.com/proj/screenedpoisson/">Kazhdan &amp; Hoppe: screened Poisson reconstruction</a>.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Meshing/TetrahedralSurface.cs">TetrahedralSurface.cs</a> · <a href="../src/Echo.Simplification/EdgeCollapse.cs">EdgeCollapse.cs</a> · <a href="../src/Echo.Pipeline/MeshStage.cs">MeshStage.cs</a> · <a href="../src/Echo.SurfaceCompletion/PoissonSurfaceReconstructor.cs">PoissonSurfaceReconstructor.cs</a> · <a href="../src/Echo.Meshing/FaceViewOptimizer.cs">FaceViewOptimizer.cs</a></p></div>
+</section>
+
+<section class="chapter" id="texture" data-chapter="09">
+<div class="chapter-top"><span class="eyebrow">Chapter 09 · Pipeline stage: texture</span></div>
+<h2>Unwrapping a photographic skin</h2>
+<p class="goal">Explain UV coordinates, chart construction, atlas packing, seam correction and texture filtering.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>Imagine cutting a paper model along a few seams and laying the pieces flat. Paint the flat pieces using the photographs, then fold them back into the model. The computer remembers which painted spot belongs on every triangle.</p></div>
+<h3>9.1 Geometry coordinates versus texture coordinates</h3>
+<p><strong>XYZ</strong> describes a point in 3D. <strong>UV</strong> describes a location in a 2D image. Each mesh triangle has corresponding UV corners. A renderer interpolates those coordinates across the triangle to look up colour. A UV seam may require two texture coordinates for the same geometric position, which can duplicate vertices in the exported representation without creating a visible geometric crack.</p>
+<p>A connected flattened patch is a <strong>chart</strong> or UV island. The image containing the packed charts is a <strong>texture atlas</strong>. A <strong>texel</strong> is one texture-image pixel. Texel density expresses how much texture resolution is allocated per unit of model surface.</p>
+<figure><svg viewBox="0 0 620 215" role="img" aria-labelledby="atlas-title"><title id="atlas-title">Connected mesh patches are flattened and packed into a texture atlas</title><path d="M30 125L115 35L205 70L190 175L75 190Z M30 125L205 70 M115 35L190 175 M75 190L205 70" fill="#e8efe5" stroke="#1c6655" stroke-width="2"/><text x="49" y="211">Surface patches</text><path d="M245 103H319 M308 94L320 103L308 112" fill="none" stroke="#59685f" stroke-width="2"/><rect x="356" y="16" width="238" height="178" fill="#fffef9" stroke="#59685f"/><path d="M370 35L447 35L447 101L370 122Z" fill="#e8efe5" stroke="#1c6655"/><path d="M465 35L579 35L579 91L465 76Z" fill="#f5ead5" stroke="#8d571d"/><path d="M370 140L440 117L456 179L370 179Z" fill="#f5ead5" stroke="#8d571d"/><path d="M472 108L579 108L579 179L476 179Z" fill="#e8efe5" stroke="#1c6655"/><text x="387" y="211">Atlas with padded gaps</text></svg><figcaption>Illustration of chart organisation, not an atlas generated by Echo. The gaps prevent neighbouring charts from bleeding into one another during filtering.</figcaption></figure>
+<h3>9.2 Build and parameterise charts</h3>
+<ol><li>Group connected faces into regions subject to chart-size and angle constraints.</li><li>Attempt a least-squares conformal map, which aims to preserve local angles while flattening.</li><li>Validate the result, including unacceptable folds or distortion.</li><li>If needed, try a harmonic map with a convex boundary.</li><li>If the map is still unsuitable, split the region and try smaller pieces.</li><li>Merge compatible charts, orient them and pass them to the packer.</li></ol>
+<details><summary>Conformal and harmonic maps, without the jargon</summary><p>A conformal map tries to preserve tiny local angles. Flattening a curved surface generally forces some stretching, so Echo solves an approximate least-squares problem and pins two chart vertices to remove free movement and scale. Angle preservation does not mean area preservation: some pieces can become larger or smaller.</p><p>The harmonic fallback fixes boundary vertices around a circle and places each interior vertex according to neighbouring positions. Echo uses positive-weight barycentric equations. This provides another way to avoid folds, but a non-folded map can still stretch too much; validation still matters.</p></details>
+<h3>9.3 Pack the atlas</h3>
+<p>Chart packing is a two-dimensional arrangement problem. It needs room for the patch shapes plus padding. Efficient packing lets more photographic detail fit into the same atlas. Too many tiny charts can spend much of the image on gutters. Echo includes shape-aware packing and chart orientation; a larger square image is not the only lever.</p>
+<p>Optional vegetation budgeting can reduce texel allocation to confirmed vegetation. Echo compares candidate layouts, including padding costs, and keeps a candidate only when it does not reduce the baseline rock density. An apparently sensible smaller-chart arrangement is not automatically a better packing result.</p>
+<h3>9.4 Correct photographic seams</h3>
+<p>Two photos of the same surface can have different exposure, white balance or shadows. If adjacent faces use different photos, their colours may jump along the boundary. Echo samples seam relationships, solves bounded global per-image colour offsets, and adds local corrections diffused across chart interiors.</p>
+<p>The correction is an attempt to reduce discontinuities, not to recover a physically calibrated material or undo arbitrary moving shadows. Source-photo choice, camera alignment and visibility remain important. A doubled crack due to misalignment cannot reliably be fixed by brightness adjustment.</p>
+<h3>9.5 Bake, pad and downsample</h3>
+<p><strong>Baking</strong> writes the selected photographic information into the atlas. Sampling and antialiasing reduce jagged edges. Padding extends suitable colours into gutters so that filtered lookups near chart edges do not mix with unrelated neighbours. Echo encodes an atlas and produces progressively smaller variants with shared UV coordinates.</p>
+<p>Some completed faces have no suitable photograph. Echo’s colour-completion path propagates and smooths boundary colours through those regions, with a fallback mean where no boundary connection supplies colour. Such colour is interpolated appearance, not recovered photographic detail. Texture sky suppression and vegetation budgeting are separate optional controls.</p>
+<div class="worked"><span class="label">Worked example · Texture size is quadratic</span><p>An 8,192 × 8,192 atlas contains about 67 million pixels. A 4,096 × 4,096 atlas contains about 16.8 million: one quarter as many. At four bytes per decoded pixel, those simple image buffers would be about 256 MiB and 64 MiB respectively, before additional working buffers. JPEG file sizes are a different, compressed quantity.</p></div>
+<p><strong>Inspect in Echo:</strong> look for blurry areas, hard exposure boundaries, distorted texture, background bleeding and inferred colour in completed regions. Switch back to the untextured mesh when you need to judge shape.</p>
+<div class="exercise"><span class="label">Review 09</span><p>Why might increasing atlas size fail to fix a blurred patch? Explain the different jobs of a UV seam, a gutter and seam levelling.</p><details class="answer"><summary>Suggested answer</summary><p>The source photo may be blurry, badly angled or unsuitable, or the mapping may be stretched. A UV seam cuts the surface into flattenable pieces. A gutter provides filtering space around those pieces. Seam levelling adjusts colour differences where photographic sources meet. None is a substitute for correct geometric alignment.</p></details></div>
+<div class="reading"><p><strong>Accessible:</strong> <a href="https://docs.blender.org/manual/en/3.4/editors/uv/introduction.html">Blender’s UV explanation</a>. <strong>Algorithm paper:</strong> <a href="https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Levy02.pdf">Lévy et al.: least-squares conformal maps</a> (PDF). <strong>Related research implementation:</strong> <a href="https://github.com/nmoehrle/mvs-texturing">MVS-Texturing / Let There Be Color</a>.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Texturing/TexturePatchBuilder.cs">TexturePatchBuilder.cs</a> · <a href="../src/Echo.Texturing/TextureLayoutPlanner.cs">TextureLayoutPlanner.cs</a> · <a href="../src/Echo.Texturing/TextureSeamLeveler.cs">TextureSeamLeveler.cs</a> · <a href="../src/Echo.Texturing/TextureColourCompletion.cs">TextureColourCompletion.cs</a> · <a href="../src/Echo.Texturing/TextureBaker.cs">TextureBaker.cs</a></p></div>
+</section>
+
+<section class="chapter" id="export" data-chapter="10">
+<div class="chapter-top"><span class="eyebrow">Chapter 10 · Pipeline stage: export + run infrastructure</span></div>
+<h2>Portable models &amp; reproducible stages</h2>
+<p class="goal">Distinguish the delivered model from the evidence and settings that produced it.</p>
+<div class="concept"><span class="label">Explain it to a ten-year-old</span><p>Put the finished model, its coloured wrapping paper and the instructions for attaching it into a box another program can open. Keep your working notes too, so you can understand how you made it.</p></div>
+<h3>10.1 What GLB packages</h3>
+<p><strong>glTF</strong> is a format for delivering 3D assets. <strong>GLB</strong> is its binary container form. Echo writes triangle positions and indices, UV coordinates and embedded photographic texture into its model export. The file describes how to display the asset; it does not by itself carry all intermediate depth maps or establish measurement accuracy.</p>
+<p>Echo’s export stage writes <code>cliff.glb</code>, geographic-reference metadata and a reconstruction report. The report includes such information as camera and point counts, face count, texture coverage, inferred-colour faces, warnings and source-artifact references. Optional export validation inspects the GLB structure. It verifies a file-format concern, not whether the cliff is physically correct.</p>
+<h3>10.2 Other outputs have different jobs</h3>
+<p>The cloud and mesh stages also produce PLY artifacts. PLY can store point or mesh data; it is not interchangeable with the complete textured GLB package. Echo has a separate GIS export service for geographic data. An ordinary model export and a GIS export should not be treated as identical operations.</p>
+<div class="table-wrap"><table><thead><tr><th>Question</th><th>Useful evidence</th></tr></thead><tbody>
+<tr><td>Can another viewer display this asset?</td><td>GLB validation and a viewer inspection</td></tr>
+<tr><td>Were cameras placed coherently?</td><td>Alignment scene, bundle report, source images</td></tr>
+<tr><td>Was a surface measured or completed?</td><td>Depth, cloud, mesh-stage evidence and report</td></tr>
+<tr><td>Are coordinates geographic and meaningful?</td><td>Scene frame, origin, reference metadata and warnings</td></tr>
+<tr><td>Can I repeat this stage?</td><td>Inputs, settings snapshot, algorithm identity and saved artifacts</td></tr>
+</tbody></table></div>
+<h3>10.3 Checkpoints and reuse</h3>
+<p>Echo’s checkpoint store hashes the stage, declared inputs, storage version and algorithm identity into an artifact key. If a matching committed artifact exists, the store checks its manifest and file hashes before reuse. Otherwise it builds in a temporary workspace, writes metadata and commits the completed artifact. This supports resuming expensive processing and inspecting intermediate results.</p>
+<p>Stages can have finer units, such as one feature image or one matched pair. Reusing them avoids repeating unaffected work. The dependency declarations determine whether a saved artifact is compatible; “there is a file with the right name” is not sufficient.</p>
+<div class="echo"><span class="label">A practical Echo rule</span><p>Resume retains a run’s reconstruction settings. Start a new run when you want changed reconstruction settings applied. Algorithm changes also need appropriate identity changes so cached results are not silently confused with results from a different method.</p></div>
+<h3>10.4 CPU, Metal and memory planning</h3>
+<p>The processing application is C# split into subsystems; the macOS desktop is native SwiftUI/AppKit with SceneKit/Metal viewing. Metal accelerates selected calculations, while resource planners manage concurrency and working memory. Paged storage lets some datasets exceed in-memory budgets. These mechanisms make processing possible or faster; they do not add missing photographic evidence.</p>
+<p>Numerical paths are not all identical. For example, depth has CPU, Metal and validated-Metal modes, and implementation identity participates in relevant artifact inputs. Compare reconstruction settings, backend metadata and source evidence before assuming two runs should be identical.</p>
+<div class="exercise"><span class="label">Review 10</span><p>A GLB passes validation but has a smooth bulge where the cliff was never photographed. Is that contradictory? Why should you save the report along with the model?</p><details class="answer"><summary>Suggested answer</summary><p>No. Format validity concerns whether the asset is structurally readable. The bulge concerns reconstruction fidelity and may come from inferred completion. The report helps preserve warnings, reference information and links to the processing evidence that a standalone model cannot explain.</p></details></div>
+<div class="reading"><p><strong>Format introduction:</strong> <a href="https://github.khronos.org/glTF-Tutorials/gltfTutorial/gltfTutorial_001_Introduction.html">Khronos glTF tutorial</a>.</p><p><strong>Echo source:</strong> <a href="../src/Echo.Pipeline/ExportStage.cs">ExportStage.cs</a> · <a href="../src/Echo.Export/GlbWriter.cs">GlbWriter.cs</a> · <a href="../src/Echo.Pipeline/GisExportService.cs">GisExportService.cs</a> · <a href="../src/Echo.Pipeline/CheckpointStore.cs">CheckpointStore.cs</a> · <a href="../README.md">README</a></p></div>
+</section>
+
+<section class="chapter" id="review" data-chapter="11">
+<div class="chapter-top"><span class="eyebrow">Chapter 11 · Apply what you learned</span></div>
+<h2>Investigate one reconstruction</h2>
+<p class="goal">Trace a visible problem backwards to the earliest stage with evidence of the problem.</p>
+<p>Choose a saved Echo project with a recognisable rock feature: a crack, ledge or overhang. Keep that feature as your reference through all stages. Record actual observations rather than expected ones. These exercises do not require changing application code.</p>
+<h3>A six-stop inspection</h3>
+<ol><li><strong>Source photos:</strong> identify at least three views containing the feature. Note sharpness, overlap, shadows, visible scale change and occlusion. If only one view sees it clearly, record that limitation.</li><li><strong>Features and matches:</strong> find nearby features. Check whether their links land on the same physical detail. Distinguish an attractive-looking match from a geometrically accepted match.</li><li><strong>Alignment:</strong> inspect the camera arrangement and sparse cloud. Does the arrangement make sense given where you stood? Note unplaced images and any relevant report warnings.</li><li><strong>Depth and cloud:</strong> inspect the feature’s depth in individual views. Then find it in the cloud. If it disappears between these stages, consider cross-view validation before blaming meshing.</li><li><strong>Mesh:</strong> hide the texture. Look for relief, thickness, holes, floating fragments and smooth inferred bridges. Compare these with the cloud.</li><li><strong>Texture:</strong> restore colour. Note whether detail is geometric or only photographic, and whether seams or blur align with changes in source view.</li></ol>
+<h3>A diagnostic map</h3>
+<div class="table-wrap"><table><caption>These are investigation starting points, not automatic diagnoses.</caption><thead><tr><th>Symptom</th><th>Inspect first</th><th>Possible explanation to test</th></tr></thead><tbody>
+<tr><td>A photo will not align</td><td>Pair selection, features, verified matches</td><td>Missing overlap, ambiguous texture, blur or insufficient reliable links</td></tr>
+<tr><td>The scene splits into groups</td><td>Connectivity of the image-pair network</td><td>No robust bridge between capture groups</td></tr>
+<tr><td>Rock depth is missing</td><td>Photo detail, depth range, neighbour views</td><td>Weak patches, occlusion, ambiguity or unsuitable camera geometry</td></tr>
+<tr><td>Depth exists but the cloud is sparse</td><td>Cross-view consistency and parallax</td><td>Measurements disagree or do not have enough support</td></tr>
+<tr><td>Double layers or ghost surfaces</td><td>Alignment, depth maps and cloud</td><td>Systematic camera error, moving content or inconsistent depth</td></tr>
+<tr><td>A missing region becomes a smooth bridge</td><td>Mesh completion compared with measured evidence</td><td>Inferred surface continuity across incomplete coverage</td></tr>
+<tr><td>A crack vanishes without texture</td><td>Depth resolution, cloud and simplification</td><td>Appearance detail exceeds geometric detail</td></tr>
+<tr><td>Patchwork colour boundaries</td><td>Source-view regions and seam correction</td><td>Exposure differences, shadows or frequent source changes</td></tr>
+<tr><td>Blurry or stretched photographic detail</td><td>Source quality, UV charts and texel allocation</td><td>Poor viewing angle, stretched mapping or limited atlas density</td></tr>
+<tr><td>Scale or height seems wrong</td><td>Scene frame, GPS/hints and reference warnings</td><td>Arbitrary scale, noisy priors or uncertain altitude reference</td></tr>
+</tbody></table></div>
+<h3>Controlled experiments</h3>
+<p>Make one deliberate change per new run and compare the same region. Write the hypothesis before running. A useful comparison asks both whether the result improved and whether the mechanism you expected actually changed.</p>
+<div class="table-wrap"><table><thead><tr><th>Experiment</th><th>Prediction to write first</th><th>Evidence to compare</th></tr></thead><tbody>
+<tr><td>Increase depth image width</td><td>Will finer image detail add supported surface samples?</td><td>Depth coverage, cloud detail, processing cost</td></tr>
+<tr><td>Change voxel size</td><td>Will finer sampling reveal real detail or finer noise?</td><td>Fused volume, untextured mesh, resource use</td></tr>
+<tr><td>Reduce face limit</td><td>Which shapes should survive at lower complexity?</td><td>Silhouette, ledges, holes and triangle count</td></tr>
+<tr><td>Change texture size</td><td>Is atlas resolution the actual limit?</td><td>Texture sharpness with geometry held comparable</td></tr>
+<tr><td>Enable cliff recovery</td><td>Are missing regions bounded rock with usable neighbouring evidence?</td><td>Original versus recovered depth and resulting cloud</td></tr>
+</tbody></table></div>
+<h3>Defaults worth recognising</h3>
+<p>These values are a reference to this code revision, not a preset recommendation for every dataset. Check the project’s saved settings before comparing runs.</p>
+<div class="table-wrap"><table><thead><tr><th>Control</th><th>Default</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>Scale-invariant features / lines / guided alignment</td><td>On / on / on</td><td>Extra matching and recovery machinery</td></tr>
+<tr><td>Feature width / feature limit</td><td>2,000 / 6,000</td><td>Feature image resolution and candidate budget</td></tr>
+<tr><td>Depth width / planes / neighbours</td><td>1,024 / 96 / 3</td><td>Depth-map resolution, global search density and stereo views</td></tr>
+<tr><td>Automatic depth range</td><td>On</td><td>Use scene evidence to plan the interval</td></tr>
+<tr><td>Depth sky suppression / cliff recovery</td><td>Off / off</td><td>Optional semantic filtering and supported gap search</td></tr>
+<tr><td>Fusion voxel size</td><td>0 = automatic</td><td>Request a planned rather than explicit grid spacing</td></tr>
+<tr><td>Vegetation optimisation / island trimming</td><td>Off / off</td><td>Optional complexity allocation and disconnected-region removal</td></tr>
+<tr><td>Face limit / texture size</td><td>1,500,000 / 8,192</td><td>Triangle ceiling and square atlas dimensions</td></tr>
+<tr><td>Export validation</td><td>On</td><td>Inspect the exported GLB structure</td></tr>
+</tbody></table></div>
+<div class="exercise"><span class="label">Capstone · Explain an overhang</span><p>A capture set mostly shows the cliff front. The final textured mesh appears to fill the dark underside of an overhang with a smooth coloured surface. Write a short account of how this could happen, identifying measured evidence, rejected evidence, inferred geometry and inferred appearance. List two inspections that would test your account.</p><details class="answer"><summary>One plausible explanation</summary><p>The underside was poorly observed, shadowed or occluded. Stereo either found no reliable depth or its estimates failed cross-view checks. The cloud therefore had a gap. Mesh completion inferred a surface near the observed boundary, and colour completion filled parts without suitable photographic coverage. Inspect the underside in the original views and depth maps, then compare the dense cloud with the untextured completed mesh. This is a hypothesis to test; incorrect alignment could create a different failure with a similar appearance.</p></details></div>
+<div class="reading"><p><strong>Return to the implementation:</strong> <a href="../src/Echo.Contracts/Settings.cs">Settings.cs</a> for current defaults · <a href="../src/Echo.Pipeline/MeshStage.cs">MeshStage.cs</a> for completion order · <a href="../src/Echo.Pipeline/DepthStage.cs">DepthStage.cs</a> for optional depth steps.</p></div>
+</section>
+<section class="chapter" id="glossary">
+<span class="eyebrow">Reference · Keep nearby while reading</span>
+<h2>The vocabulary, in plain language</h2>
+<dl class="glossary">
+<dt>Artifact</dt><dd>A saved stage result, such as features, a depth map or a mesh, with associated metadata.</dd>
+<dt>Atlas</dt><dd>A texture image containing multiple packed surface charts.</dd>
+<dt>Back-projection</dt><dd>Turning a pixel plus depth into a 3D position using the camera model.</dd>
+<dt>Baseline</dt><dd>The separation between camera centres.</dd>
+<dt>Bundle adjustment</dt><dd>Jointly refining cameras and scene points to improve agreement with image observations.</dd>
+<dt>Chart / UV island</dt><dd>A connected piece of surface flattened into texture coordinates.</dd>
+<dt>Cheirality</dt><dd>The requirement that a visible reconstructed point lies in front of its observing camera.</dd>
+<dt>Correspondence</dt><dd>Two or more observations believed to show the same physical detail.</dd>
+<dt>Descriptor</dt><dd>A numerical description of appearance around a detected feature.</dd>
+<dt>Depth map</dt><dd>A per-view array of depth values, with invalid entries where estimates are unavailable.</dd>
+<dt>Difference of Gaussians</dt><dd>The difference between two differently blurred images, used to find structure at a particular scale.</dd>
+<dt>Epipolar line</dt><dd>The line in another image on which the correspondence to a point should lie under the two-view geometry.</dd>
+<dt>Essential matrix</dt><dd>A relation between calibrated views that encodes relative rotation and translation direction.</dd>
+<dt>Extrinsics / pose</dt><dd>A camera’s location and orientation relative to a chosen scene frame.</dd>
+<dt>Fundamental matrix</dt><dd>The matrix describing the epipolar relation between two image-coordinate systems.</dd>
+<dt>Graph cut</dt><dd>A method for separating a graph into groups at low cost; Echo uses binary cuts inside source-view labelling.</dd>
+<dt>Gutter</dt><dd>Padding around a UV chart to protect its texture from filtering across unrelated neighbours.</dd>
+<dt>Inlier / outlier</dt><dd>An observation that agrees / disagrees with the fitted model under a chosen tolerance.</dd>
+<dt>Intrinsics</dt><dd>Internal camera parameters, such as focal length and principal point.</dd>
+<dt>Inverse depth</dt><dd>The quantity 1/Z; useful because it relates simply to stereo image displacement.</dd>
+<dt>Normal</dt><dd>A direction perpendicular to a surface, indicating its orientation.</dd>
+<dt>Occlusion</dt><dd>A nearer surface hiding something farther away from a particular camera.</dd>
+<dt>Octave</dt><dd>A level of a scale pyramid at a different image resolution, typically separated by a factor of two.</dd>
+<dt>Octree</dt><dd>A hierarchical 3D partition where a cell can split into eight smaller cells.</dd>
+<dt>Parallax</dt><dd>A change in apparent position or viewing direction caused by camera translation.</dd>
+<dt>Point cloud</dt><dd>A collection of 3D points, potentially with colours and confidence information.</dd>
+<dt>Prior</dt><dd>Additional information that guides an estimate, such as an approximate GPS position.</dd>
+<dt>Quadric error</dt><dd>A compact estimate of deviation from local planes, used to choose mesh collapses.</dd>
+<dt>RANSAC</dt><dd>Repeatedly fitting models to small random samples and finding a large agreeing consensus.</dd>
+<dt>Reprojection error</dt><dd>The pixel difference between a measured image observation and the projected 3D estimate.</dd>
+<dt>Schur complement</dt><dd>Block elimination that reduces a coupled system before recovering the eliminated variables.</dd>
+<dt>Screened Poisson</dt><dd>Surface reconstruction from oriented samples with additional point-position constraints.</dd>
+<dt>SfM</dt><dd>Structure from Motion: estimating sparse structure and camera poses from overlapping images.</dd>
+<dt>MVS</dt><dd>Multi-View Stereo: estimating dense geometry using multiple images with known or estimated camera geometry.</dd>
+<dt>Texel</dt><dd>A pixel in a texture image.</dd>
+<dt>Track</dt><dd>A collection of image observations associated with one scene landmark.</dd>
+<dt>TSDF</dt><dd>A truncated signed distance function, combining surface-distance evidence within a bounded influence region.</dd>
+<dt>UV</dt><dd>Two-dimensional coordinates mapping a mesh surface to a texture image.</dd>
+<dt>Voxel</dt><dd>A small cell in a spatial grid; the 3D counterpart of a pixel.</dd>
+<dt>Zero crossing</dt><dd>Where a signed field changes sign, identifying an implicit surface.</dd>
+</dl>
+<h3>A reading path that builds on itself</h3>
+<ol><li><strong>Understand the geometry:</strong> chapters 00–01, then OpenCV’s stereo and epipolar diagrams. Be able to explain why a single view cannot establish depth.</li><li><strong>Understand the evidence:</strong> chapters 02–06. Learn detection, matching, geometric consensus, camera refinement and depth validation as separate gates.</li><li><strong>Understand the delivered surface:</strong> chapters 07–10. Focus on where fusion combines measurements and where completion or colour interpolation adds inference.</li><li><strong>Test your understanding:</strong> complete chapter 11 with one real saved reconstruction. Revisit the first stage where your explanation becomes uncertain.</li></ol>
+<p>For the research papers, start with their diagrams, abstract and algorithm overview. Return to the derivations after you can explain the inputs, outputs and assumptions. The code links in each chapter are the authority for Echo-specific behaviour; the reading links supply broader background and alternative implementations.</p>
+</section>
+<p class="footer">Prepared as a learning companion to Echo. General reading links describe the wider field; they do not imply that Echo calls those libraries. Code links are relative to this file’s <code>docs/</code> location in the repository. The workbook content and illustrations are self-contained; external reading requires an internet connection.</p>
+</main></div>
+<script>
+(() => {
+    'use strict';
+    const storageKey = 'echo-photogrammetry-workbook-v1';
+    const chapters = Array.from(document.querySelectorAll('[data-chapter]'));
+    const ids = new Set(chapters.map(chapter => chapter.id));
+    const status = document.getElementById('save-status');
+    const emptyState = () => ({ version: 1, notes: {}, completed: {} });
+    let state = emptyState();
+    let saveTimer;
+    let printSnapshot = null;
+
+    function validateState(value) {
+        if (!value || value.version !== 1 || !value.notes || !value.completed || typeof value.notes !== 'object' || typeof value.completed !== 'object') {
+            throw new Error('This is not a version 1 Echo workbook notes file.');
+        }
+        const result = emptyState();
+        for (const id of ids) {
+            if (typeof value.notes[id] === 'string') {
+                if (value.notes[id].length > 100000) {
+                    throw new Error('A chapter note is too long to import.');
+                }
+                result.notes[id] = value.notes[id];
+            }
+            result.completed[id] = value.completed[id] === true;
+        }
+        return result;
+    }
+
+    try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+            state = validateState(JSON.parse(saved));
+            status.textContent = 'Saved notes and progress restored in this browser.';
+        }
+    } catch {
+        status.textContent = 'Browser storage is unavailable or unreadable. Use Export notes to preserve your work.';
+    }
+
+    function save() {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(state));
+            status.textContent = 'Notes and progress saved in this browser.';
+        } catch {
+            status.textContent = 'Notes are held in this tab. Browser saving is unavailable; export a backup before closing.';
+        }
+    }
+
+    function updateProgress() {
+        let completed = 0;
+        for (const chapter of chapters) {
+            const done = state.completed[chapter.id] === true;
+            completed += done ? 1 : 0;
+            document.querySelector('nav a[href="#' + chapter.id + '"]').classList.toggle('done', done);
+        }
+        document.getElementById('study-progress').value = completed;
+        document.getElementById('progress-label').textContent = completed + ' of ' + chapters.length + ' chapters reviewed';
+    }
+
+    for (const chapter of chapters) {
+        const label = document.createElement('label');
+        label.className = 'completion';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = 'complete-' + chapter.id;
+        checkbox.checked = state.completed[chapter.id] === true;
+        label.append(checkbox, document.createTextNode('Reviewed'));
+        chapter.querySelector('.chapter-top').append(label);
+        checkbox.addEventListener('change', () => {
+            state.completed[chapter.id] = checkbox.checked;
+            updateProgress();
+            save();
+        });
+
+        const noteLabel = document.createElement('label');
+        noteLabel.className = 'notes-label';
+        noteLabel.htmlFor = 'note-' + chapter.id;
+        noteLabel.textContent = 'Your explanation, exercise answers & observations';
+        const note = document.createElement('textarea');
+        note.id = noteLabel.htmlFor;
+        note.placeholder = 'Explain the idea in your own words. Record what you saw in your Echo project…';
+        note.value = state.notes[chapter.id] || '';
+        note.maxLength = 100000;
+        const printNote = document.createElement('div');
+        printNote.className = 'print-note';
+        printNote.id = 'print-note-' + chapter.id;
+        chapter.append(noteLabel, note, printNote);
+        note.addEventListener('input', () => {
+            state.notes[chapter.id] = note.value;
+            status.textContent = 'Saving your notes…';
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(save, 350);
+        });
+        note.addEventListener('blur', save);
+    }
+    updateProgress();
+
+    document.getElementById('export-notes').addEventListener('click', () => {
+        clearTimeout(saveTimer);
+        const backup = { ...state, workbook: 'Echo photogrammetry workbook', exportedAt: new Date().toISOString() };
+        const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'echo-photogrammetry-notes.json';
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        status.textContent = 'Notes export requested. Keep the JSON file as your portable backup.';
+    });
+
+    const fileInput = document.getElementById('notes-file');
+    document.getElementById('import-notes').addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+        const file = fileInput.files[0];
+        if (!file) {
+            return;
+        }
+        try {
+            if (file.size > 2000000) {
+                throw new Error('The notes file is too large.');
+            }
+            const imported = validateState(JSON.parse(await file.text()));
+            if (!window.confirm('Replace this workbook’s current notes and progress with the imported backup? Export first if you want to keep both.')) {
+                return;
+            }
+            clearTimeout(saveTimer);
+            state = imported;
+            for (const chapter of chapters) {
+                document.getElementById('note-' + chapter.id).value = state.notes[chapter.id] || '';
+                document.getElementById('complete-' + chapter.id).checked = state.completed[chapter.id] === true;
+            }
+            updateProgress();
+            save();
+        } catch (error) {
+            status.textContent = 'Import failed: ' + error.message;
+        } finally {
+            fileInput.value = '';
+        }
+    });
+
+    function preparePrint() {
+        if (printSnapshot !== null) {
+            return;
+        }
+        const answers = Array.from(document.querySelectorAll('details.answer'));
+        printSnapshot = answers.map(answer => answer.open);
+        const includeAnswers = document.getElementById('print-answers').checked;
+        answers.forEach(answer => { answer.open = includeAnswers; });
+        for (const chapter of chapters) {
+            const text = document.getElementById('note-' + chapter.id).value.trim();
+            document.getElementById('print-note-' + chapter.id).textContent = text ? 'Your notes\n\n' + text : '';
+        }
+    }
+    function finishPrint() {
+        if (printSnapshot !== null) {
+            document.querySelectorAll('details.answer').forEach((answer, index) => { answer.open = printSnapshot[index]; });
+            printSnapshot = null;
+        }
+    }
+    document.getElementById('print-book').addEventListener('click', () => { preparePrint(); window.print(); });
+    window.addEventListener('beforeprint', preparePrint);
+    window.addEventListener('afterprint', finishPrint);
+
+    const baseline = document.getElementById('baseline');
+    const sceneDepth = document.getElementById('scene-depth');
+    function updateStereo() {
+        const b = Number(baseline.value);
+        const z = Number(sceneDepth.value);
+        const disparity = 1000 * b / z;
+        const uncertainty = z * z / (1000 * b);
+        document.getElementById('baseline-value').textContent = b.toFixed(1) + ' m';
+        document.getElementById('depth-value').textContent = z + ' m';
+        document.getElementById('stereo-result').textContent = 'Disparity = ' + disparity.toFixed(1) + ' px · about ' + uncertainty.toFixed(2) + ' m depth change for 1 px disparity error';
+        const left = 310 - b * 40;
+        const right = 310 + b * 40;
+        const pointY = 170 - z * 3.5;
+        document.getElementById('stereo-rays').setAttribute('d', 'M' + left + ' 195 L310 ' + pointY + ' L' + right + ' 195');
+        document.getElementById('camera-left').setAttribute('cx', left);
+        document.getElementById('camera-right').setAttribute('cx', right);
+        document.getElementById('scene-point').setAttribute('cy', pointY);
+        document.getElementById('point-label').setAttribute('y', pointY - 10);
+        document.getElementById('camera-left-label').setAttribute('x', Math.min(left - 80, 230));
+        document.getElementById('camera-right-label').setAttribute('x', Math.max(right + 5, 350));
+    }
+    baseline.addEventListener('input', updateStereo);
+    sceneDepth.addEventListener('input', updateStereo);
+    updateStereo();
+
+    const runner = document.getElementById('runner-distance');
+    function updateRatio() {
+        const value = Number(runner.value);
+        const ratio = 0.2 / value;
+        document.getElementById('runner-value').textContent = value.toFixed(2);
+        document.getElementById('ratio-result').textContent = '0.20 / ' + value.toFixed(2) + ' = ' + ratio.toFixed(2) + ' → ' + (ratio < 0.72 ? 'passes' : 'fails') + ' the 0.72 ratio test';
+    }
+    runner.addEventListener('input', updateRatio);
+    updateRatio();
+
+    const fusionWeight = document.getElementById('fusion-weight');
+    function updateFusion() {
+        const weight = Number(fusionWeight.value);
+        const result = (weight * 0.02 - 0.04) / (weight + 1);
+        document.getElementById('fusion-weight-value').textContent = weight;
+        document.getElementById('fusion-result').textContent = '(' + weight + ' × 0.02 − 0.04) / ' + (weight + 1) + ' = ' + (result >= 0 ? '+' : '') + result.toFixed(4);
+    }
+    fusionWeight.addEventListener('input', updateFusion);
+    updateFusion();
+
+    const sections = Array.from(document.querySelectorAll('section.chapter'));
+    const navLinks = Array.from(document.querySelectorAll('nav a'));
+    let ticking = false;
+    function updateNavigation() {
+        let current = sections[0].id;
+        for (const section of sections) {
+            if (section.getBoundingClientRect().top <= 150) {
+                current = section.id;
+            }
+        }
+        for (const link of navLinks) {
+            const active = link.getAttribute('href') === '#' + current;
+            link.classList.toggle('active', active);
+            if (active) {
+                link.setAttribute('aria-current', 'location');
+            } else {
+                link.removeAttribute('aria-current');
+            }
+        }
+        ticking = false;
+    }
+    window.addEventListener('scroll', () => {
+        if (!ticking) {
+            requestAnimationFrame(updateNavigation);
+            ticking = true;
+        }
+    }, { passive: true });
+    updateNavigation();
+})();
+</script>
+</body></html>
