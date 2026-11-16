@@ -65,6 +65,7 @@ if (args.Contains("--mesh", StringComparer.Ordinal))
 {
     composition.Resolve<RunRecoveryTests>().Run(scaleTests);
     composition.Resolve<MeshQualityTests>().Run(scaleTests);
+    composition.Resolve<PhotographSelectionTests>().Run(scaleTests);
     composition.Resolve<PagingTests>().Run(scaleTests);
     composition.Resolve<SurfaceCompletionTests>().Run(scaleTests);
     composition.Resolve<FinalHoleRepairTests>().Run(scaleTests);

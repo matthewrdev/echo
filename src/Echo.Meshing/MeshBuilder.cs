@@ -33,18 +33,21 @@ public sealed class MeshBuilder : IMeshBuilder
         ReconstructionScene scene,
         IReadOnlyList<DepthMap> maps,
         Surface geometry,
-        CancellationToken cancellation, Action<string>? progress = null, bool retainUnobserved = false)
+        CancellationToken cancellation, Action<string>? progress = null, bool retainUnobserved = false, Action<OperationProgress>? operationProgress = null)
     {
         var photos = project.Images.ToDictionary(photo => photo.Id, StringComparer.Ordinal);
         var views = MeshDepthViews.Build(project, scene, maps);
         var result = new Surface();
         var vertices = new Dictionary<ChartVertex, int>();
-        var selection = FaceViewSelection.Select(geometry, views, photos, cancellation, progress);
+        var reporter = new PhotographSelectionProgress(progress, operationProgress);
+        var selection = FaceViewSelection.Select(geometry, views, photos, cancellation, selectionProgress: reporter);
+        reporter.Start(PhotographSelectionPhase.AssembleMesh, geometry.Faces.Count);
         for (var faceIndex = 0; faceIndex < geometry.Faces.Count; faceIndex++)
         {
             cancellation.ThrowIfCancellationRequested();
             if (selection[faceIndex] < 0 && !retainUnobserved)
             {
+                reporter.Increment();
                 continue;
             }
             var face = geometry.Faces[faceIndex];
@@ -68,7 +71,9 @@ public sealed class MeshBuilder : IMeshBuilder
 
             result.Faces.Add(output);
             result.SourceImages.Add(image);
+            reporter.Increment();
         }
+        reporter.Complete();
 
         if (!selection.Any(view => view >= 0))
         {

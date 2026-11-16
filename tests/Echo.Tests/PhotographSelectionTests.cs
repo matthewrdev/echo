@@ -18,6 +18,60 @@ public sealed class PhotographSelectionTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Occluded detailed views cannot prune a visible coarse photograph across a gap", () =>
+        {
+            var detailed = new Photo { Id = "detailed", Width = 400, Height = 400, FocalPixels = 200 };
+            var coarse = new Photo { Id = "coarse", Width = 100, Height = 100, FocalPixels = 50 };
+            var scene = new ReconstructionScene
+            {
+                Cameras = [new CameraPose { ImageId = "detailed" }, new CameraPose { ImageId = "coarse", Centre = [-5, 0, 0] }]
+            };
+            var surface = Triangle();
+            surface.Vertices = [.. surface.Vertices, [-.2, -.4, 5], [.2, -.4, 5], [0, 0, 5]];
+            surface.Faces.Add([3, 4, 5]);
+            foreach (var measured in new[] { false, true })
+            {
+                foreach (var reverse in new[] { false, true })
+                {
+                    var project = new ProjectData { Images = reverse ? [coarse, detailed] : [detailed, coarse] };
+                    var maps = project.Images.Select(photo => Map(photo.Id, 100, measured ? 10 : 0)).ToArray();
+                    var views = MeshDepthViews.Build(project, scene, maps);
+                    var selected = FaceViewSelection.Select(surface, views, project.Images.ToDictionary(photo => photo.Id), default);
+                    Check(selected[0] >= 0 && views[selected[0]].Camera.ImageId == "coarse",
+                        "An occluded high-detail view removed the visible source, or view ordering changed the choice");
+                }
+            }
+        });
+        tests.Run("Photo selection reports gap counts and all phases without duplicate text spam", () =>
+        {
+            var project = new ProjectData { Images = [new Photo { Id = "photo", Width = 100, Height = 100, FocalPixels = 50 }] };
+            var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "photo" }] };
+            var updates = new List<OperationProgress>();
+            var text = new List<string>();
+            var result = meshes.AssignCameras(project, scene, [Map("photo", 100, 0)], Triangle(), default,
+                progress: text.Add, operationProgress: updates.Add);
+            Check(result.SourceImages.Single() == "photo", "Missing depth should use verified geometric visibility");
+            Check(updates.Select(update => update.StepIndex).Distinct().SequenceEqual(Enumerable.Range(0, 6).Select(index => (int?)index)),
+                "Photograph selection must expose index, measured, gap, neighbours, coherence and assembly phases");
+            var gaps = updates.Where(update => update.Operation == "Check completed gaps").ToArray();
+            Check(gaps.First().Completed == 0 && gaps.Last().Completed == 1 && gaps.Last().Total == 1,
+                "Completed-gap visibility must report its actual face count");
+            Check(updates.Last().Completed == 1 && updates.Last().Total == 1 && text.Count == 0,
+                "Counted progress was duplicated as text or assembly completion was lost");
+        });
+        tests.Run("Concurrent photograph progress is monotonic and rate limited", () =>
+        {
+            var updates = new List<OperationProgress>();
+            var reporter = new PhotographSelectionProgress(null, updates.Add);
+            reporter.Start(PhotographSelectionPhase.CheckMeasuredVisibility, 100000);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            Parallel.For(0, 100000, _ => reporter.Increment());
+            reporter.Complete();
+            Check(updates.Count <= 2 + Math.Ceiling(clock.Elapsed.TotalSeconds * 8), "Photo selection emitted per-face progress spam");
+            Check(updates.Select(update => update.Completed).SequenceEqual(updates.Select(update => update.Completed).Order()),
+                "Parallel photo progress moved backwards");
+            Check(updates.Last().Completed == 100000, "Parallel progress lost completed faces");
+        });
         tests.Run("Photograph detail is independent of supporting depth-map resolution", () =>
         {
             var project = new ProjectData

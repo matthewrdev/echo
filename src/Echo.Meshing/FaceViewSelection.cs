@@ -6,38 +6,49 @@ namespace Echo.Meshing;
 internal static class FaceViewSelection
 {
     public static int[] Select(Surface mesh, IReadOnlyList<DepthView> views, IReadOnlyDictionary<string, Photo> photos,
-        CancellationToken cancellation, Action<string>? progress = null)
+        CancellationToken cancellation, Action<string>? progress = null, PhotographSelectionProgress? selectionProgress = null)
     {
+        var reporter = selectionProgress ?? new PhotographSelectionProgress(progress);
         var candidates = new FaceViewCandidate[mesh.Faces.Count][];
         var scales = new double[mesh.Faces.Count];
         var selected = new int[mesh.Faces.Count];
         Array.Fill(selected, -1);
+        reporter.Start(PhotographSelectionPhase.BuildVisibilityIndex);
         using var visibility = new SurfaceTriangleIndex(mesh, cancellation);
-        var checkedFaces = 0;
-        progress?.Invoke("Checking source visibility and detail in original photograph pixels…");
+        var sourcePhotos = views.Select(view => photos[view.Camera.ImageId]).ToArray();
+        reporter.Start(PhotographSelectionPhase.CheckMeasuredVisibility, mesh.Faces.Count);
         Parallel.For(0, mesh.Faces.Count, new ParallelOptions
         {
             CancellationToken = cancellation,
             MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
         }, index =>
         {
-            var face = mesh.Faces[index];
-            var a = new V3(mesh.Vertices[face[0]]);
-            var b = new V3(mesh.Vertices[face[1]]);
-            var c = new V3(mesh.Vertices[face[2]]);
+            var triangle = visibility.Triangle(index);
+            var a = triangle.A;
+            var b = triangle.B;
+            var c = triangle.C;
             var centre = (a + b + c) / 3;
             var cross = (b - a).Cross(c - a);
-            scales[index] = Math.Sqrt(cross.Length);
+            var area = cross.Length;
+            scales[index] = Math.Sqrt(area);
             var options = new List<FaceViewCandidate>(33);
+            var bestVisibleDensity = 0.0;
             for (var viewIndex = 0; viewIndex < views.Count; viewIndex++)
             {
                 var view = views[viewIndex];
-                var density = FaceViewResolution.Density(view, photos[view.Camera.ImageId], a, b, c);
+                var density = FaceViewResolution.Density(view, sourcePhotos[viewIndex], a, b, c, area);
+                // RetainDetail would discard this view even if it were visible.
+                // Only a verified visible photograph can raise the threshold.
+                if (density < bestVisibleDensity * .81)
+                {
+                    continue;
+                }
                 var score = density > 0 ? Score(view, a, b, c, centre, density) : 0;
                 if (!(score > 0) || visibility.HasOccluder(view.Centre, centre))
                 {
                     continue;
                 }
+                bestVisibleDensity = Math.Max(bestVisibleDensity, density);
                 var insert = options.FindIndex(option => option.Cost < score);
                 options.Insert(insert < 0 ? options.Count : insert, new FaceViewCandidate(viewIndex, score, density));
             }
@@ -55,16 +66,14 @@ internal static class FaceViewSelection
                 }
             }
             candidates[index] = options.ToArray();
-            var completed = Interlocked.Increment(ref checkedFaces);
-            if (completed % 50000 == 0 || completed == mesh.Faces.Count)
-            {
-                progress?.Invoke($"Source photograph candidates: {completed:N0}/{mesh.Faces.Count:N0} triangles…");
-            }
+            reporter.Increment();
         });
+        reporter.Complete();
 
-        if (selected.Any(view => view < 0) && views.Count > 0)
+        var missing = selected.Count(view => view < 0);
+        reporter.Start(PhotographSelectionPhase.CheckCompletedGaps, views.Count > 0 ? missing : 0);
+        if (missing > 0 && views.Count > 0)
         {
-            progress?.Invoke("Checking geometric visibility across completed gaps…");
             Parallel.For(0, selected.Length, new ParallelOptions
             {
                 CancellationToken = cancellation,
@@ -75,17 +84,22 @@ internal static class FaceViewSelection
                 {
                     return;
                 }
-                var face = mesh.Faces[index];
-                var a = new V3(mesh.Vertices[face[0]]);
-                var b = new V3(mesh.Vertices[face[1]]);
-                var c = new V3(mesh.Vertices[face[2]]);
+                var triangle = visibility.Triangle(index);
+                var a = triangle.A;
+                var b = triangle.B;
+                var c = triangle.C;
                 var centre = (a + b + c) / 3;
+                var area = (b - a).Cross(c - a).Length;
                 var options = new List<FaceViewCandidate>();
+                var bestVisibleDensity = 0.0;
                 for (var viewIndex = 0; viewIndex < views.Count; viewIndex++)
                 {
                     var view = views[viewIndex];
-                    var photo = photos[view.Camera.ImageId];
-                    var density = FaceViewResolution.Density(view, photo, a, b, c);
+                    var density = FaceViewResolution.Density(view, sourcePhotos[viewIndex], a, b, c, area);
+                    if (density < bestVisibleDensity * .81)
+                    {
+                        continue;
+                    }
                     // Missing depth is not evidence of an occluder. For inferred
                     // patches, use the completed surface's line of sight instead.
                     // A contradictory measured depth never enters this fallback.
@@ -97,6 +111,7 @@ internal static class FaceViewSelection
                     {
                         continue;
                     }
+                    bestVisibleDensity = Math.Max(bestVisibleDensity, density);
                     options.Add(new FaceViewCandidate(viewIndex, density, density));
                 }
                 if (options.Count > 0)
@@ -107,13 +122,19 @@ internal static class FaceViewSelection
                     selected[index] = options[0].View;
                     candidates[index] = options.Select(option => option with { Cost = -Math.Log(option.Cost / best) }).ToArray();
                 }
+                reporter.Increment();
             });
         }
+        reporter.Complete();
 
+        reporter.Start(PhotographSelectionPhase.BuildSeamNeighbours);
         var neighbours = SurfaceTopologyBuilder.Build(mesh, cancellation).Neighbours;
         var penalties = new double[neighbours.Count];
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
+            cancellation.ThrowIfCancellationRequested();
+            var triangle = visibility.Triangle(index);
+            ReadOnlySpan<V3> positions = [triangle.A, triangle.B, triangle.C];
             for (var corner = 0; corner < 3; corner++)
             {
                 var slot = index * 3 + corner;
@@ -122,15 +143,16 @@ internal static class FaceViewSelection
                 {
                     continue;
                 }
-                var face = mesh.Faces[index];
-                var length = (new V3(mesh.Vertices[face[corner]]) - new V3(mesh.Vertices[face[(corner + 1) % 3]])).Length;
+                var length = (positions[corner] - positions[(corner + 1) % 3]).Length;
                 // Relief is already handled by visibility and the angular data
                 // cost. Colour continuity should not disappear at every crease.
                 penalties[slot] = .5 * Math.Clamp(2 * length / Math.Max(1e-12, scales[index] + scales[other]), .25, 2);
             }
+            reporter.Update();
         }
 
-        FaceViewOptimizer.Optimize(candidates, selected, neighbours, penalties, views.Count, cancellation, progress);
+        reporter.Start(PhotographSelectionPhase.ChooseCoherentPhotographs);
+        FaceViewOptimizer.Optimize(candidates, selected, neighbours, penalties, views.Count, cancellation, message => reporter.Update(message));
         return selected;
     }
 

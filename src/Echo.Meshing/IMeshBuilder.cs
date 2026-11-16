@@ -15,5 +15,5 @@ public interface IMeshBuilder
         ReconstructionScene scene,
         IReadOnlyList<DepthMap> maps,
         Surface geometry,
-        CancellationToken cancellation, Action<string>? progress = null, bool retainUnobserved = false);
+        CancellationToken cancellation, Action<string>? progress = null, bool retainUnobserved = false, Action<OperationProgress>? operationProgress = null);
 }

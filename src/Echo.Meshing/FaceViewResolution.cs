@@ -6,6 +6,9 @@ namespace Echo.Meshing;
 internal static class FaceViewResolution
 {
     public static double Density(DepthView view, Photo photo, V3 a, V3 b, V3 c)
+        => Density(view, photo, a, b, c, (b - a).Cross(c - a).Length);
+
+    public static double Density(DepthView view, Photo photo, V3 a, V3 b, V3 c, double surfaceArea)
     {
         var first = view.Projection.Project(a);
         var second = view.Projection.Project(b);
@@ -16,7 +19,6 @@ internal static class FaceViewResolution
             return 0;
         }
 
-        var surfaceArea = (b - a).Cross(c - a).Length;
         if (!(surfaceArea > 0))
         {
             return 0;
