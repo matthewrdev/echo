@@ -6,11 +6,14 @@ namespace Echo.Meshing;
 
 internal static class SurfaceBoundaryLoops
 {
-    public static IEnumerable<SurfaceBoundaryLoop> Find(Surface mesh, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
+    public static IEnumerable<SurfaceBoundaryLoop> Find(Surface mesh, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null,
+        BinaryHashIndex<SurfaceEdge, BoundaryEdge>? repairEdges = null)
     {
+        using var scratch = work?.CreateScope();
+        work = scratch;
         var faceCount = mesh.Faces.Count;
         IList<int> twins = work?.Filled(checked(faceCount * 3), -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, checked(faceCount * 3)).ToArray();
-        var edges = new BinaryHashIndex<SurfaceEdge, int>(faceCount, new SurfaceEdgeRecordCodec(), new IntRecordCodec(), work, cancellation);
+        var edges = repairEdges == null ? new BinaryHashIndex<SurfaceEdge, int>(faceCount, new SurfaceEdgeRecordCodec(), new IntRecordCodec(), work, cancellation) : null;
         IList<V3> normals = work?.Filled(faceCount, default(V3), new V3RecordCodec()) ?? new V3[faceCount];
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
@@ -28,9 +31,30 @@ internal static class SurfaceBoundaryLoops
                 var to = face[(corner + 1) % 3];
                 var key = new SurfaceEdge(Math.Min(from, to), Math.Max(from, to));
                 var slot = index * 3 + corner;
-                if (!edges.TryGetValue(key, out var other))
+                var other = -1;
+                bool found;
+                if (repairEdges != null)
                 {
-                    edges.Add(key, slot);
+                    found = repairEdges.TryGetValue(key, out var existing);
+                    other = existing.Halfedge;
+                    repairEdges[key] = found
+                        ? existing with
+                        {
+                            Count = existing.Count + 1
+                        }
+                        : new BoundaryEdge(from, to, normals[index], 1, slot);
+                }
+                else
+                {
+                    found = edges!.TryGetValue(key, out other);
+                    if (!found)
+                    {
+                        edges.Add(key, slot);
+                    }
+                }
+                if (!found)
+                {
+                    continue;
                 }
                 else if (other >= 0 && twins[other] == -1)
                 {
@@ -49,7 +73,17 @@ internal static class SurfaceBoundaryLoops
                         twins[other] = -2;
                     }
                     twins[slot] = -2;
-                    edges[key] = -2;
+                    if (repairEdges != null)
+                    {
+                        repairEdges[key] = repairEdges[key] with
+                        {
+                            Halfedge = -2
+                        };
+                    }
+                    else
+                    {
+                        edges![key] = -2;
+                    }
                 }
             }
         }

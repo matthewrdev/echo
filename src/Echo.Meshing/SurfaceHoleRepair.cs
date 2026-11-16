@@ -11,9 +11,11 @@ internal static class SurfaceHoleRepair
     public static int Fill(Surface mesh, double voxelSize, CancellationToken cancellation,
         Func<V3, bool>? supportsSurface = null, Func<SurfaceTriangle, bool>? acceptsTriangle = null, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
     {
+        using var scratch = work?.CreateScope();
+        work = scratch;
         var maximumLoop = supportsSurface == null ? 256 : 8192;
-        var edges = CollectEdges(mesh, cancellation, work, progress);
-        var loops = SurfaceBoundaryLoops.Find(mesh, cancellation, work, progress);
+        var edges = new BinaryHashIndex<SurfaceEdge, BoundaryEdge>(mesh.Faces.Count, new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec(), work, cancellation);
+        var loops = SurfaceBoundaryLoops.Find(mesh, cancellation, work, progress, edges);
         SurfaceTriangleIndex? index = null;
         var repaired = 0;
         var examined = 0;
@@ -120,40 +122,6 @@ internal static class SurfaceHoleRepair
             }
         }
         return true;
-    }
-
-    private static BinaryHashIndex<SurfaceEdge, BoundaryEdge> CollectEdges(Surface mesh, CancellationToken cancellation, WorkBuffers? work, Action<OperationProgress>? progress)
-    {
-        var edges = new BinaryHashIndex<SurfaceEdge, BoundaryEdge>(mesh.Faces.Count, new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec(), work, cancellation);
-        var completed = 0;
-        foreach (var face in mesh.Faces)
-        {
-            if (completed++ % 10000 == 0)
-            {
-                progress?.Invoke(new OperationProgress("Hole edge indexing", "Indexing surface edges…", completed, mesh.Faces.Count, "triangles"));
-            }
-            cancellation.ThrowIfCancellationRequested();
-            var a = new V3(mesh.Vertices[face[0]]);
-            var normal = (new V3(mesh.Vertices[face[1]]) - a).Cross(new V3(mesh.Vertices[face[2]]) - a).Unit;
-            for (var corner = 0; corner < 3; corner++)
-            {
-                var from = face[corner];
-                var to = face[(corner + 1) % 3];
-                var key = new SurfaceEdge(Math.Min(from, to), Math.Max(from, to));
-                if (edges.TryGetValue(key, out var existing))
-                {
-                    edges[key] = existing with
-                    {
-                        Count = existing.Count + 1
-                    };
-                }
-                else
-                {
-                    edges.Add(key, new BoundaryEdge(from, to, normal, 1));
-                }
-            }
-        }
-        return edges;
     }
 
     private static bool SupportedLoop(ReadOnlySpan<V3> points, V3 adjacentNormal, double voxelSize,
