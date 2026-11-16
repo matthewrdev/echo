@@ -147,7 +147,7 @@ public sealed class SurfaceCompletionTests
             var path = Path.Combine(directory, "surface.bin");
             try
             {
-                foreach (var invalid in new[] { "valid", "size", "coordinate", "index" })
+                foreach (var invalid in new[] { "valid", "size", "coordinate", "index", "duplicate", "unsigned" })
                 {
                     using (var writer = new BinaryWriter(File.Create(path)))
                     {
@@ -161,7 +161,7 @@ public sealed class SurfaceCompletionTests
                         }
                         writer.Write(0u);
                         writer.Write(1u);
-                        writer.Write(invalid == "index" ? 3u : 2u);
+                        writer.Write(invalid == "index" ? 3u : invalid == "duplicate" ? 1u : invalid == "unsigned" ? uint.MaxValue : 2u);
                     }
                     if (invalid == "valid")
                     {
@@ -176,6 +176,78 @@ public sealed class SurfaceCompletionTests
             finally
             {
                 Directory.Delete(directory, true);
+            }
+        });
+        tests.Run("Poisson binary blocks preserve coordinates, sample bytes and tail records", () =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), "echo-poisson-blocks-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                const int vertexCount = 6001;
+                const int faceCount = 6007;
+                using (var writer = new BinaryWriter(File.Create(path)))
+                {
+                    writer.Write(0x4f504345u);
+                    writer.Write(1u);
+                    writer.Write((ulong)vertexCount);
+                    writer.Write((ulong)faceCount);
+                    for (var index = 0; index < vertexCount; index++)
+                    {
+                        writer.Write(index * Math.PI);
+                        writer.Write(-0d);
+                        writer.Write(double.Epsilon);
+                    }
+                    for (var index = 0; index < faceCount; index++)
+                    {
+                        writer.Write(index % vertexCount);
+                        writer.Write((index + 1) % vertexCount);
+                        writer.Write((index + 2) % vertexCount);
+                    }
+                }
+                var surface = codec.Read(path, default);
+                Check(surface.Vertices.Count == vertexCount && surface.Faces.Count == faceCount, "Block tail lost records");
+                for (var index = 0; index < vertexCount; index++)
+                {
+                    var point = surface.Vertices[index];
+                    Check(point[0] == index * Math.PI && BitConverter.DoubleToInt64Bits(point[1]) == long.MinValue
+                        && point[2] == double.Epsilon, "Vertex precision or signed zero changed");
+                }
+                for (var index = 0; index < faceCount; index++)
+                {
+                    Check(surface.Faces[index].SequenceEqual(new[] { index % vertexCount, (index + 1) % vertexCount, (index + 2) % vertexCount }), "Face order or winding changed");
+                }
+                Expect<OperationCanceledException>(() => codec.Read(path, new CancellationToken(true)));
+                using (var stream = File.OpenWrite(path))
+                {
+                    stream.SetLength(stream.Length - 1);
+                }
+                Expect<EchoException>(() => codec.Read(path, default));
+
+                var samples = Enumerable.Range(0, 3001).Select(index => new OrientedSurfaceSample(
+                    new V3(index, -0d, double.Epsilon), new V3(.25, -.5, Math.PI))).ToArray();
+                codec.WriteSamples(path, samples, default);
+                using var expected = new MemoryStream();
+                using (var writer = new BinaryWriter(expected, System.Text.Encoding.UTF8, leaveOpen: true))
+                {
+                    writer.Write(0x49504345u);
+                    writer.Write(1u);
+                    writer.Write((ulong)samples.Length);
+                    foreach (var sample in samples)
+                    {
+                        writer.Write(sample.Position.X);
+                        writer.Write(sample.Position.Y);
+                        writer.Write(sample.Position.Z);
+                        writer.Write(sample.Normal.X);
+                        writer.Write(sample.Normal.Y);
+                        writer.Write(sample.Normal.Z);
+                    }
+                }
+                Check(File.ReadAllBytes(path).SequenceEqual(expected.ToArray()), "Buffered sample writes changed the worker contract");
+                Expect<OperationCanceledException>(() => codec.WriteSamples(path, samples, new CancellationToken(true)));
+            }
+            finally
+            {
+                File.Delete(path);
             }
         });
         tests.Run("Bundled screened Poisson reconstructs a missing curved cap as a closed finite surface", () =>
