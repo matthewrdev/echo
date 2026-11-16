@@ -12,3 +12,4 @@
 - Separate run coordination, checkpoint persistence, algorithm execution, and UI state. Prefer focused methods to long command switches or methods containing several processing stages.
 - Preserve serialized artifact contracts and algorithm fingerprints during behavior-preserving cleanup. Change the algorithm version when reconstruction behavior changes.
 - Run `scripts/check-format.sh`, the C# tests, and the native macOS build for changes affecting both applications. Inspect native viewers against saved artifacts when changing rendering.
+- Keep the README focused on durable product, setup, usage, development and licensing information. Do not add session progress, implementation diaries, temporary artifacts, one-off benchmark results or exhaustive internal details. Report work and validation in the chat or PR; do not create tracked documentation merely to relocate those notes.
