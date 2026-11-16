@@ -7,6 +7,9 @@ struct ArtifactTreeNode<Summary: View>: View {
     var statusSymbol: String? = nil
     var statusColor: Color = .secondary
     var statusHelp = ""
+    var statusDetail: String? = nil
+    var statusDetailColor: Color = .secondary
+    var statusDetailHelp = ""
     var isProcessing = false
     var activity: RunProgress? = nil
     var activityHelp = ""
@@ -33,6 +36,11 @@ struct ArtifactTreeNode<Summary: View>: View {
                             .frame(width: 18)
                         Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
                         Spacer(minLength: 4)
+                        if let statusDetail {
+                            Text(statusDetail).font(.caption.weight(.medium)).monospacedDigit()
+                                .foregroundStyle(statusDetailColor).lineLimit(1).fixedSize()
+                                .help(statusDetailHelp)
+                        }
                         if let statusSymbol {
                             ArtifactStatusIcon(symbol: statusSymbol, color: statusColor, isProcessing: isProcessing)
                                 .help(statusHelp)
@@ -41,7 +49,8 @@ struct ArtifactTreeNode<Summary: View>: View {
                     .padding(.trailing, 10).frame(height: 32).contentShape(Rectangle())
                 }
                 .accessibilityAddTraits(selected ? .isSelected : [])
-                .accessibilityValue(statusHelp)
+                .accessibilityValue(
+                    [statusHelp, statusDetail, statusDetailHelp].compactMap { $0 }.joined(separator: ". "))
             }
             .buttonStyle(.plain)
             .background(selected ? Color.accentColor.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 6))

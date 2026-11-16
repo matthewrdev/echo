@@ -71,6 +71,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         inspection?.project.images.first { $0.id == selectedPhotoID }
     }
 
+    var depthQualityRequest: DepthStageQualityRequest? {
+        DepthStageQualityRequest(root: root, run: savedArtifactSources[.depth] ?? displayedRun)
+    }
+
     var selectedStage: PipelineStage {
         get {
             if case .artifact(let stage) = destination { return stage }

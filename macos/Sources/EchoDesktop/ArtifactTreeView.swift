@@ -2,6 +2,13 @@ import SwiftUI
 
 struct ArtifactTreeView: View {
     @ObservedObject var workspace: WorkspaceViewModel
+    @StateObject private var depthQuality: DepthStageQualityViewModel
+
+    @MainActor
+    init(workspace: WorkspaceViewModel, depthQuality: DepthStageQualityViewModel? = nil) {
+        self.workspace = workspace
+        _depthQuality = StateObject(wrappedValue: depthQuality ?? DepthStageQualityViewModel())
+    }
 
     private var photos: [Photo] { workspace.inspection?.project.images ?? [] }
 
@@ -25,6 +32,9 @@ struct ArtifactTreeView: View {
             }.padding(8)
         }
         .accessibilityLabel("Workspace artifacts")
+        .task(id: workspace.depthQualityRequest) {
+            await depthQuality.load(workspace.depthQualityRequest)
+        }
     }
 
     private func stageNode(_ stage: PipelineStage) -> some View {
@@ -41,11 +51,17 @@ struct ArtifactTreeView: View {
             statusSymbol: activity == nil ? workspace.stageSymbol(stage) : "arrow.trianglehead.2.clockwise.rotate.90",
             statusColor: activity == nil ? workspace.stageColor(stage) : .accentColor,
             statusHelp: activity == nil ? workspace.stageStatus(stage) : activityHelp,
+            statusDetail: stage == .depth ? depthQuality.summary?.label : nil,
+            statusDetailColor: depthQualityColor,
+            statusDetailHelp: stage == .depth ? depthQuality.summary?.help ?? "" : "",
             isProcessing: activity != nil,
             activity: activity, activityHelp: activityHelp,
             select: { workspace.showArtifact(stage) }
         ) {
-            Text(summary(stage)).lineLimit(2).help(stage.explanation)
+            Text(summary(stage)).lineLimit(2)
+                .help(
+                    stage == .depth
+                        ? depthQuality.error ?? depthQuality.summary?.help ?? stage.explanation : stage.explanation)
         }
         .contextMenu {
             Button("View \(stage.title)") { workspace.showArtifact(stage) }
@@ -65,7 +81,11 @@ struct ArtifactTreeView: View {
                 return "\(scene.cameras.count.formatted()) cameras · \(scene.unplaced.count.formatted()) unplaced"
             }
             return "Sparse cloud & camera poses"
-        case .depth: return "Depth & confidence maps"
+        case .depth:
+            if let summary = depthQuality.summary { return summary.detail }
+            if depthQuality.loading { return "Measuring depth coverage…" }
+            if depthQuality.error != nil { return "Depth coverage unavailable" }
+            return "Depth & confidence maps"
         case .cloud:
             if let cloud = workspace.inspection?.cloud {
                 return "\(cloud.retainedSamples.formatted()) points"
@@ -75,6 +95,16 @@ struct ArtifactTreeView: View {
         case .mesh: return "Reconstructed surface"
         case .texture: return "Textured surface & atlas"
         case .export: return "GLB model & georeference"
+        }
+    }
+
+    private var depthQualityColor: Color {
+        switch depthQuality.summary?.grade {
+        case .empty, .poor: return .red
+        case .limited, .partial: return .orange
+        case .broad: return .blue
+        case .strong, .dense: return .green
+        case nil: return .secondary
         }
     }
 }
