@@ -25,5 +25,17 @@ public sealed class DepthMap
 
     public float DepthAt(int index) => Samples?.DepthAt(index) ?? Depth[index];
 
+    public void ReadDepth(int start, Span<float> destination)
+    {
+        if (Samples != null)
+        {
+            Samples.ReadDepth(start, destination);
+        }
+        else
+        {
+            Depth.AsSpan(start, destination.Length).CopyTo(destination);
+        }
+    }
+
     public float ConfidenceAt(int index) => Samples?.ConfidenceAt(index) ?? (Confidence.Length == 0 ? 0 : Confidence[index]);
 }

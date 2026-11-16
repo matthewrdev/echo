@@ -61,10 +61,7 @@ public static class DepthCompute
                     }
                     else
                     {
-                        for (var pixel = 0; pixel < count; pixel++)
-                        {
-                            values[pixel] = view.Map.DepthAt(first + pixel);
-                        }
+                        view.Map.ReadDepth(first, values.AsSpan(0, count));
                         session.UploadRange<float>(1, offset, values.AsSpan(0, count));
                     }
                     offset += count;

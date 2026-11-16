@@ -7,5 +7,6 @@ public interface IDepthSamples
         get;
     }
     float DepthAt(int index);
+    void ReadDepth(int start, Span<float> destination);
     float ConfidenceAt(int index);
 }

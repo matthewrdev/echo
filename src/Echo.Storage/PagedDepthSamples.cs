@@ -15,5 +15,17 @@ public sealed class PagedDepthSamples : IDepthSamples
 
     public int Count => depths.Count;
     public float DepthAt(int index) => depths[index];
+    public void ReadDepth(int start, Span<float> destination)
+    {
+        if (depths is PagedList<float> paged)
+        {
+            paged.ReadRange(start, destination);
+            return;
+        }
+        for (var index = 0; index < destination.Length; index++)
+        {
+            destination[index] = depths[start + index];
+        }
+    }
     public float ConfidenceAt(int index) => confidence.Count == 0 ? 0 : confidence[index];
 }
