@@ -39,7 +39,7 @@ cp THIRD_PARTY_NOTICES.md "$staging_dir/Contents/Resources/THIRD_PARTY_NOTICES.m
 cp -R licenses "$staging_dir/Contents/Resources/licenses"
 cp scripts/Info.plist "$staging_dir/Contents/Info.plist"
 cp assets/Echo.icns "$staging_dir/Contents/Resources/Echo.icns"
-app_dir="$repo_dir/dist/Echo.app"
+app_dir="${2:-$repo_dir/dist/Echo.app}"
 mkdir -p "$app_dir"
 rsync -a --delete "$staging_dir/" "$app_dir/"
 codesign --force --deep --sign - "$app_dir"
