@@ -11,7 +11,8 @@ internal sealed class OperationProgressFilter
     public bool Accept(string stage, OperationProgress progress, TimeSpan elapsed)
     {
         var transition = this.stage != stage || previous?.Operation != progress.Operation
-            || previous?.StepIndex != progress.StepIndex || previous?.Unit != progress.Unit;
+            || previous?.StepIndex != progress.StepIndex || previous?.Unit != progress.Unit
+            || previous?.StageStepIndex != progress.StageStepIndex;
         var reset = progress.Completed < previous?.Completed || progress.Total != previous?.Total;
         var complete = progress.Total > 0 && progress.Completed >= progress.Total;
         var wasComplete = previous?.Total > 0 && previous.Completed >= previous.Total;

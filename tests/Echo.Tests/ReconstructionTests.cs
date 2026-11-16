@@ -428,10 +428,24 @@ public sealed class ReconstructionTests
                 var previewImages = partialFeatures.Count;
                 var cloudProgressEvents = 0;
                 var sawLiveCloudBeforeCompletion = false;
+                var meshPhases = new HashSet<int>();
+                var lastMeshPhase = -1;
                 first = processor.Execute(store, "export", default, paused.Id, output: value =>
                 {
                     var record = JsonSerializer.SerializeToElement(value, jsonCodec.Options);
                     var payload = record.GetProperty("payload");
+                    var meshProgress = record.GetProperty("type").GetString() == "stageProgress"
+                        && payload.GetProperty("stage").GetString() == "mesh";
+                    if (meshProgress && payload.TryGetProperty("stageStepIndex", out var phase))
+                    {
+                        var index = phase.GetInt32();
+                        Check(index >= lastMeshPhase, "Mesh phase progress went backwards");
+                        lastMeshPhase = index;
+                        meshPhases.Add(index);
+                        var steps = payload.GetProperty("stageSteps");
+                        Check(steps[0].GetString() == "Load inputs" && steps[steps.GetArrayLength() - 1].GetString() == "Save mesh", "Mesh plan must cover loading through saving");
+                        Check(store.GetRun(paused.Id).Progress!.StageStepIndex == index, "Live and polled mesh phases differ");
+                    }
                     var featureCheckpoint = record.GetProperty("type").GetString() == "imageCheckpoint"
                         && payload.GetProperty("stage").GetString() == "features";
                     if (featureCheckpoint)
@@ -492,6 +506,7 @@ public sealed class ReconstructionTests
                 Check(depthReports == 3, "Every depth image is reported during processing");
                 Check(cloudProgressEvents >= 3, "Dense cloud reports progress during construction");
                 Check(sawLiveCloudBeforeCompletion, "Dense cloud publishes a viewable artifact before completion");
+                Check(meshPhases.Count >= 8 && meshPhases.Contains(0), "Mesh must publish the complete phase plan before simplification");
                 var scene = jsonCodec.Read<ReconstructionScene>(store.PathFor(first.Artifacts["alignment"] + "/scene.json"));
                 Check(scene.Cameras.Count == 3 && scene.Points.Count > 15, "Reconstructed camera/point geometry");
                 var depths = scene.Points.Select(p => -p.Position[2]).Order().ToArray();

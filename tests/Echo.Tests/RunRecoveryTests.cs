@@ -155,6 +155,53 @@ public sealed class RunRecoveryTests
             context.ReportResources();
             Check(context.Run.Progress.Updated == updated && context.Run.Progress.Resources != null, "Resource sampling falsely reported computational progress");
         }));
+        tests.Run("Text-only updates preserve counted operation progress and units", () => WithProject(store =>
+        {
+            using var context = contexts.Create(store, SaveRun(store), default, null);
+            context.ReportOperation("mesh", new OperationProgress("Surface extraction", "Extracting", 4000000000, 5000000000, "lattice cells"));
+            context.ReportProgress("mesh", "Extracting surface: more triangles accepted");
+            var progress = context.Run.Progress!;
+            Check(progress.Completed == 4000000000 && progress.Total == 5000000000, "Text update erased counted progress");
+            Check(progress.Unit == "lattice cells" && progress.Operation == "Surface extraction", "Text update changed the operation units");
+            var saved = store.GetRun(context.Run.Id).Progress!;
+            Check(saved.Completed == progress.Completed && saved.Total == progress.Total, "Polling would see different progress from the live operation");
+            context.BeginOperation("mesh", "Geometry simplification");
+            Check(context.Run.Progress!.Completed == null && context.Run.Progress.Total == null, "A genuine new operation must reset its counters");
+        }));
+        tests.Run("Mesh stage plan survives operation transitions, text messages and polling", () => WithProject(store =>
+        {
+            using var context = contexts.Create(store, SaveRun(store), default, null);
+            string[] phases = ["Load inputs", "Extract surface", "Simplify geometry", "Save mesh"];
+            context.ReportOperation("mesh", new OperationProgress("Load inputs", "Loading")
+            {
+                StageSteps = phases,
+                StageStepIndex = 0
+            });
+            Check(store.GetRun(context.Run.Id).Progress!.StageSteps.SequenceEqual(phases), "Stage plan is missing before the first counted operation");
+            context.ReportOperation("mesh", new OperationProgress("Extracting", "Extracting", 40, 100, "cells")
+            {
+                StageSteps = phases,
+                StageStepIndex = 1
+            });
+            context.ReportProgress("mesh", "More triangles accepted");
+            Check(context.Run.Progress!.StageStepIndex == 1 && context.Run.Progress.Completed == 40, "Text update reset the phase or counter");
+            context.ReportOperation("mesh", new OperationProgress("Collapse edges", "Collapsing", 3, 10, "edges")
+            {
+                StageSteps = phases,
+                StageStepIndex = 2,
+                Steps = ["Prepare", "Collapse edges", "Compact"],
+                StepIndex = 1
+            });
+            var saved = store.GetRun(context.Run.Id).Progress!;
+            Check(saved.StageStepIndex == 2 && saved.StepIndex == 1 && saved.StageSteps.Length == 4 && saved.Steps.Length == 3, "Polling lost nested simplification progress");
+            context.ReportOperation("mesh", new OperationProgress("Save mesh", "Saving")
+            {
+                StageSteps = phases,
+                StageStepIndex = 3,
+                Steps = []
+            });
+            Check(context.Run.Progress!.StageStepIndex == 3 && context.Run.Progress.Steps.Length == 0 && context.Run.Progress.Completed == null, "Nested steps leaked into saving");
+        }));
         tests.Run("Resume can change operational budgets without changing reconstruction settings", () => WithProject(store =>
         {
             var run = SaveRun(store);

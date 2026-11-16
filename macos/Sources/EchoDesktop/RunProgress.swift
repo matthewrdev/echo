@@ -1,6 +1,8 @@
 import Foundation
 
 struct RunProgress: Decodable {
+    var stageSteps: [String]? = nil
+    var stageStepIndex: Int? = nil
     var steps: [String]? = nil
     var stepIndex: Int? = nil
     var operation: String? = nil
@@ -24,15 +26,27 @@ struct RunProgress: Decodable {
         return stepIndex
     }
 
+    var activeStageStepIndex: Int? {
+        guard let stageSteps, let stageStepIndex, stageSteps.indices.contains(stageStepIndex) else { return nil }
+        return stageStepIndex
+    }
+
+    var hasStepPlan: Bool { activeStageStepIndex != nil || activeStepIndex != nil }
+
+    var stageStepSummary: String? {
+        guard let stageSteps, let index = activeStageStepIndex else { return nil }
+        return "\(stageSteps[index]) · step \(index + 1) of \(stageSteps.count)"
+    }
+
     var stepSummary: String? {
         guard let steps, let index = activeStepIndex else { return nil }
         return "\(steps[index]) · step \(index + 1) of \(steps.count)"
     }
 
     var stepActivityTitle: String? {
-        guard let stepSummary else { return nil }
+        guard let summary = stageStepSummary ?? stepSummary else { return nil }
         let title = PipelineStage(rawValue: stage)?.title ?? stage.capitalized
-        return "\(title) · \(stepSummary)"
+        return "\(title) · \(summary)"
     }
 
     var overallFractionCompleted: Double? {

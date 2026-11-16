@@ -4,6 +4,22 @@ import XCTest
 @testable import EchoDesktop
 
 final class RunProgressTests: XCTestCase {
+    func testMeshStagePlanIsAvailableBeforeCountersAndSurvivesNestedSteps() throws {
+        let data = Data(
+            #"{"stage":"mesh","message":"Loading","stageSteps":["Load inputs","Extract surface","Simplify geometry","Save mesh"],"stageStepIndex":0}"#
+                .utf8)
+        var progress = try JSONDecoder().decode(RunProgress.self, from: data)
+        XCTAssertTrue(progress.hasStepPlan)
+        XCTAssertNil(progress.fractionCompleted)
+        XCTAssertEqual(progress.stageStepSummary, "Load inputs · step 1 of 4")
+        progress.stageStepIndex = 2
+        progress.steps = ["Prepare", "Collapse edges", "Compact"]
+        progress.stepIndex = 1
+        XCTAssertEqual(progress.stageStepSummary, "Simplify geometry · step 3 of 4")
+        XCTAssertEqual(progress.stepSummary, "Collapse edges · step 2 of 3")
+        XCTAssertEqual(progress.stepActivityTitle, "\(PipelineStage.mesh.title) · Simplify geometry · step 3 of 4")
+    }
+
     func testClassificationCompletionDoesNotCompleteDepth() throws {
         let data = Data(
             #"{"stage":"depth","message":"classification complete","steps":["Classification","Stereo depth","Cliff recovery","Save"],"stepIndex":0,"completed":190,"total":190}"#

@@ -44,7 +44,7 @@ struct GlobalProgressView: View {
                 }
             }
             if workspace.isWorking, let progress = workspace.workingRun?.progress, progress.phase != "checking" {
-                if progress.activeStepIndex != nil {
+                if progress.hasStepPlan {
                     StageProgressBar(progress: progress, showsLegend: true)
                 } else if let fraction = progress.fractionCompleted {
                     ProgressView(value: fraction)

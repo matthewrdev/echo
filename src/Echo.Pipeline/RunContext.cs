@@ -392,6 +392,8 @@ public sealed class RunContext : IDisposable
                 operation = progress.Operation,
                 steps = progress.Steps,
                 stepIndex = progress.StepIndex,
+                stageSteps = progress.StageSteps,
+                stageStepIndex = progress.StageStepIndex,
                 message = progress.Message,
                 completed = progress.Completed,
                 total = progress.Total,
@@ -550,16 +552,27 @@ public sealed class RunContext : IDisposable
                 : stage == "matching" ? "image pairs" : "images";
             var operation = data.TryGetProperty("operation", out var activity) ? activity.GetString() ?? "" : previous?.Operation ?? "";
             var operationChanged = operation != previous?.Operation;
+            var stageSteps = data.TryGetProperty("stageSteps", out var stageStepNames) && stageStepNames.ValueKind == JsonValueKind.Array
+                ? stageStepNames.EnumerateArray().Select(value => value.GetString() ?? "").ToArray()
+                : previous?.StageSteps ?? [];
+            var stageStepIndex = data.TryGetProperty("stageStepIndex", out var stageIndex) && stageIndex.ValueKind == JsonValueKind.Number
+                ? stageIndex.GetInt32() : previous?.StageStepIndex;
             var steps = data.TryGetProperty("steps", out var stepNames) && stepNames.ValueKind == JsonValueKind.Array
                 ? stepNames.EnumerateArray().Select(value => value.GetString() ?? "").ToArray()
                 : operationChanged ? [] : previous?.Steps ?? [];
             var stepIndex = data.TryGetProperty("stepIndex", out var index) && index.ValueKind == JsonValueKind.Number
                 ? index.GetInt32() : operationChanged ? null : previous?.StepIndex;
             var continuesStep = steps.Length > 0 && !(data.TryGetProperty("stepIndex", out var step) && step.ValueKind == JsonValueKind.Number);
-            if (continuesStep)
+            var uncounted = !completed.HasValue && !total.HasValue;
+            var messageOnly = type == "stageProgress" && !data.TryGetProperty("operation", out _) && uncounted;
+            if (continuesStep || messageOnly)
             {
                 completed ??= previous?.Completed;
                 total ??= previous?.Total;
+                if (messageOnly)
+                {
+                    unit = previous?.Unit ?? unit;
+                }
             }
 
             var started = operation == previous?.Operation ? previous.OperationStarted : DateTimeOffset.UtcNow;
@@ -567,6 +580,8 @@ public sealed class RunContext : IDisposable
             {
                 Steps = steps,
                 StepIndex = stepIndex,
+                StageSteps = stageSteps,
+                StageStepIndex = stageStepIndex,
                 Resources = MeasureResources(),
                 Operation = operation,
                 OperationStarted = started,

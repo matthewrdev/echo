@@ -63,7 +63,7 @@ struct ArtifactTreeNode<Summary: View>: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(
-                            activity.stepSummary
+                            activity.stageStepSummary ?? activity.stepSummary
                                 ?? (activity.phase == "checking" ? "Checking saved work" : "Processing")
                         )
                         .lineLimit(1)
@@ -74,7 +74,7 @@ struct ArtifactTreeNode<Summary: View>: View {
                                     activity.activeStepIndex == nil ? "Stage progress" : "Progress of the current step")
                         }
                     }.font(.caption2).foregroundStyle(Color.accentColor)
-                    if activity.activeStepIndex != nil {
+                    if activity.hasStepPlan {
                         StageProgressBar(progress: activity, showsLegend: false)
                     } else {
                         ProgressView(value: activity.fractionCompleted)

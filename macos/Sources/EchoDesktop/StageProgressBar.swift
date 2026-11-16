@@ -3,11 +3,30 @@ import SwiftUI
 struct StageProgressBar: View {
     let progress: RunProgress
     let showsLegend: Bool
+    var usesStagePlan = true
 
     private var colors: [Color] { [.blue, .teal, .orange, .purple] }
+    private var isStagePlan: Bool { usesStagePlan && progress.activeStageStepIndex != nil }
+    private var steps: [String]? { isStagePlan ? progress.stageSteps : progress.steps }
+    private var active: Int? { isStagePlan ? progress.activeStageStepIndex : progress.activeStepIndex }
+
+    private func fraction(_ index: Int) -> Double {
+        // A phase contains several operations with independent counters. Mark
+        // it complete only when the next phase starts, rather than jumping back
+        // whenever an operation resets its own counter.
+        if isStagePlan { return index < (active ?? 0) ? 1 : 0 }
+        return progress.fractionForStep(index)
+    }
+
+    private func status(_ index: Int) -> String {
+        if isStagePlan {
+            return index < (active ?? 0) ? "Completed" : index == active ? "In progress" : "Pending"
+        }
+        return "\(Int(fraction(index) * 100))% of this step"
+    }
 
     var body: some View {
-        if let steps = progress.steps, let active = progress.activeStepIndex {
+        if let steps, let active {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 3) {
                     ForEach(steps.indices, id: \.self) { index in
@@ -15,17 +34,20 @@ struct StageProgressBar: View {
                             ZStack(alignment: .leading) {
                                 Capsule().fill(colors[index % colors.count].opacity(0.16))
                                 Capsule().fill(colors[index % colors.count])
-                                    .frame(width: geometry.size.width * progress.fractionForStep(index))
+                                    .frame(width: geometry.size.width * fraction(index))
+                                if isStagePlan && index == active {
+                                    Capsule().strokeBorder(colors[index % colors.count], lineWidth: 1.5)
+                                }
                             }
                         }
                         .frame(height: 7)
-                        .help("\(steps[index]): \(Int(progress.fractionForStep(index) * 100))% of this step")
+                        .help("\(steps[index]): \(status(index))")
                     }
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Processing steps")
                 .accessibilityValue(
-                    "\(progress.stepSummary ?? ""). \(Int((progress.fractionCompleted ?? 0) * 100)) percent of this step."
+                    "\(isStagePlan ? progress.stageStepSummary ?? "" : progress.stepSummary ?? ""). \(status(active))."
                 )
                 if showsLegend {
                     ViewThatFits(in: .horizontal) {
@@ -42,6 +64,15 @@ struct StageProgressBar: View {
                                 legend(steps[index], index: index, active: active)
                             }
                         }
+                    }
+                }
+                if showsLegend && isStagePlan {
+                    if let summary = progress.stepSummary {
+                        Text(summary).font(.caption).foregroundStyle(.secondary)
+                        StageProgressBar(progress: progress, showsLegend: false, usesStagePlan: false)
+                    } else if let fraction = progress.fractionCompleted {
+                        ProgressView(value: fraction)
+                            .help(progress.countSummary ?? progress.message)
                     }
                 }
             }

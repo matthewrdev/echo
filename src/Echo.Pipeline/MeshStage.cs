@@ -71,91 +71,97 @@ public sealed class MeshStage : IPipelineStage
             project.Settings.MeshIslandMinimumAreaPercent
         }, dir =>
                 {
+                    var progress = new MeshProgress(project.Settings, update => context.ReportOperation(Name, update));
+                    progress.Begin(MeshPhase.LoadInputs);
                     var semantics = semanticUnits.ToDictionary(pair => pair.Key,
                         pair => context.ReadData<SemanticMap>(store.PathFor(pair.Value + "/semantics.json")));
                     var maps = context.DepthMaps();
                     var volume = context.ReadData<FusedVolume>(store.PathFor(fusionPath + "/volume.json"));
-                    context.BeginOperation(Name, "Surface extraction");
-                    var extracted = meshBuilder.Extract(volume, cancellation, context.Work, message => context.ReportProgress(Name, message), update => context.ReportOperation(Name, update), project.Settings.ComputeBackend);
+                    progress.Begin(MeshPhase.ExtractSurface);
+                    var extracted = meshBuilder.Extract(volume, cancellation, context.Work, message => context.ReportProgress(Name, message), progress.Report, project.Settings.ComputeBackend);
                     var detailTolerance = volume.VoxelSize * .15;
-                    context.BeginOperation(Name, "Geometry simplification");
-                    var reduced = edgeCollapse.Reduce(extracted, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: update => context.ReportOperation(Name, update));
-                    context.BeginOperation(Name, "Observed hole repair");
-                    meshBuilder.FillHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, update => context.ReportOperation(Name, update));
+                    progress.Begin(MeshPhase.SimplifyGeometry);
+                    var reduced = edgeCollapse.Reduce(extracted, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: progress.Report);
+                    progress.Begin(MeshPhase.RepairObservedHoles);
+                    meshBuilder.FillHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report);
                     if (reduced.Faces.Count > project.Settings.FaceLimit)
                     {
-                        reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: context.Work, progress: update => context.ReportOperation(Name, update));
+                        reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: context.Work, progress: progress.Report);
                     }
+                    progress.Begin(MeshPhase.CompleteSurface);
                     context.ReportProgress(Name, "Removing surfaces contradicted by visible depth rays before completion…");
                     var facesBeforeVisibility = reduced.Faces.Count;
-                    reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, context.Work, update => context.ReportOperation(Name, update), compute);
+                    reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, context.Work, progress.Report, compute);
                     var rejectedBeforeCompletion = facesBeforeVisibility - reduced.Faces.Count;
                     var rejectedAfterCompletion = 0;
                     context.ReportProgress(Name, $"Rejected {rejectedBeforeCompletion:N0} triangles contradicted by observed empty space.");
+                    progress.Report(new OperationProgress("Find surface gaps", "Checking the surface for gaps…"));
                     var completed = SurfaceSupportFilter.HasGaps(reduced, cancellation, context.Work);
                     if (completed)
                     {
+                        progress.Report(new OperationProgress("Completion photograph selection", "Selecting photographs for surface completion…"));
                         var observed = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
                             message => context.ReportProgress(Name, message));
+                        progress.Report(new OperationProgress("Surface reconstruction", "Reconstructing missing surface…"));
                         var reconstructed = surfaceReconstructor.Reconstruct(observed, scene, volume.VoxelSize, cancellation,
                             message => context.ReportProgress(Name, message), context.Memory);
                         context.ReportProgress(Name, "Restricting surface completion to the scanned neighbourhood…");
-                        var supported = SurfaceSupportFilter.Filter(reconstructed, observed, volume.VoxelSize * 24, cancellation, context.Work, update => context.ReportOperation(Name, update));
+                        var supported = SurfaceSupportFilter.Filter(reconstructed, observed, volume.VoxelSize * 24, cancellation, context.Work, progress.Report);
                         context.ReportProgress(Name, "Adapting the completed surface to its geometric detail…");
-                        reduced = edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: update => context.ReportOperation(Name, update));
+                        reduced = edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: progress.Report);
                         context.ReportProgress(Name, "Checking completed surfaces against observed empty space…");
                         facesBeforeVisibility = reduced.Faces.Count;
-                        reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, context.Work, update => context.ReportOperation(Name, update), compute);
+                        reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, context.Work, progress.Report, compute);
                         rejectedAfterCompletion = facesBeforeVisibility - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Rejected {rejectedAfterCompletion:N0} completed triangles contradicted by observed empty space.");
                     }
                     context.ReportProgress(Name, "Repairing small enclosed holes after visibility cleanup…");
-                    context.BeginOperation(Name, "Final hole repair");
-                    var finalRepair = meshBuilder.RepairFinalHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, update => context.ReportOperation(Name, update));
+                    progress.Begin(MeshPhase.RepairFinalHoles);
+                    var finalRepair = meshBuilder.RepairFinalHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report);
                     context.ReportProgress(Name, $"Closed {finalRepair.RepairedHoles:N0} small holes with {finalRepair.AddedFaces:N0} triangles.");
                     if (reduced.Faces.Count > project.Settings.FaceLimit)
                     {
-                        reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: context.Work, progress: update => context.ReportOperation(Name, update));
+                        reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: context.Work, progress: progress.Report);
                     }
                     var vegetationRemovedFaces = 0;
                     if (project.Settings.OptimiseVegetation)
                     {
                         context.ReportProgress(Name, "Allocating fewer triangles to vegetation confirmed by multiple visible photographs…");
-                        context.BeginOperation(Name, "Vegetation classification");
-                        var labels = SurfaceVegetationClassifier.Classify(reduced, project, scene, maps, semantics, cancellation, context.Work, update => context.ReportOperation(Name, update), compute);
+                        progress.Begin(MeshPhase.OptimiseVegetation);
+                        var labels = SurfaceVegetationClassifier.Classify(reduced, project, scene, maps, semantics, cancellation, context.Work, progress.Report, compute);
                         var tolerances = SurfaceVegetationClassifier.Tolerances(reduced, labels,
                             detailTolerance * project.Settings.VegetationMeshToleranceMultiplier, context.Work, cancellation);
                         var before = reduced.Faces.Count;
-                        context.BeginOperation(Name, "Vegetation simplification");
-                        reduced = edgeCollapse.Reduce(reduced, before, cancellation, vertexTolerances: tolerances, work: context.Work, progress: update => context.ReportOperation(Name, update));
+                        progress.Report(new OperationProgress("Vegetation simplification", "Simplifying vegetation…"));
+                        reduced = edgeCollapse.Reduce(reduced, before, cancellation, vertexTolerances: tolerances, work: context.Work, progress: progress.Report);
                         vegetationRemovedFaces = before - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Removed {vegetationRemovedFaces:N0} vegetation triangles; rock and material boundaries remain fixed.");
                     }
                     if (project.Settings.MeshIslandMode != IslandTrimMode.Off)
                     {
+                        progress.Begin(MeshPhase.TrimIslands);
                         context.ReportProgress(Name, "Trimming disconnected islands after surface completion…");
                     }
-                    context.BeginOperation(Name, "Island trimming");
                     var trimming = SurfaceIslandTrimmer.Trim(reduced, project.Settings.MeshIslandMode,
-                        project.Settings.MeshIslandMinimumAreaPercent, cancellation, context.Work, update => context.ReportOperation(Name, update));
+                        project.Settings.MeshIslandMinimumAreaPercent, cancellation, context.Work, progress.Report);
                     if (trimming.InputComponents.HasValue)
                     {
                         context.ReportProgress(Name, $"Removed {trimming.RemovedComponents:N0} disconnected islands ({trimming.RemovedFaces:N0} triangles).");
                     }
                     // Removed fragments must not continue to occlude photographs
                     // of the surviving surface during source assignment.
-                    context.BeginOperation(Name, "Photograph selection");
+                    progress.Begin(MeshPhase.SelectPhotographs);
                     var mesh = meshBuilder.AssignCameras(project, scene, maps, trimming.Surface, cancellation,
                         message => context.ReportProgress(Name, message), retainUnobserved: true);
                     var photographCoverage = SurfacePhotographCoverage.Measure(mesh, cancellation);
                     context.ReportProgress(Name, $"Photographs assigned to {photographCoverage.Faces - photographCoverage.InferredFaces:N0}/{photographCoverage.Faces:N0} triangles. Inferred colour covers {photographCoverage.InferredAreaPercent:F2}% of total surface area, including hidden and completed surfaces.");
                     if (project.Settings.OptimiseVegetation)
                     {
-                        var labels = SurfaceVegetationClassifier.Classify(mesh, project, scene, maps, semantics, cancellation, context.Work, update => context.ReportOperation(Name, update), compute);
+                        var labels = SurfaceVegetationClassifier.Classify(mesh, project, scene, maps, semantics, cancellation, context.Work, progress.Report, compute);
                         var faces = mesh.Faces.Select(face => face.All(vertex => labels[vertex])).ToArray();
                         fileOperations.AtomicJson(Path.Combine(dir, "vegetation.json"), faces);
                     }
-                    context.BeginOperation(Name, "Saving mesh");
+                    progress.Begin(MeshPhase.SaveMesh);
                     fileOperations.AtomicData(Path.Combine(dir, "mesh.json"), mesh, cancellation);
                     plyWriter.Write(Path.Combine(dir, "mesh.ply"), mesh.Vertices, mesh.Faces);
                     fileOperations.AtomicJson(Path.Combine(dir, "mesh.report.json"), new

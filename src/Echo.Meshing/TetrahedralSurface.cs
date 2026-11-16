@@ -57,8 +57,14 @@ internal static class TetrahedralSurface
                 if (++completed % 50000 == 0)
                 {
                     var message = $"Extracting surface: {completed:N0}/{samples.Count:N0} lattice cells; {mesh.Faces.Count:N0} triangles…";
-                    progress?.Invoke(message);
-                    operationProgress?.Invoke(new OperationProgress("Surface extraction", message, completed, samples.Count, "lattice cells"));
+                    if (operationProgress != null)
+                    {
+                        operationProgress(new OperationProgress("Surface extraction", message, completed, samples.Count, "lattice cells"));
+                    }
+                    else
+                    {
+                        progress?.Invoke(message);
+                    }
                 }
                 var complete = true;
                 var negative = false;
