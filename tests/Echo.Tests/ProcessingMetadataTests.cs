@@ -28,6 +28,27 @@ public sealed class ProcessingMetadataTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Depth step progress survives checkpoint events and resets between steps and stages", () => WithProject(store =>
+        {
+            using var context = Context(store, "cpu");
+            context.Start();
+            context.BeginStep("depth", ["Classification", "Stereo depth", "Save"], 0, 10);
+            context.ReportProgress("depth", "Classified", 5, 10);
+            context.ReportProgress("depth", "Loading model");
+            Check(context.Run.Progress!.Completed == 5 && context.Run.Progress.Total == 10, "Status messages preserve current step counters");
+            context.Build("semantic-image", new
+            {
+                test = "step"
+            }, SaveData);
+            Check(context.Run.Progress!.StepIndex == 0 && context.Run.Progress.Steps.Length == 3, "Child checkpoints preserve the step plan");
+            context.BeginStep("depth", ["Classification", "Stereo depth", "Save"], 1, 20);
+            Check(context.Run.Progress!.Completed == 0 && context.Run.Progress.Total == 20, "New step starts with fresh counters");
+            var saved = store.GetRun(context.Run.Id).Progress!;
+            Check(saved.StepIndex == 1 && saved.Steps[1] == "Stereo depth", "Step plan survives persistence and reload");
+            context.ReportProgress("cloud", "Next stage", 1, 10);
+            Check(context.Run.Progress!.Steps.Length == 0 && context.Run.Progress.StepIndex == null, "Do not carry Depth steps into another stage");
+            context.Complete();
+        }));
         tests.Run("Processing provenance is hashed with artifacts and preserved on reuse with a different requested backend", () => WithProject(store =>
         {
             var first = Context(store, "metal-validated");

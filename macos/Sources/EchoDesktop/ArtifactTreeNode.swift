@@ -62,15 +62,23 @@ struct ArtifactTreeNode<Summary: View>: View {
             if let activity {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(activity.phase == "checking" ? "Checking saved work" : "Processing")
+                        Text(
+                            activity.stepSummary
+                                ?? (activity.phase == "checking" ? "Checking saved work" : "Processing")
+                        )
+                        .lineLimit(1)
                         Spacer()
-                        if let fraction = activity.fractionCompleted {
+                        if let fraction = activity.overallFractionCompleted {
                             Text(fraction, format: .percent.precision(.fractionLength(0))).monospacedDigit()
                         }
                     }.font(.caption2).foregroundStyle(Color.accentColor)
-                    ProgressView(value: activity.fractionCompleted)
-                        .progressViewStyle(.linear).controlSize(.small)
-                        .accessibilityLabel("\(title) progress")
+                    if activity.activeStepIndex != nil {
+                        StageProgressBar(progress: activity, showsLegend: false)
+                    } else {
+                        ProgressView(value: activity.fractionCompleted)
+                            .progressViewStyle(.linear).controlSize(.small)
+                            .accessibilityLabel("\(title) progress")
+                    }
                 }
                 .help(activityHelp)
                 .padding(.leading, 42).padding(.trailing, 10).padding(.bottom, 9)

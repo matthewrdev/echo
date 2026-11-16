@@ -1,6 +1,8 @@
 import Foundation
 
 struct RunProgress: Decodable {
+    var steps: [String]? = nil
+    var stepIndex: Int? = nil
     var operation: String? = nil
     var unit: String? = nil
     var operationStarted: String? = nil
@@ -17,6 +19,28 @@ struct RunProgress: Decodable {
         return min(1, max(0, Double(completed) / Double(total)))
     }
 
+    var activeStepIndex: Int? {
+        guard let steps, let stepIndex, steps.indices.contains(stepIndex) else { return nil }
+        return stepIndex
+    }
+
+    var stepSummary: String? {
+        guard let steps, let index = activeStepIndex else { return nil }
+        return "\(steps[index]) · step \(index + 1) of \(steps.count)"
+    }
+
+    var overallFractionCompleted: Double? {
+        guard let steps, let index = activeStepIndex else { return fractionCompleted }
+        return (Double(index) + (fractionCompleted ?? 0)) / Double(steps.count)
+    }
+
+    func fractionForStep(_ index: Int) -> Double {
+        guard let active = activeStepIndex else { return 0 }
+        if index < active { return 1 }
+        if index > active { return 0 }
+        return fractionCompleted ?? 0
+    }
+
     var activityDescription: String {
         var lines: [String] = []
         if let operation, !operation.isEmpty { lines.append(operation) }
@@ -30,7 +54,9 @@ struct RunProgress: Decodable {
 
     var countSummary: String? {
         guard let completed, let total, let fractionCompleted else { return nil }
-        return "\(completed.formatted()) of \(total.formatted()) \(unit ?? "items") · \(Int(fractionCompleted * 100))%"
+        let scope = activeStepIndex == nil ? "" : " of this step"
+        return
+            "\(completed.formatted()) of \(total.formatted()) \(unit ?? "items") · \(Int(fractionCompleted * 100))%\(scope)"
     }
 
     var updatedAt: Date? {

@@ -146,6 +146,9 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     var progressActivity: String {
+        if isWorking, !cancelRequested, let step = workingRun?.progress?.stepSummary {
+            return "Depth · \(step)"
+        }
         guard isWorking, !cancelRequested, let progress = workingRun?.progress,
             let operation = progress.operation, !operation.isEmpty, progress.phase != "checking"
         else { return progressTitle }

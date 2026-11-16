@@ -2,6 +2,11 @@ namespace Echo.Contracts;
 
 public sealed class RunProgress
 {
+    public string[] Steps { get; set; } = [];
+    public int? StepIndex
+    {
+        get; set;
+    }
     public ResourceProgress? Resources
     {
         get; set;

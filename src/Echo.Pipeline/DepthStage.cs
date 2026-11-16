@@ -39,8 +39,29 @@ public sealed class DepthStage : IPipelineStage
         var scene = context.Scene();
         var plan = executionPlanner.Plan(project, scene.Cameras.Count, context.WorkingMemoryBytes, context.Resources.DepthMemoryBudgetMb);
         var needsSemantics = project.Settings.DepthSuppressSky || project.Settings.OptimiseVegetation || project.Settings.RecoverCliffDepth;
+        var steps = new List<string>();
+        if (needsSemantics)
+        {
+            steps.Add("Classify sky, rock and vegetation");
+        }
+
+        steps.Add("Estimate stereo depth");
+        if (project.Settings.RecoverCliffDepth)
+        {
+            steps.Add("Recover missing cliff detail");
+        }
+
+        steps.Add("Save depth result");
+        var stepNames = steps.ToArray();
+        var stepIndex = 0;
+        if (needsSemantics)
+        {
+            context.BeginStep(Name, stepNames, stepIndex++, context.Images.Count);
+        }
+
         var semantics = needsSemantics
             ? semanticArtifacts.Build(context) : new Dictionary<string, SemanticMap>();
+        context.BeginStep(Name, stepNames, stepIndex++, scene.Cameras.Count);
         var depthUnits = new string[scene.Cameras.Count];
         var previewUnits = context.Run.Artifacts.ContainsKey("depthPreview")
             ? context.ReadArtifact<Dictionary<string, string>>("depthPreview", "units.json")
@@ -145,8 +166,10 @@ public sealed class DepthStage : IPipelineStage
         var originalUnits = depthUnits;
         if (project.Settings.RecoverCliffDepth)
         {
+            context.BeginStep(Name, stepNames, stepIndex++, originalUnits.Length);
             depthUnits = cliffRecovery.Build(context, scene, originalUnits, semantics);
         }
+        context.BeginStep(Name, stepNames, stepIndex, 1);
         var artifact = context.Build("depth", depthUnits, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), depthUnits);
@@ -156,6 +179,7 @@ public sealed class DepthStage : IPipelineStage
             }
         }, () => new ProcessingMetadata { SourceArtifacts = depthUnits.ToList() });
         context.Publish("depth", artifact);
+        context.ReportOperation(Name, new OperationProgress("Save depth result", "Depth result saved. All depth steps are complete.", 1, 1, "results"));
     }
 
     private void PublishPreview(RunContext context, Dictionary<string, string> units)

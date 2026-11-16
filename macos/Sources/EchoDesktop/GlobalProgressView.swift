@@ -43,10 +43,12 @@ struct GlobalProgressView: View {
                     }
                 }
             }
-            if workspace.isWorking, workspace.workingRun?.progress?.phase != "checking",
-                let fraction = workspace.workingRun?.progress?.fractionCompleted
-            {
-                ProgressView(value: fraction)
+            if workspace.isWorking, let progress = workspace.workingRun?.progress, progress.phase != "checking" {
+                if progress.activeStepIndex != nil {
+                    StageProgressBar(progress: progress, showsLegend: true)
+                } else if let fraction = progress.fractionCompleted {
+                    ProgressView(value: fraction)
+                }
             }
             if workspace.showsTelemetry {
                 Divider()

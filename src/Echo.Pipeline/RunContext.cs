@@ -401,6 +401,21 @@ public sealed class RunContext : IDisposable
         });
     }
 
+    public void BeginStep(string stage, string[] steps, int stepIndex, int? total = null)
+    {
+        Report("stageProgress", new
+        {
+            stage,
+            steps,
+            stepIndex,
+            operation = steps[stepIndex],
+            message = $"{steps[stepIndex]} · step {stepIndex + 1} of {steps.Length}",
+            completed = 0,
+            total,
+            unit = stepIndex == steps.Length - 1 ? "results" : "images"
+        });
+    }
+
     public void Start()
     {
         traceSession = Trace.BeginRun(Run.Id, Run.Target);
@@ -520,9 +535,22 @@ public sealed class RunContext : IDisposable
             var unit = data.TryGetProperty("unit", out var workUnit) ? workUnit.GetString() ?? "items"
                 : stage == "matching" ? "image pairs" : "images";
             var operation = data.TryGetProperty("operation", out var activity) ? activity.GetString() ?? "" : previous?.Operation ?? "";
+            var steps = data.TryGetProperty("steps", out var stepNames)
+                ? stepNames.EnumerateArray().Select(value => value.GetString() ?? "").ToArray()
+                : previous?.Steps ?? [];
+            var stepIndex = data.TryGetProperty("stepIndex", out var index) ? index.GetInt32() : previous?.StepIndex;
+            var continuesStep = steps.Length > 0 && !data.TryGetProperty("stepIndex", out _);
+            if (continuesStep)
+            {
+                completed ??= previous?.Completed;
+                total ??= previous?.Total;
+            }
+
             var started = operation == previous?.Operation ? previous.OperationStarted : DateTimeOffset.UtcNow;
             Run.Progress = new RunProgress
             {
+                Steps = steps,
+                StepIndex = stepIndex,
                 Resources = MeasureResources(),
                 Operation = operation,
                 OperationStarted = started,
