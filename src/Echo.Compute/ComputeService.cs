@@ -44,7 +44,7 @@ public sealed class ComputeService : IComputeService
     public ComputeScope BeginScope(long memoryBudgetBytes)
     {
         var previous = scope.Value;
-        var current = new ComputeScope(Math.Clamp(memoryBudgetBytes, 4, MemoryBudgetBytes), previous, () => scope.Value = previous);
+        var current = new ComputeScope(Math.Clamp(memoryBudgetBytes, 4, previous?.MemoryBudgetBytes ?? long.MaxValue), previous, () => scope.Value = previous);
         scope.Value = current;
         return current;
     }

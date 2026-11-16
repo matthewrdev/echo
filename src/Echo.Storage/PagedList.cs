@@ -117,10 +117,7 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
             {
                 var count = Math.Min(destination.Length, bytes.Length / codec.Size);
                 file.ReadBytes(offset + (long)start * codec.Size, bytes.AsSpan(0, count * codec.Size));
-                for (var index = 0; index < count; index++)
-                {
-                    destination[index] = codec.Decode(bytes.AsSpan(index * codec.Size, codec.Size));
-                }
+                codec.DecodeBlock(bytes.AsSpan(0, count * codec.Size), destination[..count]);
                 destination = destination[count..];
                 start += count;
             }
@@ -144,10 +141,7 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
             while (!source.IsEmpty)
             {
                 var count = Math.Min(source.Length, bytes.Length / codec.Size);
-                for (var index = 0; index < count; index++)
-                {
-                    codec.Encode(source[index], bytes.AsSpan(index * codec.Size, codec.Size));
-                }
+                codec.EncodeBlock(source[..count], bytes.AsSpan(0, count * codec.Size));
                 file.WriteBytes(offset + (long)Count * codec.Size, bytes.AsSpan(0, count * codec.Size));
                 Count += count;
                 source = source[count..];

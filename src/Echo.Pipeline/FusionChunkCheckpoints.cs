@@ -25,7 +25,7 @@ public sealed class FusionChunkCheckpoints : IFusionChunkStore
             inputs,
             first,
             count,
-            formatVersion = 1
+            formatVersion = 2
         }, directory =>
         {
             generated = build();

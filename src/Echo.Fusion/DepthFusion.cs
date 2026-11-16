@@ -60,34 +60,49 @@ public sealed class DepthFusion : IDepthFusion
                 MemoryLimited = voxel > grid.RequestedVoxelSize * 1.001
             }
         };
-        operationProgress?.Invoke(new OperationProgress("Volume integration", "Integrating observed depths…", 0, keys.Count, "grid samples"));
-        var plan = FusionIntegrationPlanning.Resolve(resources.MemoryBudgetBytes, compute?.MemoryBudgetBytes ?? long.MaxValue,
+        var cleanup = project.Settings.FusionIslandMode != IslandTrimMode.Off;
+        var plan = FusionIntegrationPlanning.Resolve(resources.MemoryBudgetBytes, compute?.MemoryBudgetBytes ?? 0,
             keys.Count, views.Sum(view => (long)view.Map.SampleCount));
+        operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
+            "Preparing depth maps for integration…", 0, views.Length, "depth maps"));
         using var integrator = new FusionBatchIntegrator(views, voxel, project.Settings.CloudDepthTolerance, plan,
-            compute, plan.SelectBackend(project.Settings.ComputeBackend), cancellation, progress);
+            compute, plan.SelectBackend(project.Settings.ComputeBackend), cancellation, progress,
+            (done, total) => operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation,
+                cleanup, $"Loading resident depth maps: {done:N0}/{total:N0}", done, total, "depth maps")));
+        operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
+            "Depth integration ready.", views.Length, views.Length, "depth maps"));
         var previewSamples = preview == null ? null : new FusionPreviewSampler();
         var appender = new FusionVolumeAppender(result.Samples, previewSamples);
         long lastPreview = 0;
-        var cells = keys.OpenReader();
-        for (long first = 0; first < keys.Count; first += integrator.Capacity)
+        using var batches = new FusionChunkIntegrator(integrator, keys.OpenReader(),
+            chunks == null ? integrator.Capacity : plan.CheckpointCapacity, cancellation);
+        for (long first = 0; first < keys.Count; first += batches.Capacity)
         {
             cancellation.ThrowIfCancellationRequested();
-            var count = (int)Math.Min(integrator.Capacity, keys.Count - first);
-            if (cells.Read(integrator.Cells.AsSpan(0, count)) != count)
+            var count = (int)Math.Min(batches.Capacity, keys.Count - first);
+            var generated = false;
+            IList<VolumeSample> Integrate()
             {
-                throw new InvalidDataException("Fusion grid ranges ended before their declared cell count.");
+                generated = true;
+                return batches.Integrate(count, done => operationProgress?.Invoke(FusionProgressPlan.Create(
+                    FusionPhase.Integration, cleanup, $"Integrating volume: {first + done:N0}/{keys.Count:N0} samples.",
+                    first + done, keys.Count, "grid samples")));
             }
-            IList<VolumeSample> Integrate() => integrator.Integrate(count);
             var completed = chunks?.ReadOrBuild(first, count, Integrate) ?? Integrate();
+            if (!generated)
+            {
+                batches.Skip(count);
+            }
             appender.Append(completed);
             if (preview != null && Environment.TickCount64 - lastPreview >= 3000)
             {
                 preview(previewSamples!.Snapshot(result));
                 lastPreview = Environment.TickCount64;
             }
-            var message = $"Integrating volume: {first + count:N0}/{keys.Count:N0} samples; {result.Samples.Count:N0} retained.";
+            var message = $"Integrated volume: {first + count:N0}/{keys.Count:N0} samples; {result.Samples.Count:N0} retained.";
             progress?.Invoke(message);
-            operationProgress?.Invoke(new OperationProgress("Volume integration", message, first + count, keys.Count, "grid samples"));
+            operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.Integration, cleanup,
+                message, first + count, keys.Count, "grid samples"));
         }
         if (result.Samples.Count < 100)
         {

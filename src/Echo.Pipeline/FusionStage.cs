@@ -45,8 +45,8 @@ public sealed class FusionStage : IPipelineStage
             cloudPath,
             depthUnits,
             alignment,
-            maximumGridSamples = context.Paged ? 0 : resources.MaximumGridSamples,
-            fusionVersion = 10,
+            maximumGridSamples = context.Paged && project.Settings.FusionVoxelSize > 0 ? 0 : resources.MaximumGridSamples,
+            fusionVersion = 11,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Fusion),
             project.Settings.CloudDepthTolerance,
@@ -69,7 +69,7 @@ public sealed class FusionStage : IPipelineStage
                         preview => previews.Publish(preview));
                     if (project.Settings.FusionIslandMode != IslandTrimMode.Off)
                     {
-                        context.ReportProgress(Name, "Removing disconnected fusion regions before meshing…");
+                        context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Cleanup, true, "Removing disconnected fusion regions before meshing…"));
                     }
                     var trimming = FusionIslandTrimmer.Trim(volume, project.Settings.FusionIslandMode,
                         project.Settings.FusionIslandMinimumSizePercent, cancellation, context.Work, message => context.ReportProgress(Name, message));
@@ -78,6 +78,8 @@ public sealed class FusionStage : IPipelineStage
                     {
                         context.ReportProgress(Name, $"Removed {trimming.RemovedRegions:N0} fusion regions ({trimming.RemovedSamples:N0} volume samples) before meshing.");
                     }
+                    context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Save,
+                        project.Settings.FusionIslandMode != IslandTrimMode.Off, "Saving the integrated volume…", 0, 1, "volumes"));
                     fileOperations.AtomicData(Path.Combine(dir, "volume.json"), volume, cancellation);
                     fileOperations.AtomicData(Path.Combine(dir, "volume.preview.json"), new FusedVolume
                     {
@@ -104,6 +106,8 @@ public sealed class FusionStage : IPipelineStage
                         },
                         method = "Precision-weighted projective TSDF; continuous valid depths contribute truncated free-space evidence in front of the measured surface; occluded and unknown space do not vote; at least two nearby observed depths per retained voxel; resolution and integration uncertainty are independent."
                     });
+                    context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Save,
+                        project.Settings.FusionIslandMode != IslandTrimMode.Off, "Integrated volume saved.", 1, 1, "volumes"));
                 });
         context.Publish("fusion", fusionPath);
     }

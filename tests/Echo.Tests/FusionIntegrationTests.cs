@@ -30,6 +30,102 @@ public sealed class FusionIntegrationTests
             var large = FusionIntegrationPlanning.Resolve(8L << 30, 512L << 20);
             Check(large.BatchCapacity == 262144 && large.SelectBackend(ComputeBackend.Auto) == ComputeBackend.Auto, "Large scenes lost GPU eligibility");
         });
+        tests.Run("Root compute budgets exceed 512 MiB while nested scopes retain their parent limit", () =>
+        {
+            var original = compute.MemoryBudgetBytes;
+            using (var root = compute.BeginScope(4L << 30))
+            {
+                Check(compute.MemoryBudgetBytes == 4L << 30, "Root compute budget was silently capped");
+                using (var child = compute.BeginScope(8L << 30))
+                {
+                    Check(child.MemoryBudgetBytes == root.MemoryBudgetBytes, "Nested scope escaped its budget");
+                }
+            }
+            Check(compute.MemoryBudgetBytes == original, "Scope did not restore the previous budget");
+        });
+        tests.Run("Resident depth planning includes maps and work buffers without exceeding the GPU budget", () =>
+        {
+            const long depths = 190L * 2048 * 1152;
+            var resident = FusionIntegrationPlanning.Resolve(8L << 30, 3L << 30, 31090597514, depths);
+            Check(resident.ResidentDepthCount == depths, "Cliff-sized depth maps should fit once in the planned budget");
+            Check(resident.CheckpointCapacity >= resident.BatchCapacity * 8, "Disk checkpoints still track individual GPU batches");
+            var tiled = FusionIntegrationPlanning.Resolve(8L << 30, 512L << 20, 31090597514, depths);
+            Check(tiled.ResidentDepthCount == 0, "Low-memory sessions must use bounded tiles");
+        });
+        tests.Run("Fusion progress lists preparation, integration and saving with optional cleanup", () =>
+        {
+            foreach (var cleanup in new[] { false, true })
+            {
+                var update = FusionProgressPlan.Create(FusionPhase.Integration, cleanup, "working", 500, 1000);
+                Check(update.Steps![update.StepIndex!.Value] == "Integrate volume", "The active phase is missing");
+                Check(update.Steps.Contains("Clean up islands") == cleanup, "Disabled cleanup must not be a progress step");
+                Check(update.Steps[^1] == "Save volume" && update.StepIndex < update.Steps.Length - 1, "Integration must not finish the stage");
+            }
+        });
+        tests.Run("Skipping reused fusion checkpoints preserves the next grid cell", () =>
+        {
+            var spans = new[] { new GridSpan(1, 2, -100, 100), new GridSpan(3, 4, 7, 5000) };
+            var grid = new FusionCandidateGrid(spans, 5195, GridAxis.Z);
+            var reader = grid.OpenReader();
+            reader.Skip(211);
+            var cells = new Grid[5];
+            Check(reader.Read(cells) == 5 && cells.SequenceEqual(grid.Skip(211).Take(5)), "Resume skipped or repeated candidate cells");
+        });
+        tests.Run("Grouped fusion checkpoints resume without rebuilding or changing the volume", () =>
+        {
+            var fixture = new FusionFixture();
+            fixture.Project.Settings.ComputeBackend = ComputeBackend.Cpu;
+            var chunks = new FusionTestChunkStore();
+            var fusion = new DepthFusion(compute);
+            var resources = new FusionResourcePlan(25600000, 100000);
+            var first = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default, chunks: chunks);
+            var builds = chunks.Builds;
+            var resumed = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default, chunks: chunks);
+            Check(builds > 0 && chunks.Builds == builds, "Saved integration checkpoints were rebuilt");
+            Check(resumed.Samples.SequenceEqual(first.Samples), "Resuming changed the integrated volume");
+        });
+        tests.Run("Cancellation inside a grouped fusion checkpoint cannot publish partial samples", () =>
+        {
+            var fixture = Fixture();
+            using var stop = new CancellationTokenSource();
+            using var integration = new FusionBatchIntegrator(fixture.Views, .125, .01,
+                new FusionIntegrationPlan(16, 64), null, ComputeBackend.Cpu, stop.Token);
+            var grid = new FusionCandidateGrid([new GridSpan(0, 0, 76, 139)], 64, GridAxis.Z);
+            using var group = new FusionChunkIntegrator(integration, grid.OpenReader(), 64, stop.Token);
+            var store = new FusionTestChunkStore();
+            try
+            {
+                store.ReadOrBuild(0, 64, () => group.Integrate(64, _ => stop.Cancel()));
+                throw new InvalidOperationException("Cancelled integration returned a checkpoint");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            Check(store.Builds == 0, "A partial group became a reusable checkpoint");
+        });
+        tests.Run("Volume block encoding matches individual records without reflection or padding", () =>
+        {
+            var codec = new VolumeRecordCodec();
+            var source = Enumerable.Range(0, 4097).Select(index => new VolumeSample
+            {
+                X = -index,
+                Y = int.MaxValue - index,
+                Z = index,
+                Distance = index * -.03125f,
+                Views = index % 190
+            }).ToArray();
+            var expected = new byte[source.Length * codec.Size];
+            for (var index = 0; index < source.Length; index++)
+            {
+                codec.Encode(source[index], expected.AsSpan(index * codec.Size, codec.Size));
+            }
+            var actual = new byte[expected.Length];
+            codec.EncodeBlock(source, actual);
+            var restored = new VolumeSample[source.Length];
+            codec.DecodeBlock(actual, restored);
+            Check(Unsafe.SizeOf<VolumeSample>() == 20 && actual.SequenceEqual(expected), "Native record layout changed the binary contract");
+            Check(restored.SequenceEqual(source), "Block decoding changed records");
+        });
         tests.Run("Fusion volume records contain no managed references and retain the explicit binary layout", () =>
         {
             Check(!RuntimeHelpers.IsReferenceOrContainsReferences<VolumeSample>(), "Voxel records must be unmanaged values");
@@ -174,6 +270,39 @@ public sealed class FusionIntegrationTests
                 return;
             }
         }
+        tests.Run("CPU and Metal integration preserve evidence across many cameras and partial batches", CompareManyCameras);
+        tests.Run("Resident Metal fusion matches tiled evidence and never rereads maps between batches", () =>
+        {
+            using var scope = compute.BeginScope(16L << 20);
+            var fixture = Fixture();
+            var counts = fixture.Views.Select(view => new CountingDepthSamples(view.Map.Depth)).ToArray();
+            for (var index = 0; index < counts.Length; index++)
+            {
+                fixture.Views[index].Map.Samples = counts[index];
+            }
+            var cells = Cells();
+            VolumeSample[] expected;
+            using (var tiled = new FusionBatchIntegrator(fixture.Views, .125, .01,
+                new FusionIntegrationPlan(1024, 64), compute, ComputeBackend.Metal, default))
+            {
+                cells.CopyTo(tiled.Cells, 0);
+                expected = tiled.Integrate(cells.Length).ToArray();
+            }
+            var before = counts.Sum(value => value.ReadSamples);
+            var total = counts.Sum(value => value.Count);
+            using var resident = new FusionBatchIntegrator(fixture.Views, .125, .01,
+                new FusionIntegrationPlan(1024, 64, total), compute, ComputeBackend.Metal, default);
+            Check(counts.Sum(value => value.ReadSamples) - before == total, "Depth maps should load exactly once");
+            before = counts.Sum(value => value.ReadSamples);
+            cells.CopyTo(resident.Cells, 0);
+            for (var repeat = 0; repeat < 3; repeat++)
+            {
+                Check(resident.Integrate(cells.Length).SequenceEqual(expected), "Resident depth maps changed signed distances or support");
+            }
+            Check(counts.Sum(value => value.ReadSamples) == before, "Resident integration reread depths");
+            resident.Cells[0] = new Grid(0, 0, -80);
+            Check(resident.Integrate(1).Count == 0, "An invisible batch returned stale resident results");
+        });
         tests.Run("Metal fusion accumulates split depth uploads within a budget smaller than all maps", () =>
         {
             using var scope = compute.BeginScope(65536);
@@ -200,6 +329,69 @@ public sealed class FusionIntegrationTests
             }
             Check(Execute(64).SequenceEqual(Execute(32768)), "Splitting camera uploads altered the GPU field");
         });
+    }
+
+    private void CompareManyCameras()
+    {
+        var origin = new V3(6000000, -4000000, 2000000);
+        var views = new List<DepthView>();
+        for (var index = 0; index < 300; index++)
+        {
+            var angle = index % 12 * Math.PI / 6;
+            var photo = new Photo { Id = index.ToString(), Width = 32, Height = 32, FocalPixels = 32 };
+            var camera = new CameraPose
+            {
+                Centre = (origin + new V3(index % 5 - 2, 0, 0)).Array,
+                Rotation = [Math.Cos(angle), 0, Math.Sin(angle), 0, 1, 0, -Math.Sin(angle), 0, Math.Cos(angle)]
+            };
+            var depths = Enumerable.Repeat(10.03f, 1024).ToArray();
+            depths[index % depths.Length] = index % 2 == 0 ? 0 : float.NaN;
+            views.Add(new DepthView(photo, camera, new DepthMap { Width = 32, Height = 32, Depth = depths }));
+        }
+        var cells = new Grid[1025];
+        for (var index = 0; index < cells.Length; index++)
+        {
+            cells[index] = new Grid((int)(origin.X * 8) + (index % 17 - 8) * 8,
+                (int)(origin.Y * 8) + (index % 5 - 2) * 8,
+                (int)(origin.Z * 8) + (index % 37 - 18) * 8);
+        }
+        cells[0] = new Grid((int)(origin.X * 8), (int)(origin.Y * 8), (int)(origin.Z * 8) + 80);
+        using var integration = new FusionBatchIntegrator(views, .125, .01,
+            new FusionIntegrationPlan(cells.Length, 1024, views.Count * 1024), compute, ComputeBackend.Metal, default);
+        using var cpu = new FusionBatchIntegrator(views, .125, .01,
+            new FusionIntegrationPlan(cells.Length, 32768), null, ComputeBackend.Cpu, default);
+        cells.CopyTo(integration.Cells, 0);
+        cells.CopyTo(cpu.Cells, 0);
+        foreach (var count in new[] { 1, 31, 33, 255, 257, cells.Length })
+        {
+            var actual = integration.Integrate(count);
+            var cpuSamples = cpu.Integrate(count);
+            Check(cpuSamples.Count == actual.Count, "CPU block selection changed supported coverage");
+            var retained = 0;
+            foreach (var cell in cells.AsSpan(0, count))
+            {
+                var world = new V3(cell.X * .125, cell.Y * .125, cell.Z * .125);
+                var value = new FusionAccumulator();
+                foreach (var view in views)
+                {
+                    value.Add(view.Observe(world, .01), view.Focal, .01, .125);
+                }
+                if (value.Support < 2)
+                {
+                    continue;
+                }
+                Check(retained < actual.Count, "Integration removed a supported voxel");
+                var sample = actual[retained++];
+                Check(sample.X == cell.X && sample.Y == cell.Y && sample.Z == cell.Z && sample.Views == value.Support,
+                    "Integration changed ordering or camera support");
+                Check(Math.Abs(sample.Distance - value.Sum / value.Weight) < 2e-5, "Integration changed the field");
+                var cpuSample = cpuSamples[retained - 1];
+                Check(cpuSample.X == sample.X && cpuSample.Y == sample.Y && cpuSample.Z == sample.Z && cpuSample.Views == value.Support,
+                    "CPU block selection changed camera evidence");
+                Check(cpuSample.Distance == (float)(value.Sum / value.Weight), "CPU block selection changed the reference field");
+            }
+            Check(retained > 0 && retained == actual.Count, "Integration added unsupported voxels");
+        }
     }
 
     private void Compare(ComputeBackend backend, IComputeService? service = null)

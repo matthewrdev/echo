@@ -4,5 +4,6 @@ internal enum FusionIntegrationBenchmarkMode
 {
     Reference,
     Cpu,
-    Metal
+    Metal,
+    MetalTiled
 }

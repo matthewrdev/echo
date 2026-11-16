@@ -10,15 +10,17 @@ internal sealed class FusionCompute : IDisposable
     private readonly IComputeSession session;
     private readonly float[] jobs;
     private readonly float[] values;
-    private readonly float[] metadata = new float[128 * 24];
+    private readonly float[] metadata;
+    private FusionDepthWindow[] residentWindows = [];
     private bool first;
     private bool disposed;
 
-    public FusionCompute(IComputeSession session, FusionIntegrationPlan plan)
+    public FusionCompute(IComputeSession session, FusionIntegrationPlan plan, int viewCount)
     {
         this.session = session;
+        metadata = new float[Math.Max(128, viewCount) * 24];
         session.Allocate(0, metadata.Length * sizeof(float));
-        session.Allocate(1, checked(plan.DepthCapacity * sizeof(float)));
+        session.Allocate(1, checked(Math.Max(plan.ResidentDepthCount, plan.DepthCapacity) * sizeof(float)));
         session.Allocate(2, checked(plan.BatchCapacity * 4 * sizeof(float)));
         session.Allocate(3, checked(plan.BatchCapacity * 4 * sizeof(float)));
         session.Allocate(4, 2 * sizeof(float));
@@ -51,11 +53,65 @@ internal sealed class FusionCompute : IDisposable
 
     public void Add(FusionDepthTiles tiles, V3 origin, int count)
     {
-        for (var index = 0; index < tiles.Count; index++)
+        WriteMetadata(tiles.Windows.AsSpan(0, tiles.Count), origin);
+        session.Upload<float>(0, metadata.AsSpan(0, tiles.Count * 24));
+        session.Upload<float>(1, tiles.Depths.AsSpan(0, tiles.Length));
+        session.Dispatch(ComputeKernel.FusionIntegrate, count, [tiles.Count, first ? 1 : 0]);
+        first = false;
+    }
+
+    public bool HasResidentDepths => residentWindows.Length > 0;
+
+    public void LoadResidentDepths(IReadOnlyList<DepthView> views, Span<float> staging,
+        CancellationToken cancellation, Action<int, int>? progress)
+    {
+        residentWindows = new FusionDepthWindow[views.Count];
+        var offset = 0;
+        for (var index = 0; index < views.Count; index++)
         {
-            var window = tiles.Windows[index];
+            var view = views[index];
+            residentWindows[index] = new FusionDepthWindow(view,
+                new FusionDepthRegion(0, 0, view.Map.Width, view.Map.Height), offset);
+            for (var start = 0; start < view.Map.SampleCount; start += staging.Length)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                var count = Math.Min(staging.Length, view.Map.SampleCount - start);
+                view.Map.ReadDepth(start, staging[..count]);
+                session.UploadRange<float>(1, offset + start, staging[..count]);
+            }
+            offset = checked(offset + view.Map.SampleCount);
+            progress?.Invoke(index + 1, views.Count);
+        }
+    }
+
+    public void AddResident(FusionBounds bounds, V3 origin, int count)
+    {
+        var selected = 0;
+        foreach (var window in residentWindows)
+        {
+            var region = FusionDepthProjection.Project(window.View, bounds, origin);
+            if (region.Width < 2 || region.Height < 2)
+            {
+                continue;
+            }
+            WriteMetadata(new ReadOnlySpan<FusionDepthWindow>(in window), origin, selected++);
+        }
+        if (selected == 0)
+        {
+            return;
+        }
+        session.Upload<float>(0, metadata.AsSpan(0, selected * 24));
+        session.Dispatch(ComputeKernel.FusionIntegrate, count, [selected, 1]);
+        first = false;
+    }
+
+    private void WriteMetadata(ReadOnlySpan<FusionDepthWindow> windows, V3 origin, int start = 0)
+    {
+        for (var index = 0; index < windows.Length; index++)
+        {
+            var window = windows[index];
             var view = window.View;
-            var data = metadata.AsSpan(index * 24, 24);
+            var data = metadata.AsSpan((start + index) * 24, 24);
             data.Clear();
             data[0] = (float)(view.Centre.X - origin.X);
             data[1] = (float)(view.Centre.Y - origin.Y);
@@ -73,10 +129,6 @@ internal sealed class FusionCompute : IDisposable
             data[18] = window.Region.Width;
             data[19] = window.Region.Height;
         }
-        session.Upload<float>(0, metadata.AsSpan(0, tiles.Count * 24));
-        session.Upload<float>(1, tiles.Depths.AsSpan(0, tiles.Length));
-        session.Dispatch(ComputeKernel.FusionIntegrate, count, [tiles.Count, first ? 1 : 0]);
-        first = false;
     }
 
     public int Finish(ReadOnlySpan<Grid> cells, Span<VolumeSample> output, CancellationToken cancellation)

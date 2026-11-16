@@ -41,6 +41,25 @@ internal sealed class FusionGridReader
         return count;
     }
 
+    public void Skip(long count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        while (count > 0)
+        {
+            if (z > current.LastZ)
+            {
+                if (!Next())
+                {
+                    throw new InvalidDataException("Fusion grid ranges ended before their declared cell count.");
+                }
+                z = current.FirstZ;
+            }
+            var length = Math.Min(count, current.LastZ - z + 1);
+            z += length;
+            count -= length;
+        }
+    }
+
     private bool Next()
     {
         if (position == available)

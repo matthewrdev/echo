@@ -22,7 +22,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
     private bool disposed;
 
     public FusionBatchIntegrator(IReadOnlyList<DepthView> views, double voxel, double tolerance, FusionIntegrationPlan plan,
-        IComputeService? compute, ComputeBackend backend, CancellationToken cancellation, Action<string>? progress = null)
+        IComputeService? compute, ComputeBackend backend, CancellationToken cancellation, Action<string>? progress = null, Action<int, int>? preparationProgress = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(plan.BatchCapacity, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(plan.DepthCapacity, 4);
@@ -40,9 +40,9 @@ internal sealed class FusionBatchIntegrator : IDisposable
         tiles = new FusionDepthTiles(plan.DepthCapacity, cancellation);
         try
         {
-            OpenCompute(compute, plan);
+            OpenCompute(compute, plan, preparationProgress);
             progress?.Invoke(gpu != null
-            ? $"Integrating with Metal using bounded depth tiles and batches of up to {Capacity:N0} grid samples."
+            ? $"Integrating with Metal using {(gpu.HasResidentDepths ? "resident depth maps" : "bounded depth tiles")} and batches of up to {Capacity:N0} grid samples."
             : $"Integrating on CPU using bounded depth tiles and batches of up to {Capacity:N0} grid samples.");
         }
         catch
@@ -52,7 +52,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
         }
     }
 
-    private void OpenCompute(IComputeService? compute, FusionIntegrationPlan plan)
+    private void OpenCompute(IComputeService? compute, FusionIntegrationPlan plan, Action<int, int>? preparationProgress)
     {
         if (compute == null && backend == ComputeBackend.Metal)
         {
@@ -65,11 +65,17 @@ internal sealed class FusionBatchIntegrator : IDisposable
                 session = compute.Open(backend, cancellation);
                 if (session != null)
                 {
-                    gpu = new FusionCompute(session, plan);
+                    gpu = new FusionCompute(session, plan, views.Count);
+                    if (plan.ResidentDepthCount > 0)
+                    {
+                        gpu.LoadResidentDepths(views, tiles.Depths.AsSpan(0, Math.Min(262144, tiles.Depths.Length)), cancellation, preparationProgress);
+                    }
                 }
             }
             catch (ComputeException) when (backend == ComputeBackend.Auto)
             {
+                gpu?.Dispose();
+                gpu = null;
                 session?.Dispose();
                 session = null;
             }
@@ -103,11 +109,18 @@ internal sealed class FusionBatchIntegrator : IDisposable
         {
             try
             {
-                tiles.Start(views, bounds, origin);
                 gpu.Begin(Cells.AsSpan(0, count), voxel, origin, tolerance);
-                while (tiles.LoadNext())
+                if (gpu.HasResidentDepths)
                 {
-                    gpu.Add(tiles, origin, count);
+                    gpu.AddResident(bounds, origin, count);
+                }
+                else
+                {
+                    tiles.Start(views, bounds, origin);
+                    while (tiles.LoadNext())
+                    {
+                        gpu.Add(tiles, origin, count);
+                    }
                 }
                 return new ArraySegment<VolumeSample>(output, 0, gpu.Finish(Cells.AsSpan(0, count), output, cancellation));
             }
@@ -130,18 +143,10 @@ internal sealed class FusionBatchIntegrator : IDisposable
                 MaxDegreeOfParallelism = Environment.ProcessorCount
             }, block =>
             {
-                var end = Math.Min(count, (block + 1) * 1024);
-                for (var index = block * 1024; index < end; index++)
-                {
-                    var key = Cells[index];
-                    var world = new V3(key.X * voxel, key.Y * voxel, key.Z * voxel);
-                    ref var accumulator = ref accumulators[index];
-                    for (var view = 0; view < tiles.Count; view++)
-                    {
-                        var window = tiles.Windows[view];
-                        accumulator.Add(window.Observe(world, tolerance, tiles.Depths), window.View.Focal, tolerance, voxel);
-                    }
-                }
+                var first = block * 1024;
+                var length = Math.Min(count - first, 1024);
+                FusionCpuBlockIntegrator.Integrate(Cells.AsSpan(first, length), accumulators.AsSpan(first, length),
+                    tiles.Windows.AsSpan(0, tiles.Count), tiles.Depths, voxel, tolerance, origin);
             });
         }
         var retained = 0;

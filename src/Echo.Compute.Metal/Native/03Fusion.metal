@@ -21,7 +21,8 @@ float4 fusion_depth_observe(device const float* view, device const float* depths
     }
     float tolerance = max(local.z * relative, local.z / view[3] * 2);
     if (weight < .5f || maximum - minimum > tolerance * 2) return 0;
-    return float4(sum / weight - local.z, local.z, 1, complete ? 1 : 0);
+    // Carry uncertainty into accumulation so it is evaluated once per observation.
+    return float4(sum / weight - local.z, tolerance, 1, complete ? 1 : 0);
 }
 
 kernel void fusion_integrate(device const float* views [[buffer(0)]], device const float* depths [[buffer(1)]],
@@ -34,7 +35,7 @@ kernel void fusion_integrate(device const float* views [[buffer(0)]], device con
         device const float* view = views + i * 24;
         float4 observation = fusion_depth_observe(view, depths, jobs[id].xyz, settings[0]);
         if (!observation.z) continue;
-        float uncertainty = max(observation.y * settings[0], observation.y / view[3] * 2);
+        float uncertainty = observation.y;
         float truncation = max(settings[1] * 3, uncertainty * 2), precision = 1 / (uncertainty * uncertainty);
         if (observation.x < -truncation) continue;
         if (observation.x > truncation) {

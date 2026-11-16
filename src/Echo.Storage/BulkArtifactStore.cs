@@ -82,10 +82,47 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
             using var cache = new PageCache(65536, 0);
             using var file = new PageFile(target, cache, true);
             using var records = new PagedList<TRecord>(file, codec);
-            foreach (var item in values)
+            var batch = new TRecord[4096];
+            if (values is ArraySegment<TRecord> segment)
             {
                 cancellation.ThrowIfCancellationRequested();
-                records.Add(item);
+                records.AddRange(segment.AsSpan());
+            }
+            else if (values is IList<TRecord> list)
+            {
+                for (var start = 0; start < list.Count; start += batch.Length)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    var count = Math.Min(batch.Length, list.Count - start);
+                    if (list is PagedList<TRecord> paged)
+                    {
+                        paged.ReadRange(start, batch.AsSpan(0, count));
+                    }
+                    else
+                    {
+                        for (var index = 0; index < count; index++)
+                        {
+                            batch[index] = list[start + index];
+                        }
+                    }
+                    records.AddRange(batch.AsSpan(0, count));
+                }
+            }
+            else
+            {
+                var count = 0;
+                foreach (var item in values)
+                {
+                    batch[count++] = item;
+                    if (count == batch.Length)
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        records.AddRange(batch);
+                        count = 0;
+                    }
+                }
+                cancellation.ThrowIfCancellationRequested();
+                records.AddRange(batch.AsSpan(0, count));
             }
             records.Commit();
             header.Buffers.Add(name, filename);

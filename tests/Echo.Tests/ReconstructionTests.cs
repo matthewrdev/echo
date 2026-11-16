@@ -555,15 +555,21 @@ public sealed class ReconstructionTests
                 Check(thresholdChanged.Artifacts["fusion"] == previous.Artifacts["fusion"], "Area threshold retains fusion");
                 Check(thresholdChanged.Artifacts["mesh"] != previous.Artifacts["mesh"], "Area threshold changes the mesh checkpoint");
             });
-            tests.Run("Paged RAM changes preserve outputs; spacing and fallback edits rebuild fusion", () =>
+            tests.Run("Fixed spacing preserves outputs across paged RAM changes; adaptive budgets rebuild fusion", () =>
             {
-                var original = store.GetRun();
+                var adaptive = store.GetRun();
+                store.Edit(project => project.Settings.FusionMemoryBudgetMb = project.Settings.FusionMemoryBudgetMb == 128 ? 256 : 128);
+                var adaptiveBudgetChanged = processor.Execute(store, "export", default);
+                Check(adaptiveBudgetChanged.Artifacts["cloud"] == adaptive.Artifacts["cloud"], "Adaptive fusion budgets preserve the dense cloud");
+                Check(adaptiveBudgetChanged.Artifacts["fusion"] != adaptive.Artifacts["fusion"], "Adaptive resolution must include its candidate budget in the fingerprint");
+                store.Edit(project => project.Settings.FusionVoxelSize = jsonCodec.Read<FusedVolume>(store.PathFor(adaptiveBudgetChanged.Artifacts["fusion"] + "/volume.json")).VoxelSize);
+                var original = processor.Execute(store, "export", default);
                 store.Edit(project => project.Settings.FusionMemoryBudgetMb = project.Settings.FusionMemoryBudgetMb == 128 ? 256 : 128);
                 var budgetChanged = processor.Execute(store, "export", default);
-                Check(budgetChanged.Artifacts["export"] == original.Artifacts["export"], "Paged memory limits must not change output or invalidate checkpoints");
+                Check(budgetChanged.Artifacts["export"] == original.Artifacts["export"], "Paged memory limits must preserve fixed-resolution checkpoints");
                 var edits = new Action<Settings>[]
                 {
-                    settings => settings.FusionVoxelSize = jsonCodec.Read<FusedVolume>(store.PathFor(store.GetRun().Artifacts["fusion"] + "/volume.json")).VoxelSize,
+                    settings => settings.FusionVoxelSize *= 2,
                     settings => settings.FusionAllowCoarserResolution = true
                 };
                 foreach (var edit in edits)

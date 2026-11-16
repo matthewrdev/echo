@@ -57,7 +57,7 @@ public sealed class FusionCandidateTests
                 using var cancellation = new CancellationTokenSource();
                 var status = new FusionPlanningProgress(update =>
                 {
-                    if (diskLimit == 0 && update.Operation == "Fusion extraction halo")
+                    if (diskLimit == 0 && update.Operation == FusionProgressPlan.Title(FusionPhase.HaloExpansion))
                     {
                         cancellation.Cancel();
                     }

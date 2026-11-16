@@ -382,6 +382,8 @@ public sealed class RunContext : IDisposable
         {
             stage,
             operation = progress.Operation,
+            steps = progress.Steps,
+            stepIndex = progress.StepIndex,
             message = progress.Message,
             completed = progress.Completed,
             total = progress.Total,
@@ -535,11 +537,11 @@ public sealed class RunContext : IDisposable
             var unit = data.TryGetProperty("unit", out var workUnit) ? workUnit.GetString() ?? "items"
                 : stage == "matching" ? "image pairs" : "images";
             var operation = data.TryGetProperty("operation", out var activity) ? activity.GetString() ?? "" : previous?.Operation ?? "";
-            var steps = data.TryGetProperty("steps", out var stepNames)
+            var steps = data.TryGetProperty("steps", out var stepNames) && stepNames.ValueKind == JsonValueKind.Array
                 ? stepNames.EnumerateArray().Select(value => value.GetString() ?? "").ToArray()
                 : previous?.Steps ?? [];
-            var stepIndex = data.TryGetProperty("stepIndex", out var index) ? index.GetInt32() : previous?.StepIndex;
-            var continuesStep = steps.Length > 0 && !data.TryGetProperty("stepIndex", out _);
+            var stepIndex = data.TryGetProperty("stepIndex", out var index) && index.ValueKind == JsonValueKind.Number ? index.GetInt32() : previous?.StepIndex;
+            var continuesStep = steps.Length > 0 && !(data.TryGetProperty("stepIndex", out var step) && step.ValueKind == JsonValueKind.Number);
             if (continuesStep)
             {
                 completed ??= previous?.Completed;

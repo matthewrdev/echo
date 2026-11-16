@@ -7,12 +7,14 @@ internal sealed class FusionGridRuns
     private const int FanIn = 8;
     private readonly TemporaryRecordSet<GridSpan> records;
     private readonly CancellationToken cancellation;
+    private readonly long maximumCells;
     private readonly List<List<TemporaryRecordFile<GridSpan>>> levels = [];
 
-    public FusionGridRuns(TemporaryRecordSet<GridSpan> records, CancellationToken cancellation)
+    public FusionGridRuns(TemporaryRecordSet<GridSpan> records, CancellationToken cancellation, long maximumCells = long.MaxValue)
     {
         this.records = records;
         this.cancellation = cancellation;
+        this.maximumCells = maximumCells;
     }
 
     public void Add(IEnumerable<GridSpan> sorted) => Add(records.Write(Coalesce(sorted)), 0);
@@ -105,6 +107,7 @@ internal sealed class FusionGridRuns
     private IEnumerable<GridSpan> Coalesce(IEnumerable<GridSpan> sorted)
     {
         GridSpan? pending = null;
+        long cells = 0;
         var count = 0;
         foreach (var span in sorted)
         {
@@ -119,12 +122,21 @@ internal sealed class FusionGridRuns
                     pending = previous.Union(span);
                     continue;
                 }
+                cells = checked(cells + previous.CellCount);
+                if (cells > maximumCells)
+                {
+                    throw new FusionGridCapacityException();
+                }
                 yield return previous;
             }
             pending = span;
         }
         if (pending is { } last)
         {
+            if (last.CellCount > maximumCells - cells)
+            {
+                throw new FusionGridCapacityException();
+            }
             yield return last;
         }
     }

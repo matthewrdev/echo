@@ -34,7 +34,12 @@ internal static class FusionGridBuilder
         var sources = cloud.ImageIds.Select(id => byId.GetValueOrDefault(id)).ToArray();
         var requested = settings.FusionVoxelSize > 0 ? settings.FusionVoxelSize : footprint * .8 / Math.Sqrt(detail);
         var voxel = requested;
-        var status = new FusionPlanningProgress(operationProgress);
+        // Automatic resolution plans a bounded workload. Explicit spacing in
+        // paged mode may use disk, but must still fit downstream record indices.
+        var automatic = settings.FusionVoxelSize == 0;
+        var maximumSamples = work == null || automatic ? resources.MaximumGridSamples : int.MaxValue;
+        var allowCoarser = automatic || settings.FusionAllowCoarserResolution;
+        var status = new FusionPlanningProgress(operationProgress, settings.FusionIslandMode != IslandTrimMode.Off);
         var axis = FusionGridAxes.Select(cloud, sources, cancellation);
         for (var pass = 0; pass < 64; pass++)
         {
@@ -48,19 +53,25 @@ internal static class FusionGridBuilder
             };
             progress?.Invoke($"Building fusion coverage with {options.Workers} CPU workers and bounded per-worker batches; duplicate cells are merged before integration.");
             var keys = FusionCandidatePlanner.Build(cloud, sources, settings.CloudDepthTolerance, voxel,
-                work == null ? resources.MaximumGridSamples : long.MaxValue, options, cancellation, work, status);
+                maximumSamples, options, cancellation, work, status);
             if (keys != null)
             {
                 return new FusionGrid { PixelFootprint = footprint, RequestedVoxelSize = requested, VoxelSize = voxel, Keys = keys };
             }
-            if (!settings.FusionAllowCoarserResolution)
+            if (!allowCoarser)
             {
-                throw new EchoException($"Fusion at the requested {requested:G6} m voxel size exceeds the {resources.MemoryBudgetBytes / 1073741824.0:G4} GiB working-memory budget ({resources.MaximumGridSamples:N0} grid samples). Resolution was not reduced. Increase FusionMemoryBudgetMb, choose a larger FusionVoxelSize, or explicitly enable FusionAllowCoarserResolution.", 5);
+                if (work != null)
+                {
+                    throw new EchoException($"Fusion at the requested {requested * 100:G4} cm exceeds the supported volume limit ({maximumSamples:N0} voxels). Resolution was not reduced. Choose a larger target voxel size or enable coarser resolution before running fusion again.", 5);
+                }
+                throw new EchoException($"Fusion at the requested {requested:G6} m voxel size exceeds the {resources.MemoryBudgetBytes / 1073741824.0:G4} GiB working-memory budget ({maximumSamples:N0} grid samples). Resolution was not reduced. Increase FusionMemoryBudgetMb, choose a larger FusionVoxelSize, or explicitly enable FusionAllowCoarserResolution.", 5);
             }
             // Count actual grid samples, including the extraction halo, instead
             // of predicting triangles. Never truncate coverage to fit memory.
-            voxel *= Math.Sqrt(2);
-            progress?.Invoke($"Requested fusion resolution does not fit. Coarser resolution is enabled: retrying at {voxel:G6} m voxels.");
+            voxel *= 2;
+            progress?.Invoke(automatic
+                ? $"Automatic fusion resolution adjusted to {voxel * 100:G4} cm to fit {maximumSamples:N0} grid samples. Set a target voxel size to choose an exact resolution."
+                : $"Requested fusion resolution does not fit. Coarser resolution is enabled: retrying at {voxel:G6} m voxels.");
         }
         throw new EchoException("Cannot fit the observed fusion volume within the available memory budget.", 5);
     }

@@ -7,7 +7,7 @@ final class ComputeDevice {
     let library: MTLLibrary
     var pipelines: [String: MTLComputePipelineState] = [:]
     var spare: [MTLBuffer] = []
-    let budget = 512 * 1024 * 1024
+    var budget: Int { Int(min(device.recommendedMaxWorkingSetSize, ProcessInfo.processInfo.physicalMemory / 2)) }
 
     init(source: String) throws {
         guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else {

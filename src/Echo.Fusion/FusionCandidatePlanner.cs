@@ -10,6 +10,19 @@ internal static class FusionCandidatePlanner
     public static FusionCandidateGrid? Build(DenseCloudData cloud, DepthView?[] sources, double tolerance, double voxel,
         long limit, FusionGridPlanningOptions options, CancellationToken cancellation, WorkBuffers? work, FusionPlanningProgress status)
     {
+        try
+        {
+            return BuildCore(cloud, sources, tolerance, voxel, limit, options, cancellation, work, status);
+        }
+        catch (FusionGridCapacityException)
+        {
+            return null;
+        }
+    }
+
+    private static FusionCandidateGrid? BuildCore(DenseCloudData cloud, DepthView?[] sources, double tolerance, double voxel,
+        long limit, FusionGridPlanningOptions options, CancellationToken cancellation, WorkBuffers? work, FusionPlanningProgress status)
+    {
         using var session = work == null ? new BulkDataSession(65536, 0) : null;
         using var records = work?.TemporaryRecords(new GridSpanRecordCodec())
             ?? session!.TemporaryRecords(Path.GetTempPath(), new GridSpanRecordCodec());
@@ -18,11 +31,11 @@ internal static class FusionCandidatePlanner
         {
             return null;
         }
-        status.Start("Fusion extraction halo", occupied.Count * 4, "cell ranges");
-        var runs = new FusionGridRuns(records, cancellation);
+        status.Start(FusionPhase.HaloExpansion, occupied.Count * 4, "cell ranges");
+        var runs = new FusionGridRuns(records, cancellation, limit);
         var expandedX = runs.MergeSorted(Enumerable.Range(-1, 4).Select(x => Expand(occupied, x, 0, true, cancellation, status)));
         records.Delete(occupied);
-        status.Start("Fusion extraction halo completion", expandedX.Count * 4, "cell ranges");
+        status.Start(FusionPhase.HaloCompletion, expandedX.Count * 4, "cell ranges");
         var candidates = runs.MergeSorted(Enumerable.Range(-1, 4).Select(y => Expand(expandedX, 0, y, false, cancellation, status)));
         records.Delete(expandedX);
         return Materialize(candidates, limit, options.Axis, cancellation, work, status);
@@ -32,38 +45,52 @@ internal static class FusionCandidatePlanner
         double tolerance, double voxel, long limit, FusionGridPlanningOptions options, CancellationToken cancellation,
         TemporaryRecordSet<GridSpan> records, FusionPlanningProgress status)
     {
-        status.Start("Fusion candidate coverage", cloud.Samples.Count, "cloud points");
+        status.Start(FusionPhase.Coverage, cloud.Samples.Count, "cloud points");
         var outputs = new TemporaryRecordFile<GridSpan>?[options.Workers];
         var exceeded = 0;
         try
         {
             Parallel.For(0, options.Workers, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = options.Workers }, worker =>
             {
-                var runs = new FusionGridRuns(records, cancellation);
-                var batch = new FusionGridBatch(options.BatchCapacity, runs, options.Axis);
-                var points = new DenseSample[4096];
-                var start = (int)(cloud.Samples.Count * (long)worker / options.Workers);
-                var end = (int)(cloud.Samples.Count * (long)(worker + 1) / options.Workers);
-                while (start < end && Volatile.Read(ref exceeded) == 0)
+                try
                 {
-                    cancellation.ThrowIfCancellationRequested();
-                    var count = Math.Min(points.Length, end - start);
-                    ReadPoints(cloud.Samples, start, points.AsSpan(0, count));
-                    for (var index = 0; index < count; index++)
+                    var runs = new FusionGridRuns(records, cancellation, limit);
+                    var batch = new FusionGridBatch(options.BatchCapacity, runs, options.Axis);
+                    var points = new DenseSample[4096];
+                    var start = (int)(cloud.Samples.Count * (long)worker / options.Workers);
+                    var end = (int)(cloud.Samples.Count * (long)(worker + 1) / options.Workers);
+                    var hasPoints = start < end;
+                    while (start < end && Volatile.Read(ref exceeded) == 0)
                     {
-                        if (!FusionRayCoverage.Add(points[index], sources, tolerance, voxel, limit, batch, cancellation))
+                        cancellation.ThrowIfCancellationRequested();
+                        var count = Math.Min(points.Length, end - start);
+                        ReadPoints(cloud.Samples, start, points.AsSpan(0, count));
+                        for (var index = 0; index < count; index++)
                         {
-                            Interlocked.Exchange(ref exceeded, 1);
-                            return;
+                            if (!FusionRayCoverage.Add(points[index], sources, tolerance, voxel, limit, batch, cancellation))
+                            {
+                                Interlocked.Exchange(ref exceeded, 1);
+                                return;
+                            }
+                        }
+                        start += count;
+                        // The final point is ready only once this worker's
+                        // sorted coverage has finished writing.
+                        status.AdvanceBy(count - (start == end ? 1 : 0));
+                    }
+                    if (Volatile.Read(ref exceeded) == 0)
+                    {
+                        batch.Flush();
+                        outputs[worker] = runs.Finish();
+                        if (hasPoints)
+                        {
+                            status.AdvanceBy(1);
                         }
                     }
-                    start += count;
-                    status.AdvanceBy(count);
                 }
-                if (Volatile.Read(ref exceeded) == 0)
+                catch (FusionGridCapacityException)
                 {
-                    batch.Flush();
-                    outputs[worker] = runs.Finish();
+                    Interlocked.Exchange(ref exceeded, 1);
                 }
             });
         }
@@ -76,8 +103,8 @@ internal static class FusionCandidatePlanner
         {
             return null;
         }
-        status.Start("Fusion coverage merge", outputs.Sum(output => output!.Count), "cell ranges");
-        var combined = new FusionGridRuns(records, cancellation);
+        status.Start(FusionPhase.Merge, outputs.Sum(output => output!.Count), "cell ranges");
+        var combined = new FusionGridRuns(records, cancellation, limit);
         var result = combined.MergeSorted(outputs.Select(output => ReportRead(output!, cancellation, status)));
         foreach (var output in outputs)
         {
@@ -149,7 +176,7 @@ internal static class FusionCandidatePlanner
         CancellationToken cancellation, WorkBuffers? work, FusionPlanningProgress status)
     {
         long count = 0;
-        status.Start("Fusion grid storage", candidates.Count, "cell ranges");
+        status.Start(FusionPhase.GridStorage, candidates.Count, "cell ranges");
         IList<GridSpan> result = work?.List(new GridSpanRecordCodec()) ?? new List<GridSpan>();
         var batch = new GridSpan[4096];
         var size = 0;

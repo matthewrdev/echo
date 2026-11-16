@@ -1,5 +1,8 @@
+using System.Runtime.InteropServices;
+
 namespace Echo.Contracts;
 
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public record struct VolumeSample
 {
     public int X

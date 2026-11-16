@@ -40,6 +40,7 @@ public sealed class FusionSettingsTests
         {
             var fixture = new FusionFixture();
             var resources = new FusionResourcePlan(256000, 1000);
+            fixture.Project.Settings.FusionVoxelSize = .125;
             try
             {
                 FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, resources, default);
@@ -57,6 +58,31 @@ public sealed class FusionSettingsTests
             Check(grid.VoxelSize > grid.RequestedVoxelSize && grid.Keys.Count <= resources.MaximumGridSamples,
                 "The explicit fallback retains complete coverage within the budget");
             Check(messages.Any(message => message.Contains("Coarser resolution is enabled")), "Every fallback is visible in progress logs");
+        });
+        tests.Run("Automatic paged fusion obeys its candidate budget before integration", () =>
+        {
+            var fixture = new FusionFixture();
+            var directory = Path.Combine(Path.GetTempPath(), "echo-fusion-budget-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            try
+            {
+                using var data = new Echo.Storage.BulkDataSession(65536, 0);
+                using var work = new Echo.Storage.WorkBuffers(data, directory, 65536, 0);
+                var grid = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings,
+                    new FusionResourcePlan(256000, 1000), default, work: work);
+                Check(grid.Keys.Count <= 1000 && grid.VoxelSize > grid.RequestedVoxelSize, "Paged storage bypassed the automatic voxel budget");
+                foreach (var target in new[] { .1, .5 })
+                {
+                    fixture.Project.Settings.FusionVoxelSize = target;
+                    var exact = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings,
+                        new FusionResourcePlan(256000, 1000), default, work: work);
+                    Check(exact.VoxelSize == target, "Explicit centimetre targets must not be silently changed");
+                }
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
         });
         tests.Run("Fusion resource settings round trip and reject invalid budgets and spacing", () =>
         {
