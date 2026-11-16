@@ -12,7 +12,14 @@ struct PerformanceTraceSummary: Codable, Identifiable {
     let droppedSpans: Int
 
     var label: String {
-        let date = String(startedAt.prefix(19)).replacingOccurrences(of: "T", with: " ")
-        return "\(target.capitalized) · \(date) UTC · \(runId.prefix(6))/\(id.prefix(6))"
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var date = parser.date(from: startedAt)
+        if date == nil {
+            parser.formatOptions = [.withInternetDateTime]
+            date = parser.date(from: startedAt)
+        }
+        let timestamp = date?.formatted(date: .abbreviated, time: .standard) ?? startedAt
+        return "\(target.capitalized) · \(timestamp)"
     }
 }

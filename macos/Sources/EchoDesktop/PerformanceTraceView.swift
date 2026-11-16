@@ -28,22 +28,8 @@ struct PerformanceTraceView: View {
                     description:
                         Text("New processing runs and resumes record a trace. Earlier runs have no recorded timings."))
             } else {
-                HStack {
-                    Picker("Attempt", selection: $model.selected) {
-                        ForEach(model.attempts) { Text($0.label).tag($0.id) }
-                    }
-                    Button("Export JSON", systemImage: "square.and.arrow.up") { model.export() }
-                        .disabled(model.document == nil)
-                }
-                Picker("Compare with", selection: $model.comparison) {
-                    Text("None").tag("")
-                    ForEach(model.attempts.filter { $0.id != model.selected }) { Text($0.label).tag($0.id) }
-                }
+                PerformanceTraceHeader(model: model, page: $page)
                 if let document = model.document {
-                    summary(document)
-                    Picker("View", selection: $page) {
-                        ForEach(PerformanceTracePage.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }.pickerStyle(.segmented).frame(width: 360)
                     if page == .overview {
                         PerformanceRunGraph(document: document) { selected in
                             stage = selected
@@ -91,22 +77,6 @@ struct PerformanceTraceView: View {
         }
         .task(id: model.selected) { await model.load() }
         .task(id: model.comparison) { await model.load(comparing: true) }
-    }
-
-    private func summary(_ document: PerformanceTraceDocument) -> some View {
-        let value = document.summary
-        let gpu = document.statistics.compactMap(\.gpuMilliseconds).reduce(0, +)
-        return HStack(spacing: 24) {
-            Text(value.status.rawValue.capitalized).fontWeight(.semibold)
-            Text("Elapsed \(PerformanceDuration.format(value.durationMilliseconds))")
-            Text("CPU \(PerformanceDuration.format(value.cpuMilliseconds))")
-            Text("GPU batches \(PerformanceDuration.format(gpu))")
-            if let baseline = model.baseline {
-                Text(
-                    "Elapsed Δ \(PerformanceDuration.format(value.durationMilliseconds - baseline.summary.durationMilliseconds))"
-                )
-            }
-        }.font(.callout.monospacedDigit())
     }
 
     private var timingTable: some View {

@@ -10,8 +10,6 @@ struct PerformanceRunGraph: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Follow the arrows from preparation to the outcome. Select a processing node to inspect its timings.")
-                .font(.callout).foregroundStyle(.secondary)
             GeometryReader { bounds in
                 let columns = max(1, min(3, Int(bounds.size.width / 290)))
                 let width = (bounds.size.width - gap * CGFloat(columns - 1) - 16) / CGFloat(columns)
@@ -51,6 +49,7 @@ struct PerformanceRunGraph: View {
                                 card(node, number: index + 1)
                             }
                             .buttonStyle(.plain)
+                            .help(node.stage == nil ? node.title : "Inspect timings for \(node.title)")
                             .allowsHitTesting(node.stage != nil)
                             .accessibilityLabel("\(index + 1). \(node.title), \(node.status.rawValue), \(node.detail)")
                             .frame(width: width, height: cardHeight)
