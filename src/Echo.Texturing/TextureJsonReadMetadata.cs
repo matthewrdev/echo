@@ -8,13 +8,18 @@ namespace Echo.Texturing;
 [Export(typeof(IJsonReadMetadata)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureJsonReadMetadata : IJsonReadMetadata
 {
-    private readonly IJsonTypeInfoResolver resolver;
+    private readonly TextureJsonReadContext context;
 
     [ImportingConstructor]
     public TextureJsonReadMetadata()
     {
-        resolver = TextureJsonReadContext.Default;
+        context = new TextureJsonReadContext(new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
+        });
     }
 
-    public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options) => resolver.GetTypeInfo(type, options);
+    public JsonTypeInfo? GetTypeInfo(Type type) => context.GetTypeInfo(type);
 }

@@ -28,12 +28,11 @@ public sealed class SetsCommand : ICliCommand
         switch (action)
         {
             case "list":
-                var images = store.Load().Images;
-                output.Write(images.SelectMany(i => i.Sets).Distinct().Select(s => new ImageSetSummary
+                output.Write(store.Load().Images.SelectMany(i => i.Sets).Distinct().Select(s => new
                 {
-                    Name = s,
-                    Count = images.Count(i => i.Sets.Contains(s))
-                }).ToArray());
+                    name = s,
+                    count = store.Load().Images.Count(i => i.Sets.Contains(s))
+                }));
                 return 0;
             case "assign":
                 WriteReceipt(store.Edit(p =>
@@ -58,10 +57,10 @@ public sealed class SetsCommand : ICliCommand
 
     private void WriteReceipt(ProjectData project)
     {
-        output.Write(new ProjectRevisionResult
+        output.Write(new
         {
-            Id = project.Id,
-            Revision = project.Revision
+            project.Id,
+            project.Revision
         });
     }
 }

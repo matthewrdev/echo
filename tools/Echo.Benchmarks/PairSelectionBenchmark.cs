@@ -66,27 +66,27 @@ public sealed class PairSelectionBenchmark
                 json.Read<FeatureSet>(store.PathFor(featureUnits[pair.B] + "/features.json")), project.Settings, default);
             var relative = CameraGeometry.EstimateRelative(photos[pair.A], photos[pair.B], matches.Matches);
             var other = photos[pair.A == focus.Id ? pair.B : pair.A];
-            checks.Add(new PairSelectionCheck
+            checks.Add(new
             {
-                Name = other.Name,
-                Gps = other.Gps,
-                Attitude = other.Attitude,
-                AlreadyTested = alreadyTested,
-                CandidateMatches = matches.Matches.Count,
-                GeometricallyVerified = relative?.Inliers.Count ?? 0
+                other.Name,
+                other.Gps,
+                other.Attitude,
+                alreadyTested,
+                candidateMatches = matches.Matches.Count,
+                geometricallyVerified = relative?.Inliers.Count ?? 0
             });
         }
-        var result = new PairSelectionMeasurement
+        var result = new
         {
-            Name = focus.Name,
-            SavedPairCount = savedPairs.Count,
-            SelectedPairCount = selected.Count,
-            NewPairCount = selected.Count(pair => !savedPairs.ContainsKey(pair.A + ":" + pair.B)),
-            SelectionSeconds = watch.Elapsed.TotalSeconds,
-            Checks = checks
+            focus.Name,
+            savedPairCount = savedPairs.Count,
+            selectedPairCount = selected.Count,
+            newPairCount = selected.Count(pair => !savedPairs.ContainsKey(pair.A + ":" + pair.B)),
+            selectionSeconds = watch.Elapsed.TotalSeconds,
+            checks
         };
         files.AtomicJson(Path.GetFullPath(args[2]), result);
-        Console.WriteLine(json.Encode(result, compact: true));
+        Console.WriteLine(json.Encode(result));
         return 0;
     }
 }

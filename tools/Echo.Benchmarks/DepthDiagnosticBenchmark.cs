@@ -132,21 +132,21 @@ public sealed class DepthDiagnosticBenchmark
                                 }
                             }
                         }
-                        Console.WriteLine(json.Encode(new DepthDiagnosticMeasurement
+                        Console.WriteLine(json.Encode(new
                         {
-                            Name = photo.Name,
-                            Width = width,
-                            Spacing = spacing,
-                            Sigma = sigma,
-                            PlaneCount = planeCount,
-                            Total = total,
-                            LowTexture = lowTexture,
-                            NoMatch = noMatch,
-                            Ambiguous = ambiguous,
-                            Accepted = accepted,
-                            Supported = supported,
-                            Range = range
-                        }, compact: true));
+                            photo.Name,
+                            width,
+                            spacing,
+                            sigma,
+                            planeCount,
+                            total,
+                            lowTexture,
+                            noMatch,
+                            ambiguous,
+                            accepted,
+                            supported,
+                            range
+                        }));
                     }
                 }
             }
@@ -188,15 +188,15 @@ public sealed class DepthDiagnosticBenchmark
                 }
             }
         }
-        Console.WriteLine(json.Encode(new DepthCoverageMeasurement
+        Console.WriteLine(json.Encode(new
         {
-            Name = photo.Name,
-            Label = label,
-            Total = total,
-            Accepted = accepted,
-            Supported = supported,
-            Coverage = map.Depth.Count(value => value > 0) / (double)map.SampleCount
-        }, compact: true));
+            photo.Name,
+            label,
+            total,
+            accepted,
+            supported,
+            coverage = map.Depth.Count(value => value > 0) / (double)map.SampleCount
+        }));
     }
 
     private double Normalize(float[] values, int width, int x, int y, double[] patch, int spacing)

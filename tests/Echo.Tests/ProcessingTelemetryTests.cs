@@ -57,7 +57,7 @@ public sealed class ProcessingTelemetryTests
         });
         tests.Run("Resource telemetry remains compatible with saved progress", () =>
         {
-            var options = Echo.Infrastructure.CoreJsonReadContext.Default.Options;
+            var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
             var old = JsonSerializer.Deserialize<ResourceProgress>("{\"workingSetBytes\":1024}", options)!;
             Check(old.Processor == null && old.WorkingSetBytes == 1024, "Old resources must remain readable");
             var resource = new ResourceProgress

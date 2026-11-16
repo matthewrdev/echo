@@ -96,24 +96,24 @@ public sealed class DepthBenchmark
             });
             var writeSeconds = Stopwatch.GetElapsedTime(writeStarted).TotalSeconds;
             writeAllocated = GC.GetTotalAllocatedBytes(true) - writeAllocated;
-            Console.WriteLine(json.Encode(new DepthMeasurement
+            Console.WriteLine(json.Encode(new
             {
-                Iteration = iteration,
-                Seconds = watch.Elapsed.TotalSeconds,
-                AllocatedBytes = allocated,
-                CameraCount = cameraCount,
-                ConcurrentImages = plan.ConcurrentImages,
-                WorkersPerImage = plan.WorkersPerImage,
-                EstimatedBytesPerImage = plan.EstimatedBytesPerImage,
-                MemoryBudgetBytes = plan.MemoryBudgetBytes,
-                DepthMemoryBudgetMb = run.Snapshot.Settings.DepthMemoryBudgetMb,
-                WriteSeconds = writeSeconds,
-                WriteAllocatedBytes = writeAllocated,
-                Phases = phases,
-                Executions = executions,
-                Valid = maps.Sum(map => map.Depth.Count(d => d > 0)),
-                Hash = files.Hash(cameraCount == 1 ? (object)maps[0] : maps)
-            }, compact: true));
+                iteration,
+                seconds = watch.Elapsed.TotalSeconds,
+                allocatedBytes = allocated,
+                cameraCount,
+                plan.ConcurrentImages,
+                plan.WorkersPerImage,
+                plan.EstimatedBytesPerImage,
+                plan.MemoryBudgetBytes,
+                run.Snapshot.Settings.DepthMemoryBudgetMb,
+                writeSeconds,
+                writeAllocatedBytes = writeAllocated,
+                phases,
+                executions,
+                valid = maps.Sum(map => map.Depth.Count(d => d > 0)),
+                hash = files.Hash(cameraCount == 1 ? (object)maps[0] : maps)
+            }));
         }
         return 0;
     }

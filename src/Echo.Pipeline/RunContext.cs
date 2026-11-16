@@ -1,4 +1,5 @@
 using Echo.Compute;
+using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
@@ -14,6 +15,7 @@ public sealed class RunContext : IDisposable
     private readonly IJsonCodec jsonCodec;
     private readonly IFileOperations fileOperations;
     private readonly Action<object>? output;
+    private readonly JsonSerializerOptions eventOptions;
     private readonly object reportGate = new();
     private readonly OperationProgressFilter progressFilter = new();
     private readonly Stopwatch progressClock = Stopwatch.StartNew();
@@ -63,6 +65,10 @@ public sealed class RunContext : IDisposable
         Resources = resources;
         Memory = memory;
         this.telemetry = telemetry;
+        eventOptions = new JsonSerializerOptions(jsonCodec.Options)
+        {
+            WriteIndented = false
+        };
         Images = run.Snapshot.Images
             .Where(image => image.Enabled)
             .OrderBy(image => image.CapturedAt)
@@ -193,10 +199,10 @@ public sealed class RunContext : IDisposable
                 SaveTrace();
                 Run.Progress.Resources = usage;
                 SaveRun();
-                Report("resourceProgress", new ResourceProgressEvent
+                Report("resourceProgress", new
                 {
-                    Stage = Run.Progress.Stage,
-                    Resources = usage
+                    stage = Run.Progress.Stage,
+                    resources = usage
                 });
             }
         }
@@ -280,10 +286,10 @@ public sealed class RunContext : IDisposable
         };
         if (Run.Snapshot.StageRevisions.TryGetValue(owner, out var resetRevision))
         {
-            inputs = new ResetCheckpointInputs
+            inputs = new
             {
-                ResetRevision = resetRevision,
-                Inputs = inputs
+                resetRevision,
+                inputs
             };
         }
 
@@ -344,11 +350,11 @@ public sealed class RunContext : IDisposable
                 ProvenanceStatus = recorded ? "recorded" : "unknown-legacy"
             };
             processingDirty = true;
-            Report("artifactProcessing", new ArtifactProcessingEvent
+            Report("artifactProcessing", new
             {
-                Stage = stage,
-                Artifact = artifact,
-                Processing = processing.Artifacts[artifact]
+                stage,
+                artifact,
+                processing = processing.Artifacts[artifact]
             });
         }
         return artifact;
@@ -360,10 +366,10 @@ public sealed class RunContext : IDisposable
         {
             Run.Artifacts[stage] = artifact;
             SaveRun();
-            Report("checkpoint", new ArtifactEvent
+            Report("checkpoint", new
             {
-                Stage = stage,
-                Artifact = artifact
+                stage,
+                artifact
             });
         }
     }
@@ -380,16 +386,16 @@ public sealed class RunContext : IDisposable
                 return;
             }
             Trace.Operation(progress);
-            Report("stageProgress", new OperationProgressEvent
+            Report("stageProgress", new
             {
-                Stage = stage,
-                Operation = progress.Operation,
-                Steps = progress.Steps,
-                StepIndex = progress.StepIndex,
-                Message = progress.Message,
-                Completed = progress.Completed,
-                Total = progress.Total,
-                Unit = progress.Unit
+                stage,
+                operation = progress.Operation,
+                steps = progress.Steps,
+                stepIndex = progress.StepIndex,
+                message = progress.Message,
+                completed = progress.Completed,
+                total = progress.Total,
+                unit = progress.Unit
             });
         }
     }
@@ -402,13 +408,13 @@ public sealed class RunContext : IDisposable
             {
                 return;
             }
-            Report("stageProgress", new StageProgressEvent
+            Report("stageProgress", new
             {
-                Stage = stage,
-                Message = message,
-                Completed = completed,
-                Total = total,
-                Unit = stage == "matching" ? "image pairs" : stage is "features" or "depth" ? "images" : "items"
+                stage,
+                message,
+                completed,
+                total,
+                unit = stage == "matching" ? "image pairs" : stage is "features" or "depth" ? "images" : "items"
             });
         }
     }
@@ -431,10 +437,10 @@ public sealed class RunContext : IDisposable
         Run.Status = "running";
         Run.Error = null;
         SaveRun();
-        Report("runStarted", new RunStartedEvent
+        Report("runStarted", new
         {
-            Target = Run.Target,
-            Revision = Run.Snapshot.Revision
+            Run.Target,
+            revision = Run.Snapshot.Revision
         });
     }
 
@@ -444,10 +450,10 @@ public sealed class RunContext : IDisposable
         SaveTrace();
         Run.Status = "completed";
         SaveRun();
-        Report("runCompleted", new RunCompletedEvent
+        Report("runCompleted", new
         {
-            Stage = Run.Target,
-            Artifacts = Run.Artifacts
+            stage = Run.Target,
+            Run.Artifacts
         });
     }
 
@@ -457,7 +463,7 @@ public sealed class RunContext : IDisposable
         SaveTrace();
         Run.Status = "cancelled";
         SaveRun();
-        Report("runCancelled", new RunCancelledEvent
+        Report("runCancelled", new
         {
         });
     }
@@ -469,10 +475,10 @@ public sealed class RunContext : IDisposable
         Run.Status = error is EchoException { ExitCode: 5 } ? "needs-input" : "failed";
         Run.Error = error.Message;
         SaveRun();
-        Report("runFailed", new RunFailedEvent
+        Report("runFailed", new
         {
-            Error = error.Message,
-            Details = error.ToString()
+            error = error.Message,
+            details = error.ToString()
         });
     }
 
@@ -482,25 +488,26 @@ public sealed class RunContext : IDisposable
         {
             UpdateProgress(type, payload);
 
-            var record = new RunEventRecord
+            var record = new
             {
-                SchemaVersion = 1,
-                Sequence = ++sequence,
-                Timestamp = DateTimeOffset.UtcNow,
-                RunId = Run.Id,
-                Type = type,
-                Payload = payload
+                schemaVersion = 1,
+                sequence = ++sequence,
+                timestamp = DateTimeOffset.UtcNow,
+                runId = Run.Id,
+                type,
+                payload
             };
-            File.AppendAllText(Store.PathFor($"runs/{Run.Id}/events.ndjson"), jsonCodec.Encode(record, compact: true) + "\n");
+            File.AppendAllText(Store.PathFor($"runs/{Run.Id}/events.ndjson"), JsonSerializer.Serialize(record, eventOptions) + "\n");
             output?.Invoke(record);
         }
     }
 
     private void UpdateProgress(string type, object payload)
     {
-        if (payload is IStageProgressEvent data)
+        if (type is "stageStarted" or "stageProgress" or "imageCheckpoint" or "pairCheckpoint")
         {
-            var stage = data.Stage;
+            var data = JsonSerializer.SerializeToElement(payload, jsonCodec.Options);
+            var stage = data.GetProperty("stage").GetString() ?? "";
             var reportedStage = stage;
             if (stage is "cloud-preview" or "features-preview" or "depth-preview")
             {
@@ -533,14 +540,22 @@ public sealed class RunContext : IDisposable
                 // operation/counters or pretend another work item has finished.
                 return;
             }
-            var completed = data.Completed;
-            var total = data.Total;
-            var unit = data.Unit ?? (stage == "matching" ? "image pairs" : "images");
-            var operation = data.Operation ?? previous?.Operation ?? "";
+            var completed = data.TryGetProperty("completed", out var done) && done.ValueKind == JsonValueKind.Number
+                ? (long?)done.GetInt64()
+                : null;
+            var total = data.TryGetProperty("total", out var count) && count.ValueKind == JsonValueKind.Number
+                ? (long?)count.GetInt64()
+                : null;
+            var unit = data.TryGetProperty("unit", out var workUnit) ? workUnit.GetString() ?? "items"
+                : stage == "matching" ? "image pairs" : "images";
+            var operation = data.TryGetProperty("operation", out var activity) ? activity.GetString() ?? "" : previous?.Operation ?? "";
             var operationChanged = operation != previous?.Operation;
-            var steps = data.Steps ?? (operationChanged ? [] : previous?.Steps ?? []);
-            var stepIndex = data.StepIndex ?? (operationChanged ? null : previous?.StepIndex);
-            var continuesStep = steps.Length > 0 && !data.StepIndex.HasValue;
+            var steps = data.TryGetProperty("steps", out var stepNames) && stepNames.ValueKind == JsonValueKind.Array
+                ? stepNames.EnumerateArray().Select(value => value.GetString() ?? "").ToArray()
+                : operationChanged ? [] : previous?.Steps ?? [];
+            var stepIndex = data.TryGetProperty("stepIndex", out var index) && index.ValueKind == JsonValueKind.Number
+                ? index.GetInt32() : operationChanged ? null : previous?.StepIndex;
+            var continuesStep = steps.Length > 0 && !(data.TryGetProperty("stepIndex", out var step) && step.ValueKind == JsonValueKind.Number);
             if (continuesStep)
             {
                 completed ??= previous?.Completed;
@@ -560,10 +575,10 @@ public sealed class RunContext : IDisposable
                 Phase = checking ? "checking" : "processing",
                 Completed = completed,
                 Total = total,
-                Message = data.Message ?? (completed.HasValue
+                Message = data.TryGetProperty("message", out var message) ? message.GetString() ?? "" : completed.HasValue
                     ? checking ? $"Reusing saved {stage}: {completed:N0} of {total:N0} {unit} checked."
                         : $"{completed:N0} / {total:N0} {unit} completed"
-                    : "Processing saved inputs…")
+                    : "Processing saved inputs…"
             };
             SaveRun();
         }
@@ -584,9 +599,9 @@ public sealed class RunContext : IDisposable
             if (!traceWriteWarning)
             {
                 traceWriteWarning = true;
-                Report("warning", new RunWarningEvent
+                Report("warning", new
                 {
-                    Message = "Performance trace could not be saved: " + error.Message
+                    message = "Performance trace could not be saved: " + error.Message
                 });
             }
         }

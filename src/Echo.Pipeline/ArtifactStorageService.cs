@@ -232,12 +232,12 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                 }
             }
         }
-        plan.Token = files.Hash(new ArtifactDeletionFingerprint
+        plan.Token = files.Hash(new
         {
-            Token = inventory.Token,
-            Artifact = artifact,
-            Paths = plan.Paths,
-            AffectedRuns = plan.AffectedRuns
+            inventory.Token,
+            artifact,
+            plan.Paths,
+            plan.AffectedRuns
         });
         return plan;
     }

@@ -45,10 +45,10 @@ public sealed class ConfigurationCommand : ICliCommand
 
     private void WriteReceipt(ProjectData project)
     {
-        output.Write(new ProjectRevisionResult
+        output.Write(new
         {
-            Id = project.Id,
-            Revision = project.Revision
+            project.Id,
+            project.Revision
         });
     }
 }

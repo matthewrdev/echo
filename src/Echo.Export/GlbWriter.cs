@@ -43,155 +43,155 @@ public sealed class GlbWriter : IGlbWriter
                 maximum[axis] = Math.Max(maximum[axis], value);
             }
         }
-        var document = new GlbDocument
+        var document = new
         {
-            Asset = new GlbAsset
+            asset = new
             {
-                Version = "2.0",
-                Generator = "Echo 0.1 experimental"
+                version = "2.0",
+                generator = "Echo 0.1 experimental"
             },
-            Scene = 0,
-            Scenes = new[]
+            scene = 0,
+            scenes = new[]
             {
-                new GlbScene
+                new
                 {
-                    Nodes = new[]
+                    nodes = new[]
                     {
                         0
                     }
                 }
             },
-            Nodes = new[]
+            nodes = new[]
             {
-                new GlbNode
+                new
                 {
-                    Mesh = 0,
-                    Name = "Echo cliff"
-                }
+                    mesh = 0,
+                    name = "Echo cliff"
+}
             },
-            Meshes = new[]
+            meshes = new[]
             {
-                new GlbMesh
+                new
                 {
-                    Primitives = new[]
+                    primitives = new[]
                     {
-                        new GlbPrimitive
+                        new
                         {
-                            Attributes = new Dictionary<string, int>
+                            attributes = new Dictionary<string, int>
                             {
                                 ["POSITION"] = 0,
                                 ["TEXCOORD_0"] = 1
-                            },
-                            Indices = 2,
-                            Material = 0
-                        }
+},
+                            indices = 2,
+                            material = 0
+}
                     }
                 }
             },
-            Materials = new[]
+            materials = new[]
             {
-                new GlbMaterial
+                new
                 {
-                    DoubleSided = true,
-                    PbrMetallicRoughness = new GlbMetallicRoughness
+                    doubleSided = true,
+                    pbrMetallicRoughness = new
                     {
-                        BaseColorTexture = new GlbTextureReference
+                        baseColorTexture = new
                         {
-                            Index = 0
+                            index = 0
                         },
-                        MetallicFactor = 0,
-                        RoughnessFactor = 1
-                    }
+                        metallicFactor = 0,
+                        roughnessFactor = 1
+}
+}
+            },
+            textures = new[]
+            {
+                new
+                {
+                    source = 0,
+                    sampler = 0
+}
+            },
+            samplers = new[]
+            {
+                new
+                {
+                    magFilter = 9729,
+                    minFilter = 9987,
+                    wrapS = 33071,
+                    wrapT = 33071
+}
+            },
+            images = new[]
+            {
+                new
+                {
+                    bufferView = 3,
+                    mimeType = "image/jpeg"
+}
+            },
+            buffers = new[]
+            {
+                new
+                {
+                    byteLength = binaryLength
                 }
             },
-            Textures = new[]
+            bufferViews = new object[]
             {
-                new GlbTexture
+                new
                 {
-                    Source = 0,
-                    Sampler = 0
-                }
+                    buffer = 0,
+                    byteOffset = positionsOffset,
+                    byteLength = uvOffset - positionsOffset,
+                    target = 34962
+},
+                new
+                {
+                    buffer = 0,
+                    byteOffset = uvOffset,
+                    byteLength = indexOffset - uvOffset,
+                    target = 34962
+},
+                new
+                {
+                    buffer = 0,
+                    byteOffset = indexOffset,
+                    byteLength = imageOffset - indexOffset,
+                    target = 34963
+},
+                new
+                {
+                    buffer = 0,
+                    byteOffset = imageOffset,
+                    byteLength = texture.Length
+}
             },
-            Samplers = new[]
+            accessors = new object[]
             {
-                new GlbSampler
+                new
                 {
-                    MagFilter = 9729,
-                    MinFilter = 9987,
-                    WrapS = 33071,
-                    WrapT = 33071
-                }
-            },
-            Images = new[]
-            {
-                new GlbImage
+                    bufferView = 0,
+                    componentType = 5126,
+                    count = mesh.Vertices.Count,
+                    type = "VEC3",
+                    min = minimum,
+                    max = maximum
+},
+                new
                 {
-                    BufferView = 3,
-                    MimeType = "image/jpeg"
-                }
-            },
-            Buffers = new[]
-            {
-                new GlbBuffer
+                    bufferView = 1,
+                    componentType = 5126,
+                    count = uvs.Count,
+                    type = "VEC2"
+},
+                new
                 {
-                    ByteLength = binaryLength
-                }
-            },
-            BufferViews = new object[]
-            {
-                new GlbTargetBufferView
-                {
-                    Buffer = 0,
-                    ByteOffset = positionsOffset,
-                    ByteLength = uvOffset - positionsOffset,
-                    Target = 34962
-                },
-                new GlbTargetBufferView
-                {
-                    Buffer = 0,
-                    ByteOffset = uvOffset,
-                    ByteLength = indexOffset - uvOffset,
-                    Target = 34962
-                },
-                new GlbTargetBufferView
-                {
-                    Buffer = 0,
-                    ByteOffset = indexOffset,
-                    ByteLength = imageOffset - indexOffset,
-                    Target = 34963
-                },
-                new GlbBufferView
-                {
-                    Buffer = 0,
-                    ByteOffset = imageOffset,
-                    ByteLength = texture.Length
-                }
-            },
-            Accessors = new object[]
-            {
-                new GlbPositionAccessor
-                {
-                    BufferView = 0,
-                    ComponentType = 5126,
-                    Count = mesh.Vertices.Count,
-                    Type = "VEC3",
-                    Min = minimum,
-                    Max = maximum
-                },
-                new GlbAccessor
-                {
-                    BufferView = 1,
-                    ComponentType = 5126,
-                    Count = uvs.Count,
-                    Type = "VEC2"
-                },
-                new GlbAccessor
-                {
-                    BufferView = 2,
-                    ComponentType = 5125,
-                    Count = mesh.Faces.Count * 3,
-                    Type = "SCALAR"
-                }
+                    bufferView = 2,
+                    componentType = 5125,
+                    count = mesh.Faces.Count * 3,
+                    type = "SCALAR"
+}
             }
         };
         var json = Encoding.UTF8.GetBytes(jsonCodec.Encode(document));
@@ -337,9 +337,9 @@ public sealed class GlbWriter : IGlbWriter
             {
                 if (!image.TryGetProperty("bufferView", out var viewIndex))
                 {
-                    textures.Add(new GlbExternalTexture
+                    textures.Add(new
                     {
-                        External = true
+                        external = true
                     });
                     continue;
                 }
@@ -355,12 +355,12 @@ public sealed class GlbWriter : IGlbWriter
                 stream.Position = binaryOffset + offset;
                 var data = reader.ReadBytes(size);
                 var dimensions = ImageDimensions(data);
-                textures.Add(new GlbEmbeddedTexture
+                textures.Add(new
                 {
-                    MimeType = image.TryGetProperty("mimeType", out var mime) ? mime.GetString() : null,
-                    Bytes = size,
-                    Width = dimensions.Width,
-                    Height = dimensions.Height
+                    mimeType = image.TryGetProperty("mimeType", out var mime) ? mime.GetString() : null,
+                    bytes = size,
+                    dimensions.Width,
+                    dimensions.Height
                 });
             }
         }
@@ -376,25 +376,25 @@ public sealed class GlbWriter : IGlbWriter
                 var count = position.GetProperty("count").GetInt32();
                 vertices += count;
                 faces += primitive.TryGetProperty("indices", out var index) ? root.GetProperty("accessors")[index.GetInt32()].GetProperty("count").GetInt32() / 3 : count / 3;
-                bounds.Add(new GlbBounds
+                bounds.Add(new
                 {
-                    Min = position.TryGetProperty("min", out var min) ? min.Clone() : (JsonElement?)null,
-                    Max = position.TryGetProperty("max", out var max) ? max.Clone() : (JsonElement?)null
+                    min = position.TryGetProperty("min", out var min) ? min.Clone() : (JsonElement?)null,
+                    max = position.TryGetProperty("max", out var max) ? max.Clone() : (JsonElement?)null
                 });
             }
         }
 
-        return new GlbInspectionReport
+        return new
         {
-            SchemaVersion = 1,
-            Path = Path.GetFullPath(path),
-            Bytes = length,
-            Vertices = vertices,
-            Faces = faces,
-            Bounds = bounds,
-            Images = textures.Count,
-            Textures = textures,
-            Note = "Raw accessor bounds; scene-node transforms and compression must be considered for geometric comparison."
+            schemaVersion = 1,
+            path = Path.GetFullPath(path),
+            bytes = length,
+            vertices,
+            faces,
+            bounds,
+            images = textures.Count,
+            textures,
+            note = "Raw accessor bounds; scene-node transforms and compression must be considered for geometric comparison."
         };
     }
 }

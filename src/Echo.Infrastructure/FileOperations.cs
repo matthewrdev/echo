@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Echo.Storage;
 
 namespace Echo.Infrastructure;
@@ -27,7 +28,7 @@ public sealed class FileOperations : IFileOperations
     {
         using var hash = SHA256.Create();
         using var stream = new CryptoStream(Stream.Null, hash, CryptoStreamMode.Write);
-        jsonCodec.Write(stream, value);
+        JsonSerializer.Serialize(stream, value, jsonCodec.Options);
         stream.FlushFinalBlock();
         return Convert.ToHexStringLower(hash.Hash!);
     }

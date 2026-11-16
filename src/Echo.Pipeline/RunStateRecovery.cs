@@ -59,9 +59,9 @@ public sealed class RunStateRecovery : IRunStateRecovery
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
                 {
-                    context.Report("warning", new RunWarningEvent
+                    context.Report("warning", new
                     {
-                        Message = "Interrupted performance trace could not be recovered: " + error.Message
+                        message = "Interrupted performance trace could not be recovered: " + error.Message
                     });
                 }
                 if (cancelled)

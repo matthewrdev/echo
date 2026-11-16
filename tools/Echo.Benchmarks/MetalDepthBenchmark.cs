@@ -164,7 +164,7 @@ public sealed class MetalDepthBenchmark
         WriteArray(Path.Combine(directory, "cpu-costs.bin"), costs);
         var info = new MetalDepthFixtureInfo(width, height, samples.Count, depths.Length, views.Length, imageId, cpuSeconds);
         File.WriteAllText(Path.Combine(directory, "fixture.json"), json.Encode(info));
-        Console.WriteLine(json.Encode(info, compact: true));
+        Console.WriteLine(json.Encode(info));
     }
 
     private void Verify(string directory, V3 centre, StereoView[] views, List<MetalDepthSample> samples, double[] depths, DepthEstimator implementation)
@@ -215,21 +215,21 @@ public sealed class MetalDepthBenchmark
                 maxRelativeDepthError = Math.Max(maxRelativeDepthError, Math.Abs(cpuDecision.Depth - gpuDecision.Depth) / cpuDecision.Depth);
             }
         }
-        var report = json.Encode(new MetalDepthComparison
+        var report = json.Encode(new
         {
-            Samples = samples.Count,
-            Costs = reference.Length,
-            FiniteCosts = finiteCosts,
-            FiniteSupportChanges = finiteSupportChanges,
-            RoundedCostChanges = roundedCostChanges,
-            MaxCostError = maxCostError,
-            AcceptedCpu = acceptedCpu,
-            AcceptedGpu = acceptedGpu,
-            AcceptanceChanges = acceptanceChanges,
-            BestPlaneChanges = bestPlaneChanges,
-            DepthChanges = depthChanges,
-            ConfidenceChanges = confidenceChanges,
-            MaxRelativeDepthError = maxRelativeDepthError
+            samples = samples.Count,
+            costs = reference.Length,
+            finiteCosts,
+            finiteSupportChanges,
+            roundedCostChanges,
+            maxCostError,
+            acceptedCpu,
+            acceptedGpu,
+            acceptanceChanges,
+            bestPlaneChanges,
+            depthChanges,
+            confidenceChanges,
+            maxRelativeDepthError
         });
         File.WriteAllText(Path.Combine(directory, "validation.json"), report);
         Console.WriteLine(report);

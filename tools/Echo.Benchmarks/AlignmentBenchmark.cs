@@ -78,10 +78,10 @@ public sealed class AlignmentBenchmark
             });
         }
         files.AtomicData(Path.Combine(output, "final.json"), scene);
-        files.AtomicJson(Path.Combine(output, "metrics.json"), new AlignmentMeasurement
+        files.AtomicJson(Path.Combine(output, "metrics.json"), new
         {
-            Seconds = clock.Elapsed.TotalSeconds,
-            Bundle = scene.Bundle
+            seconds = clock.Elapsed.TotalSeconds,
+            scene.Bundle
         });
         return 0;
     }

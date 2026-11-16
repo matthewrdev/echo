@@ -91,31 +91,31 @@ public sealed class CrossPassBenchmark
                 var relative = CameraGeometry.EstimateRelative(photos[0], photos[index], pair.Matches);
                 var verified = FundamentalMatrixEstimator.Estimate(pair.Matches, 4, default);
                 var recovered = guided.Recover(features[0], features[index], pair.Matches, settings, 4, default);
-                var result = new CrossPassMeasurement
+                var result = new
                 {
-                    Method = method,
-                    FeatureWidth = settings.FeatureWidth,
-                    FeatureLimit = settings.FeatureLimit,
-                    Left = photos[0].Name,
-                    Right = photos[index].Name,
-                    LeftFeatures = features[0].Features.Count,
-                    RightFeatures = features[index].Features.Count,
-                    Candidates = pair.Matches.Count,
-                    Inliers = relative?.Inliers.Count ?? 0,
-                    FundamentalInliers = verified?.Inliers.Count ?? 0,
-                    RobustIterations = verified?.Iterations ?? 0,
-                    RecoveredMatches = recovered?.Matches.Count ?? 0,
-                    ExtractionSeconds = extractionSeconds,
-                    ExtractionBytes = extractionBytes,
-                    MatchingSeconds = matchingSeconds,
-                    VerificationSeconds = watch.Elapsed.TotalSeconds
+                    method,
+                    settings.FeatureWidth,
+                    settings.FeatureLimit,
+                    left = photos[0].Name,
+                    right = photos[index].Name,
+                    leftFeatures = features[0].Features.Count,
+                    rightFeatures = features[index].Features.Count,
+                    candidates = pair.Matches.Count,
+                    inliers = relative?.Inliers.Count ?? 0,
+                    fundamentalInliers = verified?.Inliers.Count ?? 0,
+                    robustIterations = verified?.Iterations ?? 0,
+                    recoveredMatches = recovered?.Matches.Count ?? 0,
+                    extractionSeconds,
+                    extractionBytes,
+                    matchingSeconds,
+                    verificationSeconds = watch.Elapsed.TotalSeconds
                 };
                 files.AtomicJson(Path.Combine(directory, method + "-pair-" + photos[index].Id + ".json"), pair);
                 files.AtomicJson(Path.Combine(directory, method + "-verified-" + photos[index].Id + ".json"), relative);
                 files.AtomicJson(Path.Combine(directory, method + "-fundamental-" + photos[index].Id + ".json"), verified);
                 files.AtomicJson(Path.Combine(directory, method + "-recovered-" + photos[index].Id + ".json"), recovered);
                 results.Add(result);
-                Console.WriteLine(json.Encode(result, compact: true));
+                Console.WriteLine(json.Encode(result));
             }
         }
         files.AtomicJson(Path.Combine(directory, "metrics.json"), results);

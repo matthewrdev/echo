@@ -79,21 +79,21 @@ public sealed class DepthStage : IPipelineStage
         {
             var camera = scene.Cameras[index];
             var photo = project.Images.Single(image => image.Id == camera.ImageId);
-            var inputs = new DepthImageInputs
+            var inputs = new
             {
-                Alignment = alignment,
-                ImageId = camera.ImageId,
-                ComputeBackend = project.Settings.ComputeBackend,
-                ComputeImplementation = context.ComputeImplementation(ComputeOperation.Depth),
-                DepthSuppressSky = project.Settings.DepthSuppressSky,
-                SkySemantics = project.Settings.DepthSuppressSky ? context.Artifact("semantics") : null,
-                DepthWidth = project.Settings.DepthWidth,
-                DepthPlanes = project.Settings.DepthPlanes,
-                DepthRefinementSamples = project.Settings.DepthRefinementSamples,
-                DepthNeighbours = project.Settings.DepthNeighbours,
-                DepthRangeAutomatic = project.Settings.DepthRangeAutomatic,
-                DepthNear = project.Settings.DepthNear,
-                DepthFar = project.Settings.DepthFar
+                alignment,
+                camera.ImageId,
+                project.Settings.ComputeBackend,
+                computeImplementation = context.ComputeImplementation(ComputeOperation.Depth),
+                project.Settings.DepthSuppressSky,
+                skySemantics = project.Settings.DepthSuppressSky ? context.Artifact("semantics") : null,
+                project.Settings.DepthWidth,
+                project.Settings.DepthPlanes,
+                project.Settings.DepthRefinementSamples,
+                project.Settings.DepthNeighbours,
+                project.Settings.DepthRangeAutomatic,
+                project.Settings.DepthNear,
+                project.Settings.DepthFar
             };
             DepthMap? detected = null;
             var processing = new ProcessingMetadata
@@ -148,17 +148,17 @@ public sealed class DepthStage : IPipelineStage
                     }
                 }
                 var action = reused ? "Reused" : "Found";
-                context.Report("imageCheckpoint", new DepthImageCheckpointEvent
+                context.Report("imageCheckpoint", new
                 {
-                    Stage = "depth",
-                    ImageId = camera.ImageId,
-                    ImageName = photo.Name,
-                    ValidSamples = validSamples,
-                    SampleCount = sampleCount,
-                    Reused = reused,
-                    Message = $"{photo.Name} · {action} {validSamples:N0}/{sampleCount:N0} valid depth samples ({100.0 * validSamples / sampleCount:F2}%) · {completed:N0}/{scene.Cameras.Count:N0} images ready",
-                    Completed = completed,
-                    Total = scene.Cameras.Count
+                    stage = "depth",
+                    imageId = camera.ImageId,
+                    imageName = photo.Name,
+                    validSamples,
+                    sampleCount,
+                    reused,
+                    message = $"{photo.Name} · {action} {validSamples:N0}/{sampleCount:N0} valid depth samples ({100.0 * validSamples / sampleCount:F2}%) · {completed:N0}/{scene.Cameras.Count:N0} images ready",
+                    completed,
+                    total = scene.Cameras.Count
                 });
             }
         });

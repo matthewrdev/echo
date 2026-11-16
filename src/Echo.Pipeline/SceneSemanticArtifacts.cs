@@ -33,12 +33,12 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
             {
                 context.Cancellation.ThrowIfCancellationRequested();
                 var reused = true;
-                var unit = context.Build("semantic-image", new SemanticImageInputs
+                var unit = context.Build("semantic-image", new
                 {
-                    Id = photo.Id,
-                    Hash = photo.Hash,
-                    SourceHash = photo.SourceHash,
-                    Fingerprint = modelProvider.Fingerprint
+                    photo.Id,
+                    photo.Hash,
+                    photo.SourceHash,
+                    modelProvider.Fingerprint
                 }, directory =>
                 {
                     if (session == null)

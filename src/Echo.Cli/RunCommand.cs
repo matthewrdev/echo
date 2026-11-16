@@ -129,10 +129,10 @@ public sealed class RunCommand : ICliCommand
 
         fileOperations.AtomicBytes(store.PathFor($"runs/{run.Id}/cancel"), [1]);
         runStateRecovery.Recover(store);
-        output.Write(new RunCancellationResult
+        output.Write(new
         {
-            RunId = run.Id,
-            CancellationRequested = true
+            runId = run.Id,
+            cancellationRequested = true
         });
     }
 

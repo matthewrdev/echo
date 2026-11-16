@@ -157,14 +157,14 @@ public sealed class CoreBenchmark
             var watch = Stopwatch.StartNew();
             var hash = execute();
             watch.Stop();
-            Console.WriteLine(json.Encode(new CoreMeasurement
+            Console.WriteLine(json.Encode(new
             {
-                Stage = stage,
-                Iteration = iteration,
-                Seconds = watch.Elapsed.TotalSeconds,
-                AllocatedBytes = GC.GetTotalAllocatedBytes(true) - allocated,
-                Hash = hash
-            }, compact: true));
+                stage,
+                iteration,
+                seconds = watch.Elapsed.TotalSeconds,
+                allocatedBytes = GC.GetTotalAllocatedBytes(true) - allocated,
+                hash
+            }));
         }
     }
 }

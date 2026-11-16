@@ -56,19 +56,19 @@ public sealed class FeatureBenchmark
             }
             watch.Stop();
             allocated = GC.GetTotalAllocatedBytes(true) - allocated;
-            Console.WriteLine(json.Encode(new FeatureMeasurement
+            Console.WriteLine(json.Encode(new
             {
-                Iteration = iteration,
-                Seconds = watch.Elapsed.TotalSeconds,
-                AllocatedBytes = allocated,
-                PhotoCount = photos.Length,
-                FeatureWidth = project.Settings.FeatureWidth,
-                FeatureLimit = project.Settings.FeatureLimit,
-                DetectLines = project.Settings.DetectLines,
-                Points = results.Sum(result => result.Features.Count),
-                Lines = results.Sum(result => result.Lines.Count),
-                Hash = files.Hash(results)
-            }, compact: true));
+                iteration,
+                seconds = watch.Elapsed.TotalSeconds,
+                allocatedBytes = allocated,
+                photoCount = photos.Length,
+                project.Settings.FeatureWidth,
+                project.Settings.FeatureLimit,
+                project.Settings.DetectLines,
+                points = results.Sum(result => result.Features.Count),
+                lines = results.Sum(result => result.Lines.Count),
+                hash = files.Hash(results)
+            }));
             files.AtomicJson(Path.GetFullPath(args[4]), results);
         }
         return 0;

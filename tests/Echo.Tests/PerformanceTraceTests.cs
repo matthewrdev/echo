@@ -86,16 +86,25 @@ public sealed class PerformanceTraceTests
             using (var context = contexts.Create(store, run, default, null))
             {
                 context.Start();
-                context.Build("features", new Dictionary<string, int> { ["input"] = 1 }, directory => files.AtomicBytes(Path.Combine(directory, "sample"), [1]));
+                context.Build("features", new
+                {
+                    input = 1
+                }, directory => files.AtomicBytes(Path.Combine(directory, "sample"), [1]));
                 context.Complete();
             }
             using (var context = contexts.Create(store, run, default, null))
             {
                 context.Start();
-                context.Build("features", new Dictionary<string, int> { ["input"] = 1 }, _ => throw new InvalidOperationException("Cache miss"));
+                context.Build("features", new
+                {
+                    input = 1
+                }, _ => throw new InvalidOperationException("Cache miss"));
                 try
                 {
-                    context.Build("features", new Dictionary<string, int> { ["input"] = 2 }, _ => throw new OperationCanceledException());
+                    context.Build("features", new
+                    {
+                        input = 2
+                    }, _ => throw new OperationCanceledException());
                 }
                 catch (OperationCanceledException)
                 {

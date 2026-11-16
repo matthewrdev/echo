@@ -84,22 +84,22 @@ public sealed class DepthSkyBenchmark
         }
         overlay.Pixels = pixels;
         images.Save(overlay, Path.Combine(directory, "sky-mask.png"), SKEncodedImageFormat.Png);
-        files.AtomicJson(Path.Combine(directory, "report.json"), new DepthSkyReport
+        files.AtomicJson(Path.Combine(directory, "report.json"), new
         {
-            Name = photo.Name,
-            AcceptedBefore = acceptedBefore,
-            CandidateAccepted = candidateAccepted,
-            Removed = removed,
-            AcceptedAfter = candidateAccepted - removed
+            photo.Name,
+            acceptedBefore,
+            candidateAccepted,
+            removed,
+            acceptedAfter = candidateAccepted - removed
         });
-        Console.WriteLine(json.Encode(new DepthSkyResult
+        Console.WriteLine(json.Encode(new
         {
-            Name = photo.Name,
-            AcceptedBefore = acceptedBefore,
-            CandidateAccepted = candidateAccepted,
-            Removed = removed,
-            Directory = directory
-        }, compact: true));
+            photo.Name,
+            acceptedBefore,
+            candidateAccepted,
+            removed,
+            directory
+        }));
         return 0;
     }
 

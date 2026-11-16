@@ -33,15 +33,15 @@ public sealed class GisExportTests
         {
             var metadata = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>("""
                 {"AbsoluteAltitude":"+87.202","GPSAltitude":87.202,"GPSAltitudeRef":0,"GPSMapDatum":"WGS-84","ExifVersion":"0230"}
-                """, CoreJsonReadContext.Default.DictionaryStringJsonElement)!;
+                """)!;
             var position = new GeoPosition { Altitude = 87.202 };
             var legacy = AltitudeReferenceResolver.Resolve(position, metadata);
             Check(legacy.Datum == "unknown" && legacy.Source == "AbsoluteAltitude" && legacy.Evidence.Contains("Legacy"), "Legacy ambiguity is explained without dropping altitude");
-            metadata["ExifVersion"] = JsonSerializer.SerializeToElement("0300", CoreJsonReadContext.Default.String);
+            metadata["ExifVersion"] = JsonSerializer.SerializeToElement("0300");
             Check(AltitudeReferenceResolver.Resolve(position, metadata).Datum == "WGS84 ellipsoid", "Modern WGS84 ellipsoid is inferred");
-            metadata["GPSAltitudeRef"] = JsonSerializer.SerializeToElement(2, CoreJsonReadContext.Default.Int32);
+            metadata["GPSAltitudeRef"] = JsonSerializer.SerializeToElement(2);
             Check(AltitudeReferenceResolver.Resolve(position, metadata).Datum == "mean sea level (geoid unspecified)", "Sea level does not imply a particular geoid");
-            metadata["GPSAltitude"] = JsonSerializer.SerializeToElement(120, CoreJsonReadContext.Default.Int32);
+            metadata["GPSAltitude"] = JsonSerializer.SerializeToElement(120);
             Check(AltitudeReferenceResolver.Resolve(position, metadata).Datum == "unknown", "Differing vendor altitude cannot borrow GPS reference");
             position.AltitudeDatum = "EGM96 geoid";
             Check(AltitudeReferenceResolver.Resolve(position, metadata).Datum == "EGM96 geoid", "Explicit reference takes precedence");

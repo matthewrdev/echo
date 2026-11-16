@@ -5,7 +5,6 @@ using Echo.Contracts;
 using Echo.Cli;
 using Echo.Infrastructure;
 using Echo.Texturing;
-using Echo.Pipeline;
 
 namespace Echo.Tests;
 
@@ -24,70 +23,6 @@ public sealed class JsonDecodingTests
 
     internal void Run(TestSuite tests)
     {
-        tests.Run("JSON serialization has no reflection fallback", () =>
-        {
-            Check(!JsonSerializer.IsReflectionEnabledByDefault, "Runtime reflection serialization must be disabled");
-            try
-            {
-                json.Encode(new
-                {
-                    Unregistered = 1
-                });
-                throw new InvalidOperationException("An unregistered contract silently used reflection");
-            }
-            catch (NotSupportedException)
-            {
-            }
-        });
-        tests.Run("Generated checkpoint fingerprints retain canonical bytes", () =>
-        {
-            var fingerprint = new CheckpointFingerprint
-            {
-                StorageVersion = 3,
-                Version = "mesh-version",
-                Stage = "mesh",
-                Inputs = new Dictionary<string, int> { ["faceLimit"] = 1500000 }
-            };
-            const string expected = """
-                {
-                  "storageVersion": 3,
-                  "version": "mesh-version",
-                  "stage": "mesh",
-                  "inputs": {
-                    "faceLimit": 1500000
-                  }
-                }
-                """;
-            Check(json.Encode(fingerprint) == expected, "Generated contracts changed checkpoint hash input bytes");
-        });
-        tests.Run("Generated event records remain one JSONL line with typed payloads", () =>
-        {
-            var record = new RunEventRecord
-            {
-                SchemaVersion = 1,
-                Sequence = 8,
-                Timestamp = DateTimeOffset.UnixEpoch,
-                RunId = "run",
-                Type = "stageProgress",
-                Payload = new OperationProgressEvent
-                {
-                    Stage = "mesh",
-                    Operation = "Collapse edges",
-                    Steps = ["Collapse edges"],
-                    StepIndex = 0,
-                    Message = "First line\nSecond line",
-                    Completed = 25,
-                    Total = 100,
-                    Unit = "triangles"
-                }
-            };
-            var encoded = json.Encode(record, compact: true);
-            Check(!encoded.Contains('\n'), "A payload newline split the JSONL record");
-            using var document = JsonDocument.Parse(encoded);
-            var payload = document.RootElement.GetProperty("payload");
-            Check(payload.GetProperty("completed").GetInt64() == 25 && payload.GetProperty("message").GetString() == "First line\nSecond line",
-                "Typed event payload lost counters or escaped text");
-        });
         tests.Run("Compute backend enums preserve wire names and reject unknown or numeric values", () =>
         {
             Check(Read<Settings>("{}").ComputeBackend == ComputeBackend.Auto, "Older projects default to automatic selection");
@@ -162,14 +97,14 @@ public sealed class JsonDecodingTests
                 using var document = JsonDocument.Parse(json.Encode(legacy));
                 Check(document.RootElement.GetProperty("fusionIslandMode").GetString() == wire
                     && document.RootElement.GetProperty("meshIslandMode").GetString() == wire, "Saved mode names remain unchanged");
-                Check(json.Encode(new Dictionary<string, IslandTrimMode>
+                Check(json.Encode(new
                 {
-                    ["fusionIslandMode"] = mode,
-                    ["meshIslandMode"] = mode
-                }) == json.Encode(new Dictionary<string, string>
+                    fusionIslandMode = mode,
+                    meshIslandMode = mode
+                }) == json.Encode(new
                 {
-                    ["fusionIslandMode"] = wire,
-                    ["meshIslandMode"] = wire
+                    fusionIslandMode = wire,
+                    meshIslandMode = wire
                 }),
                     "Checkpoint input bytes remain identical after the type change");
             }

@@ -30,18 +30,18 @@ public sealed class DenseCloudStage : IPipelineStage
         var alignment = context.Artifact("alignment");
         var depthUnits = context.DepthUnits();
         var settings = context.Run.Snapshot.Settings;
-        var inputs = new DenseCloudInputs
+        var inputs = new
         {
-            DepthUnits = depthUnits,
-            Alignment = alignment,
-            CloudVersion = 4,
-            ComputeBackend = settings.ComputeBackend,
-            ComputeImplementation = context.ComputeImplementation(ComputeOperation.Cloud),
-            CloudNeighbours = settings.CloudNeighbours,
-            CloudMinimumSupport = settings.CloudMinimumSupport,
-            CloudDepthTolerance = settings.CloudDepthTolerance,
-            CloudReprojectionTolerancePixels = settings.CloudReprojectionTolerancePixels,
-            CloudMinimumParallaxDegrees = settings.CloudMinimumParallaxDegrees
+            depthUnits,
+            alignment,
+            cloudVersion = 4,
+            settings.ComputeBackend,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Cloud),
+            settings.CloudNeighbours,
+            settings.CloudMinimumSupport,
+            settings.CloudDepthTolerance,
+            settings.CloudReprojectionTolerancePixels,
+            settings.CloudMinimumParallaxDegrees
         };
         var cloudPath = context.Build(Name, inputs, directory =>
         {
@@ -80,12 +80,12 @@ public sealed class DenseCloudStage : IPipelineStage
     {
         // A preview is immutable and inspectable, but is not a resumable partial cloud.
         // The final PLY remains the complete output of this stage.
-        var artifact = context.Build("cloud-preview", new CloudPreviewInputs
+        var artifact = context.Build("cloud-preview", new
         {
-            PreviewVersion = 2,
-            Inputs = inputs,
-            InputSamples = preview.InputSamples,
-            RetainedSamples = preview.RetainedSamples
+            previewVersion = 2,
+            inputs,
+            preview.InputSamples,
+            preview.RetainedSamples
         }, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "cloud.json"), preview);

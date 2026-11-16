@@ -29,16 +29,6 @@ namespace Echo.Infrastructure;
 [JsonSerializable(typeof(bool[]))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(List<string>))]
-[JsonSerializable(typeof(List<Photo>))]
-[JsonSerializable(typeof(FeatureSet[]))]
-[JsonSerializable(typeof(Dictionary<string, IslandTrimMode>))]
-[JsonSerializable(typeof(Dictionary<string, int>))]
-[JsonSerializable(typeof(SortedDictionary<string, string>))]
-[JsonSerializable(typeof(string[]))]
-[JsonSerializable(typeof(int[]))]
-[JsonSerializable(typeof(Dictionary<string, System.Text.Json.JsonElement>))]
-[JsonSerializable(typeof(System.Text.Json.JsonElement))]
-[JsonSerializable(typeof(byte[]))]
 public partial class CoreJsonReadContext : JsonSerializerContext
 {
 }

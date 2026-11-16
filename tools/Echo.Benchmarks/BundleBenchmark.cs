@@ -76,14 +76,14 @@ public sealed class BundleBenchmark
             bundle.Refine(project, scene, pairs, default);
             watch.Stop();
             allocated = GC.GetTotalAllocatedBytes(true) - allocated;
-            Console.WriteLine(json.Encode(new BundleMeasurement
+            Console.WriteLine(json.Encode(new
             {
-                Iteration = iteration,
-                Seconds = watch.Elapsed.TotalSeconds,
-                AllocatedBytes = allocated,
-                Hash = files.Hash(scene),
-                Bundle = scene.Bundle
-            }, compact: true));
+                iteration,
+                seconds = watch.Elapsed.TotalSeconds,
+                allocatedBytes = allocated,
+                hash = files.Hash(scene),
+                scene.Bundle
+            }));
         }
         return 0;
     }

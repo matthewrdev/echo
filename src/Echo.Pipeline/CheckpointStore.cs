@@ -42,12 +42,12 @@ public sealed class CheckpointStore : ICheckpointStore
             "depth-image" => "echo-0.1.0-pyramid7",
             _ => "echo-0.1.0"
         };
-        var key = fileOperations.Hash(new CheckpointFingerprint
+        var key = fileOperations.Hash(new
         {
-            StorageVersion = 3,
-            Version = version,
-            Stage = stage,
-            Inputs = inputs
+            storageVersion = 3,
+            version,
+            stage,
+            inputs
         });
         var relative = $"artifacts/{stage}/{key}";
         var final = store.PathFor(relative);
@@ -60,10 +60,10 @@ public sealed class CheckpointStore : ICheckpointStore
                 throw new EchoException($"Corrupt checkpoint: {relative}. Preserve it for diagnosis and remove this artifact directory before retrying.");
             }
 
-            progress("artifactReused", new ArtifactEvent
+            progress("artifactReused", new
             {
-                Stage = stage,
-                Artifact = relative
+                stage,
+                artifact = relative
             });
             return relative;
         }
@@ -75,9 +75,9 @@ public sealed class CheckpointStore : ICheckpointStore
 
         var temp = store.PathFor($"work/{Guid.NewGuid():N}");
         Directory.CreateDirectory(temp);
-        progress("stageStarted", new StageStartedEvent
+        progress("stageStarted", new
         {
-            Stage = stage
+            stage
         });
         try
         {
@@ -104,10 +104,10 @@ public sealed class CheckpointStore : ICheckpointStore
             });
             Directory.CreateDirectory(Path.GetDirectoryName(final)!);
             Directory.Move(temp, final);
-            progress("artifactCommitted", new ArtifactEvent
+            progress("artifactCommitted", new
             {
-                Stage = stage,
-                Artifact = relative
+                stage,
+                artifact = relative
             });
             return relative;
         }

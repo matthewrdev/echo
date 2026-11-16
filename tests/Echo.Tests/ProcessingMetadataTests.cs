@@ -36,7 +36,10 @@ public sealed class ProcessingMetadataTests
             context.ReportProgress("depth", "Classified", 5, 10);
             context.ReportProgress("depth", "Loading model");
             Check(context.Run.Progress!.Completed == 5 && context.Run.Progress.Total == 10, "Status messages preserve current step counters");
-            context.Build("semantic-image", new Dictionary<string, string> { ["test"] = "step" }, SaveData);
+            context.Build("semantic-image", new
+            {
+                test = "step"
+            }, SaveData);
             Check(context.Run.Progress!.StepIndex == 0 && context.Run.Progress.Steps.Length == 3, "Child checkpoints preserve the step plan");
             context.BeginStep("depth", ["Classification", "Stereo depth", "Save"], 1, 20);
             Check(context.Run.Progress!.Completed == 0 && context.Run.Progress.Total == 20, "New step starts with fresh counters");
@@ -50,7 +53,10 @@ public sealed class ProcessingMetadataTests
         {
             var first = Context(store, "metal-validated");
             first.Start();
-            var path = first.Build("depth-image", new Dictionary<string, string> { ["image"] = "one" }, SaveData, () => new ProcessingMetadata
+            var path = first.Build("depth-image", new
+            {
+                image = "one"
+            }, SaveData, () => new ProcessingMetadata
             {
                 Executions =
                 [
@@ -73,7 +79,10 @@ public sealed class ProcessingMetadataTests
             Check(manifest.Files["processing.json"] == files.HashFile(metadataPath), "Protect provenance with the checkpoint hash");
             var second = Context(store, "cpu");
             second.Start();
-            var reused = second.Build("depth-image", new Dictionary<string, string> { ["image"] = "one" }, _ => throw new InvalidOperationException("Should reuse"),
+            var reused = second.Build("depth-image", new
+            {
+                image = "one"
+            }, _ => throw new InvalidOperationException("Should reuse"),
                 () => throw new InvalidOperationException("Should not replace existing provenance"));
             second.Complete();
             Check(path == reused && File.ReadAllText(metadataPath) == original, "Reuse cannot relabel or rewrite the producer");
@@ -84,7 +93,10 @@ public sealed class ProcessingMetadataTests
             File.AppendAllText(metadataPath, " ");
             try
             {
-                second.Build("depth-image", new Dictionary<string, string> { ["image"] = "one" }, SaveData);
+                second.Build("depth-image", new
+                {
+                    image = "one"
+                }, SaveData);
                 throw new InvalidOperationException("Tampering must invalidate the checkpoint");
             }
             catch (EchoException error) when (error.Message.StartsWith("Corrupt checkpoint", StringComparison.Ordinal))
@@ -96,9 +108,15 @@ public sealed class ProcessingMetadataTests
             using var context = Context(store, "cpu");
             context.Start();
             string? child = null;
-            var parent = context.Build("texture", new Dictionary<string, string> { ["fixture"] = "packing-metadata" }, directory =>
+            var parent = context.Build("texture", new
             {
-                child = context.Build("packing-fixture", new Dictionary<string, string> { ["fixture"] = "integer" }, childDirectory =>
+                fixture = "packing-metadata"
+            }, directory =>
+            {
+                child = context.Build("packing-fixture", new
+                {
+                    fixture = "integer"
+                }, childDirectory =>
                 {
                     compute.RecordExecution(new ComputeExecution
                     {
@@ -125,14 +143,20 @@ public sealed class ProcessingMetadataTests
         {
             var context = Context(store, "cpu");
             context.Start();
-            var path = context.Build("feature-image", new Dictionary<string, string> { ["image"] = "legacy" }, SaveData);
+            var path = context.Build("feature-image", new
+            {
+                image = "legacy"
+            }, SaveData);
             var metadata = json.Read<ProcessingMetadata>(store.PathFor(path + "/processing.json"));
             Check(metadata.Executions.Single().ActualBackend == "cpu", "CPU processing is recorded too");
             var manifest = json.Read<Artifact>(store.PathFor(path + "/manifest.json"));
             manifest.Files.Remove("processing.json");
             File.Delete(store.PathFor(path + "/processing.json"));
             files.AtomicJson(store.PathFor(path + "/manifest.json"), manifest);
-            context.Build("feature-image", new Dictionary<string, string> { ["image"] = "legacy" }, _ => throw new InvalidOperationException("Legacy checkpoint should reuse"));
+            context.Build("feature-image", new
+            {
+                image = "legacy"
+            }, _ => throw new InvalidOperationException("Legacy checkpoint should reuse"));
             context.Complete();
             var saved = json.Read<RunProcessingMetadata>(store.PathFor($"runs/{context.Run.Id}/processing.json"));
             Check(saved.Artifacts[path].ProvenanceStatus == "unknown-legacy" && saved.Artifacts[path].MetadataPath == null, "Never invent provenance for legacy artifacts");

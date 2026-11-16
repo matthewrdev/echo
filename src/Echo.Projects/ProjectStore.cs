@@ -209,12 +209,12 @@ public sealed class ProjectStore : IProjectStore
             File.Copy(path, original, true);
             Edit(p => p.Images.Add(image));
             added.Add(image);
-            progress?.Invoke(new PhotoImportEvent
+            progress?.Invoke(new
             {
-                Type = "imageImported",
-                Id = image.Id,
-                Name = image.Name,
-                Count = added.Count
+                type = "imageImported",
+                image.Id,
+                image.Name,
+                count = added.Count
             });
         }
 
