@@ -7,16 +7,29 @@ public sealed class PageFile : IDisposable
     private readonly string path;
     private readonly PageCache cache;
     private bool disposed;
+    private readonly long originalLength;
 
-    public PageFile(string path, PageCache cache, bool writable)
+    public PageFile(string path, PageCache cache, bool writable, PageFileLifetime lifetime = PageFileLifetime.Persistent)
     {
         this.cache = cache;
         this.path = path;
         Writable = writable;
-        using var handle = File.OpenHandle(path, writable ? FileMode.OpenOrCreate : FileMode.Open,
+        Lifetime = lifetime;
+        if (lifetime == PageFileLifetime.Temporary && !writable)
+        {
+            throw new ArgumentException("Temporary paging files must be writable.", nameof(writable));
+        }
+        using var handle = File.OpenHandle(path, lifetime == PageFileLifetime.Temporary ? FileMode.CreateNew : writable ? FileMode.OpenOrCreate : FileMode.Open,
             writable ? FileAccess.ReadWrite : FileAccess.Read, FileShare.Read);
         Length = RandomAccess.GetLength(handle);
+        originalLength = Length;
     }
+
+    public PageFileLifetime Lifetime
+    {
+        get;
+    }
+    internal long AllocatedBytes => Length - originalLength;
 
     public long Length
     {
@@ -71,7 +84,16 @@ public sealed class PageFile : IDisposable
         }
         try
         {
-            Flush();
+            if (Lifetime == PageFileLifetime.Temporary)
+            {
+                cache.Release(this, discard: true);
+                File.Delete(path);
+                cache.ReleaseSequentialScratch(AllocatedBytes);
+            }
+            else
+            {
+                Flush();
+            }
         }
         finally
         {

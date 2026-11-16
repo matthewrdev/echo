@@ -24,7 +24,7 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
         }
         else if (file.Length == 0 && file.Writable)
         {
-            Commit();
+            WriteHeader();
         }
         else
         {
@@ -183,6 +183,13 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
 
     public void Commit()
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        WriteHeader();
+        file.Flush();
+    }
+
+    private void WriteHeader()
+    {
         if (file.Writable && header)
         {
             Span<byte> bytes = stackalloc byte[16];
@@ -192,7 +199,6 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
             BinaryPrimitives.WriteInt32LittleEndian(bytes[12..], Count);
             file.WriteBytes(0, bytes);
         }
-        file.Flush();
     }
 
     public void Dispose()
@@ -203,7 +209,10 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
         }
         try
         {
-            Commit();
+            if (file.Lifetime == PageFileLifetime.Persistent)
+            {
+                WriteHeader();
+            }
         }
         finally
         {

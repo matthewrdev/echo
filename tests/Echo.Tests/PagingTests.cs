@@ -28,6 +28,39 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Temporary scopes discard dirty pages and return scratch space without flushing", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(4 * 65536, 2 * 65536);
+            using var work = new WorkBuffers(session, directory);
+            var retained = work.List(new IntRecordCodec());
+            retained.Add(42);
+            var writes = session.Statistics.WrittenBytes;
+            IList<int> released;
+            using (var scope = work.CreateScope())
+            {
+                released = scope.List(new IntRecordCodec());
+                released.Add(123);
+                Check(session.Statistics.ScratchBytes == 2 * 65536, "Scratch usage was not charged");
+            }
+            Check(session.Statistics.WrittenBytes == writes, "Disposing temporary buffers wrote dirty pages");
+            Check(session.Statistics.ScratchBytes == 65536 && retained[0] == 42, "Scope disposal released another scope's data or failed to return space");
+            try
+            {
+                _ = released[0];
+                throw new InvalidOperationException("A discarded buffer remained readable");
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            using (var next = work.CreateScope())
+            {
+                next.List(new IntRecordCodec()).Add(456);
+            }
+            Check(Directory.EnumerateFiles(directory, "*.bin", SearchOption.AllDirectories).Count() == 1, "Discarded files remained on disk");
+            using var output = new MemoryStream();
+            ((PagedList<int>)retained).CopyEncodedRecordsTo(output);
+            Check(BitConverter.ToInt32(output.ToArray()) == 42, "Unflushed scratch output could not be published");
+        }));
         tests.Run("Simplification vertex records preserve coefficients without decoding allocations", () =>
         {
             var vertex = new Vertex { Id = 23, Position = new V3(-1.5, Math.PI, 12), PlaneCount = 500, Revision = 17, Removed = true };

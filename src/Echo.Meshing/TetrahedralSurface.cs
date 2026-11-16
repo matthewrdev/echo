@@ -16,7 +16,8 @@ internal static class TetrahedralSurface
         ReadOnlySpan<int> tetrahedra = [0, 5, 1, 6, 0, 1, 2, 6, 0, 2, 3, 6,
             0, 3, 7, 6, 0, 7, 4, 6, 0, 4, 5, 6];
         var mesh = work?.Surface() ?? new Surface();
-        var vertices = new BinaryHashIndex<VolumeEdge, int>(samples.Count, new VolumeEdgeRecordCodec(), new IntRecordCodec(), work, cancellation);
+        using var scratch = work?.CreateScope();
+        var vertices = new BinaryHashIndex<VolumeEdge, int>(samples.Count, new VolumeEdgeRecordCodec(), new IntRecordCodec(), scratch, cancellation);
         Span<Grid> corners = stackalloc Grid[8];
         Span<float> values = stackalloc float[8];
         operationProgress?.Invoke(new OperationProgress("Surface extraction", "Extracting the zero crossing surface…", 0, samples.Count, "lattice cells"));

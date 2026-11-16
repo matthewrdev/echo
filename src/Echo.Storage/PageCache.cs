@@ -220,7 +220,7 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    internal void Release(PageFile file)
+    internal void Release(PageFile file, bool discard = false)
     {
         lock (gate)
         {
@@ -230,7 +230,10 @@ public sealed class PageCache : IDisposable
                 var next = node.Next;
                 if (node.Value.Address.File == file)
                 {
-                    Flush(node.Value);
+                    if (!discard)
+                    {
+                        Flush(node.Value);
+                    }
                     pages.Remove(node.Value.Address);
                     recent.Remove(node);
                 }

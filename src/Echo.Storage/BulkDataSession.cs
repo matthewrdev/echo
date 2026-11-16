@@ -17,7 +17,15 @@ public sealed class BulkDataSession : IDisposable
 
     public PagedList<T> Open<T>(string path, RecordCodec<T> codec, bool writable = false, long offset = -1, int count = 0)
     {
-        var file = new PageFile(path, cache, writable);
+        return Open(path, codec, writable, offset, count, PageFileLifetime.Persistent);
+    }
+
+    internal PagedList<T> OpenTemporary<T>(string path, RecordCodec<T> codec)
+        => Open(path, codec, true, -1, 0, PageFileLifetime.Temporary);
+
+    private PagedList<T> Open<T>(string path, RecordCodec<T> codec, bool writable, long offset, int count, PageFileLifetime lifetime)
+    {
+        var file = new PageFile(path, cache, writable, lifetime);
         try
         {
             var list = new PagedList<T>(file, codec, offset, count);

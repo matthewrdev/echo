@@ -19,12 +19,14 @@ public sealed class MeshBuilder : IMeshBuilder
 
     public Surface Extract(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null, ComputeBackend backend = ComputeBackend.Auto)
     {
-        var samples = VolumeGapRepair.Complete(volume, cancellation, work, progress);
+        using var scratch = work?.CreateScope();
+        var samples = VolumeGapRepair.Complete(volume, cancellation, scratch, progress);
         var result = TetrahedralSurface.Extract(samples, volume.VoxelSize, cancellation, work, progress, operationProgress, compute, backend);
         if (result.Faces.Count == 0)
         {
             throw new EchoException("No connected surface could be extracted from the fused cloud.", 5);
         }
+        scratch?.Dispose();
         SurfaceHoleRepair.Fill(result, volume.VoxelSize, cancellation, work: work, progress: operationProgress);
         return SurfaceFragments.RemoveSmall(result, volume.VoxelSize, cancellation, work);
     }

@@ -14,7 +14,8 @@ internal static class VolumeGapRepair
             samples.Add(new Grid(sample.X, sample.Y, sample.Z), sample.Distance);
         }
         progress?.Invoke($"Indexed {samples.Count:N0} volume samples; finding bounded gaps…");
-        var candidates = new BinaryHashIndex<Grid, int>(volume.Samples.Count, new GridRecordCodec(), new IntRecordCodec(), work, cancellation);
+        using var scratch = work?.CreateScope();
+        var candidates = new BinaryHashIndex<Grid, int>(volume.Samples.Count, new GridRecordCodec(), new IntRecordCodec(), scratch, cancellation);
         foreach (var key in samples.Keys)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -46,7 +47,7 @@ internal static class VolumeGapRepair
         // the original field, so completion cannot recursively expand a scan.
         // Agreement between the two interpolants rejects discontinuities while
         // allowing a locally planar ground surface to span sparse observations.
-        var repaired = new BinaryHashIndex<Grid, float>(volume.Samples.Count, new GridRecordCodec(), new FloatRecordCodec(), work, cancellation);
+        var repaired = new BinaryHashIndex<Grid, float>(volume.Samples.Count, new GridRecordCodec(), new FloatRecordCodec(), scratch, cancellation);
         foreach (var key in candidates.Keys)
         {
             cancellation.ThrowIfCancellationRequested();

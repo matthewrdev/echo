@@ -2,11 +2,13 @@ using Echo.Contracts;
 
 namespace Echo.Storage;
 
-public sealed class WorkBuffers
+public sealed class WorkBuffers : IDisposable
 {
     private readonly BulkDataSession session;
     private readonly string directory;
     private int nextFile;
+    private readonly List<IDisposable> resources = [];
+    private bool disposed;
 
     public WorkBuffers(BulkDataSession session, string directory)
     {
@@ -16,7 +18,46 @@ public sealed class WorkBuffers
     }
 
     public IList<T> List<T>(RecordCodec<T> codec)
-        => session.Open(Path.Combine(directory, $"buffer-{nextFile++}.bin"), codec, true);
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var result = session.OpenTemporary(Path.Combine(directory, $"buffer-{nextFile++}.bin"), codec);
+        resources.Add(result);
+        return result;
+    }
+
+    public WorkBuffers CreateScope()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var scope = new WorkBuffers(session, Path.Combine(directory, $"scope-{nextFile++}"));
+        resources.Add(scope);
+        return scope;
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+        List<Exception>? failures = null;
+        foreach (var resource in resources)
+        {
+            try
+            {
+                resource.Dispose();
+            }
+            catch (Exception error)
+            {
+                (failures ??= []).Add(error);
+            }
+        }
+        resources.Clear();
+        disposed = true;
+        if (failures != null)
+        {
+            throw new AggregateException("Failed to release temporary buffers.", failures);
+        }
+    }
 
     public TemporaryRecordSet<T> TemporaryRecords<T>(RecordCodec<T> codec)
         => session.TemporaryRecords(directory, codec);
