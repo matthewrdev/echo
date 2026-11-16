@@ -1,3 +1,4 @@
+using System.Buffers;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.Geometry;
@@ -31,118 +32,130 @@ public static class SurfaceVegetationClassifier
         IList<bool> result = work?.Filled(surface.Vertices.Count, false, new BoolRecordCodec()) ?? new bool[surface.Vertices.Count];
         var origin = views.Length == 0 ? default : views[0].Centre;
         using var acceleration = SemanticProjectionCompute.Open(compute, project, views, photos, semantics, origin, cancellation);
-        var failed = false;
-        for (var start = 0; start < result.Count; start += 1024)
+        var projectionBuffer = acceleration == null ? null : ArrayPool<float>.Shared.Rent(checked(1024 * views.Length * 4));
+        try
         {
-            var end = Math.Min(result.Count, start + 1024);
-            float[]? projectedVotes = null;
-            if (acceleration != null && !failed)
+            var failed = false;
+            for (var start = 0; start < result.Count; start += 1024)
             {
-                try
+                var end = Math.Min(result.Count, start + 1024);
+                float[]? projectedVotes = null;
+                if (acceleration != null && !failed)
                 {
-                    projectedVotes = SemanticProjectionCompute.Evaluate(acceleration, surface, normals, start, end - start, origin, views.Length);
+                    try
+                    {
+                        SemanticProjectionCompute.Evaluate(acceleration, surface, normals, start, end - start, origin, views.Length, projectionBuffer);
+                        projectedVotes = projectionBuffer;
+                    }
+                    catch (ComputeException) when (project.Settings.ComputeBackend == ComputeBackend.Auto)
+                    {
+                        failed = true;
+                    }
                 }
-                catch (ComputeException) when (project.Settings.ComputeBackend == ComputeBackend.Auto)
-                {
-                    failed = true;
-                }
-            }
-            Parallel.For(start, end, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = Math.Min(8, Environment.ProcessorCount) }, index =>
-        {
-            var point = new V3(surface.Vertices[index]);
-            Span<VegetationViewVote> votes = stackalloc VegetationViewVote[8];
-            var count = 0;
-            for (var viewIndex = 0; viewIndex < views.Length; viewIndex++)
+                Parallel.For(start, end, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = Math.Min(8, Environment.ProcessorCount) }, index =>
             {
-                var view = views[viewIndex];
-                if (projectedVotes != null)
+                var point = new V3(surface.Vertices[index]);
+                Span<VegetationViewVote> votes = stackalloc VegetationViewVote[8];
+                var count = 0;
+                for (var viewIndex = 0; viewIndex < views.Length; viewIndex++)
                 {
-                    var entry = ((index - start) * views.Length + viewIndex) * 4;
-                    if (projectedVotes[entry + 3] == 0)
+                    var view = views[viewIndex];
+                    if (projectedVotes != null)
+                    {
+                        var entry = ((index - start) * views.Length + viewIndex) * 4;
+                        if (projectedVotes[entry + 3] == 0)
+                        {
+                            continue;
+                        }
+                        var acceleratedWeakest = 0;
+                        for (var vote = 1; vote < count; vote++)
+                        {
+                            if (votes[vote].Weight < votes[acceleratedWeakest].Weight)
+                            {
+                                acceleratedWeakest = vote;
+                            }
+                        }
+                        var acceleratedWeight = projectedVotes[entry];
+                        if (count == votes.Length && acceleratedWeight <= votes[acceleratedWeakest].Weight)
+                        {
+                            continue;
+                        }
+                        if (visibility.HasOccluder(view.Centre, point))
+                        {
+                            continue;
+                        }
+                        var acceleratedSlot = count < votes.Length ? count++ : acceleratedWeakest;
+                        votes[acceleratedSlot] = new VegetationViewVote(acceleratedWeight, projectedVotes[entry + 1], projectedVotes[entry + 2]);
+                        continue;
+                    }
+                    var projection = view.Projection.Project(point);
+                    if (!projection.HasValue)
                     {
                         continue;
                     }
-                    var acceleratedWeakest = 0;
+                    var photo = photos[view.Map.ImageId];
+                    var map = semantics[photo.Id];
+                    var u = projection.Value.X / photo.Width;
+                    var v = projection.Value.Y / photo.Height;
+                    var inside = u > 0 && v > 0 && u < 1 && v < 1;
+                    if (!inside)
+                    {
+                        continue;
+                    }
+                    var direction = view.Centre - point;
+                    var facing = normals[index].Length > 0 ? Math.Abs(normals[index].Unit.Dot(direction.Unit)) : 1;
+                    var weight = facing * view.Focal / Math.Max(1e-8, direction.Length);
+                    var weakest = 0;
                     for (var vote = 1; vote < count; vote++)
                     {
-                        if (votes[vote].Weight < votes[acceleratedWeakest].Weight)
+                        if (votes[vote].Weight < votes[weakest].Weight)
                         {
-                            acceleratedWeakest = vote;
+                            weakest = vote;
                         }
                     }
-                    var acceleratedWeight = projectedVotes[entry];
-                    if (count == votes.Length && acceleratedWeight <= votes[acceleratedWeakest].Weight)
+                    if (facing < .05 || (count == votes.Length && weight <= votes[weakest].Weight))
                     {
                         continue;
                     }
-                    if (visibility.HasOccluder(view.Centre, point))
+                    var measured = view.TrySurfacePoint(point, .01, out _);
+                    var missingDepth = surface.Faces.Count > 0 && !double.IsFinite(view.Difference(point));
+                    if ((!measured && !missingDepth) || visibility.HasOccluder(view.Centre, point))
                     {
                         continue;
                     }
-                    var acceleratedSlot = count < votes.Length ? count++ : acceleratedWeakest;
-                    votes[acceleratedSlot] = new VegetationViewVote(acceleratedWeight, projectedVotes[entry + 1], projectedVotes[entry + 2]);
-                    continue;
+                    // Completed vegetation may have no measured depth. Its existing
+                    // mesh line of sight can establish semantic visibility; it never
+                    // provides new geometry or overrides contradictory measured depth.
+                    var vegetation = SemanticProbabilities.ConservativeSample(map, map.VegetationSamples, u, v);
+                    var rock = SemanticProbabilities.ConservativeSample(map, map.RockSamples, u, v);
+                    var slot = count < votes.Length ? count++ : weakest;
+                    votes[slot] = new VegetationViewVote(weight, vegetation, rock);
                 }
-                var projection = view.Projection.Project(point);
-                if (!projection.HasValue)
+                double total = 0;
+                double plant = 0;
+                double stone = 0;
+                var confirmed = 0;
+                foreach (var vote in votes[..count])
                 {
-                    continue;
-                }
-                var photo = photos[view.Map.ImageId];
-                var map = semantics[photo.Id];
-                var u = projection.Value.X / photo.Width;
-                var v = projection.Value.Y / photo.Height;
-                var inside = u > 0 && v > 0 && u < 1 && v < 1;
-                if (!inside)
-                {
-                    continue;
-                }
-                var direction = view.Centre - point;
-                var facing = normals[index].Length > 0 ? Math.Abs(normals[index].Unit.Dot(direction.Unit)) : 1;
-                var weight = facing * view.Focal / Math.Max(1e-8, direction.Length);
-                var weakest = 0;
-                for (var vote = 1; vote < count; vote++)
-                {
-                    if (votes[vote].Weight < votes[weakest].Weight)
+                    total += vote.Weight;
+                    plant += vote.Weight * vote.Vegetation;
+                    stone += vote.Weight * vote.Rock;
+                    if (vote.Vegetation >= .75)
                     {
-                        weakest = vote;
+                        confirmed++;
                     }
                 }
-                if (facing < .05 || (count == votes.Length && weight <= votes[weakest].Weight))
-                {
-                    continue;
-                }
-                var measured = view.TrySurfacePoint(point, .01, out _);
-                var missingDepth = surface.Faces.Count > 0 && !double.IsFinite(view.Difference(point));
-                if ((!measured && !missingDepth) || visibility.HasOccluder(view.Centre, point))
-                {
-                    continue;
-                }
-                // Completed vegetation may have no measured depth. Its existing
-                // mesh line of sight can establish semantic visibility; it never
-                // provides new geometry or overrides contradictory measured depth.
-                var vegetation = SemanticProbabilities.ConservativeSample(map, map.VegetationSamples, u, v);
-                var rock = SemanticProbabilities.ConservativeSample(map, map.RockSamples, u, v);
-                var slot = count < votes.Length ? count++ : weakest;
-                votes[slot] = new VegetationViewVote(weight, vegetation, rock);
+                result[index] = confirmed >= 2 && plant >= total * .65 && stone < total * .2;
+            });
+                progress?.Invoke(new("Vegetation classification", "Combining vegetation evidence from visible photographs.", end, result.Count, "vertices"));
             }
-            double total = 0;
-            double plant = 0;
-            double stone = 0;
-            var confirmed = 0;
-            foreach (var vote in votes[..count])
+        }
+        finally
+        {
+            if (projectionBuffer != null)
             {
-                total += vote.Weight;
-                plant += vote.Weight * vote.Vegetation;
-                stone += vote.Weight * vote.Rock;
-                if (vote.Vegetation >= .75)
-                {
-                    confirmed++;
-                }
+                ArrayPool<float>.Shared.Return(projectionBuffer);
             }
-            result[index] = confirmed >= 2 && plant >= total * .65 && stone < total * .2;
-        });
-            progress?.Invoke(new("Vegetation classification", "Combining vegetation evidence from visible photographs.", end, result.Count, "vertices"));
         }
         return (IReadOnlyList<bool>)result;
     }

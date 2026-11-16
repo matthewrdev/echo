@@ -188,6 +188,11 @@ public sealed class ComputePassTests
         project.Settings.ComputeBackend = ComputeBackend.Metal;
         var gpu = SurfaceVisibilityFilter.Filter(surface, project, scene, maps, default, compute: compute);
         Check(cpu.Faces.Count == 1 && gpu.Faces.Count == 1, "Free space rejection differs");
+        // Exercise full batches followed by a short tail while reusing readback storage.
+        for (var vertex = 0; vertex < 2050; vertex++)
+        {
+            cpu.Vertices.Add([vertex % 2 == 0 ? 0 : 100, 0, 10]);
+        }
         for (var variation = 0; variation < 3; variation++)
         {
             project.Settings.ComputeBackend = ComputeBackend.Cpu;
