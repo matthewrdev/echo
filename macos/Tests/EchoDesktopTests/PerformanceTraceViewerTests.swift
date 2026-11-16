@@ -30,8 +30,9 @@ final class PerformanceTraceViewerTests: XCTestCase {
         await workspace.performance.load(comparing: true)
         XCTAssertNotNil(workspace.performance.baseline)
         let view = NSHostingView(
-            rootView: PerformanceTraceView(workspace: workspace, model: workspace.performance)
-                .environment(\.colorScheme, .light).frame(width: 1100, height: 680).background(Color.white))
+            rootView: PerformanceTraceView(workspace: workspace, model: workspace.performance, page: .timings)
+                .environment(\.colorScheme, .light).frame(width: 1100, height: 680).background(Color.white).id(
+                    PerformanceTracePage.timings))
         view.frame = NSRect(x: 0, y: 0, width: 1100, height: 680)
         let window = NSWindow(
             contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -45,5 +46,13 @@ final class PerformanceTraceViewerTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
         try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
             to: URL(fileURLWithPath: output).appendingPathComponent("performance-trace.png"))
+        view.rootView = PerformanceTraceView(workspace: workspace, model: workspace.performance, page: .overview)
+            .environment(\.colorScheme, .light).frame(width: 1100, height: 680).background(Color.white).id(
+                PerformanceTracePage.overview)
+        try await Task.sleep(for: .milliseconds(300))
+        view.layoutSubtreeIfNeeded()
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
+            to: URL(fileURLWithPath: output).appendingPathComponent("performance-overview.png"))
     }
 }

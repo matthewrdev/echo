@@ -3,6 +3,7 @@ import SwiftUI
 struct PerformanceTraceView: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @ObservedObject var model: PerformanceTraceViewModel
+    @State var page = PerformanceTracePage.overview
     @State private var kind = PerformanceSpanKind.stage
     @State private var stage: PipelineStage?
     @State private var sorting = [KeyPathComparator(\PerformanceStatistic.totalMilliseconds, order: .reverse)]
@@ -40,28 +41,41 @@ struct PerformanceTraceView: View {
                 }
                 if let document = model.document {
                     summary(document)
-                    HStack {
-                        Picker("Detail", selection: $kind) {
-                            ForEach(PerformanceSpanKind.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
-                        }.pickerStyle(.segmented)
-                        Picker("Stage", selection: $stage) {
-                            Text("All stages").tag(nil as PipelineStage?)
-                            ForEach(PipelineStage.allCases) { Text($0.shortTitle).tag(Optional($0)) }
-                        }.frame(width: 200)
-                    }
-                    PerformanceTimeline(spans: spans, duration: document.summary.durationMilliseconds)
-                    Text("Completed intervals · faded timeline bars are reused checkpoints").font(.caption)
-                        .foregroundStyle(.secondary)
-                    timingTable
-                    Text(
-                        "Elapsed intervals include child work and can overlap; do not add rows to obtain run time. GPU time is measured for completed command buffers and belongs to the call that drained them, which can include earlier dispatches. CPU time covers the processor process, not external workers."
-                    )
-                    .font(.caption).foregroundStyle(.secondary)
-                    if document.summary.droppedSpans > 0 {
+                    Picker("View", selection: $page) {
+                        ForEach(PerformanceTracePage.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }.pickerStyle(.segmented).frame(width: 360)
+                    if page == .overview {
+                        PerformanceRunGraph(document: document) { selected in
+                            stage = selected
+                            kind = .operation
+                            page = .timings
+                        }
+                    } else {
+                        HStack {
+                            Picker("Detail", selection: $kind) {
+                                ForEach(PerformanceSpanKind.allCases, id: \.self) {
+                                    Text($0.rawValue.capitalized).tag($0)
+                                }
+                            }.pickerStyle(.segmented)
+                            Picker("Stage", selection: $stage) {
+                                Text("All stages").tag(nil as PipelineStage?)
+                                ForEach(PipelineStage.allCases) { Text($0.shortTitle).tag(Optional($0)) }
+                            }.frame(width: 200)
+                        }
+                        PerformanceTimeline(spans: spans, duration: document.summary.durationMilliseconds)
+                        Text("Completed intervals · faded timeline bars are reused checkpoints").font(.caption)
+                            .foregroundStyle(.secondary)
+                        timingTable
                         Text(
-                            "\(document.summary.droppedSpans.formatted()) detailed intervals omitted to bound memory. Completed-operation aggregates remain available."
+                            "Elapsed intervals include child work and can overlap; do not add rows to obtain run time. GPU time is measured for completed command buffers and belongs to the call that drained them, which can include earlier dispatches. CPU time covers the processor process, not external workers."
                         )
-                        .font(.caption).foregroundStyle(.orange)
+                        .font(.caption).foregroundStyle(.secondary)
+                        if document.summary.droppedSpans > 0 {
+                            Text(
+                                "\(document.summary.droppedSpans.formatted()) detailed intervals omitted to bound memory. Completed-operation aggregates remain available."
+                            )
+                            .font(.caption).foregroundStyle(.orange)
+                        }
                     }
                 } else {
                     ProgressView("Loading performance trace…").frame(maxWidth: .infinity, maxHeight: .infinity)
