@@ -1,6 +1,7 @@
 import Foundation
 
 struct ProcessingSettings: Codable {
+    var exclusionRegions: [ExclusionRegion] = []
     var processingMemoryMode: ProcessingMemoryMode = .paged
     var processingMemoryBudgetMb: Int = 0
     var processingDiskBudgetMb: Int = 0
@@ -67,6 +68,7 @@ struct ProcessingSettings: Codable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: ProcessingSettingsKey.self)
+        exclusionRegions = try values.decodeIfPresent([ExclusionRegion].self, forKey: .exclusionRegions) ?? []
         processingMemoryMode =
             try values.decodeIfPresent(ProcessingMemoryMode.self, forKey: .processingMemoryMode) ?? .paged
         processingMemoryBudgetMb = try values.decodeIfPresent(Int.self, forKey: .processingMemoryBudgetMb) ?? 0
@@ -139,6 +141,7 @@ struct ProcessingSettings: Codable {
 
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: ProcessingSettingsKey.self)
+        try values.encode(exclusionRegions, forKey: .exclusionRegions)
         try values.encode(processingMemoryMode, forKey: .processingMemoryMode)
         try values.encode(processingMemoryBudgetMb, forKey: .processingMemoryBudgetMb)
         try values.encode(processingDiskBudgetMb, forKey: .processingDiskBudgetMb)

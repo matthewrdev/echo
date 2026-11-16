@@ -34,7 +34,8 @@ public sealed class DenseCloudStage : IPipelineStage
         {
             depthUnits,
             alignment,
-            cloudVersion = 4,
+            cloudVersion = 5,
+            settings.ExclusionRegions,
             settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Cloud),
             settings.CloudNeighbours,

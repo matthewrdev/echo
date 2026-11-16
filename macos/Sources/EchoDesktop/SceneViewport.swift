@@ -7,6 +7,9 @@ struct SceneViewport: NSViewRepresentable {
     var showGround = false
     var selected: SparseSelection?
     var selection: ((SparseSelection?) -> Void)?
+    var exclusionRegions: [ExclusionRegion] = []
+    var selectedExclusionID: String?
+    var placeExclusion: ((SCNVector3) -> Void)?
 
     func makeNSView(context: Context) -> ArtifactSceneView {
         let view = ArtifactSceneView(
@@ -46,6 +49,8 @@ struct SceneViewport: NSViewRepresentable {
         view.inspection = presentation.sparseInspection
         view.cloudInspection = presentation.cloudInspection
         view.selection = selection
+        view.placeExclusion = placeExclusion
+        view.exclusionOverlay.update(scene: view.scene, regions: exclusionRegions, selectedID: selectedExclusionID)
         view.highlight(selected)
     }
 }

@@ -1,3 +1,4 @@
+import SceneKit
 import SwiftUI
 
 struct Artifact3DViewer: View {
@@ -5,6 +6,9 @@ struct Artifact3DViewer: View {
     let openFeatures: (String) -> Void
     @ObservedObject var controller: SceneViewportController
     @Binding var showGround: Bool
+    var exclusionRegions: [ExclusionRegion] = []
+    var selectedExclusionID: String?
+    var placeExclusion: ((SCNVector3) -> Void)?
     @State private var selected: SparseSelection?
     @State private var observationIndex = 0.0
 
@@ -17,7 +21,8 @@ struct Artifact3DViewer: View {
                     selection: {
                         selected = $0
                         observationIndex = 0
-                    }
+                    }, exclusionRegions: exclusionRegions, selectedExclusionID: selectedExclusionID,
+                    placeExclusion: placeExclusion
                 )
                 .overlay(alignment: .bottomLeading) {
                     if let data = presentation.cloudInspection, let scene = presentation.scene,

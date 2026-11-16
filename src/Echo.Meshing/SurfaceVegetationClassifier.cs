@@ -13,9 +13,7 @@ public static class SurfaceVegetationClassifier
         IReadOnlyList<DepthMap> maps, IReadOnlyDictionary<string, SemanticMap> semantics, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null, IComputeService? compute = null)
     {
         var photos = project.Images.ToDictionary(photo => photo.Id);
-        var cameras = scene.Cameras.ToDictionary(camera => camera.ImageId);
-        var views = maps.Where(map => semantics.ContainsKey(map.ImageId))
-            .Select(map => new DepthView(photos[map.ImageId], cameras[map.ImageId], map)).ToArray();
+        var views = MeshDepthViews.Build(project, scene, maps.Where(map => semantics.ContainsKey(map.ImageId)).ToArray());
         using var visibility = new SurfaceTriangleIndex(surface, cancellation);
         IList<V3> normals = work?.Filled(surface.Vertices.Count, new V3(), new V3RecordCodec()) ?? new V3[surface.Vertices.Count];
         foreach (var face in surface.Faces)

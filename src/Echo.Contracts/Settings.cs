@@ -4,6 +4,8 @@ public sealed class Settings
 {
     public const double MinimumFusionVoxelSize = .025;
 
+    public List<ExclusionRegion> ExclusionRegions { get; set; } = [];
+
     public ProcessingMemoryMode ProcessingMemoryMode { get; set; } = ProcessingMemoryMode.Paged;
     public int ProcessingMemoryBudgetMb { get; set; } = 0;
     public int ProcessingDiskBudgetMb { get; set; } = 0;
@@ -71,6 +73,19 @@ public sealed class Settings
 
     public void Validate()
     {
+        if (ExclusionRegions == null || ExclusionRegions.Any(region => region == null))
+        {
+            throw new EchoException("Exclusion regions must be an array of regions.", 2);
+        }
+        foreach (var region in ExclusionRegions)
+        {
+            region.Validate();
+        }
+        if (ExclusionRegions.Select(region => region.Id).Distinct(StringComparer.Ordinal).Count() != ExclusionRegions.Count)
+        {
+            throw new EchoException("Exclusion region IDs must be unique.", 2);
+        }
+
         var invalidProcessing = !Enum.IsDefined(ProcessingMemoryMode)
             || ProcessingMemoryBudgetMb != 0 && ProcessingMemoryBudgetMb is < 256 or > 524287
             || ProcessingDiskBudgetMb < 0;

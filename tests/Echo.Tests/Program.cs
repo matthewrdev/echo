@@ -6,6 +6,11 @@ using Echo.Pipeline;
 using var composition = new MefComposition(typeof(ReconstructionTests).Assembly, typeof(Processor).Assembly, typeof(CommandApplication).Assembly,
     typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly, typeof(Echo.Texturing.Metal.MetalTexturePlacementAccelerator).Assembly);
 var scaleTests = new TestSuite();
+composition.Resolve<ExclusionRegionTests>().Run(scaleTests);
+if (args.Contains("--exclusions", StringComparer.Ordinal))
+{
+    return scaleTests.Finish();
+}
 composition.Resolve<ModelAssetCacheTests>().Run(scaleTests);
 composition.Resolve<SemanticArtifactReuseTests>().Run(scaleTests);
 if (args.Contains("--model-cache", StringComparer.Ordinal))

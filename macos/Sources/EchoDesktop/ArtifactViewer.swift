@@ -162,8 +162,8 @@ struct ArtifactViewer: View {
                 } else if let matches = value.matches {
                     MatchingViewer(data: matches, selected: $model.selectedMatchIndex)
                 } else if value.scene != nil {
-                    Artifact3DViewer(
-                        presentation: value,
+                    ExclusionWorkspaceView(
+                        workspace: workspace, presentation: value,
                         openFeatures: { photoID in
                             workspace.selectedPhotoID = photoID
                             workspace.selectedStage = .features

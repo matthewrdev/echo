@@ -2,6 +2,8 @@ import SceneKit
 
 final class ArtifactSceneView: SCNView {
     let renderObserver = SceneViewportRenderer()
+    let exclusionOverlay = ExclusionSceneOverlay()
+    var placeExclusion: ((SCNVector3) -> Void)?
     var artifactIdentity = ""
     var needsInitialFit = true
     var inspection: SparseInspectionData?
@@ -41,14 +43,28 @@ final class ArtifactSceneView: SCNView {
     override func mouseUp(with event: NSEvent) {
         super.mouseUp(with: event)
         let location = convert(event.locationInWindow, from: nil)
-        guard let start = mouseStart, hypot(location.x - start.x, location.y - start.y) < 4,
-            selection != nil
+        guard let start = mouseStart, hypot(location.x - start.x, location.y - start.y) < 4
         else { return }
+        if let placeExclusion {
+            if let point = exclusionPoint(at: location) {
+                placeExclusion(point)
+            }
+            return
+        }
+        guard selection != nil else { return }
         if let cloudInspection {
             selection?(pick(at: location, cameras: cloudInspection.cameras, tracks: []))
         } else if let inspection {
             selection?(pick(at: location, inspection: inspection))
         }
+    }
+
+    func exclusionPoint(at location: NSPoint) -> SCNVector3? {
+        guard let artifact = scene?.rootNode.childNode(withName: "artifact", recursively: false) else { return nil }
+        if artifact.geometry?.elements.first?.primitiveType == .point {
+            return CloudPointPicker().pick(at: location, in: self, node: artifact)
+        }
+        return hitTest(location, options: [.rootNode: artifact, .backFaceCulling: false]).first?.worldCoordinates
     }
 
     override func keyDown(with event: NSEvent) {

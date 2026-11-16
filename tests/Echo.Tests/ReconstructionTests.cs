@@ -530,6 +530,46 @@ public sealed class ReconstructionTests
                 var resumed = processor.Execute(store, "export", default, first.Id);
                 Check(resumed.Snapshot.Settings.TextureSize == 256 && resumed.Artifacts["texture"] == first.Artifacts["texture"], "Resume uses immutable snapshot");
             });
+            tests.Run("Exclusion edits rebuild cloud and downstream stages while saved runs retain their original regions", () =>
+            {
+                var before = store.GetRun();
+                var mesh = jsonCodec.Read<Surface>(store.PathFor(before.Artifacts["mesh"] + "/mesh.json"));
+                var centre = mesh.Vertices[mesh.Vertices.Count / 2];
+                var voxel = jsonCodec.Read<FusedVolume>(store.PathFor(before.Artifacts["fusion"] + "/volume.json")).VoxelSize;
+                foreach (var shape in Enum.GetValues<ExclusionShape>())
+                {
+                    var region = new ExclusionRegion
+                    {
+                        Shape = shape,
+                        CentreX = centre[0],
+                        CentreY = centre[1],
+                        CentreZ = centre[2],
+                        Width = voxel * 2,
+                        Height = voxel * 2,
+                        Depth = voxel * 2,
+                        Radius = voxel
+                    };
+                    store.Edit(project => project.Settings.ExclusionRegions = [region]);
+                    var cropped = processor.Execute(store, "export", default);
+                    foreach (var stage in new[] { "features", "matching", "alignment", "depth" })
+                    {
+                        Check(cropped.Artifacts[stage] == before.Artifacts[stage], "Exclusions must preserve " + stage);
+                    }
+                    foreach (var stage in new[] { "cloud", "fusion", "mesh", "texture", "export" })
+                    {
+                        Check(cropped.Artifacts[stage] != before.Artifacts[stage], "Exclusions must rebuild " + stage);
+                    }
+                    var croppedMesh = jsonCodec.Read<Surface>(store.PathFor(cropped.Artifacts["mesh"] + "/mesh.json"));
+                    Check(croppedMesh.Faces.Count > 0, "Cropping a small region removed the entire mesh");
+                    Check(croppedMesh.Faces.All(face => !ExclusionGeometry.Intersects(region,
+                        new V3(croppedMesh.Vertices[face[0]]), new V3(croppedMesh.Vertices[face[1]]), new V3(croppedMesh.Vertices[face[2]]))),
+                        "Surface completion filled an excluded region back in");
+                    var resumed = processor.Execute(store, "export", default, before.Id);
+                    Check(resumed.Snapshot.Settings.ExclusionRegions.Count == 0 && resumed.Artifacts["export"] == before.Artifacts["export"],
+                        "Resume must retain the original regions and outputs");
+                }
+                store.Edit(project => project.Settings.ExclusionRegions.Clear());
+            });
             tests.Run("A triangle-budget edit reuses fusion and rebuilds only the mesh and downstream artifacts", () =>
             {
                 var before = store.GetRun();

@@ -57,7 +57,8 @@ public sealed class MeshStage : IPipelineStage
             fusionPath,
             depthUnits,
             alignment,
-            completionVersion = 5,
+            completionVersion = 6,
+            project.Settings.ExclusionRegions,
             simplificationVersion = 3,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Mesh),
@@ -79,11 +80,13 @@ public sealed class MeshStage : IPipelineStage
                     var volume = context.ReadData<FusedVolume>(store.PathFor(fusionPath + "/volume.json"));
                     progress.Begin(MeshPhase.ExtractSurface);
                     var extracted = meshBuilder.Extract(volume, cancellation, context.Work, message => context.ReportProgress(Name, message), progress.Report, project.Settings.ComputeBackend);
+                    extracted = SurfaceExclusionFilter.Filter(extracted, project.Settings.ExclusionRegions, cancellation, context.Work);
                     var detailTolerance = volume.VoxelSize * .15;
                     progress.Begin(MeshPhase.SimplifyGeometry);
                     var reduced = edgeCollapse.Reduce(extracted, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: progress.Report);
                     progress.Begin(MeshPhase.RepairObservedHoles);
                     meshBuilder.FillHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report);
+                    reduced = SurfaceExclusionFilter.Filter(reduced, project.Settings.ExclusionRegions, cancellation, context.Work);
                     if (reduced.Faces.Count > project.Settings.FaceLimit)
                     {
                         reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: context.Work, progress: progress.Report);
@@ -105,6 +108,7 @@ public sealed class MeshStage : IPipelineStage
                         progress.Report(new OperationProgress("Surface reconstruction", "Reconstructing missing surface…"));
                         var reconstructed = surfaceReconstructor.Reconstruct(observed, scene, volume.VoxelSize, cancellation,
                             message => context.ReportProgress(Name, message), context.Memory);
+                        reconstructed = SurfaceExclusionFilter.Filter(reconstructed, project.Settings.ExclusionRegions, cancellation, context.Work);
                         context.ReportProgress(Name, "Restricting surface completion to the scanned neighbourhood…");
                         var supported = SurfaceSupportFilter.Filter(reconstructed, observed, volume.VoxelSize * 24, cancellation, context.Work, progress.Report);
                         context.ReportProgress(Name, "Adapting the completed surface to its geometric detail…");
@@ -137,6 +141,13 @@ public sealed class MeshStage : IPipelineStage
                         vegetationRemovedFaces = before - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Removed {vegetationRemovedFaces:N0} vegetation triangles; rock and material boundaries remain fixed.");
                     }
+                    var facesBeforeExclusions = reduced.Faces.Count;
+                    reduced = SurfaceExclusionFilter.Filter(reduced, project.Settings.ExclusionRegions, cancellation, context.Work);
+                    var excludedFaces = facesBeforeExclusions - reduced.Faces.Count;
+                    if (project.Settings.ExclusionRegions.Any(region => region.Enabled))
+                    {
+                        context.ReportProgress(Name, $"Removed {excludedFaces:N0} triangles intersecting exclusion regions after surface completion.");
+                    }
                     if (project.Settings.MeshIslandMode != IslandTrimMode.Off)
                     {
                         progress.Begin(MeshPhase.TrimIslands);
@@ -167,6 +178,7 @@ public sealed class MeshStage : IPipelineStage
                     fileOperations.AtomicJson(Path.Combine(dir, "mesh.report.json"), new
                     {
                         vegetationRemovedFaces,
+                        excludedFaces,
                         extractedFaces = extracted.Faces.Count,
                         reducedFaces = reduced.Faces.Count,
                         texturedFaces = mesh.Faces.Count,

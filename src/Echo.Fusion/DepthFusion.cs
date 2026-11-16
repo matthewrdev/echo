@@ -37,9 +37,11 @@ public sealed class DepthFusion : IDepthFusion
         var views = new DepthView[maps.Count];
         for (var index = 0; index < maps.Count; index++)
         {
-            var map = maps[index];
+            var source = maps[index];
+            var map = DepthExclusions.Apply(photos[source.ImageId], cameras[source.ImageId], source, project.Settings.ExclusionRegions);
             views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
         }
+        cloud = FusionExclusions.Filter(cloud, project.Settings.ExclusionRegions, cancellation, work);
         var grid = FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress, work, operationProgress);
         progress?.Invoke($"Fusion resolution: requested {grid.RequestedVoxelSize:G6} m; using {grid.VoxelSize:G6} m across {grid.Keys.Count:N0} grid samples.");
         var voxel = grid.VoxelSize;
@@ -72,7 +74,7 @@ public sealed class DepthFusion : IDepthFusion
         operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
             "Depth integration ready.", views.Length, views.Length, "depth maps"));
         var previewSamples = preview == null ? null : new FusionPreviewSampler();
-        var appender = new FusionVolumeAppender(result.Samples, previewSamples);
+        var appender = new FusionVolumeAppender(result.Samples, previewSamples, project.Settings.ExclusionRegions, voxel);
         long lastPreview = 0;
         using var batches = new FusionChunkIntegrator(integrator, keys.OpenReader(),
             chunks == null ? integrator.Capacity : plan.CheckpointCapacity, cancellation);

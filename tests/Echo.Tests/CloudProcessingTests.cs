@@ -27,6 +27,37 @@ public sealed class CloudProcessingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Dense cloud excludes box and cylinder samples before previews and output", () =>
+        {
+            var root = Path.Combine(Path.GetTempPath(), "echo-crop-cloud-" + Guid.NewGuid().ToString("N"));
+            var store = stores.Open(root);
+            store.Init();
+            try
+            {
+                var project = new ProjectData();
+                var scene = new ReconstructionScene();
+                var maps = MakePlane(store, project, scene);
+                var original = builder.Build(store, project, scene, maps, default);
+                foreach (var shape in Enum.GetValues<ExclusionShape>())
+                {
+                    var region = new ExclusionRegion { Shape = shape, CentreZ = 10, Width = 3, Height = 3, Depth = 3, Radius = 1.5 };
+                    project.Settings.ExclusionRegions = [region];
+                    var cloud = builder.Build(store, project, scene, maps, default);
+                    Check(cloud.Samples.Count < original.Samples.Count, "Exclusion did not reduce the cloud");
+                    Check(cloud.Samples.All(point => !ExclusionGeometry.Contains([region], new V3(point.X, point.Y, point.Z))),
+                        "Excluded samples survived cloud validation");
+                    Check(builder.Report(cloud).Preview.All(point => !ExclusionGeometry.Contains([region], new V3(point.Position))),
+                        "Excluded points survived the preview");
+                }
+                project.Settings.ExclusionRegions.Clear();
+                Check(builder.Build(store, project, scene, maps, default).Samples.SequenceEqual(original.Samples),
+                    "Removing exclusions must restore the original cloud from saved depths");
+            }
+            finally
+            {
+                Directory.Delete(root, true);
+            }
+        });
         tests.Run("Depth projection rejects points outside the image before integer conversion", () =>
         {
             var photo = new Photo { Width = 64, Height = 48, FocalPixels = 64 };
