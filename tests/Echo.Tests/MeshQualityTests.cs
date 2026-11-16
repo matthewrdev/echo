@@ -21,6 +21,38 @@ public sealed class MeshQualityTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Triangle search index agrees with direct geometry queries", () =>
+        {
+            var mesh = new Surface();
+            var triangles = new List<SurfaceTriangle>();
+            var random = new Random(818);
+            for (var index = 0; index < 250; index++)
+            {
+                var start = mesh.Vertices.Count;
+                var x = random.NextDouble() * 10;
+                var y = random.NextDouble() * 10;
+                var z = random.NextDouble();
+                mesh.Vertices.Add([x, y, z]);
+                mesh.Vertices.Add([x + .4, y, z + .1]);
+                mesh.Vertices.Add([x, y + .4, z - .1]);
+                mesh.Faces.Add([start, start + 1, start + 2]);
+                triangles.Add(new SurfaceTriangle(new V3(mesh.Vertices[start]), new V3(mesh.Vertices[start + 1]), new V3(mesh.Vertices[start + 2])));
+            }
+            var search = new SurfaceTriangleIndex(mesh, default);
+            for (var query = 0; query < 100; query++)
+            {
+                var point = new V3(random.NextDouble() * 10, random.NextDouble() * 10, random.NextDouble());
+                var expected = triangles.Select(triangle => SurfaceTriangleIntersection.Closest(point, triangle))
+                    .Min(position => (point - position).Dot(point - position));
+                Check(Math.Abs(search.Nearest(point, 100).DistanceSquared - expected) < 1e-12, "Indexed nearest surface changed");
+                var end = point + new V3(0, 0, -2);
+                Check(search.HasOccluder(point, end) == triangles.Any(triangle => SurfaceTriangleIntersection.Crosses(point, end, triangle)),
+                    "Indexed visibility changed");
+                var patch = new SurfaceTriangle(point, point + new V3(.5, 0, 0), point + new V3(0, .5, .5));
+                Check(search.Intersects(patch) == triangles.Any(triangle => SurfaceTriangleIntersection.Intersects(patch, triangle)),
+                    "Indexed triangle intersection changed");
+            }
+        });
         tests.Run("Hole repair reports bounded updates and the final boundary count", () =>
         {
             var mesh = new Surface();

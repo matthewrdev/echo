@@ -1,3 +1,4 @@
+using System.Buffers;
 using Echo.Contracts;
 using Echo.Geometry;
 
@@ -16,7 +17,15 @@ internal sealed class SurfaceTriangleIndex
         order = Enumerable.Range(0, mesh.Faces.Count).ToArray();
         if (order.Length > 0)
         {
-            Build(0, order.Length, cancellation);
+            var centres = ArrayPool<double>.Shared.Rent(order.Length);
+            try
+            {
+                Build(0, order.Length, centres, cancellation);
+            }
+            finally
+            {
+                ArrayPool<double>.Shared.Return(centres);
+            }
         }
     }
 
@@ -159,15 +168,20 @@ internal sealed class SurfaceTriangleIndex
         return false;
     }
 
-    private int Build(int start, int count, CancellationToken cancellation)
+    private int Build(int start, int count, double[] centres, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         var minimum = new V3(double.PositiveInfinity, double.PositiveInfinity, double.PositiveInfinity);
         var maximum = minimum * -1;
         for (var index = start; index < start + count; index++)
         {
-            var low = Triangle(order[index]).Minimum;
-            var high = Triangle(order[index]).Maximum;
+            if ((index & 4095) == 0)
+            {
+                cancellation.ThrowIfCancellationRequested();
+            }
+            var triangle = Triangle(order[index]);
+            var low = triangle.Minimum;
+            var high = triangle.Maximum;
             minimum = new V3(Math.Min(minimum.X, low.X), Math.Min(minimum.Y, low.Y), Math.Min(minimum.Z, low.Z));
             maximum = new V3(Math.Max(maximum.X, high.X), Math.Max(maximum.Y, high.Y), Math.Max(maximum.Z, high.Z));
         }
@@ -179,15 +193,21 @@ internal sealed class SurfaceTriangleIndex
         {
             var extent = maximum - minimum;
             var axis = extent.X >= extent.Y && extent.X >= extent.Z ? 0 : extent.Y >= extent.Z ? 1 : 2;
-            double Centre(int triangle)
+            // Resolve each key once. The comparator used to decode two faces
+            // and six paged vertex arrays on every comparison at every level.
+            for (var index = start; index < start + count; index++)
             {
-                var value = Triangle(triangle);
+                if ((index & 4095) == 0)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                }
+                var value = Triangle(order[index]);
                 var centre = value.A + value.B + value.C;
-                return axis == 0 ? centre.X : axis == 1 ? centre.Y : centre.Z;
+                centres[order[index]] = axis == 0 ? centre.X : axis == 1 ? centre.Y : centre.Z;
             }
-            Array.Sort(order, start, count, Comparer<int>.Create((a, b) => Centre(a).CompareTo(Centre(b))));
-            left = Build(start, count / 2, cancellation);
-            right = Build(start + count / 2, count - count / 2, cancellation);
+            Array.Sort(order, start, count, Comparer<int>.Create((a, b) => centres[a].CompareTo(centres[b])));
+            left = Build(start, count / 2, centres, cancellation);
+            right = Build(start + count / 2, count - count / 2, centres, cancellation);
         }
         nodes[slot] = new SurfaceSearchNode(minimum, maximum, start, count, left, right);
         return slot;
