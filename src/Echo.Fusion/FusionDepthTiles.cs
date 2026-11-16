@@ -5,7 +5,7 @@ namespace Echo.Fusion;
 
 internal sealed class FusionDepthTiles : IDisposable
 {
-    private readonly float[] depths;
+    private float[]? depths;
     private readonly int capacity;
     private readonly CancellationToken cancellation;
     private IEnumerator<FusionDepthWindow>? pending;
@@ -17,11 +17,10 @@ internal sealed class FusionDepthTiles : IDisposable
         ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 4);
         this.capacity = capacity;
         this.cancellation = cancellation;
-        depths = ArrayPool<float>.Shared.Rent(capacity);
     }
 
     public FusionDepthWindow[] Windows { get; } = new FusionDepthWindow[128];
-    public float[] Depths => depths;
+    public float[] Depths => depths ??= ArrayPool<float>.Shared.Rent(capacity);
     public int Count
     {
         get; private set;
@@ -55,6 +54,7 @@ internal sealed class FusionDepthTiles : IDisposable
                 Offset = Length
             };
             var region = window.Region;
+            var depths = Depths;
             if (region.Width == window.View.Map.Width)
             {
                 window.View.Map.ReadDepth(region.Top * region.Width, depths.AsSpan(Length, region.Count));
@@ -107,6 +107,9 @@ internal sealed class FusionDepthTiles : IDisposable
         }
         disposed = true;
         pending?.Dispose();
-        ArrayPool<float>.Shared.Return(depths);
+        if (depths != null)
+        {
+            ArrayPool<float>.Shared.Return(depths);
+        }
     }
 }

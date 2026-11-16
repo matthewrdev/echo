@@ -36,6 +36,26 @@ internal sealed class FusionPreviewSampler
         }
     }
 
+    public void AddRange(ReadOnlySpan<VolumeSample> values)
+    {
+        var offset = 0;
+        while (offset < values.Length)
+        {
+            var skip = (stride - observed % stride) % stride;
+            var remaining = values.Length - offset;
+            if (skip >= remaining)
+            {
+                observed += remaining;
+                return;
+            }
+            observed += skip;
+            offset += (int)skip;
+            // Add may increase the stride, so calculate the next retained index
+            // again after every sample. Skipped values are never read.
+            Add(values[offset++]);
+        }
+    }
+
     public FusionPreview Snapshot(FusedVolume volume) => new()
     {
         TotalSamples = volume.Samples.Count,

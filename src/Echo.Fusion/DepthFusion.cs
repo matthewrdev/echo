@@ -76,6 +76,18 @@ public sealed class DepthFusion : IDepthFusion
         long lastPreview = 0;
         using var batches = new FusionChunkIntegrator(integrator, keys.OpenReader(),
             chunks == null ? integrator.Capacity : plan.CheckpointCapacity, cancellation);
+        var integrationProgress = new FusionPlanningProgress(update =>
+        {
+            if (operationProgress != null)
+            {
+                operationProgress(update);
+            }
+            else
+            {
+                progress?.Invoke(update.Message);
+            }
+        }, cleanup);
+        integrationProgress.Start(FusionPhase.Integration, keys.Count, "grid samples");
         for (long first = 0; first < keys.Count; first += batches.Capacity)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -84,9 +96,7 @@ public sealed class DepthFusion : IDepthFusion
             IList<VolumeSample> Integrate()
             {
                 generated = true;
-                return batches.Integrate(count, done => operationProgress?.Invoke(FusionProgressPlan.Create(
-                    FusionPhase.Integration, cleanup, $"Integrating volume: {first + done:N0}/{keys.Count:N0} samples.",
-                    first + done, keys.Count, "grid samples")));
+                return batches.Integrate(count, done => integrationProgress.Advance(first + done));
             }
             var completed = chunks?.ReadOrBuild(first, count, Integrate) ?? Integrate();
             if (!generated)
@@ -99,11 +109,9 @@ public sealed class DepthFusion : IDepthFusion
                 preview(previewSamples!.Snapshot(result));
                 lastPreview = Environment.TickCount64;
             }
-            var message = $"Integrated volume: {first + count:N0}/{keys.Count:N0} samples; {result.Samples.Count:N0} retained.";
-            progress?.Invoke(message);
-            operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.Integration, cleanup,
-                message, first + count, keys.Count, "grid samples"));
+            integrationProgress.Advance(first + count);
         }
+        progress?.Invoke($"Integrated {keys.Count:N0} grid samples; {result.Samples.Count:N0} retained.");
         if (result.Samples.Count < 100)
         {
             throw new EchoException("Too little jointly observed volume to reconstruct a surface.", 5);

@@ -44,6 +44,10 @@ internal sealed class FusionPlanningProgress
     {
         lock (gate)
         {
+            if (count == completed)
+            {
+                return;
+            }
             completed = count;
             if (completed == total || clock.ElapsedMilliseconds >= 500)
             {

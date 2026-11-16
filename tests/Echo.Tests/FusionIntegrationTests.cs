@@ -71,6 +71,22 @@ public sealed class FusionIntegrationTests
             var cells = new Grid[5];
             Check(reader.Read(cells) == 5 && cells.SequenceEqual(grid.Skip(211).Take(5)), "Resume skipped or repeated candidate cells");
         });
+        tests.Run("Fusion progress reports phase boundaries without duplicate checkpoint completion events", () =>
+        {
+            var updates = new List<OperationProgress>();
+            var progress = new FusionPlanningProgress(updates.Add);
+            progress.Start(FusionPhase.Integration, 1000, "grid samples");
+            for (var count = 0; count <= 1000; count++)
+            {
+                progress.Advance(count);
+                progress.Advance(count);
+            }
+            Check(updates[0].Completed == 0 && updates[^1].Completed == 1000, "Throttling lost the first or final update");
+            Check(updates.Count(update => update.Completed == 1000) == 1, "Saving a checkpoint repeats its final GPU batch event");
+            progress.Start(FusionPhase.Save, 1, "volume");
+            progress.Advance(1);
+            Check(updates[^2].Completed == 0 && updates[^1].Completed == 1, "The next phase lost its boundaries");
+        });
         tests.Run("Grouped fusion checkpoints resume without rebuilding or changing the volume", () =>
         {
             var fixture = new FusionFixture();

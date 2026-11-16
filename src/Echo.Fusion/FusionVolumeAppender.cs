@@ -48,12 +48,6 @@ internal sealed class FusionVolumeAppender
                 output.Add(sample);
             }
         }
-        if (preview != null)
-        {
-            foreach (var sample in samples)
-            {
-                preview.Add(sample);
-            }
-        }
+        preview?.AddRange(samples);
     }
 }

@@ -52,6 +52,31 @@ public sealed class ProgressivePreviewTests
             Check(preview.Volume.Samples[0].X == 0 && preview.Volume.Samples[^1].X > 9800, "Preview lost spatial coverage of completed work");
             Check(preview.Volume.Samples.Select(sample => sample.X).Distinct().Count() == preview.Volume.Samples.Count, "Compaction duplicated samples");
         });
+        tests.Run("Fusion preview span sampling preserves every snapshot across batch and compaction boundaries", () =>
+        {
+            var source = Enumerable.Range(0, 200003).Select(index => new VolumeSample { X = index }).ToArray();
+            var volume = new FusedVolume { Samples = source, VoxelSize = .1 };
+            foreach (var limit in new[] { 3, 7, 100, 80000 })
+            {
+                var individual = new FusionPreviewSampler(limit);
+                var batched = new FusionPreviewSampler(limit);
+                var random = new Random(17);
+                for (var first = 0; first < source.Length;)
+                {
+                    var count = Math.Min(random.Next(1, 4097), source.Length - first);
+                    var values = source.AsSpan(first, count);
+                    foreach (var sample in values)
+                    {
+                        individual.Add(sample);
+                    }
+                    batched.AddRange([]);
+                    batched.AddRange(values);
+                    Check(batched.Snapshot(volume).Volume.Samples.SequenceEqual(individual.Snapshot(volume).Volume.Samples),
+                        "Skipping discarded inputs changed the preview");
+                    first += count;
+                }
+            }
+        });
         tests.Run("Progressive snapshots alternate atomically without adding artifact checkpoints", () =>
         {
             var path = Path.Combine(Path.GetTempPath(), "echo-preview-" + Guid.NewGuid().ToString("N"));

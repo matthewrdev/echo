@@ -14,7 +14,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
     private readonly CancellationToken cancellation;
     private readonly ComputeBackend backend;
     private readonly FusionDepthTiles tiles;
-    private readonly FusionAccumulator[] accumulators;
+    private FusionAccumulator[]? accumulators;
     private readonly VolumeSample[] output;
     private readonly Action<string>? progress;
     private IComputeSession? session;
@@ -36,7 +36,6 @@ internal sealed class FusionBatchIntegrator : IDisposable
         Capacity = plan.BatchCapacity;
         Cells = ArrayPool<Grid>.Shared.Rent(Capacity);
         output = ArrayPool<VolumeSample>.Shared.Rent(Capacity);
-        accumulators = ArrayPool<FusionAccumulator>.Shared.Rent(Capacity);
         tiles = new FusionDepthTiles(plan.DepthCapacity, cancellation);
         try
         {
@@ -68,7 +67,16 @@ internal sealed class FusionBatchIntegrator : IDisposable
                     gpu = new FusionCompute(session, plan, views.Count);
                     if (plan.ResidentDepthCount > 0)
                     {
-                        gpu.LoadResidentDepths(views, tiles.Depths.AsSpan(0, Math.Min(262144, tiles.Depths.Length)), cancellation, preparationProgress);
+                        var capacity = Math.Min(262144, plan.ResidentDepthCount);
+                        var staging = ArrayPool<float>.Shared.Rent(capacity);
+                        try
+                        {
+                            gpu.LoadResidentDepths(views, staging.AsSpan(0, capacity), cancellation, preparationProgress);
+                        }
+                        finally
+                        {
+                            ArrayPool<float>.Shared.Return(staging);
+                        }
                     }
                 }
             }
@@ -133,7 +141,8 @@ internal sealed class FusionBatchIntegrator : IDisposable
                 progress?.Invoke("Metal integration could not continue. Repeating the unfinished batch on CPU.");
             }
         }
-        accumulators.AsSpan(0, count).Clear();
+        var cpuAccumulators = accumulators ??= ArrayPool<FusionAccumulator>.Shared.Rent(Capacity);
+        cpuAccumulators.AsSpan(0, count).Clear();
         tiles.Start(views, bounds, origin);
         while (tiles.LoadNext())
         {
@@ -145,14 +154,14 @@ internal sealed class FusionBatchIntegrator : IDisposable
             {
                 var first = block * 1024;
                 var length = Math.Min(count - first, 1024);
-                FusionCpuBlockIntegrator.Integrate(Cells.AsSpan(first, length), accumulators.AsSpan(first, length),
+                FusionCpuBlockIntegrator.Integrate(Cells.AsSpan(first, length), cpuAccumulators.AsSpan(first, length),
                     tiles.Windows.AsSpan(0, tiles.Count), tiles.Depths, voxel, tolerance, origin);
             });
         }
         var retained = 0;
         for (var index = 0; index < count; index++)
         {
-            var value = accumulators[index];
+            var value = cpuAccumulators[index];
             if (value.Support >= 2)
             {
                 var key = Cells[index];
@@ -186,7 +195,10 @@ internal sealed class FusionBatchIntegrator : IDisposable
             tiles.Dispose();
             ArrayPool<Grid>.Shared.Return(Cells);
             ArrayPool<VolumeSample>.Shared.Return(output);
-            ArrayPool<FusionAccumulator>.Shared.Return(accumulators);
+            if (accumulators != null)
+            {
+                ArrayPool<FusionAccumulator>.Shared.Return(accumulators);
+            }
         }
     }
 }
