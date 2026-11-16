@@ -33,6 +33,7 @@ public sealed class ArgumentParser : IArgumentParser
             "artifact",
             "confirm",
             "run",
+            "output",
             "lat",
             "lon",
             "alt",

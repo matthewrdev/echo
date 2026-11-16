@@ -50,6 +50,7 @@ The standalone package includes the required runtime and processing tools. Pass 
 ./scripts/echo-photo project init /tmp/cliff.echo --name "Cliff"
 ./scripts/echo-photo --project /tmp/cliff.echo images import /path/to/photos --set drone
 ./scripts/echo-photo --project /tmp/cliff.echo run start --target export --events ndjson
+./scripts/echo-photo --project /tmp/cliff.echo export-gis --run latest --output /tmp/cliff-gis
 ```
 
 Commands return JSON; `--events ndjson` streams progress. Use `--help` for commands and `doctor` to check dependencies. Resume preserves a run's original settings; start a new run to apply changes.

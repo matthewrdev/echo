@@ -5,6 +5,8 @@ using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(ReconstructionTests).Assembly, typeof(Processor).Assembly, typeof(CommandApplication).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly);
 var scaleTests = new TestSuite();
+composition.Resolve<GisExportTests>().Run(scaleTests);
+composition.Resolve<GisCommandTests>().Run(scaleTests);
 composition.Resolve<MetadataTests>().Run(scaleTests);
 composition.Resolve<JsonDecodingTests>().Run(scaleTests);
 composition.Resolve<PhotoDeduplicationTests>().Run(scaleTests);
