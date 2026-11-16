@@ -36,7 +36,7 @@ public sealed class DepthFusion : IDepthFusion
             var map = maps[index];
             views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
         }
-        var grid = FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress, work);
+        var grid = FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress, work, operationProgress);
         progress?.Invoke($"Fusion resolution: requested {grid.RequestedVoxelSize:G6} m; using {grid.VoxelSize:G6} m across {grid.Keys.Count:N0} grid samples.");
         var voxel = grid.VoxelSize;
         var keys = grid.Keys;

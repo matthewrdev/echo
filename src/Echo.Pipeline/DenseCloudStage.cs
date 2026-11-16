@@ -79,6 +79,7 @@ public sealed class DenseCloudStage : IPipelineStage
         // The final PLY remains the complete output of this stage.
         var artifact = context.Build("cloud-preview", new
         {
+            previewVersion = 2,
             inputs,
             preview.InputSamples,
             preview.RetainedSamples

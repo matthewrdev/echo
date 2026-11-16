@@ -65,7 +65,9 @@ public sealed class CloudBuilder : ICloudBuilder
         }
         var plan = executionPlanner.Plan(project.Settings, maximumWidth, maximumHeight);
         var batches = new CloudRowBatch[plan.Workers];
-        var status = new CloudBuildProgress(views.Length, totalRows, progress, preview, Report);
+        var previewSamples = preview == null ? null : new CloudPreviewSampler();
+        var status = new CloudBuildProgress(views.Length, totalRows, progress, preview,
+            cloud => previewSamples?.Report(cloud) ?? Report(cloud));
         var options = new ParallelOptions { MaxDegreeOfParallelism = plan.Workers, CancellationToken = cancellation };
         try
         {
@@ -83,7 +85,7 @@ public sealed class CloudBuilder : ICloudBuilder
                 {
                     throw new EchoException($"Depth-map dimensions do not match the source photograph: {photos[view.Map.ImageId].Name}.", 5);
                 }
-                ProcessImage(view, neighbours[index], index, colours.Pixels, project.Settings, plan, batches, cloud, status, options);
+                ProcessImage(view, neighbours[index], index, colours.Pixels, project.Settings, plan, batches, cloud, status, options, previewSamples);
             }
         }
         finally
@@ -137,7 +139,7 @@ public sealed class CloudBuilder : ICloudBuilder
 
     private void ProcessImage(DepthView view, DepthView[] neighbours, int imageIndex, SKColor[] colours,
         Settings settings, CloudExecutionPlan plan, CloudRowBatch[] batches, DenseCloudData cloud,
-        CloudBuildProgress status, ParallelOptions options)
+        CloudBuildProgress status, ParallelOptions options, CloudPreviewSampler? previewSamples)
     {
         var waveRows = plan.Workers * plan.RowsPerBatch;
         for (var firstRow = 0; firstRow < view.Map.Height; firstRow += waveRows)
@@ -158,6 +160,7 @@ public sealed class CloudBuilder : ICloudBuilder
                 for (var sample = 0; sample < batch.Count; sample++)
                 {
                     cloud.Samples.Add(batch.Samples[sample]);
+                    previewSamples?.Add(batch.Samples[sample]);
                 }
                 cloud.InputSamples += batch.InputSamples;
                 completedRows += batch.Rows;
@@ -252,6 +255,11 @@ public sealed class CloudBuilder : ICloudBuilder
         using var stream = File.Create(path);
         using var writer = new BinaryWriter(stream);
         writer.Write(Encoding.ASCII.GetBytes($"ply\nformat binary_little_endian 1.0\nelement vertex {cloud.Samples.Count}\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nproperty int view\nproperty float confidence\nend_header\n"));
+        if (cloud.Samples is PagedList<DenseSample> paged && paged.Codec is DenseRecordCodec)
+        {
+            paged.CopyEncodedRecordsTo(stream);
+            return;
+        }
         foreach (var point in cloud.Samples)
         {
             writer.Write(point.X);

@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Microsoft.Win32.SafeHandles;
 
 namespace Echo.Storage;
 
@@ -9,6 +10,9 @@ public sealed class PageCache : IDisposable
     private readonly object gate = new();
     private readonly Dictionary<PageAddress, LinkedListNode<CachedPage>> pages = [];
     private readonly LinkedList<CachedPage> recent = [];
+    private readonly Dictionary<PageFile, LinkedListNode<CachedFileHandle>> handles = [];
+    private readonly LinkedList<CachedFileHandle> recentHandles = [];
+    private long handleOpens;
     private readonly long capacity;
     private readonly long diskLimit;
     private readonly int pageSize;
@@ -41,6 +45,56 @@ public sealed class PageCache : IDisposable
                 return new(pages.Count * (long)pageSize, peak, reads, writes, hits, misses, evictions, scratch);
             }
         }
+    }
+
+    public int OpenHandleCount
+    {
+        get
+        {
+            lock (gate)
+            {
+                return handles.Count;
+            }
+        }
+    }
+
+    public long HandleOpenCount
+    {
+        get
+        {
+            lock (gate)
+            {
+                return handleOpens;
+            }
+        }
+    }
+
+    // Only used while the cache lock is held: a handle cannot be evicted during
+    // a read, write or resize. Hundreds of open artifacts still use at most 32.
+    internal SafeFileHandle Handle(PageFile file)
+    {
+        if (!Monitor.IsEntered(gate))
+        {
+            throw new InvalidOperationException("Paged file handles require the cache lock.");
+        }
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (handles.TryGetValue(file, out var existing))
+        {
+            recentHandles.Remove(existing);
+            recentHandles.AddFirst(existing);
+            return existing.Value.Handle;
+        }
+        if (handles.Count == 32)
+        {
+            var oldest = recentHandles.Last!;
+            oldest.Value.Handle.Dispose();
+            handles.Remove(oldest.Value.File);
+            recentHandles.RemoveLast();
+        }
+        var opened = file.Open();
+        handles.Add(file, recentHandles.AddFirst(new CachedFileHandle(file, opened)));
+        handleOpens++;
+        return opened;
     }
 
     internal void Grow(PageFile file, long length)
@@ -116,6 +170,11 @@ public sealed class PageCache : IDisposable
                 }
                 node = next;
             }
+            if (handles.Remove(file, out var handle))
+            {
+                recentHandles.Remove(handle);
+                handle.Value.Handle.Dispose();
+            }
         }
     }
 
@@ -127,13 +186,25 @@ public sealed class PageCache : IDisposable
             {
                 return;
             }
-            foreach (var page in recent)
+            try
             {
-                Flush(page);
+                foreach (var page in recent)
+                {
+                    Flush(page);
+                }
             }
-            recent.Clear();
-            pages.Clear();
-            disposed = true;
+            finally
+            {
+                recent.Clear();
+                pages.Clear();
+                foreach (var handle in recentHandles)
+                {
+                    handle.Handle.Dispose();
+                }
+                recentHandles.Clear();
+                handles.Clear();
+                disposed = true;
+            }
         }
     }
 

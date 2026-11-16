@@ -20,6 +20,11 @@ if (args.Contains("--scene-storage", StringComparer.Ordinal))
 {
     return scaleTests.Finish();
 }
+composition.Resolve<DiskIoTests>().Run(scaleTests);
+if (args.Contains("--disk-io", StringComparer.Ordinal))
+{
+    return scaleTests.Finish();
+}
 composition.Resolve<GisExportTests>().Run(scaleTests);
 composition.Resolve<GisCommandTests>().Run(scaleTests);
 composition.Resolve<PagingTests>().Run(scaleTests);

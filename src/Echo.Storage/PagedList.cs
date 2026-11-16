@@ -49,6 +49,26 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
         get; private set;
     }
     public bool IsReadOnly => !file.Writable;
+    public RecordCodec<T> Codec => codec;
+
+    // Copies the native record encoding, without the container header or page
+    // padding. The destination must use this codec's layout. Reads include dirty
+    // cached pages, so publication does not require an intermediate disk flush.
+    public void CopyEncodedRecordsTo(Stream destination)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var buffer = new byte[65536];
+        var remaining = (long)Count * codec.Size;
+        var position = offset;
+        while (remaining > 0)
+        {
+            var count = (int)Math.Min(buffer.Length, remaining);
+            file.ReadBytes(position, buffer.AsSpan(0, count));
+            destination.Write(buffer, 0, count);
+            position += count;
+            remaining -= count;
+        }
+    }
 
     public T this[int index]
     {

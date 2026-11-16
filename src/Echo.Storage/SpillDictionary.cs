@@ -41,6 +41,12 @@ public sealed class SpillDictionary<TKey, TValue> : IDictionary<TKey, TValue>, I
         records.Add(key, value);
     }
 
+    public bool TryAdd(TKey key, TValue value)
+    {
+        EnsureCapacity();
+        return disk != null ? disk.TryAdd(key, value) : ((Dictionary<TKey, TValue>)records).TryAdd(key, value);
+    }
+
     public bool ContainsKey(TKey key) => records.ContainsKey(key);
     public bool TryGetValue(TKey key, out TValue value) => records.TryGetValue(key, out value!);
     public bool Remove(TKey key) => records.Remove(key);

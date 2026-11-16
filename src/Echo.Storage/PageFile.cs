@@ -75,14 +75,14 @@ public sealed class PageFile : IDisposable
 
     internal void SetLength(long length)
     {
-        using var handle = Open();
+        var handle = cache.Handle(this);
         RandomAccess.SetLength(handle, length);
         Length = length;
     }
 
     internal void Read(long offset, Span<byte> bytes)
     {
-        using var handle = Open();
+        var handle = cache.Handle(this);
         while (!bytes.IsEmpty)
         {
             var count = RandomAccess.Read(handle, bytes, offset);
@@ -97,10 +97,10 @@ public sealed class PageFile : IDisposable
 
     internal void Write(long offset, ReadOnlySpan<byte> bytes)
     {
-        using var handle = Open();
+        var handle = cache.Handle(this);
         RandomAccess.Write(handle, bytes, offset);
     }
 
-    private SafeFileHandle Open() => File.OpenHandle(path, FileMode.Open,
+    internal SafeFileHandle Open() => File.OpenHandle(path, FileMode.Open,
         Writable ? FileAccess.ReadWrite : FileAccess.Read, FileShare.Read);
 }

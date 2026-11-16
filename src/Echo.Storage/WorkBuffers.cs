@@ -21,6 +21,17 @@ public sealed class WorkBuffers : IDisposable
 
     public long IndexDiskBytes => dictionaries.DiskBytes;
 
+    public long ReserveIndexMemory(long maximumBytes)
+    {
+        if (maximumBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumBytes));
+        }
+        var reserved = Math.Min(indexMemory, maximumBytes);
+        indexMemory -= reserved;
+        return reserved;
+    }
+
     public IDictionary<TKey, TValue> Map<TKey, TValue>(RecordCodec<TKey> keys, RecordCodec<TValue> values) where TKey : notnull
     {
         var reservation = indexMemory / 2;
