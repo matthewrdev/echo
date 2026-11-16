@@ -8,23 +8,38 @@ namespace Echo.Texturing;
 public sealed class TexturePatchPacker : ITexturePatchPacker
 {
     private readonly ITextureProfilePacker profiles;
+    private readonly ITextureGapPacker gaps;
 
     [ImportingConstructor]
-    public TexturePatchPacker(ITextureProfilePacker profiles)
+    public TexturePatchPacker(ITextureProfilePacker profiles, ITextureGapPacker gaps)
     {
         this.profiles = profiles;
+        this.gaps = gaps;
     }
 
-    public double Pack(IReadOnlyList<TexturePatch> patches, int size, int gutter, CancellationToken cancellation = default)
+    public double Pack(IReadOnlyList<TexturePatch> patches, int size, int gutter, CancellationToken cancellation = default,
+        Action<string>? progress = null, ComputeBackend backend = ComputeBackend.Auto)
     {
-        return TryPack(patches, size, gutter, cancellation)
+        return TryPack(patches, size, gutter, cancellation, progress, backend)
             ?? throw new EchoException("Texture atlas is too small for its patches. Increase atlas size or the maximum triangles per chart.", 5);
     }
 
-    public double? TryPack(IReadOnlyList<TexturePatch> patches, int size, int gutter, CancellationToken cancellation = default)
+    public double? TryPack(IReadOnlyList<TexturePatch> patches, int size, int gutter, CancellationToken cancellation = default,
+        Action<string>? progress = null, ComputeBackend backend = ComputeBackend.Auto)
     {
+        cancellation.ThrowIfCancellationRequested();
+        if (patches.Count == 0)
+        {
+            return 0;
+        }
         var ordered = patches.OrderByDescending(p => Math.Max(p.Bounds.Width, p.Bounds.Height))
             .ThenByDescending(p => p.Bounds.Width * p.Bounds.Height).ToArray();
+        var baseline = TryPackSkyline(ordered, size, gutter, cancellation);
+        return baseline.HasValue ? gaps.Improve(ordered, size, gutter, baseline.Value, cancellation, progress, backend) : null;
+    }
+
+    internal double? TryPackSkyline(IReadOnlyList<TexturePatch> ordered, int size, int gutter, CancellationToken cancellation)
+    {
         if (!TryPack(ordered, size, gutter, 0))
         {
             return null;

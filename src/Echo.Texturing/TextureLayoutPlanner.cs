@@ -27,7 +27,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
         progress?.Invoke("Unwrapping and packing connected surface charts…");
         var resolution = new TextureResolutionPlan(project.Settings.TextureSize, project.Settings.TextureGutter);
         var patches = builder.Build(project, scene, mesh, cancellation, progress: progress, work: work);
-        var baseline = packer.Pack(patches, resolution.MinimumSize, resolution.MinimumGutter, cancellation);
+        var baseline = packer.Pack(patches, resolution.MinimumSize, resolution.MinimumGutter, cancellation, progress, project.Settings.ComputeBackend);
         var best = new TextureLayout { Patches = patches, TexelsPerWorldUnit = baseline, BaselineTexelsPerWorldUnit = baseline };
         var optimise = vegetationFaces != null && vegetationFaces.Any(value => value) && project.Settings.VegetationTextureScale < 1;
         if (!optimise)
@@ -48,7 +48,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
             {
                 continue;
             }
-            var scale = packer.TryPack(candidate, resolution.MinimumSize, resolution.MinimumGutter, cancellation);
+            var scale = packer.TryPack(candidate, resolution.MinimumSize, resolution.MinimumGutter, cancellation, progress, project.Settings.ComputeBackend);
             if (scale.HasValue && scale.Value >= best.TexelsPerWorldUnit)
             {
                 best = new TextureLayout

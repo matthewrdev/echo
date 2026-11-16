@@ -4,8 +4,15 @@ using Echo.Tests;
 using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(ReconstructionTests).Assembly, typeof(Processor).Assembly, typeof(CommandApplication).Assembly,
-    typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly);
+    typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly, typeof(Echo.Texturing.Metal.MetalTexturePlacementAccelerator).Assembly);
 var scaleTests = new TestSuite();
+if (args.Contains("--texture", StringComparer.Ordinal))
+{
+    composition.Resolve<TexturePackingTests>().Run(scaleTests, args.Contains("--require-metal", StringComparer.Ordinal));
+    composition.Resolve<TextureParameterizationTests>().Run(scaleTests);
+    composition.Resolve<TextureTests>().Run(scaleTests);
+    return scaleTests.Finish();
+}
 composition.Resolve<ProcessingTelemetryTests>().Run(scaleTests);
 if (args.Contains("--telemetry", StringComparer.Ordinal))
 {
@@ -76,4 +83,5 @@ composition.Resolve<SkyGuardTests>().Run(scaleTests);
 composition.Resolve<FusionQualityTests>().Run(scaleTests);
 composition.Resolve<FusionSettingsTests>().Run(scaleTests);
 composition.Resolve<TextureParameterizationTests>().Run(scaleTests);
+composition.Resolve<TexturePackingTests>().Run(scaleTests);
 return Math.Max(scaleTests.Finish(), composition.Resolve<ReconstructionTests>().Run());

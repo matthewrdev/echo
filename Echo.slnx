@@ -28,6 +28,7 @@
     <Project Path="src/Echo.Simplification/Echo.Simplification.csproj" />
     <Project Path="src/Echo.SurfaceCompletion/Echo.SurfaceCompletion.csproj" />
     <Project Path="src/Echo.Texturing/Echo.Texturing.csproj" />
+    <Project Path="src/Echo.Texturing.Metal/Echo.Texturing.Metal.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Echo.Tests/Echo.Tests.csproj" />

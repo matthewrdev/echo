@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Echo.Texturing/Echo.Texturing.csproj" />
+    <Content Include="Native/TexturePlacement.metal" Link="TexturePlacement.metal" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="obj/$(Configuration)/native/libEchoTextureMetal.dylib" Link="libEchoTextureMetal.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+  </ItemGroup>
+  <Target Name="BuildTextureMetalBridge" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="Native/MetalTextureBridge.swift;Native/MetalTextureSession.swift;../../scripts/build-texture-metal.sh" Outputs="obj/$(Configuration)/native/libEchoTextureMetal.dylib">
+    <Exec Command="bash ../../scripts/build-texture-metal.sh &quot;obj/$(Configuration)/native&quot;" />
+  </Target>
+</Project>

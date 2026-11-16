@@ -1,0 +1,8 @@
+using Echo.Contracts;
+namespace Echo.Texturing;
+
+public interface ITextureGapPacker
+{
+    double Improve(IReadOnlyList<TexturePatch> patches, int size, int gutter, double baseline,
+        CancellationToken cancellation, Action<string>? progress = null, ComputeBackend backend = ComputeBackend.Auto);
+}
