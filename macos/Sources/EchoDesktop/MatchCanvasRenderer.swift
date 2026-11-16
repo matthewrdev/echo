@@ -3,6 +3,7 @@ import AppKit
 final class MatchCanvasRenderer: CanvasRenderer {
     private let data: MatchPresentation
     private let selected: Int?
+    private let overlay: FeatureOverlayOptions
     private let selection: (Int) -> Void
     private let height = 900.0
     private let gap = 90.0
@@ -11,11 +12,15 @@ final class MatchCanvasRenderer: CanvasRenderer {
     private var firstWidth: Double { Double(data.first.width) / Double(data.first.height) * height }
     private var secondWidth: Double { Double(data.second.width) / Double(data.second.height) * height }
     var size: CGSize { CGSize(width: firstWidth + gap + secondWidth, height: height + top) }
-    private var indices: Range<Int> { data.matches.indices }
+    private var indices: [Int] { data.matches.indices.filter { overlay.shows(data.matches[$0]) } }
 
-    init(data: MatchPresentation, selected: Int?, selection: @escaping (Int) -> Void) {
+    init(
+        data: MatchPresentation, selected: Int?, overlay: FeatureOverlayOptions = FeatureOverlayOptions(),
+        selection: @escaping (Int) -> Void
+    ) {
         self.data = data
         self.selected = selected
+        self.overlay = overlay
         self.selection = selection
     }
 
@@ -40,6 +45,14 @@ final class MatchCanvasRenderer: CanvasRenderer {
         ("A · " + data.first.name as NSString).draw(at: CGPoint(x: 8, y: 5), withAttributes: attributes)
         ("B · " + data.second.name as NSString).draw(
             at: CGPoint(x: firstWidth + gap + 8, y: 5), withAttributes: attributes)
+        guard overlay.opacity > 0 else { return }
+        context.saveGState()
+        context.setAlpha(min(1, overlay.opacity))
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        defer {
+            context.endTransparencyLayer()
+            context.restoreGState()
+        }
         for index in indices.sorted(by: { ($0 == selected ? 1 : 0) < ($1 == selected ? 1 : 0) }) {
             let match = data.matches[index]
             let a = point(match.a, second: false)
@@ -65,16 +78,7 @@ final class MatchCanvasRenderer: CanvasRenderer {
                 }
             }
             if highlight {
-                context.setLineWidth((highlight ? 5 : 3) / scale)
-                context.setStrokeColor(NSColor.black.withAlphaComponent(highlight ? 0.9 : 0.4).cgColor)
-                context.move(to: a)
-                context.addLine(to: b)
-                context.strokePath()
-                context.setLineWidth((highlight ? 2.5 : 1) / scale)
-                context.setStrokeColor(color.withAlphaComponent(selected == nil || highlight ? 0.9 : 0.2).cgColor)
-                context.move(to: a)
-                context.addLine(to: b)
-                context.strokePath()
+                drawConnection(from: a, to: b, color: color, in: context, scale: scale)
             }
             for position in [a, b] {
                 let radius: CGFloat = (highlight ? 7 : 4) / scale
@@ -97,7 +101,22 @@ final class MatchCanvasRenderer: CanvasRenderer {
         }
     }
 
+    private func drawConnection(from a: CGPoint, to b: CGPoint, color: NSColor, in context: CGContext, scale: CGFloat) {
+        context.saveGState()
+        defer { context.restoreGState() }
+        context.setLineCap(.round)
+        context.setLineDash(phase: 0, lengths: [0, 8 / scale])
+        for stroke in [false, true] {
+            context.setLineWidth((stroke ? 2.5 : 5) / scale)
+            context.setStrokeColor((stroke ? color : NSColor.black).withAlphaComponent(0.9).cgColor)
+            context.move(to: a)
+            context.addLine(to: b)
+            context.strokePath()
+        }
+    }
+
     func select(at position: CGPoint, tolerance: CGFloat) {
+        let indices = self.indices
         var nearest: Int?
         var distance = tolerance
         for index in indices {
