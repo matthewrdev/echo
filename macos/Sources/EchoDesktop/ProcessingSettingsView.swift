@@ -29,6 +29,8 @@ struct ProcessingSettingsView: View {
             }.padding(12).frame(width: 220)
             Divider()
             VStack(alignment: .leading, spacing: 12) {
+                PagingSettingsEditor(settings: $draft)
+                Divider()
                 Text(stage.title).font(.title2.bold())
                 StageSettingsEditor(
                     stage: stage, settings: $draft, imageCount: workspace.inspection?.project.images.count ?? 0)

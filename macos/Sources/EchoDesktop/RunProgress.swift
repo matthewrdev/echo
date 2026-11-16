@@ -1,6 +1,10 @@
 import Foundation
 
 struct RunProgress: Decodable {
+    var operation: String? = nil
+    var unit: String? = nil
+    var operationStarted: String? = nil
+    var resources: ResourceProgress? = nil
     var phase: String? = nil
     let stage: String
     let message: String

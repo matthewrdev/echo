@@ -1,6 +1,9 @@
 import Foundation
 
 struct ProcessingSettings: Codable {
+    var processingMemoryMode: ProcessingMemoryMode = .paged
+    var processingMemoryBudgetMb: Int = 0
+    var processingDiskBudgetMb: Int = 0
     var optimiseVegetation: Bool = false
     var vegetationMeshToleranceMultiplier: Double = 2.5
     var vegetationTextureScale: Double = 0.65
@@ -62,6 +65,10 @@ struct ProcessingSettings: Codable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: ProcessingSettingsKey.self)
+        processingMemoryMode =
+            try values.decodeIfPresent(ProcessingMemoryMode.self, forKey: .processingMemoryMode) ?? .paged
+        processingMemoryBudgetMb = try values.decodeIfPresent(Int.self, forKey: .processingMemoryBudgetMb) ?? 0
+        processingDiskBudgetMb = try values.decodeIfPresent(Int.self, forKey: .processingDiskBudgetMb) ?? 0
         optimiseVegetation = try values.decodeIfPresent(Bool.self, forKey: .optimiseVegetation) ?? false
         vegetationMeshToleranceMultiplier =
             try values.decodeIfPresent(Double.self, forKey: .vegetationMeshToleranceMultiplier) ?? 2.5
@@ -128,6 +135,9 @@ struct ProcessingSettings: Codable {
 
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: ProcessingSettingsKey.self)
+        try values.encode(processingMemoryMode, forKey: .processingMemoryMode)
+        try values.encode(processingMemoryBudgetMb, forKey: .processingMemoryBudgetMb)
+        try values.encode(processingDiskBudgetMb, forKey: .processingDiskBudgetMb)
         try values.encode(optimiseVegetation, forKey: .optimiseVegetation)
         try values.encode(vegetationMeshToleranceMultiplier, forKey: .vegetationMeshToleranceMultiplier)
         try values.encode(vegetationTextureScale, forKey: .vegetationTextureScale)

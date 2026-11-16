@@ -16,15 +16,21 @@ struct GlobalProgressView: View {
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(workspace.progressTitle).font(.headline)
+                    if let operation = workspace.workingRun?.progress?.operation, !operation.isEmpty {
+                        Text(operation).font(.subheadline.weight(.semibold))
+                    }
                     Text(workspace.progressMessage).font(.subheadline).foregroundStyle(.secondary).textSelection(
                         .enabled)
+                    if let resources = workspace.workingRun?.progress?.resources {
+                        Text(resources.summary).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    }
                     if workspace.cancelRequested, let message = workspace.workingRun?.progress?.message {
                         Text("Last operation: \(message)").font(.caption).foregroundStyle(.secondary)
                     }
                     if workspace.isWorking, let updated = workspace.workingRun?.progress?.updatedAt {
                         TimelineView(.periodic(from: .now, by: 1)) { context in
                             let age = max(0, Int(context.date.timeIntervalSince(updated)))
-                            Text(age < 30 ? "Updated \(age)s ago" : "No progress update for \(age)s")
+                            Text(age < 30 ? "Work advanced \(age)s ago" : "No work progress for \(age)s")
                                 .font(.caption).foregroundStyle(age < 30 ? Color.secondary : Color.orange)
                         }
                     }
@@ -54,7 +60,7 @@ struct GlobalProgressView: View {
                 ProgressView(value: Double(completed), total: Double(total))
                 HStack {
                     Text(
-                        "\(completed) of \(total) work items saved · \(min(100, Int(Double(completed) / Double(total) * 100)))%"
+                        "\(completed) of \(total) \(progress.unit ?? "items") · \(min(100, Int(Double(completed) / Double(total) * 100)))%"
                     )
                     Spacer()
                     Text("\(workspace.savedStageCount) of 9 stages saved")
