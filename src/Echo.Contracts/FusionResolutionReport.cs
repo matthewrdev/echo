@@ -18,7 +18,7 @@ public sealed class FusionResolutionReport
     {
         get; set;
     }
-    public int CandidateSamples
+    public long CandidateSamples
     {
         get; set;
     }

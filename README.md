@@ -113,6 +113,20 @@ Example Apple M5 Pro microbenchmarks (median of three warmed runs, staging/readb
 
 The bounded packing search was also checked against the saved 32,010-island cliff scan. At the normal 2K planning resolution, gap-search time fell from 68.57 s to 0.66 s while retaining exactly the same skyline scale and coverage (36.514%). These are individual runs on the same M5 Pro, not a warmed median. At direct 8K resolution the bounded search stopped after 0.46 s and retained the 44.050% baseline coverage; it did **not** reproduce the previous uncapped search’s 14.05% linear-density gain, which took 1,448.48 s. The bound deliberately limits search quality and work; the packer API accepts a larger candidate budget for explicit comparisons.
 
-These are component timings, not an end-to-end reconstruction speedup. The small fusion fixture improved only about 1.1×; CPU grid construction still dominates it. Performance depends on scene size, GPU, available memory and CPU/GPU transfer costs.
+These are component timings, not an end-to-end reconstruction speedup. The small fusion fixture improved only about 1.1× with Metal integration alone. Performance depends on scene size, GPU, available memory and CPU/GPU transfer costs.
+
+Fusion grid preparation now uses bounded CPU worker batches, deduplicates contiguous cell ranges, and merges sequential binary scratch files. It no longer inserts candidate cells into a shared SQLite database. Ranges use explicit fixed-width little-endian codecs without reflection, and remain compressed until integration consumes a bounded batch. Cell counts and chunk offsets support more than two billion candidates. Fusion version 9 invalidates previous fusion checkpoints; there is no legacy planner. Earlier compatible stages can still be reused.
+
+Benchmark preparation independently against a saved run with Alignment, Depth and Cloud artifacts:
+
+```bash
+dotnet tools/Echo.Benchmarks/bin/Release/net10.0/Echo.Benchmarks.dll fusion-planning \
+  /path/to/project.echo RUN_ID 5000000 0 /tmp/new-fusion-benchmark \
+  > /tmp/fusion-summary.jsonl 2> /tmp/fusion-progress.jsonl
+```
+
+The point limit selects the first N saved cloud observations; zero uses the full cloud. Zero workers selects the automatic budget. The output directory must not exist. The project is read-only; scratch stays in the output directory. Progress and summary records are JSONL using source-generated JSON metadata. Timing excludes artifact loading and subsequent integration.
+
+On the saved Cliff scan, five million observations took 75.44 seconds for all preparation phases with 18 workers, producing 2.90 billion candidate cells represented by 694 MiB of final range storage and no SQLite index. This storage figure excludes temporary merge files that were deleted during processing. The old live run had spent about 17 minutes reaching 5.15 million observations during coverage generation alone. The new preparation rate is roughly 13× faster against that observation; this is not a controlled full-fusion comparison, and the complete 244.6-million-observation scan has not been timed with the new planner.
 
 See [AGENTS.md](AGENTS.md) for code conventions, [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) for licensing.

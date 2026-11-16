@@ -35,38 +35,22 @@ internal static class FusionGridBuilder
         var requested = settings.FusionVoxelSize > 0 ? settings.FusionVoxelSize : footprint * .8 / Math.Sqrt(detail);
         var voxel = requested;
         var status = new FusionPlanningProgress(operationProgress);
+        var axis = FusionGridAxes.Select(cloud, sources, cancellation);
         for (var pass = 0; pass < 64; pass++)
         {
             cancellation.ThrowIfCancellationRequested();
             progress?.Invoke(work == null
                 ? $"Planning fusion at {voxel:G6} m voxels within {resources.MemoryBudgetBytes / 1073741824.0:G4} GiB ({resources.MaximumGridSamples:N0} grid samples)…"
-                : $"Planning fusion at {voxel:G6} m voxels with a bounded cache and disk-backed grid…");
-            var candidates = Candidates(cloud, sources, settings.CloudDepthTolerance, voxel, work == null ? resources.MaximumGridSamples : int.MaxValue, cancellation, work, status);
-            if (candidates != null)
+                : $"Planning fusion at {voxel:G6} m voxels using parallel batches and sequential scratch storage…");
+            var options = FusionGridPlanning.Resolve(resources, cloud.Samples.Count) with
             {
-                IList<Grid> keys;
-                status.Start("Fusion candidate sorting", candidates.Count, "grid samples");
-                if (candidates is IOrderedRecordKeys<Grid> disk)
-                {
-                    var sorted = work!.List(new GridRecordCodec());
-                    foreach (var key in disk.OrderedKeys())
-                    {
-                        cancellation.ThrowIfCancellationRequested();
-                        sorted.Add(key);
-                        if (sorted.Count % 4096 == 0)
-                        {
-                            status.Advance(sorted.Count);
-                        }
-                    }
-                    keys = sorted;
-                }
-                else
-                {
-                    var sorted = candidates.Keys.ToArray();
-                    Array.Sort(sorted, Compare);
-                    keys = sorted;
-                }
-                status.Advance(keys.Count);
+                Axis = axis
+            };
+            progress?.Invoke($"Building fusion coverage with {options.Workers} CPU workers and bounded per-worker batches; duplicate cells are merged before integration.");
+            var keys = FusionCandidatePlanner.Build(cloud, sources, settings.CloudDepthTolerance, voxel,
+                work == null ? resources.MaximumGridSamples : long.MaxValue, options, cancellation, work, status);
+            if (keys != null)
+            {
                 return new FusionGrid { PixelFootprint = footprint, RequestedVoxelSize = requested, VoxelSize = voxel, Keys = keys };
             }
             if (!settings.FusionAllowCoarserResolution)
@@ -81,117 +65,4 @@ internal static class FusionGridBuilder
         throw new EchoException("Cannot fit the observed fusion volume within the available memory budget.", 5);
     }
 
-    private static IDictionary<Grid, int>? Candidates(DenseCloudData cloud, DepthView?[] sources, double relativeTolerance,
-        double voxel, int limit, CancellationToken cancellation, WorkBuffers? work, FusionPlanningProgress status)
-    {
-        var occupied = work?.Map(new GridRecordCodec(), new IntRecordCodec()) ?? new Dictionary<Grid, int>();
-        var coverage = new GridCandidateAccumulator(occupied, work);
-        status.Start("Fusion candidate coverage", cloud.Samples.Count, "cloud points");
-        for (var index = 0; index < cloud.Samples.Count; index++)
-        {
-            if (index % 4096 == 0)
-            {
-                cancellation.ThrowIfCancellationRequested();
-                status.Advance(index);
-            }
-            var point = cloud.Samples[index];
-            var finite = float.IsFinite(point.X) && float.IsFinite(point.Y) && float.IsFinite(point.Z);
-            if (!finite)
-            {
-                throw new EchoException("The dense cloud contains a non-finite position.", 5);
-            }
-            var validSource = point.View >= 0 && point.View < sources.Length;
-            if (!validSource || sources[point.View] is not { } view)
-            {
-                throw new EchoException("A dense cloud sample has no source depth view.", 5);
-            }
-            var world = new V3(point.X, point.Y, point.Z);
-            var ray = world - view.Centre;
-            var cameraDepth = CameraGeometry.Rotate(view.Inverse, ray).Z;
-            var invalidRay = !(cameraDepth > 0) || !double.IsFinite(cameraDepth)
-                || !(view.Focal > 0) || !double.IsFinite(view.Focal);
-            if (invalidRay)
-            {
-                throw new EchoException("A dense cloud sample has an invalid source-camera ray.", 5);
-            }
-            var uncertainty = FusionDepthUncertainty.Radius(cameraDepth, view.Focal, relativeTolerance);
-            var extent = ray * (uncertainty / cameraDepth);
-            var longestAxis = Math.Max(Math.Abs(extent.X), Math.Max(Math.Abs(extent.Y), Math.Abs(extent.Z)));
-            var steps = Math.Ceiling(longestAxis / voxel);
-            if (steps > limit)
-            {
-                return null;
-            }
-            var stepCount = Math.Max(1, (int)steps);
-            var step = extent / stepCount;
-            // A finer lattice must still span the accepted depth uncertainty.
-            // Otherwise two agreeing observations can leave a candidate-free
-            // crack between their surfaces. Extend along each measured ray;
-            // the fixed spatial halo below handles extraction and roundoff.
-            for (var offset = -stepCount; offset <= stepCount; offset++)
-            {
-                if (offset % 4096 == 0)
-                {
-                    cancellation.ThrowIfCancellationRequested();
-                }
-                var sample = world + step * offset;
-                coverage.Add(new Grid(Coordinate(sample.X, voxel), Coordinate(sample.Y, voxel), Coordinate(sample.Z, voxel)));
-                if (occupied.Count > limit)
-                {
-                    return null;
-                }
-            }
-        }
-        status.Advance(cloud.Samples.Count);
-        var candidates = work?.Map(new GridRecordCodec(), new IntRecordCodec()) ?? new Dictionary<Grid, int>();
-        var halo = new GridCandidateAccumulator(candidates, work);
-        var completed = 0;
-        status.Start("Fusion extraction halo", occupied.Count, "occupied cells");
-        foreach (var cell in occupied.Keys)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            for (var z = -1; z <= 2; z++)
-            {
-                for (var y = -1; y <= 2; y++)
-                {
-                    for (var x = -1; x <= 2; x++)
-                    {
-                        halo.Add(new Grid(cell.X + x, cell.Y + y, cell.Z + z));
-                        if (candidates.Count > limit)
-                        {
-                            return null;
-                        }
-                    }
-                }
-            }
-            completed++;
-            if (completed % 4096 == 0)
-            {
-                status.Advance(completed);
-            }
-        }
-        status.Advance(completed);
-        return candidates;
-    }
-
-    private static int Coordinate(double value, double voxel)
-    {
-        var coordinate = Math.Floor(value / voxel);
-        var outsideRange = !double.IsFinite(coordinate) || coordinate < int.MinValue + 2.0 || coordinate > int.MaxValue - 2.0;
-        if (outsideRange)
-        {
-            throw new EchoException("Fusion coordinates exceed the supported grid range.", 5);
-        }
-        return (int)coordinate;
-    }
-
-    private static int Compare(Grid a, Grid b)
-    {
-        var order = a.X.CompareTo(b.X);
-        if (order == 0)
-        {
-            order = a.Y.CompareTo(b.Y);
-        }
-        return order != 0 ? order : a.Z.CompareTo(b.Z);
-    }
 }

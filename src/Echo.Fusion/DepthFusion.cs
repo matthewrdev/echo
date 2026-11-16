@@ -67,17 +67,27 @@ public sealed class DepthFusion : IDepthFusion
         var previewSamples = preview == null ? null : new FusionPreviewSampler();
         long lastPreview = 0;
         const int chunkSize = 16384;
-        for (var first = 0; first < keys.Count; first += chunkSize)
+        using var cells = keys.GetEnumerator();
+        var batch = new Grid[chunkSize];
+        for (long first = 0; first < keys.Count; first += chunkSize)
         {
             cancellation.ThrowIfCancellationRequested();
-            var count = Math.Min(chunkSize, keys.Count - first);
+            var count = (int)Math.Min(chunkSize, keys.Count - first);
+            for (var index = 0; index < count; index++)
+            {
+                if (!cells.MoveNext())
+                {
+                    throw new InvalidDataException("Fusion grid ranges ended before their declared cell count.");
+                }
+                batch[index] = cells.Current;
+            }
             IList<VolumeSample> Integrate()
             {
                 if (acceleration != null && !accelerationFailed)
                 {
                     try
                     {
-                        return FusionCompute.Integrate(acceleration, keys, first, count, voxel, origin, views.Length, project.Settings.CloudDepthTolerance, cancellation);
+                        return FusionCompute.Integrate(acceleration, batch, 0, count, voxel, origin, views.Length, project.Settings.CloudDepthTolerance, cancellation);
                     }
                     catch (ComputeException) when (project.Settings.ComputeBackend == ComputeBackend.Auto)
                     {
@@ -91,7 +101,7 @@ public sealed class DepthFusion : IDepthFusion
                     MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
                 }, index =>
                 {
-                    var key = keys[first + index];
+                    var key = batch[index];
                     var world = new V3(key.X * voxel, key.Y * voxel, key.Z * voxel);
                     double sum = 0;
                     double weight = 0;

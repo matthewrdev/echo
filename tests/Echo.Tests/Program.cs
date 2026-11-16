@@ -31,6 +31,13 @@ if (args.Contains("--texture", StringComparer.Ordinal))
     composition.Resolve<TextureTests>().Run(scaleTests);
     return scaleTests.Finish();
 }
+composition.Resolve<FusionCandidateTests>().Run(scaleTests);
+if (args.Contains("--fusion", StringComparer.Ordinal))
+{
+    composition.Resolve<FusionQualityTests>().Run(scaleTests);
+    composition.Resolve<FusionSettingsTests>().Run(scaleTests);
+    return scaleTests.Finish();
+}
 composition.Resolve<ProcessingTelemetryTests>().Run(scaleTests);
 composition.Resolve<PerformanceTraceTests>().Run(scaleTests);
 composition.Resolve<ProgressivePreviewTests>().Run(scaleTests);

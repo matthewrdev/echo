@@ -14,5 +14,5 @@ internal sealed class FusionGrid
     {
         get; init;
     }
-    public IList<Grid> Keys { get; init; } = [];
+    public FusionCandidateGrid Keys { get; init; } = new([], 0, GridAxis.Z);
 }

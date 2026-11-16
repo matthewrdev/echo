@@ -4,6 +4,10 @@ using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(DepthBenchmark).Assembly, typeof(Processor).Assembly,
     typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly, typeof(Echo.Texturing.Metal.MetalTexturePlacementAccelerator).Assembly);
+if (args.FirstOrDefault() == "fusion-planning")
+{
+    return composition.Resolve<FusionPlanningBenchmark>().Run(args[1..]);
+}
 if (args.FirstOrDefault() == "scene-storage")
 {
     return composition.Resolve<SceneStorageBenchmark>().Run(args[1..]);

@@ -10,6 +10,8 @@ internal sealed class FusionPlanningProgress
     private string operation = "";
     private string unit = "";
     private long total;
+    private long completed;
+    private readonly object gate = new();
 
     public FusionPlanningProgress(Action<OperationProgress>? publish)
     {
@@ -18,17 +20,33 @@ internal sealed class FusionPlanningProgress
 
     public void Start(string operation, long total, string unit)
     {
-        this.operation = operation;
-        this.total = total;
-        this.unit = unit;
-        Report(0);
+        lock (gate)
+        {
+            this.operation = operation;
+            this.total = total;
+            this.unit = unit;
+            completed = 0;
+            Report(0);
+        }
     }
 
-    public void Advance(long completed)
+    public void AdvanceBy(long count)
     {
-        if (completed == total || clock.ElapsedMilliseconds >= 500)
+        lock (gate)
         {
-            Report(completed);
+            Advance(completed + count);
+        }
+    }
+
+    public void Advance(long count)
+    {
+        lock (gate)
+        {
+            completed = count;
+            if (completed == total || clock.ElapsedMilliseconds >= 500)
+            {
+                Report(completed);
+            }
         }
     }
 

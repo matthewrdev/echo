@@ -119,7 +119,7 @@ public sealed class DiskIoTests
             }
             Check(cache.OpenHandleCount == 0, "Disposed files retained handles");
         }));
-        tests.Run("Fusion planning caches preserve exact grid coverage and report all phases", () => InDirectory(directory =>
+        tests.Run("Fusion planning streams preserve grid coverage and report every preparation phase", () => InDirectory(directory =>
         {
             var fixture = new FusionFixture();
             var points = fixture.Cloud.Samples.ToArray();
@@ -137,9 +137,9 @@ public sealed class DiskIoTests
             var updates = new List<OperationProgress>();
             var actual = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, resources, default,
                 work: work, operationProgress: updates.Add);
-            Check(expected.Keys.SequenceEqual(actual.Keys), "Cached candidate insertion changed sorted coverage");
+            Check(expected.Keys.SequenceEqual(actual.Keys), "Streaming changed ordered coverage");
             Check(expected.VoxelSize == actual.VoxelSize, "Paging altered resolution");
-            Check(updates.Select(update => update.Operation).Distinct().Count() == 3, "Missing planning phase");
+            Check(updates.Select(update => update.Operation).Distinct().Count() == 5, "Missing planning phase");
             foreach (var phase in updates.GroupBy(update => update.Operation))
             {
                 Check(phase.First().Completed == 0 && phase.Last().Completed == phase.Last().Total, "Phase lacks start or completion");

@@ -46,7 +46,7 @@ public sealed class FusionStage : IPipelineStage
             depthUnits,
             alignment,
             maximumGridSamples = context.Paged ? 0 : resources.MaximumGridSamples,
-            fusionVersion = 8,
+            fusionVersion = 9,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Fusion),
             project.Settings.CloudDepthTolerance,

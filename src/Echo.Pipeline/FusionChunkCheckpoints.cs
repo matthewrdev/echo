@@ -17,7 +17,7 @@ public sealed class FusionChunkCheckpoints : IFusionChunkStore
         this.files = files;
     }
 
-    public IEnumerable<VolumeSample> ReadOrBuild(int first, int count, Func<IList<VolumeSample>> build)
+    public IEnumerable<VolumeSample> ReadOrBuild(long first, int count, Func<IList<VolumeSample>> build)
     {
         IList<VolumeSample>? generated = null;
         var path = context.Build("fusion-chunk", new
