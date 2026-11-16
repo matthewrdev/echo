@@ -612,25 +612,57 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         }
     }
 
-    func prepareDeletion(artifact: String?) {
+    func prepareDeletion(kind: ArtifactDeletionKind, artifact: String? = nil) {
         let projectRoot = root
         perform("Preparing deletion preview…") {
-            let plan = try await self.client.deletionPlan(root: projectRoot, artifact: artifact)
+            let selection: ArtifactDeletionSelection
+            switch kind {
+            case .unused:
+                selection = .unused(retaining: try await self.cleanupRetainedRuns(root: projectRoot))
+            case .artifact:
+                guard let artifact else { throw CLIError(message: "Select an artifact to delete.") }
+                selection = .artifact(artifact)
+            case .allGenerated:
+                selection = .allGenerated
+            }
+            let reviewedSelection = selection
+            let plan = try await self.client.deletionPlan(root: projectRoot, selection: reviewedSelection)
+            let logCutoff = try plan.logCutoffDate
             self.pendingChange = ProjectEditRequest(
-                title: plan.purgeAll ? "Purge all generated results?" : "Delete artifact and dependent indexes?",
+                title: plan.kind.title,
                 message: plan.warning,
                 apply: {
                     guard self.root == projectRoot else { return }
                     self.perform("Deleting generated results…") {
                         let arguments =
                             ["storage", "delete", "--confirm", plan.token]
-                            + (artifact.map { ["--artifact", $0] } ?? [])
+                            + reviewedSelection.arguments
                         try await self.client.command(root: projectRoot, arguments: arguments, progress: { _ in })
+                        if let logCutoff {
+                            try await self.commandLog?.prune(root: projectRoot, before: logCutoff)
+                        }
                         self.selectedRun = "latest"
+                        self.savedRunKey = ""
                         self.storageInventory = try await self.client.storage(root: projectRoot)
                     }
-                }, actionTitle: plan.purgeAll ? "Purge all results" : "Delete artifact", destructive: true)
+                }, actionTitle: plan.kind.actionTitle, destructive: true)
         }
+    }
+
+    private func cleanupRetainedRuns(root: String) async throws -> [String] {
+        let summaries = try await client.runs(root: root)
+        guard let latest = summaries.first else { return [] }
+        let current = try await client.run(root: root, id: latest.id)
+        var candidates: [RunData] = []
+        for saved in summaries.dropFirst() {
+            candidates.append(try await client.run(root: root, id: saved.id))
+        }
+        let project = URL(fileURLWithPath: root)
+        let presentation = SavedArtifactPresentation(current: current, candidates: candidates) { path in
+            FileManager.default.fileExists(
+                atPath: project.appendingPathComponent(path).appendingPathComponent("manifest.json").path)
+        }
+        return Array(Set([current.id] + presentation.sourceRuns.values.map(\.id))).sorted()
     }
 
     func reset(from stage: PipelineStage) {

@@ -15,22 +15,29 @@ struct ArtifactStorageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if let inventory = workspace.storageInventory {
+                Text(
+                    "\(inventory.artifacts.count.formatted()) artifacts · \(inventory.runCount) saved runs · \(ByteCountFormatter.string(fromByteCount: inventory.bytes, countStyle: .file)) including temporary files"
+                )
+            }
             HStack {
-                if let inventory = workspace.storageInventory {
-                    Text(
-                        "\(inventory.artifacts.count.formatted()) artifacts · \(inventory.runCount) saved runs · \(ByteCountFormatter.string(fromByteCount: inventory.bytes, countStyle: .file)) including temporary files"
-                    )
-                }
                 Spacer()
                 Button("Refresh", systemImage: "arrow.clockwise") { workspace.loadStorage() }
                     .disabled(!workspace.canEdit)
-                Button("Purge all generated results…", role: .destructive) { workspace.prepareDeletion(artifact: nil) }
+                Button("Clean up unused & old…", systemImage: "trash") { workspace.prepareDeletion(kind: .unused) }
                     .disabled(!workspace.canEdit || workspace.storageInventory == nil)
+                Button("Purge all generated results…", role: .destructive) {
+                    workspace.prepareDeletion(kind: .allGenerated)
+                }
+                .disabled(!workspace.canEdit || workspace.storageInventory == nil)
             }
             Text(
-                "Delete an artifact folder as a unit to keep checkpoints consistent. Deleting a used artifact also invalidates dependent results in its saved runs."
+                "Clean up unused & old keeps the latest run and completed results shown in the workspace. Purge all removes every generated result. Deleting an individual artifact also invalidates results that depend on it."
             )
             .font(.callout).foregroundStyle(.secondary)
+            if !workspace.canEdit {
+                Text("Storage cleanup is available after processing stops.").font(.callout).foregroundStyle(.secondary)
+            }
             TextField("Find by stage, artifact ID or run ID", text: $query)
                 .textFieldStyle(.roundedBorder)
             Table(items, selection: $selected) {
@@ -55,8 +62,10 @@ struct ArtifactStorageView: View {
                             URL(fileURLWithPath: workspace.root).appendingPathComponent(item.path).path,
                             inFileViewerRootedAtPath: "")
                     }
-                    Button("Delete artifact…", role: .destructive) { workspace.prepareDeletion(artifact: item.path) }
-                        .disabled(!workspace.canEdit)
+                    Button("Delete artifact…", role: .destructive) {
+                        workspace.prepareDeletion(kind: .artifact, artifact: item.path)
+                    }
+                    .disabled(!workspace.canEdit)
                 }
             }
             if workspace.busy { ProgressView(workspace.status).controlSize(.small) }

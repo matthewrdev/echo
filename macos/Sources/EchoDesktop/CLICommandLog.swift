@@ -43,6 +43,24 @@ actor CLICommandLog {
         return history[root] ?? []
     }
 
+    func prune(root: String, before cutoff: Date) throws {
+        let root = URL(fileURLWithPath: root).standardizedFileURL.path
+        load(root)
+        let retained = (history[root] ?? []).filter { $0.timestamp >= cutoff }
+        var data = Data()
+        let encoder = JSONEncoder()
+        for entry in retained {
+            data.append(try encoder.encode(entry))
+            data.append(10)
+        }
+        let file = path(root)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: file, options: .atomic)
+        history[root] = retained
+        pending[root] = []
+        errors[root] = nil
+    }
+
     func persistenceError(root: String) -> String? {
         errors[URL(fileURLWithPath: root).standardizedFileURL.path]
     }

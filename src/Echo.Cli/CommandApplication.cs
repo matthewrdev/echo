@@ -31,6 +31,8 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH storage list
     echo-photo --project PATH storage plan [--artifact artifacts/STAGE/KEY]
     echo-photo --project PATH storage delete --confirm TOKEN [--artifact artifacts/STAGE/KEY]
+    echo-photo --project PATH storage plan --unused [--keep-runs RUN_ID,RUN_ID]
+    echo-photo --project PATH storage delete --unused [--keep-runs RUN_ID,RUN_ID] --confirm TOKEN
     echo-photo --project PATH config show
     echo-photo --project PATH config import FILE
     echo-photo --project PATH hints list|import FILE

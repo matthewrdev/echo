@@ -4,6 +4,28 @@ import XCTest
 @testable import EchoDesktop
 
 final class CLICommandLogTests: XCTestCase {
+    func testCleanupPrunesOldHistoryWithoutResurrectingItOnNextCommand() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: root.appendingPathComponent("project.json"))
+        defer { try? FileManager.default.removeItem(at: root) }
+        let log = CLICommandLog()
+        let old = CLICommandInvocation(
+            executable: URL(fileURLWithPath: "/tmp/echo-photo"), arguments: ["--project", root.path, "run", "start"])
+        await log.record(old)
+        let cutoff = Date()
+        let latest = CLICommandInvocation(
+            executable: URL(fileURLWithPath: "/tmp/echo-photo"),
+            arguments: ["--project", root.path, "storage", "delete"])
+        await log.record(latest)
+        try await log.prune(root: root.path, before: cutoff)
+        let after = CLICommandInvocation(
+            executable: URL(fileURLWithPath: "/tmp/echo-photo"), arguments: ["--project", root.path, "inspect"])
+        await log.record(after)
+        let restored = await CLICommandLog().entries(root: root.path)
+        XCTAssertEqual(restored.map(\.id), [latest.id, after.id])
+    }
+
     func testCancellationExitIsDistinctFromProcessingFailure() async throws {
         let client = ProcessCLIClient(executable: URL(fileURLWithPath: "/bin/sh"))
         do {

@@ -17,8 +17,8 @@ final class CLIProjectClient: ProjectClient {
         return try JSONDecoder().decode(ArtifactStorageInventory.self, from: bytes)
     }
 
-    func deletionPlan(root: String, artifact: String?) async throws -> ArtifactDeletionPlan {
-        let arguments = ["--project", root, "storage", "plan"] + (artifact.map { ["--artifact", $0] } ?? [])
+    func deletionPlan(root: String, selection: ArtifactDeletionSelection) async throws -> ArtifactDeletionPlan {
+        let arguments = ["--project", root, "storage", "plan"] + selection.arguments
         let bytes = try await cli.execute(arguments, progress: { _ in })
         return try JSONDecoder().decode(ArtifactDeletionPlan.self, from: bytes)
     }

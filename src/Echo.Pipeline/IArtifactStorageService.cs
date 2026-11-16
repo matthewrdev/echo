@@ -6,6 +6,6 @@ namespace Echo.Pipeline;
 public interface IArtifactStorageService
 {
     ArtifactStorageInventory Inspect(IProjectStore store);
-    ArtifactDeletionPlan Plan(IProjectStore store, string? artifact);
-    ArtifactDeletionPlan Delete(IProjectStore store, string? artifact, string confirmationToken);
+    ArtifactDeletionPlan Plan(IProjectStore store, ArtifactDeletionRequest request);
+    ArtifactDeletionPlan Delete(IProjectStore store, ArtifactDeletionRequest request, string confirmationToken);
 }

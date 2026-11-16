@@ -30,19 +30,19 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         return Inventory(store);
     }
 
-    public ArtifactDeletionPlan Plan(IProjectStore store, string? artifact)
+    public ArtifactDeletionPlan Plan(IProjectStore store, ArtifactDeletionRequest request)
     {
         using var lease = store.Lock("run");
         using var edit = store.Lock("edit");
-        return MakePlan(store, Inventory(store), artifact);
+        return MakePlan(store, Inventory(store), request);
     }
 
-    public ArtifactDeletionPlan Delete(IProjectStore store, string? artifact, string confirmationToken)
+    public ArtifactDeletionPlan Delete(IProjectStore store, ArtifactDeletionRequest request, string confirmationToken)
     {
         using var lease = store.Lock("run");
         using var edit = store.Lock("edit");
         var inventory = Inventory(store);
-        var plan = MakePlan(store, inventory, artifact);
+        var plan = MakePlan(store, inventory, request);
         if (!string.Equals(plan.Token, confirmationToken, StringComparison.Ordinal))
         {
             throw new EchoException("Stored results changed since the deletion preview. Review a fresh preview before deleting.", 2);
@@ -50,7 +50,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
 
         // Invalidate references before removing bytes. An interrupted deletion can
         // leave unused files, but must never leave a saved run claiming missing output.
-        if (!plan.PurgeAll)
+        if (plan.Kind == ArtifactDeletionKind.Artifact)
         {
             foreach (var affected in plan.AffectedRuns)
             {
@@ -72,9 +72,17 @@ public sealed class ArtifactStorageService : IArtifactStorageService
 
         foreach (var path in plan.Paths)
         {
-            Directory.Delete(store.PathFor(path), true);
+            var fullPath = store.PathFor(path);
+            if (Directory.Exists(fullPath))
+            {
+                Directory.Delete(fullPath, true);
+            }
+            else
+            {
+                File.Delete(fullPath);
+            }
         }
-        if (plan.PurgeAll)
+        if (plan.Kind == ArtifactDeletionKind.AllGenerated)
         {
             Directory.CreateDirectory(store.PathFor("artifacts"));
             Directory.CreateDirectory(store.PathFor("runs"));
@@ -114,7 +122,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                         item.Bytes += new FileInfo(file).Length;
                         item.FileCount++;
                     }
-                    foreach (var name in new[] { "units.json", "recovery.json", "original-units.json" })
+                    foreach (var name in new[] { "units.json", "recovery.json", "original-units.json", "processing.json" })
                     {
                         var index = Path.Combine(directory, name);
                         if (File.Exists(index))
@@ -132,7 +140,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         {
             result.RunCount++;
             var visited = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var path in run.Artifacts.Values)
+            foreach (var path in RunReferences(store, run))
             {
                 MarkUsage(path, run.Id, byPath, visited);
             }
@@ -169,11 +177,25 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         return bytes;
     }
 
-    private ArtifactDeletionPlan MakePlan(IProjectStore store, ArtifactStorageInventory inventory, string? artifact)
+    private ArtifactDeletionPlan MakePlan(IProjectStore store, ArtifactStorageInventory inventory, ArtifactDeletionRequest request)
     {
-        var plan = new ArtifactDeletionPlan { PurgeAll = artifact == null };
-        if (plan.PurgeAll)
+        var artifact = request.Artifact;
+        var plan = new ArtifactDeletionPlan { Kind = request.Kind };
+        if (!Enum.IsDefined(request.Kind) || (request.Kind == ArtifactDeletionKind.Artifact) != (artifact != null))
         {
+            throw new EchoException("Choose one artifact, unused results, or all generated results.", 2);
+        }
+        if (request.RetainedRuns != null && request.Kind != ArtifactDeletionKind.Unused)
+        {
+            throw new EchoException("Saved run retention applies only to unused-result cleanup.", 2);
+        }
+        if (plan.Kind == ArtifactDeletionKind.Unused)
+        {
+            PlanUnused(store, inventory, request, plan);
+        }
+        else if (plan.Kind == ArtifactDeletionKind.AllGenerated)
+        {
+            plan.LogCutoff = DateTimeOffset.MaxValue;
             // Remove history first so a partial I/O failure cannot leave broken run references.
             foreach (var path in new[] { "runs", "artifacts", "work" })
             {
@@ -235,11 +257,96 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         plan.Token = files.Hash(new
         {
             inventory.Token,
+            request.Kind,
             artifact,
             plan.Paths,
-            plan.AffectedRuns
+            plan.AffectedRuns,
+            plan.RetainedRuns,
+            plan.RemovedRuns
         });
         return plan;
+    }
+
+    private void PlanUnused(IProjectStore store, ArtifactStorageInventory inventory, ArtifactDeletionRequest request, ArtifactDeletionPlan plan)
+    {
+        var runs = Runs(store).OrderByDescending(run => run.Created).ToArray();
+        var byId = runs.ToDictionary(run => run.Id, StringComparer.Ordinal);
+        var retained = request.RetainedRuns?.ToHashSet(StringComparer.Ordinal) ?? byId.Keys.ToHashSet(StringComparer.Ordinal);
+        if (retained.Any(id => !byId.ContainsKey(id)))
+        {
+            throw new EchoException("Saved runs changed. Refresh the cleanup preview.", 2);
+        }
+        var latest = runs.FirstOrDefault();
+        plan.LogCutoff = latest?.Created ?? DateTimeOffset.MaxValue;
+        if (latest != null)
+        {
+            retained.Add(latest.Id);
+        }
+        plan.RetainedRuns.AddRange(retained.Order(StringComparer.Ordinal));
+        // Remove obsolete history first; an interrupted cleanup must not leave
+        // a saved run pointing at an artifact that has already been deleted.
+        foreach (var run in runs)
+        {
+            if (!retained.Contains(run.Id))
+            {
+                plan.RemovedRuns.Add(run.Id);
+                AddCleanupPath(store, plan, $"runs/{run.Id}");
+            }
+            else if (run.Id != latest?.Id)
+            {
+                AddCleanupPath(store, plan, $"runs/{run.Id}/events.ndjson");
+                AddCleanupPath(store, plan, $"runs/{run.Id}/traces");
+            }
+        }
+        foreach (var artifact in inventory.Artifacts)
+        {
+            if (!artifact.Runs.Any(retained.Contains))
+            {
+                plan.Paths.Add(artifact.Path);
+                plan.Bytes += artifact.Bytes;
+            }
+        }
+        AddCleanupPath(store, plan, "work");
+    }
+
+    private void AddCleanupPath(IProjectStore store, ArtifactDeletionPlan plan, string path)
+    {
+        var fullPath = store.PathFor(path);
+        if (Directory.Exists(fullPath))
+        {
+            plan.Bytes += Directory.EnumerateFiles(fullPath, "*", SearchOption.AllDirectories).Sum(file => new FileInfo(file).Length);
+        }
+        else if (File.Exists(fullPath))
+        {
+            plan.Bytes += new FileInfo(fullPath).Length;
+        }
+        else
+        {
+            return;
+        }
+        plan.Paths.Add(path);
+    }
+
+    private IEnumerable<string> RunReferences(IProjectStore store, RunData run)
+    {
+        foreach (var path in run.Artifacts.Values)
+        {
+            yield return path;
+        }
+        // Completed child checkpoints can be resumable before their parent
+        // stage has published an output, especially after cancellation.
+        var metadata = store.PathFor($"runs/{run.Id}/processing.json");
+        if (File.Exists(metadata))
+        {
+            using var document = JsonDocument.Parse(File.ReadAllBytes(metadata));
+            if (document.RootElement.TryGetProperty("artifacts", out var artifacts))
+            {
+                foreach (var property in artifacts.EnumerateObject())
+                {
+                    yield return property.Name;
+                }
+            }
+        }
     }
 
     private int StageOrder(string key)
