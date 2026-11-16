@@ -40,21 +40,21 @@ public sealed class FusionStage : IPipelineStage
         var depthUnits = context.DepthUnits();
         var cloudPath = context.Artifact("cloud");
         var resources = resourcePlanner.Plan(project.Settings);
-        var inputs = new
+        var inputs = new FusionInputs
         {
-            cloudPath,
-            depthUnits,
-            alignment,
-            maximumGridSamples = context.Paged && project.Settings.FusionVoxelSize > 0 ? 0 : resources.MaximumGridSamples,
-            fusionVersion = 12,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Fusion),
-            project.Settings.CloudDepthTolerance,
-            project.Settings.FusionDetailMultiplier,
-            project.Settings.FusionVoxelSize,
-            project.Settings.FusionAllowCoarserResolution,
-            project.Settings.FusionIslandMode,
-            project.Settings.FusionIslandMinimumSizePercent
+            CloudPath = cloudPath,
+            DepthUnits = depthUnits,
+            Alignment = alignment,
+            MaximumGridSamples = context.Paged && project.Settings.FusionVoxelSize > 0 ? 0 : resources.MaximumGridSamples,
+            FusionVersion = 12,
+            ComputeBackend = project.Settings.ComputeBackend,
+            ComputeImplementation = context.ComputeImplementation(ComputeOperation.Fusion),
+            CloudDepthTolerance = project.Settings.CloudDepthTolerance,
+            FusionDetailMultiplier = project.Settings.FusionDetailMultiplier,
+            FusionVoxelSize = project.Settings.FusionVoxelSize,
+            FusionAllowCoarserResolution = project.Settings.FusionAllowCoarserResolution,
+            FusionIslandMode = project.Settings.FusionIslandMode,
+            FusionIslandMinimumSizePercent = project.Settings.FusionIslandMinimumSizePercent
         };
         var fusionPath = context.Build("fusion", inputs, dir =>
                 {
@@ -89,22 +89,22 @@ public sealed class FusionStage : IPipelineStage
                         Resolution = volume.Resolution,
                         Samples = FusionPreviewSelection.Sample(volume.Samples)
                     });
-                    fileOperations.AtomicJson(Path.Combine(dir, "fusion.report.json"), new
+                    fileOperations.AtomicJson(Path.Combine(dir, "fusion.report.json"), new FusionReport
                     {
-                        volume.VoxelSize,
-                        volume.InputSamples,
-                        volume.ConsistentSamples,
-                        voxels = volume.Samples.Count,
-                        volume.Resolution,
-                        islandTrimming = new
+                        VoxelSize = volume.VoxelSize,
+                        InputSamples = volume.InputSamples,
+                        ConsistentSamples = volume.ConsistentSamples,
+                        Voxels = volume.Samples.Count,
+                        Resolution = volume.Resolution,
+                        IslandTrimming = new FusionIslandReport
                         {
-                            mode = project.Settings.FusionIslandMode,
-                            minimumSizePercent = project.Settings.FusionIslandMinimumSizePercent,
-                            trimming.InputRegions,
-                            trimming.RemovedRegions,
-                            trimming.RemovedSamples
+                            Mode = project.Settings.FusionIslandMode,
+                            MinimumSizePercent = project.Settings.FusionIslandMinimumSizePercent,
+                            InputRegions = trimming.InputRegions,
+                            RemovedRegions = trimming.RemovedRegions,
+                            RemovedSamples = trimming.RemovedSamples
                         },
-                        method = "Precision-weighted projective TSDF; continuous valid depths contribute truncated free-space evidence in front of the measured surface; occluded and unknown space do not vote; at least two nearby observed depths per retained voxel; resolution and integration uncertainty are independent."
+                        Method = "Precision-weighted projective TSDF; continuous valid depths contribute truncated free-space evidence in front of the measured surface; occluded and unknown space do not vote; at least two nearby observed depths per retained voxel; resolution and integration uncertainty are independent."
                     });
                     context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Save,
                         project.Settings.FusionIslandMode != IslandTrimMode.Off, "Integrated volume saved.", 1, 1, "volumes"));

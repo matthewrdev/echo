@@ -9,7 +9,7 @@ public interface IJsonCodec
         get;
     }
 
-    string Encode<T>(T value);
+    string Encode<T>(T value, bool compact = false);
     void Write<T>(Stream stream, T value);
     T Read<T>(string path);
     T Clone<T>(T value);

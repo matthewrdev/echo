@@ -10,14 +10,17 @@ namespace Echo.Infrastructure;
 [Export(typeof(IJsonCodec)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class JsonCodec : IJsonCodec
 {
-    private readonly IReadOnlyList<IJsonReadMetadata> metadata;
     private readonly IBulkArtifactStore bulk;
+    private readonly JsonSerializerOptions compactOptions;
 
     [ImportingConstructor]
     public JsonCodec([ImportMany] IEnumerable<IJsonReadMetadata> metadata, IBulkArtifactStore bulk)
     {
-        this.metadata = metadata.ToArray();
         this.bulk = bulk;
+        Options.TypeInfoResolver = JsonTypeInfoResolver.Combine(metadata.ToArray());
+        Options.MakeReadOnly();
+        compactOptions = new JsonSerializerOptions(Options) { WriteIndented = false };
+        compactOptions.MakeReadOnly();
     }
 
     public JsonSerializerOptions Options
@@ -30,42 +33,24 @@ public sealed class JsonCodec : IJsonCodec
         WriteIndented = true,
         Converters =
         {
-            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false)
+            new JsonStringEnumConverter<PerformanceBackend>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
+            new JsonStringEnumConverter<PerformanceStatus>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
+            new JsonStringEnumConverter<PerformanceSpanKind>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
+            new JsonStringEnumConverter<ComputeBackend>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
+            new JsonStringEnumConverter<IslandTrimMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
+            new JsonStringEnumConverter<ProcessingMemoryMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false)
         }
     };
 
-    public string Encode<T>(T value)
+    public string Encode<T>(T value, bool compact = false)
     {
-        var info = FindType(value?.GetType() ?? typeof(T));
-        return info != null ? JsonSerializer.Serialize(value, info) : JsonSerializer.Serialize(value, Options);
+        var options = compact ? compactOptions : Options;
+        return JsonSerializer.Serialize(value, options.GetTypeInfo(value?.GetType() ?? typeof(T)));
     }
 
     public void Write<T>(Stream stream, T value)
     {
-        var info = FindType(value?.GetType() ?? typeof(T));
-        if (info != null)
-        {
-            JsonSerializer.Serialize(stream, value, info);
-        }
-        else
-        {
-            // Anonymous command/event payloads have no persisted domain contract.
-            // Fingerprinting retains its existing canonical serializer separately.
-            JsonSerializer.Serialize(stream, value, Options);
-        }
-    }
-
-    private JsonTypeInfo? FindType(Type type)
-    {
-        foreach (var source in metadata)
-        {
-            var info = source.GetTypeInfo(type);
-            if (info != null)
-            {
-                return info;
-            }
-        }
-        return null;
+        JsonSerializer.Serialize(stream, value, Options.GetTypeInfo(value?.GetType() ?? typeof(T)));
     }
 
     public T Read<T>(string path)
@@ -82,12 +67,9 @@ public sealed class JsonCodec : IJsonCodec
 
     private JsonTypeInfo<T> ReadType<T>()
     {
-        foreach (var source in metadata)
+        if (Options.GetTypeInfo(typeof(T)) is JsonTypeInfo<T> info)
         {
-            if (source.GetTypeInfo(typeof(T)) is JsonTypeInfo<T> info)
-            {
-                return info;
-            }
+            return info;
         }
 
         throw new EchoException($"No generated JSON read contract for {typeof(T).FullName}.");

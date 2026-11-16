@@ -54,29 +54,29 @@ public sealed class MatchingStage : IPipelineStage
         {
             var pair = wanted[index];
             pairUnits.Add(unit);
-            context.Report("pairCheckpoint", new
+            context.Report("pairCheckpoint", new PairCheckpointEvent
             {
-                stage = "matching",
-                pair.A,
-                pair.B,
-                completed = pairUnits.Count,
-                total = wanted.Count
+                Stage = "matching",
+                A = pair.A,
+                B = pair.B,
+                Completed = pairUnits.Count,
+                Total = wanted.Count
             });
         }, cancellation);
 
-        context.Publish("matching", context.Build("matching", new
+        context.Publish("matching", context.Build("matching", new MatchingInputs
         {
-            selectionVersion = 2,
-            pairUnits
+            SelectionVersion = 2,
+            PairUnits = pairUnits
         }, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), pairUnits);
-            fileOperations.AtomicJson(Path.Combine(directory, "selection.json"), new
+            fileOperations.AtomicJson(Path.Combine(directory, "selection.json"), new PairSelectionReport
             {
-                selectionVersion = 2,
-                project.Settings.FrustumPairNeighbours,
-                project.Settings.PairSearchDistance,
-                pairs = wanted
+                SelectionVersion = 2,
+                FrustumPairNeighbours = project.Settings.FrustumPairNeighbours,
+                PairSearchDistance = project.Settings.PairSearchDistance,
+                Pairs = wanted
             });
         }));
     }
@@ -86,16 +86,16 @@ public sealed class MatchingStage : IPipelineStage
         var project = context.Run.Snapshot;
         var cancellation = context.Cancellation;
         var hints = project.Hints.Where(hint => AppliesToPair(hint, pair)).ToArray();
-        return context.Build("match-pair", new
+        return context.Build("match-pair", new MatchPairInputs
         {
-            a = featureUnits[pair.A],
-            b = featureUnits[pair.B],
-            hints,
-            matcherVersion = 6,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Matching),
-            project.Settings.MatchRatioThreshold,
-            project.Settings.MatchDistanceThreshold
+            A = featureUnits[pair.A],
+            B = featureUnits[pair.B],
+            Hints = hints,
+            MatcherVersion = 6,
+            ComputeBackend = project.Settings.ComputeBackend,
+            ComputeImplementation = context.ComputeImplementation(ComputeOperation.Matching),
+            MatchRatioThreshold = project.Settings.MatchRatioThreshold,
+            MatchDistanceThreshold = project.Settings.MatchDistanceThreshold
         }, directory =>
         {
             context.Trace.Operation(new OperationProgress("Load feature descriptors", "Reading pair inputs"));

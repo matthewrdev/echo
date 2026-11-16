@@ -34,22 +34,22 @@ public sealed class TextureStage : IPipelineStage
         var alignment = context.Artifact("alignment");
         var scene = context.Scene();
         var meshPath = context.Artifact("mesh");
-        var texture = context.Build("texture", new
+        var texture = context.Build("texture", new TextureInputs
         {
-            meshPath,
-            alignment,
-            project.Settings.TextureSize,
-            textureVersion = 17,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Texture),
-            packingImplementation = project.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : string.Join(";", packingAccelerators.Select(accelerator => accelerator.Implementation)),
-            project.Settings.VegetationTextureScale,
-            project.Settings.TextureJpegQuality,
-            project.Settings.TextureChartFaces,
-            project.Settings.TextureChartAngle,
-            project.Settings.TextureGutter,
-            project.Settings.TextureSuppressSky,
-            project.Settings.TextureSkyMarginPixels
+            MeshPath = meshPath,
+            Alignment = alignment,
+            TextureSize = project.Settings.TextureSize,
+            TextureVersion = 17,
+            ComputeBackend = project.Settings.ComputeBackend,
+            ComputeImplementation = context.ComputeImplementation(ComputeOperation.Texture),
+            PackingImplementation = project.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : string.Join(";", packingAccelerators.Select(accelerator => accelerator.Implementation)),
+            VegetationTextureScale = project.Settings.VegetationTextureScale,
+            TextureJpegQuality = project.Settings.TextureJpegQuality,
+            TextureChartFaces = project.Settings.TextureChartFaces,
+            TextureChartAngle = project.Settings.TextureChartAngle,
+            TextureGutter = project.Settings.TextureGutter,
+            TextureSuppressSky = project.Settings.TextureSuppressSky,
+            TextureSkyMarginPixels = project.Settings.TextureSkyMarginPixels
         }, dir =>
                 {
                     var surface = context.ReadData<Surface>(store.PathFor(meshPath + "/mesh.json"));

@@ -32,28 +32,28 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
             context.Cancellation.ThrowIfCancellationRequested();
             var map = maps[index];
             var photo = photos[map.ImageId];
-            units[index] = context.Build("cliff-depth-image", new
+            units[index] = context.Build("cliff-depth-image", new CliffDepthInputs
             {
-                originalUnits,
-                map.ImageId,
-                alignment = context.Artifact("alignment"),
-                semantics = context.Artifact("semantics"),
-                context.Run.Snapshot.Settings.DepthNeighbours,
-                context.Run.Snapshot.Settings.DepthSuppressSky
+                OriginalUnits = originalUnits,
+                ImageId = map.ImageId,
+                Alignment = context.Artifact("alignment"),
+                Semantics = context.Artifact("semantics"),
+                DepthNeighbours = context.Run.Snapshot.Settings.DepthNeighbours,
+                DepthSuppressSky = context.Run.Snapshot.Settings.DepthSuppressSky
             }, directory =>
             {
                 var result = recovery.Recover(context.Store, context.Run.Snapshot, scene, map, maps, semantics[map.ImageId], context.Cancellation,
                     message => context.ReportProgress("depth", $"{photo.Name} · {message}", index, maps.Length));
                 files.AtomicData(Path.Combine(directory, "depth.json"), result.Map, context.Cancellation);
-                files.AtomicJson(Path.Combine(directory, "recovery.report.json"), new
+                files.AtomicJson(Path.Combine(directory, "recovery.report.json"), new CliffDepthReport
                 {
-                    map.ImageId,
-                    result.SearchedSamples,
-                    result.RecoveredSamples,
-                    result.SourceImageWidth,
-                    result.Neighbours,
-                    preservedSamples = Enumerable.Range(0, map.SampleCount).Count(index => float.IsFinite(map.DepthAt(index)) && map.DepthAt(index) > 0),
-                    method = "Bounded missing-rock stereo search; two original depth confirmations and two photographic confirmations; no generative geometry"
+                    ImageId = map.ImageId,
+                    SearchedSamples = result.SearchedSamples,
+                    RecoveredSamples = result.RecoveredSamples,
+                    SourceImageWidth = result.SourceImageWidth,
+                    Neighbours = result.Neighbours,
+                    PreservedSamples = Enumerable.Range(0, map.SampleCount).Count(index => float.IsFinite(map.DepthAt(index)) && map.DepthAt(index) > 0),
+                    Method = "Bounded missing-rock stereo search; two original depth confirmations and two photographic confirmations; no generative geometry"
                 });
             }, () => new ProcessingMetadata { SourceArtifacts = [.. originalUnits, context.Artifact("semantics"), context.Artifact("alignment")] },
                 algorithmVersion: "echo-cliff-recovery2-sky");

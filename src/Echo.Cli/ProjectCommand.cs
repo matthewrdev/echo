@@ -47,9 +47,9 @@ public sealed class ProjectCommand : ICliCommand
             case "delete":
                 management.Delete(project, arguments.Get("confirm", null)
                     ?? throw new EchoException("--confirm PROJECT_ID is required.", 2));
-                output.Write(new
+                output.Write(new ProjectDeletionResult
                 {
-                    deleted = project.Root
+                    Deleted = project.Root
                 });
                 return 0;
             default:
@@ -59,10 +59,10 @@ public sealed class ProjectCommand : ICliCommand
 
     private void WriteProject(IProjectStore project)
     {
-        output.Write(new
+        output.Write(new ProjectOpenResult
         {
-            project = project.Root,
-            data = project.Load()
+            Project = project.Root,
+            Data = project.Load()
         });
     }
 }

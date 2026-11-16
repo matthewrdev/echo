@@ -46,22 +46,22 @@ public sealed class PairVerificationBenchmark
             for (var index = 0; index < pair.Matches.Count; index++)
             {
                 var match = pair.Matches[index];
-                decisions.Add(new
+                decisions.Add(new PairVerificationDecision
                 {
-                    number = index + 1,
-                    match,
-                    accepted = verified?.Inliers.Contains(match) == true
+                    Number = index + 1,
+                    Match = match,
+                    Accepted = verified?.Inliers.Contains(match) == true
                 });
             }
-            files.AtomicJson(Path.GetFullPath(args[4]), new
+            files.AtomicJson(Path.GetFullPath(args[4]), new PairVerificationReport
             {
-                unit,
-                pair.A,
-                pair.B,
-                candidates = pair.Matches.Count,
-                inliers = verified?.Inliers.Count ?? 0,
-                lines = pair.LineMatches.Count,
-                decisions
+                Unit = unit,
+                A = pair.A,
+                B = pair.B,
+                Candidates = pair.Matches.Count,
+                Inliers = verified?.Inliers.Count ?? 0,
+                Lines = pair.LineMatches.Count,
+                Decisions = decisions
             });
             Console.WriteLine($"{pair.Matches.Count} point candidates; {verified?.Inliers.Count ?? 0} geometrically consistent; {pair.LineMatches.Count} unverified lines.");
             return 0;

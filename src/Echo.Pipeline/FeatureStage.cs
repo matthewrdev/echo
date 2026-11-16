@@ -50,17 +50,17 @@ public sealed class FeatureStage : IPipelineStage
                 previewCount = featureUnits.Count;
             }
             var action = checkpoint.Reused ? "Reused" : "Found";
-            context.Report("imageCheckpoint", new
+            context.Report("imageCheckpoint", new FeatureImageCheckpointEvent
             {
-                stage = "features",
-                imageId = image.Id,
-                imageName = image.Name,
-                pointCount = checkpoint.PointCount,
-                lineCount = checkpoint.LineCount,
-                reused = checkpoint.Reused,
-                message = $"{image.Name} · {action} {checkpoint.PointCount:N0} points and {checkpoint.LineCount:N0} line segments · {featureUnits.Count:N0}/{images.Count:N0} images ready",
-                completed = featureUnits.Count,
-                total = images.Count
+                Stage = "features",
+                ImageId = image.Id,
+                ImageName = image.Name,
+                PointCount = checkpoint.PointCount,
+                LineCount = checkpoint.LineCount,
+                Reused = checkpoint.Reused,
+                Message = $"{image.Name} · {action} {checkpoint.PointCount:N0} points and {checkpoint.LineCount:N0} line segments · {featureUnits.Count:N0}/{images.Count:N0} images ready",
+                Completed = featureUnits.Count,
+                Total = images.Count
             });
         }, cancellation);
 
@@ -74,21 +74,21 @@ public sealed class FeatureStage : IPipelineStage
     private FeatureImageCheckpoint BuildImage(RunContext context, Photo image)
     {
         var settings = context.Run.Snapshot.Settings;
-        var inputs = new
+        var inputs = new FeatureImageInputs
         {
-            image.Id,
-            image.SourceHash,
-            detectorVersion = 7,
-            settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Features),
-            settings.ScaleInvariantFeatures,
-            settings.DetectLines,
-            settings.LineLimit,
-            settings.LineMinimumLength,
-            settings.LineGradientThreshold,
-            settings.LineSplitRegions,
-            settings.FeatureWidth,
-            settings.FeatureLimit
+            Id = image.Id,
+            SourceHash = image.SourceHash,
+            DetectorVersion = 7,
+            ComputeBackend = settings.ComputeBackend,
+            ComputeImplementation = context.ComputeImplementation(ComputeOperation.Features),
+            ScaleInvariantFeatures = settings.ScaleInvariantFeatures,
+            DetectLines = settings.DetectLines,
+            LineLimit = settings.LineLimit,
+            LineMinimumLength = settings.LineMinimumLength,
+            LineGradientThreshold = settings.LineGradientThreshold,
+            LineSplitRegions = settings.LineSplitRegions,
+            FeatureWidth = settings.FeatureWidth,
+            FeatureLimit = settings.FeatureLimit
         };
         FeatureSet? detected = null;
         var unit = context.Build("feature-image", inputs, directory =>

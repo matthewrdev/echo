@@ -66,18 +66,18 @@ public sealed class CloudBenchmark
             watch.Stop();
             allocated = GC.GetTotalAllocatedBytes(true) - allocated;
             builder.Write(Path.GetFullPath(args[3]), cloud);
-            Console.WriteLine(json.Encode(new
+            Console.WriteLine(json.Encode(new CloudMeasurement
             {
-                iteration,
-                seconds = watch.Elapsed.TotalSeconds,
-                allocatedBytes = allocated,
-                cameraCount = maps.Count,
-                run.Snapshot.Settings.CloudWorkerThreads,
-                run.Snapshot.Settings.CloudBatchRows,
-                cloud.InputSamples,
-                retained = cloud.Samples.Count,
-                hash = files.HashFile(Path.GetFullPath(args[3]))
-            }));
+                Iteration = iteration,
+                Seconds = watch.Elapsed.TotalSeconds,
+                AllocatedBytes = allocated,
+                CameraCount = maps.Count,
+                CloudWorkerThreads = run.Snapshot.Settings.CloudWorkerThreads,
+                CloudBatchRows = run.Snapshot.Settings.CloudBatchRows,
+                InputSamples = cloud.InputSamples,
+                Retained = cloud.Samples.Count,
+                Hash = files.HashFile(Path.GetFullPath(args[3]))
+            }, compact: true));
         }
         return 0;
     }

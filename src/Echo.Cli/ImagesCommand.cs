@@ -35,9 +35,9 @@ public sealed class ImagesCommand : ICliCommand
         switch (action)
         {
             case "import":
-                output.Write(new
+                output.Write(new PhotoImportResult
                 {
-                    imported = store.Import(args.RequiredWord(2), args.Get("set", "default")!, args.Int("limit", int.MaxValue), value => output.Progress(value, ndjson))
+                    Imported = store.Import(args.RequiredWord(2), args.Get("set", "default")!, args.Int("limit", int.MaxValue), value => output.Progress(value, ndjson))
                 });
                 return 0;
             case "deduplicate":
@@ -47,10 +47,10 @@ public sealed class ImagesCommand : ICliCommand
                 {
                     deduplicator.Apply(store, plan);
                 }
-                output.Write(new
+                output.Write(new DeduplicationResult
                 {
-                    applied = apply,
-                    plan
+                    Applied = apply,
+                    Plan = plan
                 });
                 return 0;
             case "list":
@@ -117,10 +117,10 @@ public sealed class ImagesCommand : ICliCommand
 
     private void WriteReceipt(ProjectData project)
     {
-        output.Write(new
+        output.Write(new ProjectRevisionResult
         {
-            project.Id,
-            project.Revision
+            Id = project.Id,
+            Revision = project.Revision
         });
     }
 }

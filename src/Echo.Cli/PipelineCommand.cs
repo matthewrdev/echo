@@ -40,22 +40,22 @@ public sealed class PipelineCommand : ICliCommand
                     throw new EchoException("Unknown target.", 2);
                 }
 
-                output.Write(new
+                output.Write(new PipelinePlanResult
                 {
-                    schemaVersion = 1,
-                    revision = store.Load().Revision,
-                    stages = processor.Stages.Take(index + 1),
-                    reuse = "Verified by content fingerprints when the run executes",
-                    activeImages = store.Load().Images.Count(i => i.Enabled)
+                    SchemaVersion = 1,
+                    Revision = store.Load().Revision,
+                    Stages = processor.Stages.Take(index + 1),
+                    Reuse = "Verified by content fingerprints when the run executes",
+                    ActiveImages = store.Load().Images.Count(i => i.Enabled)
                 });
                 return 0;
             case "reset":
                 var affected = resetService.Reset(store, args.Get("from", null) ?? throw new EchoException("--from STAGE is required.", 2));
-                output.Write(new
+                output.Write(new PipelineResetResult
                 {
-                    schemaVersion = 1,
-                    resetStages = affected,
-                    message = "Next processing run will rebuild these stages. Earlier checkpoints and saved runs are preserved."
+                    SchemaVersion = 1,
+                    ResetStages = affected,
+                    Message = "Next processing run will rebuild these stages. Earlier checkpoints and saved runs are preserved."
                 });
                 return 0;
             default:

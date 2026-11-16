@@ -52,23 +52,23 @@ public sealed class MeshStage : IPipelineStage
         var semanticsPath = project.Settings.OptimiseVegetation ? context.Artifact("semantics") : null;
         var semanticUnits = semanticsPath == null ? new Dictionary<string, string>()
             : context.ReadArtifact<Dictionary<string, string>>("semantics", "units.json");
-        var meshPath = context.Build("mesh", new
+        var meshPath = context.Build("mesh", new MeshInputs
         {
-            fusionPath,
-            depthUnits,
-            alignment,
-            completionVersion = 5,
-            simplificationVersion = 2,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Mesh),
-            photographSelectionVersion = 2,
-            vegetationVersion = 2,
-            semanticsPath,
-            project.Settings.OptimiseVegetation,
-            project.Settings.VegetationMeshToleranceMultiplier,
-            project.Settings.FaceLimit,
-            project.Settings.MeshIslandMode,
-            project.Settings.MeshIslandMinimumAreaPercent
+            FusionPath = fusionPath,
+            DepthUnits = depthUnits,
+            Alignment = alignment,
+            CompletionVersion = 5,
+            SimplificationVersion = 2,
+            ComputeBackend = project.Settings.ComputeBackend,
+            ComputeImplementation = context.ComputeImplementation(ComputeOperation.Mesh),
+            PhotographSelectionVersion = 2,
+            VegetationVersion = 2,
+            SemanticsPath = semanticsPath,
+            OptimiseVegetation = project.Settings.OptimiseVegetation,
+            VegetationMeshToleranceMultiplier = project.Settings.VegetationMeshToleranceMultiplier,
+            FaceLimit = project.Settings.FaceLimit,
+            MeshIslandMode = project.Settings.MeshIslandMode,
+            MeshIslandMinimumAreaPercent = project.Settings.MeshIslandMinimumAreaPercent
         }, dir =>
                 {
                     var semantics = semanticUnits.ToDictionary(pair => pair.Key,
@@ -158,36 +158,36 @@ public sealed class MeshStage : IPipelineStage
                     context.BeginOperation(Name, "Saving mesh");
                     fileOperations.AtomicData(Path.Combine(dir, "mesh.json"), mesh, cancellation);
                     plyWriter.Write(Path.Combine(dir, "mesh.ply"), mesh.Vertices, mesh.Faces);
-                    fileOperations.AtomicJson(Path.Combine(dir, "mesh.report.json"), new
+                    fileOperations.AtomicJson(Path.Combine(dir, "mesh.report.json"), new MeshReport
                     {
-                        vegetationRemovedFaces,
-                        extractedFaces = extracted.Faces.Count,
-                        reducedFaces = reduced.Faces.Count,
-                        texturedFaces = mesh.Faces.Count,
-                        inferredColourFaces = mesh.SourceImages.Count(string.IsNullOrEmpty),
-                        photographCoverage,
-                        requestedFaceLimit = project.Settings.FaceLimit,
-                        volume.VoxelSize,
-                        detailTolerance,
-                        completed,
-                        visibilityFiltering = new
+                        VegetationRemovedFaces = vegetationRemovedFaces,
+                        ExtractedFaces = extracted.Faces.Count,
+                        ReducedFaces = reduced.Faces.Count,
+                        TexturedFaces = mesh.Faces.Count,
+                        InferredColourFaces = mesh.SourceImages.Count(string.IsNullOrEmpty),
+                        PhotographCoverage = photographCoverage,
+                        RequestedFaceLimit = project.Settings.FaceLimit,
+                        VoxelSize = volume.VoxelSize,
+                        DetailTolerance = detailTolerance,
+                        Completed = completed,
+                        VisibilityFiltering = new MeshVisibilityReport
                         {
-                            rejectedBeforeCompletion,
-                            rejectedAfterCompletion
+                            RejectedBeforeCompletion = rejectedBeforeCompletion,
+                            RejectedAfterCompletion = rejectedAfterCompletion
                         },
-                        finalHoleRepair = finalRepair,
-                        completionDistance = completed ? volume.VoxelSize * 24 : 0,
-                        islandTrimming = new
+                        FinalHoleRepair = finalRepair,
+                        CompletionDistance = completed ? volume.VoxelSize * 24 : 0,
+                        IslandTrimming = new MeshIslandReport
                         {
-                            mode = project.Settings.MeshIslandMode,
-                            minimumAreaPercent = project.Settings.MeshIslandMinimumAreaPercent,
-                            trimming.InputComponents,
-                            trimming.RemovedComponents,
-                            trimming.RemovedFaces,
-                            trimming.RemovedArea
+                            Mode = project.Settings.MeshIslandMode,
+                            MinimumAreaPercent = project.Settings.MeshIslandMinimumAreaPercent,
+                            InputComponents = trimming.InputComponents,
+                            RemovedComponents = trimming.RemovedComponents,
+                            RemovedFaces = trimming.RemovedFaces,
+                            RemovedArea = trimming.RemovedArea
                         },
-                        method = "Visibility-constrained screened Poisson completion, adaptive simplification and graph-cut photographic view selection",
-                        note = "Completed regions are inferred geometry. Distant extrapolation and surfaces contradicted by multiple visible depth rays are removed; missing and occluded depths remain neutral."
+                        Method = "Visibility-constrained screened Poisson completion, adaptive simplification and graph-cut photographic view selection",
+                        Note = "Completed regions are inferred geometry. Distant extrapolation and surfaces contradicted by multiple visible depth rays are removed; missing and occluded depths remain neutral."
                     });
                 });
         context.Publish("mesh", meshPath);

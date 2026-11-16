@@ -50,10 +50,10 @@ public sealed class HintsCommand : ICliCommand
 
     private void WriteReceipt(ProjectData project)
     {
-        output.Write(new
+        output.Write(new ProjectRevisionResult
         {
-            project.Id,
-            project.Revision
+            Id = project.Id,
+            Revision = project.Revision
         });
     }
 }

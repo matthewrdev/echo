@@ -149,10 +149,7 @@ public sealed class DepthBackendTests
                     var run = new RunData { Id = Guid.NewGuid().ToString("N"), Snapshot = project, Target = "depth" };
                     var context = contexts.Create(store, run, default, null);
                     context.Start();
-                    var alignment = context.Build("alignment", new
-                    {
-                        fixture = "backend"
-                    }, directory => files.AtomicData(Path.Combine(directory, "scene.json"), scene));
+                    var alignment = context.Build("alignment", new Dictionary<string, string> { ["fixture"] = "backend" }, directory => files.AtomicData(Path.Combine(directory, "scene.json"), scene));
                     context.Publish("alignment", alignment);
                     new DepthStage(files, json, composedEstimator, planner, semantics, recovery).Execute(context);
                     context.Complete();

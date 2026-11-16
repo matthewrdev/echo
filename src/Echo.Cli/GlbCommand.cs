@@ -27,11 +27,11 @@ public sealed class GlbCommand : ICliCommand
         }
         else
         {
-            output.Write(new
+            output.Write(new GlbComparisonResult
             {
-                output = inspection,
-                reference = glbWriter.Inspect(arguments.RequiredWord(2)),
-                comparison = "Structural summary only; coordinate frames have not been registered."
+                Output = inspection,
+                Reference = glbWriter.Inspect(arguments.RequiredWord(2)),
+                Comparison = "Structural summary only; coordinate frames have not been registered."
             });
         }
 

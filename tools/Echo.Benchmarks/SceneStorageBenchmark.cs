@@ -18,16 +18,13 @@ public sealed class SceneStorageBenchmark
     private readonly JsonTypeInfo<ReconstructionOverview> overviewType;
 
     [ImportingConstructor]
-    public SceneStorageBenchmark(IBulkArtifactStore bulk, IFileOperations files, IJsonCodec json,
-        [ImportMany] IEnumerable<IJsonReadMetadata> metadata)
+    public SceneStorageBenchmark(IBulkArtifactStore bulk, IFileOperations files, IJsonCodec json)
     {
         this.bulk = bulk;
         this.files = files;
         this.json = json;
-        sceneType = metadata.Select(source => source.GetTypeInfo(typeof(ReconstructionScene)))
-            .OfType<JsonTypeInfo<ReconstructionScene>>().Single();
-        overviewType = metadata.Select(source => source.GetTypeInfo(typeof(ReconstructionOverview)))
-            .OfType<JsonTypeInfo<ReconstructionOverview>>().Single();
+        sceneType = (JsonTypeInfo<ReconstructionScene>)json.Options.GetTypeInfo(typeof(ReconstructionScene));
+        overviewType = (JsonTypeInfo<ReconstructionOverview>)json.Options.GetTypeInfo(typeof(ReconstructionOverview));
     }
 
     public int Run(string[] args)
@@ -83,19 +80,19 @@ public sealed class SceneStorageBenchmark
             Directory.Delete(binaryOutput, true);
         }
         var bytes = Directory.GetFiles(output).Sum(file => new FileInfo(file).Length);
-        var report = new
+        var report = new SceneStorageComparison
         {
-            source,
-            sourceBytes = new FileInfo(source).Length,
-            binaryBytes = bytes,
-            metadataBytes = new FileInfo(binary).Length,
-            points = scene.Points.Count,
-            cameras = scene.Cameras.Count,
-            note = "Three warm-cache trials. Full reads include identical value verification. Writes include durable flush. Paging-open timing excludes visiting points. Concurrent machine work may affect timings.",
-            measurements = records
+            Source = source,
+            SourceBytes = new FileInfo(source).Length,
+            BinaryBytes = bytes,
+            MetadataBytes = new FileInfo(binary).Length,
+            Points = scene.Points.Count,
+            Cameras = scene.Cameras.Count,
+            Note = "Three warm-cache trials. Full reads include identical value verification. Writes include durable flush. Paging-open timing excludes visiting points. Concurrent machine work may affect timings.",
+            Measurements = records
         };
         files.AtomicJson(Path.Combine(output, "comparison.json"), report);
-        Console.WriteLine(json.Encode(report));
+        Console.WriteLine(json.Encode(report, compact: true));
         return 0;
     }
 

@@ -17,7 +17,7 @@ internal sealed class CountingFeatureJsonCodec : IJsonCodec
 
     public JsonSerializerOptions Options => inner.Options;
     public void Write<T>(Stream stream, T value) => inner.Write(stream, value);
-    public string Encode<T>(T value) => inner.Encode(value);
+    public string Encode<T>(T value, bool compact = false) => inner.Encode(value, compact);
     public T Clone<T>(T value) => inner.Clone(value);
     public int ReadCount(string path) => reads.GetValueOrDefault(path);
     public int FeatureReadCount => reads.Values.Sum();

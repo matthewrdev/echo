@@ -1,5 +1,4 @@
 using System.ComponentModel.Composition;
-using System.Text.Json;
 using Echo.Infrastructure;
 
 namespace Echo.Cli;
@@ -22,26 +21,18 @@ public sealed class CommandOutput : ICommandOutput
 
     public void Progress(object value, bool ndjson)
     {
-        var options = new JsonSerializerOptions(jsonCodec.Options)
-        {
-            WriteIndented = false
-        };
-        var line = JsonSerializer.Serialize(value, options);
+        var line = jsonCodec.Encode(value, compact: true);
         var writer = ndjson ? Console.Out : Console.Error;
         writer.WriteLine(line);
     }
 
     public void Error(string message, int exitCode)
     {
-        var options = new JsonSerializerOptions(jsonCodec.Options)
+        Console.Error.WriteLine(jsonCodec.Encode(new CommandError
         {
-            WriteIndented = false
-        };
-        Console.Error.WriteLine(JsonSerializer.Serialize(new
-        {
-            schemaVersion = 1,
-            error = message,
-            exitCode
-        }, options));
+            SchemaVersion = 1,
+            Error = message,
+            ExitCode = exitCode
+        }, compact: true));
     }
 }

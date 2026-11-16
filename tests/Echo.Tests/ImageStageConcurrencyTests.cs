@@ -176,7 +176,7 @@ public sealed class ImageStageConcurrencyTests
     }
 
     private JsonElement[] ReadEvents(IProjectStore store, RunData run) => File.ReadLines(store.PathFor($"runs/{run.Id}/events.ndjson"))
-        .Select(line => JsonSerializer.Deserialize<JsonElement>(line)).ToArray();
+        .Select(line => JsonSerializer.Deserialize(line, CoreJsonReadContext.Default.JsonElement)).ToArray();
 
     private string? EventType(object record) => JsonSerializer.SerializeToElement(record, json.Options).GetProperty("type").GetString();
 

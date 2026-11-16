@@ -20,12 +20,12 @@ public sealed class FusionChunkCheckpoints : IFusionChunkStore
     public IEnumerable<VolumeSample> ReadOrBuild(long first, int count, Func<IList<VolumeSample>> build)
     {
         IList<VolumeSample>? generated = null;
-        var path = context.Build("fusion-chunk", new
+        var path = context.Build("fusion-chunk", new FusionChunkInputs
         {
-            inputs,
-            first,
-            count,
-            formatVersion = 2
+            Inputs = inputs,
+            First = first,
+            Count = count,
+            FormatVersion = 2
         }, directory =>
         {
             generated = build();

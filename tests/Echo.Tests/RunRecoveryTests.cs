@@ -83,57 +83,27 @@ public sealed class RunRecoveryTests
             {
                 var first = contexts.Create(store, SaveRun(store), default, null);
                 first.Start();
-                var artifact = first.Build("feature-image", new
-                {
-                    sample = 1
-                }, directory => File.WriteAllText(Path.Combine(directory, "data"), "saved"));
-                first.Report("imageCheckpoint", new
-                {
-                    stage = "features",
-                    completed = 1,
-                    total = 2
-                });
+                var artifact = first.Build("feature-image", new Dictionary<string, int> { ["sample"] = 1 }, directory => File.WriteAllText(Path.Combine(directory, "data"), "saved"));
+                first.Report("imageCheckpoint", new StageProgressEvent { Stage = "features", Completed = 1, Total = 2, Message = null, Unit = "images" });
                 Check(first.Run.Progress?.Phase == "processing", "An actual build must report processing");
                 var second = contexts.Create(store, SaveRun(store), default, null);
                 second.Start();
-                var reused = second.Build("feature-image", new
-                {
-                    sample = 1
-                }, _ => throw new InvalidOperationException("A cached stage must not execute again"));
-                second.Report("imageCheckpoint", new
-                {
-                    stage = "features",
-                    completed = 1,
-                    total = 2
-                });
+                var reused = second.Build("feature-image", new Dictionary<string, int> { ["sample"] = 1 }, _ => throw new InvalidOperationException("A cached stage must not execute again"));
+                second.Report("imageCheckpoint", new StageProgressEvent { Stage = "features", Completed = 1, Total = 2, Message = null, Unit = "images" });
                 Check(reused == artifact && second.Run.Progress?.Phase == "checking", "Saved work must report a reuse check");
                 Check(second.Run.Progress?.Message.StartsWith("Reusing saved features", StringComparison.Ordinal) == true, "Explain the completed prerequisite check");
-                second.Build("feature-image", new
-                {
-                    sample = 2
-                }, directory => File.WriteAllText(Path.Combine(directory, "data"), "new"));
-                second.Report("imageCheckpoint", new
-                {
-                    stage = "features",
-                    completed = 2,
-                    total = 2
-                });
+                second.Build("feature-image", new Dictionary<string, int> { ["sample"] = 2 }, directory => File.WriteAllText(Path.Combine(directory, "data"), "new"));
+                second.Report("imageCheckpoint", new StageProgressEvent { Stage = "features", Completed = 2, Total = 2, Message = null, Unit = "images" });
                 Check(second.Run.Progress?.Phase == "processing", "A changed input must switch back to actual processing");
             });
         });
         tests.Run("Child checkpoint starts preserve algorithm progress and completed work", () => WithProject(store =>
         {
             using var context = contexts.Create(store, SaveRun(store), default, null);
-            context.Report("stageStarted", new
-            {
-                stage = "alignment"
-            });
+            context.Report("stageStarted", new StageStartedEvent { Stage = "alignment" });
             context.ReportOperation("alignment", new OperationProgress("Guided matching", "Validating overlap", 532, 1682, "image pairs"));
             var advanced = context.Run.Progress!.Updated;
-            context.Report("stageStarted", new
-            {
-                stage = "alignment-guided-pair"
-            });
+            context.Report("stageStarted", new StageStartedEvent { Stage = "alignment-guided-pair" });
             Check(context.Run.Progress.Completed == 532 && context.Run.Progress.Total == 1682, "Child checkpoint erased parent work counters");
             Check(context.Run.Progress.Message == "Validating overlap" && context.Run.Progress.Operation == "Guided matching", "Child checkpoint hid the active algorithm");
             Check(context.Run.Progress.Updated == advanced, "Checkpoint start falsely reported completed work");
