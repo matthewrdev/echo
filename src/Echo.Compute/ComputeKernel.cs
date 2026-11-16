@@ -19,5 +19,6 @@ public enum ComputeKernel
     EpipolarCandidates,
     EpipolarCounts,
     TriangulatePairs,
-    UvWarmStart
+    UvWarmStart,
+    VolumeIndex
 }

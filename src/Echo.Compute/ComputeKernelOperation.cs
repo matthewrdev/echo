@@ -12,7 +12,7 @@ internal static class ComputeKernelOperation
             ComputeKernel.DepthFilter => ComputeOperation.Depth,
             ComputeKernel.CloudSupport => ComputeOperation.Cloud,
             ComputeKernel.FusionIntegrate => ComputeOperation.Fusion,
-            ComputeKernel.SurfaceVisibility or ComputeKernel.VolumeCorners or ComputeKernel.SemanticProject => ComputeOperation.Mesh,
+            ComputeKernel.SurfaceVisibility or ComputeKernel.VolumeIndex or ComputeKernel.VolumeCorners or ComputeKernel.SemanticProject => ComputeOperation.Mesh,
             ComputeKernel.SeamDiffuse or ComputeKernel.TextureProject or ComputeKernel.TexturePadding or ComputeKernel.UvWarmStart => ComputeOperation.Texture,
             _ => throw new ArgumentOutOfRangeException(nameof(kernel))
         };

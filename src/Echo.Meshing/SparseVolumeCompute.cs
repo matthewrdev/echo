@@ -11,48 +11,59 @@ internal static class SparseVolumeCompute
         CancellationToken cancellation, out int mask)
     {
         mask = 0;
-        var suitableSize = samples.Count >= 4096 && samples.Count <= 4_000_000;
-        if (compute == null || !suitableSize)
+        if (compute == null || samples.Count < 4096)
         {
             return null;
         }
-        var capacity = 1;
-        while (capacity < samples.Count * 2)
+        // The Metal API uses signed 32-bit buffer lengths. Budget the complete
+        // resident index, query batch and bounded host staging before opening it.
+        var capacity = 1L;
+        while (capacity < samples.Count * 2L)
         {
             capacity *= 2;
         }
-        if (!compute.CanAllocate((long)capacity * 4 * sizeof(int) + (long)samples.Count * sizeof(float) + 4096 * 12 * sizeof(float), backend))
+        var tableBytes = capacity * sizeof(int);
+        var sampleBytes = samples.Count * 4L * sizeof(int);
+        var addressable = tableBytes <= int.MaxValue && sampleBytes <= int.MaxValue;
+        if (!addressable || !compute.CanAllocate(tableBytes + sampleBytes + 4096 * 12 * sizeof(int) + 65536, backend))
         {
             return null;
         }
-        mask = capacity - 1;
+        mask = (int)capacity - 1;
         var session = compute.Open(backend, cancellation);
         if (session == null)
         {
             return null;
         }
-        var table = ArrayPool<int>.Shared.Rent(capacity * 4);
-        var values = ArrayPool<float>.Shared.Rent(samples.Count);
+        var records = ArrayPool<int>.Shared.Rent(16384);
         try
         {
-            table.AsSpan(0, capacity * 4).Clear();
-            var index = 0;
+            session.Allocate(0, (int)tableBytes);
+            session.Allocate(1, (int)sampleBytes);
+            var count = 0;
+            var offset = 0;
             foreach (var entry in samples)
             {
                 cancellation.ThrowIfCancellationRequested();
-                var slot = Hash(entry.Key) & mask;
-                while (table[slot * 4 + 3] != 0)
+                records[count++] = entry.Key.X;
+                records[count++] = entry.Key.Y;
+                records[count++] = entry.Key.Z;
+                records[count++] = BitConverter.SingleToInt32Bits(entry.Value);
+                if (count == 16384)
                 {
-                    slot = (slot + 1) & mask;
+                    session.UploadRange<int>(1, offset, records.AsSpan(0, count));
+                    offset += count;
+                    count = 0;
                 }
-                table[slot * 4] = entry.Key.X;
-                table[slot * 4 + 1] = entry.Key.Y;
-                table[slot * 4 + 2] = entry.Key.Z;
-                table[slot * 4 + 3] = index + 1;
-                values[index++] = entry.Value;
             }
-            session.Upload<int>(0, table.AsSpan(0, capacity * 4));
-            session.Upload<float>(1, values.AsSpan(0, samples.Count));
+            if (count > 0)
+            {
+                session.UploadRange<int>(1, offset, records.AsSpan(0, count));
+            }
+            // Separate dispatches establish visibility of initialized slots and
+            // the immutable sample records before any corner queries execute.
+            session.Dispatch(ComputeKernel.VolumeIndex, (int)capacity, [mask, 0]);
+            session.Dispatch(ComputeKernel.VolumeIndex, samples.Count, [mask, 1]);
             return session;
         }
         catch (ComputeException) when (backend == ComputeBackend.Auto)
@@ -67,8 +78,7 @@ internal static class SparseVolumeCompute
         }
         finally
         {
-            ArrayPool<int>.Shared.Return(table);
-            ArrayPool<float>.Shared.Return(values);
+            ArrayPool<int>.Shared.Return(records);
         }
     }
 
@@ -95,9 +105,4 @@ internal static class SparseVolumeCompute
         }
     }
 
-    private static int Hash(Grid key)
-    {
-        var hash = unchecked((uint)key.X * 73856093u ^ (uint)key.Y * 19349663u ^ (uint)key.Z * 83492791u);
-        return unchecked((int)(hash ^ (hash >> 16)));
-    }
 }

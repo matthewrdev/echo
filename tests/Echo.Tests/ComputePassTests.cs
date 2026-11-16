@@ -42,6 +42,7 @@ public sealed class ComputePassTests
         tests.Run("Metal cloud support preserves discontinuity and reprojection decisions", CloudSupport);
         tests.Run("Metal fusion preserves the observed field and sample ordering", Fusion);
         tests.Run("Metal sparse extraction preserves topology and full integer grid coordinates", Extraction);
+        tests.Run("Large Metal volume indexes use bounded staging and respect the session budget", LargeExtractionIndex);
         tests.Run("Metal visibility and semantic projection retain CPU evidence decisions", Visibility);
         tests.Run("Metal guided matching rejects off-line descriptor aliases", GuidedMatching);
         tests.Run("Metal batched epipolar verification preserves inliers and adaptive stopping", Epipolar);
@@ -166,6 +167,50 @@ public sealed class ComputePassTests
         Check(cpu.Vertices.Count > 0 && cpu.Vertices.Count == gpu.Vertices.Count && cpu.Faces.Count == gpu.Faces.Count, "Extracted topology differs");
         Check(cpu.Vertices.Zip(gpu.Vertices).All(pair => pair.First.SequenceEqual(pair.Second)), "Vertex coordinates differ");
         Check(cpu.Faces.Zip(gpu.Faces).All(pair => pair.First.SequenceEqual(pair.Second)), "Face indices differ");
+        var fallback = TetrahedralSurface.Extract(samples, .1, default, compute: new FailingFusionComputeService(compute));
+        Check(cpu.Vertices.Count == fallback.Vertices.Count && cpu.Faces.Count == fallback.Faces.Count,
+            "A failed GPU index build changed CPU fallback coverage");
+        Check(cpu.Vertices.Zip(fallback.Vertices).All(pair => pair.First.SequenceEqual(pair.Second))
+            && cpu.Faces.Zip(fallback.Faces).All(pair => pair.First.SequenceEqual(pair.Second)),
+            "A failed GPU index build changed CPU fallback geometry");
+    }
+
+    private void LargeExtractionIndex()
+    {
+        var samples = new GeneratedVolumeSamples();
+        using (var budget = compute.BeginScope(65536))
+        {
+            using var rejected = SparseVolumeCompute.Open(compute, ComputeBackend.Auto, samples, default, out _);
+            Check(rejected == null, "A volume index exceeded its memory budget");
+        }
+        var allocated = GC.GetAllocatedBytesForCurrentThread();
+        using var session = SparseVolumeCompute.Open(compute, ComputeBackend.Metal, samples, default, out var mask);
+        Check(session != null, "The old four-million-sample limit still disabled Metal");
+        Check(GC.GetAllocatedBytesForCurrentThread() - allocated < 8 * 1024 * 1024,
+            "Uploading the volume retained a full-size managed staging table");
+        ReadOnlySpan<Echo.Meshing.Grid> offsets = [new(0, 0, 0), new(1, 0, 0), new(1, 1, 0), new(0, 1, 0),
+            new(0, 0, 1), new(1, 0, 1), new(1, 1, 1), new(0, 1, 1)];
+        var keys = new Echo.Meshing.Grid[4096];
+        var values = new float[keys.Length * 8];
+        var random = new Random(645);
+        for (var index = 0; index < keys.Length; index++)
+        {
+            keys[index] = new Echo.Meshing.Grid(random.Next(-1, 163) - 20000001, random.Next(-1, 163) + 20000001, random.Next(-1, 163));
+        }
+        foreach (var count in new[] { keys.Length, 17 })
+        {
+            SparseVolumeCompute.Read(session!, keys.AsSpan(0, count), values.AsSpan(0, count * 8), mask);
+            for (var index = 0; index < count; index++)
+            {
+                for (var corner = 0; corner < 8; corner++)
+                {
+                    var offset = offsets[corner];
+                    var key = keys[index].Add(offset.X, offset.Y, offset.Z);
+                    var expected = samples.TryGetValue(key, out var value) ? value : float.NaN;
+                    Check(values[index * 8 + corner].Equals(expected), "Large-index collision or missing corner changed a value");
+                }
+            }
+        }
     }
 
     private void Visibility()

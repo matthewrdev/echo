@@ -23,7 +23,21 @@ uint volume_hash(int3 key) {
     uint hash = (uint(key.x) * 73856093u) ^ (uint(key.y) * 19349663u) ^ (uint(key.z) * 83492791u);
     hash ^= hash >> 16; return hash;
 }
-kernel void volume_corners(device const int4* table [[buffer(0)]], device const float* values [[buffer(1)]],
+kernel void volume_index(device atomic_int* table [[buffer(0)]], device const int4* samples [[buffer(1)]],
+    constant int* p [[buffer(8)]], uint id [[thread_position_in_grid]]) {
+    if (p[1] == 0) {
+        atomic_store_explicit(table + id, -1, memory_order_relaxed);
+        return;
+    }
+    uint slot = volume_hash(samples[id].xyz) & uint(p[0]);
+    int empty = -1;
+    while (!atomic_compare_exchange_weak_explicit(table + slot, &empty, int(id), memory_order_relaxed, memory_order_relaxed)) {
+        // A weak exchange may fail spuriously with an unchanged empty slot.
+        if (empty != -1) slot = (slot + 1) & uint(p[0]);
+        empty = -1;
+    }
+}
+kernel void volume_corners(device const int* table [[buffer(0)]], device const int4* samples [[buffer(1)]],
     device const int4* jobs [[buffer(2)]], device float* output [[buffer(3)]],
     constant int* p [[buffer(8)]], uint id [[thread_position_in_grid]]) {
     const int3 offsets[8] = {int3(0,0,0), int3(1,0,0), int3(1,1,0), int3(0,1,0),
@@ -31,8 +45,12 @@ kernel void volume_corners(device const int4* table [[buffer(0)]], device const 
     for (int i = 0; i < 8; i++) {
         int3 key = jobs[id].xyz + offsets[i];
         uint slot = volume_hash(key) & uint(p[0]);
-        while (table[slot].w && any(table[slot].xyz != key)) slot = (slot + 1) & uint(p[0]);
-        output[id * 8 + i] = table[slot].w ? values[table[slot].w - 1] : NAN;
+        int sample = table[slot];
+        while (sample >= 0 && any(samples[sample].xyz != key)) {
+            slot = (slot + 1) & uint(p[0]);
+            sample = table[slot];
+        }
+        output[id * 8 + i] = sample >= 0 ? as_type<float>(samples[sample].w) : NAN;
     }
 }
 float depth_difference(device const float* view, device const float* depths, float3 world) {

@@ -15,6 +15,7 @@ internal static class MetalComputeKernel
             ComputeKernel.CloudSupport => "cloud_support",
             ComputeKernel.FusionIntegrate => "fusion_integrate",
             ComputeKernel.SurfaceVisibility => "surface_visibility",
+            ComputeKernel.VolumeIndex => "volume_index",
             ComputeKernel.VolumeCorners => "volume_corners",
             ComputeKernel.SemanticProject => "semantic_project",
             ComputeKernel.SeamDiffuse => "seam_diffuse",
