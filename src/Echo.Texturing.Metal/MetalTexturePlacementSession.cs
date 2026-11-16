@@ -1,26 +1,37 @@
+using Echo.Contracts;
+using System.Buffers;
 using System.Text;
 
 namespace Echo.Texturing.Metal;
 
-internal sealed class MetalTexturePlacementSession : ITexturePlacementSession
+internal sealed unsafe class MetalTexturePlacementSession : ITexturePlacementSession
 {
     private readonly MetalTextureHandle handle;
     private readonly int size;
+    private readonly StringBuilder details = new(2048);
+    private TextureAtlasOccupancy? uploadedAtlas;
+    private long uploadedRevision;
 
-    public MetalTexturePlacementSession(MetalTextureHandle handle, int size, string device)
+    public MetalTexturePlacementSession(MetalTextureHandle handle, int size, string device, string implementation)
     {
         this.handle = handle;
         this.size = size;
-        Backend = "Metal (" + device + ")";
+        Device = device;
+        Implementation = implementation;
     }
 
-    public string Backend
+    public ComputeBackend Backend => ComputeBackend.Metal;
+    public string Device
+    {
+        get;
+    }
+    public string Implementation
     {
         get;
     }
 
     public TextureMaskPlacement? Find(TextureAtlasOccupancy atlas, IReadOnlyList<TextureMask> masks,
-        int maximumBottom, CancellationToken cancellation)
+        int maximumBottom, CancellationToken cancellation, int minimumBottom = 1)
     {
         cancellation.ThrowIfCancellationRequested();
         if (atlas.Size != size || masks.Count != 4)
@@ -28,45 +39,64 @@ internal sealed class MetalTexturePlacementSession : ITexturePlacementSession
             throw new ArgumentException("Expected the session's atlas size and four ordered quarter-turn masks.");
         }
 
-        var descriptors = new uint[16];
-        var spans = new uint[checked(masks.Sum(mask => mask.Spans.Length) * 3)];
-        var offset = 0;
-        for (var rotation = 0; rotation < masks.Count; rotation++)
+        Span<uint> descriptors = stackalloc uint[16];
+        var spanLength = checked(masks.Sum(mask => mask.Spans.Length) * 3);
+        var spans = ArrayPool<uint>.Shared.Rent(spanLength);
+        try
         {
-            var mask = masks[rotation];
-            if (mask.QuarterTurns != rotation || mask.Spans.Length == 0)
+            var offset = 0;
+            for (var rotation = 0; rotation < masks.Count; rotation++)
             {
-                throw new ArgumentException("Expected nonempty masks in quarter-turn order.");
+                var mask = masks[rotation];
+                if (mask.QuarterTurns != rotation || mask.Spans.Length == 0)
+                {
+                    throw new ArgumentException("Expected nonempty masks in quarter-turn order.");
+                }
+                descriptors[rotation * 4] = (uint)mask.Width;
+                descriptors[rotation * 4 + 1] = (uint)mask.Height;
+                descriptors[rotation * 4 + 2] = (uint)(offset / 3);
+                descriptors[rotation * 4 + 3] = (uint)mask.Spans.Length;
+                foreach (var span in mask.Spans)
+                {
+                    spans[offset++] = (uint)span.Y;
+                    spans[offset++] = (uint)span.Start;
+                    spans[offset++] = (uint)span.End;
+                }
             }
-            descriptors[rotation * 4] = (uint)mask.Width;
-            descriptors[rotation * 4 + 1] = (uint)mask.Height;
-            descriptors[rotation * 4 + 2] = (uint)(offset / 3);
-            descriptors[rotation * 4 + 3] = (uint)mask.Spans.Length;
-            foreach (var span in mask.Spans)
+
+            var sameAtlas = ReferenceEquals(uploadedAtlas, atlas);
+            var unchanged = sameAtlas && uploadedRevision == atlas.Revision;
+            var incremental = sameAtlas && uploadedRevision + 1 == atlas.Revision;
+            var firstRow = incremental ? atlas.ChangedFirstRow : 0;
+            var rowCount = unchanged ? 0 : incremental ? atlas.ChangedRowCount : atlas.Size;
+            uint result;
+            int status;
+            fixed (uint* occupancyPointer = atlas.Words, descriptorPointer = descriptors, spanPointer = spans)
             {
-                spans[offset++] = (uint)span.Y;
-                spans[offset++] = (uint)span.Start;
-                spans[offset++] = (uint)span.End;
+                status = MetalTextureNative.Find(handle, occupancyPointer, firstRow, rowCount, descriptorPointer, spanPointer,
+                    spanLength / 3, minimumBottom, Math.Min(size, maximumBottom), out result, details, details.Capacity);
             }
-        }
+            cancellation.ThrowIfCancellationRequested();
+            if (status != 0)
+            {
+                throw new TextureAccelerationException(details.ToString());
+            }
+            uploadedAtlas = atlas;
+            uploadedRevision = atlas.Revision;
+            if (result == uint.MaxValue)
+            {
+                return null;
+            }
 
-        var details = new StringBuilder(2048);
-        var status = MetalTextureNative.Find(handle, atlas.Words, descriptors, spans, spans.Length / 3,
-            Math.Min(size, maximumBottom), out var result, details, details.Capacity);
-        cancellation.ThrowIfCancellationRequested();
-        if (status != 0)
-        {
-            throw new TextureAccelerationException(details.ToString());
+            var x = (int)(result % size);
+            var rotationIndex = (int)(result / size % 4);
+            var bottom = (int)(result / size / 4);
+            return new TextureMaskPlacement(x, bottom - masks[rotationIndex].Height, rotationIndex);
         }
-        if (result == uint.MaxValue)
+        finally
         {
-            return null;
+            ArrayPool<uint>.Shared.Return(spans);
         }
-
-        var x = (int)(result % size);
-        var rotationIndex = (int)(result / size % 4);
-        var bottom = (int)(result / size / 4);
-        return new TextureMaskPlacement(x, bottom - masks[rotationIndex].Height, rotationIndex);
     }
 
     public void Dispose()

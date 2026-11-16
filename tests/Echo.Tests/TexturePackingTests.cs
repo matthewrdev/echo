@@ -1,3 +1,4 @@
+using Echo.Compute;
 using Echo.Contracts;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
@@ -10,14 +11,16 @@ namespace Echo.Tests;
 public sealed class TexturePackingTests
 {
     private readonly ITexturePatchPacker packer;
+    private readonly IComputeService compute;
     private readonly ITextureProfilePacker profiles;
     private readonly ITexturePlacementAccelerator[] accelerators;
 
     [ImportingConstructor]
     public TexturePackingTests(ITexturePatchPacker packer, ITextureProfilePacker profiles,
-        [ImportMany] IEnumerable<ITexturePlacementAccelerator> accelerators)
+        [ImportMany] IEnumerable<ITexturePlacementAccelerator> accelerators, IComputeService compute)
     {
         this.packer = packer;
+        this.compute = compute;
         this.profiles = profiles;
         this.accelerators = accelerators.ToArray();
     }
@@ -96,6 +99,45 @@ public sealed class TexturePackingTests
             }
             ValidatePixels(patches, 128, 2, scale);
         });
+        tests.Run("Packing budgets retain complete layouts and agree across CPU and Metal", () =>
+        {
+            using var probe = OpenMetal(64, requireMetal);
+            var gaps = new TextureGapPacker(accelerators, compute);
+            foreach (var budget in new long[] { 1, 8192, 65536 })
+            {
+                var cpu = CavityFixture();
+                var baseline = ((TexturePatchPacker)packer).TryPackSkyline(cpu, 128, 2, default)!.Value;
+                var saved = cpu.Select(patch => new TexturePatchPlacement(patch.AtlasBounds, patch.QuarterTurns)).ToArray();
+                var messages = new List<string>();
+                var scale = gaps.Improve(cpu, 128, 2, baseline, default, messages.Add, ComputeBackend.Cpu, budget);
+                Check(scale >= baseline, "Budget cannot discard the baseline");
+                ValidatePixels(cpu, 128, 2, scale);
+                if (budget == 1)
+                {
+                    Check(messages.Any(message => message.Contains("candidate budget", StringComparison.Ordinal)), "Exhaustion must be reported");
+                    Check(scale == baseline && cpu.Select(patch => new TexturePatchPlacement(patch.AtlasBounds, patch.QuarterTurns)).SequenceEqual(saved),
+                        "Partial candidates must restore every baseline placement");
+                }
+                if (probe != null)
+                {
+                    var gpu = CavityFixture();
+                    ((TexturePatchPacker)packer).TryPackSkyline(gpu, 128, 2, default);
+                    using var scope = compute.BeginScope(1024 * 1024);
+                    var gpuScale = gaps.Improve(gpu, 128, 2, baseline, default, backend: ComputeBackend.Metal, maximumCandidates: budget);
+                    Check(gpuScale == scale, "Budget must stop at the same search boundary on both backends");
+                    for (var i = 0; i < cpu.Length; i++)
+                    {
+                        Check(cpu[i].AtlasBounds == gpu[i].AtlasBounds && cpu[i].QuarterTurns == gpu[i].QuarterTurns, "Budget changed backend placement parity");
+                    }
+                    if (budget > 1)
+                    {
+                        Check(scope.Executions.Any(execution => execution.Operation == ComputeOperation.TexturePacking
+                            && execution.Backend == ComputeBackend.Metal && execution.Precision == ComputePrecision.IntegerExact),
+                            "Packing must record its own integer Metal execution");
+                    }
+                }
+            }
+        });
         tests.Run("Mask search handles word boundaries, rotations, full atlases and cancellation", () =>
         {
             var atlas = new TextureAtlasOccupancy(65);
@@ -141,6 +183,24 @@ public sealed class TexturePackingTests
                 var expected = TextureMaskSearch.Find(atlas, masks, maximumBottom, default);
                 var actual = session.Find(atlas, masks, maximumBottom, default);
                 Check(actual == expected, $"CPU/Metal placement mismatch for fragmentation case {attempt}: {expected} / {actual}");
+            }
+            var incremental = new TextureAtlasOccupancy(65);
+            var small = Masks(Rectangle(4, 3), 1, 0);
+            for (var step = 0; step < 24; step++)
+            {
+                var minimum = step % 2 == 0 ? 1 : 20;
+                var expected = TextureMaskSearch.Find(incremental, small, 65, default, minimum);
+                Check(session.Find(incremental, small, 65, default, minimum) == expected, "Dirty-row upload changed placement");
+                Check(session.Find(incremental, small, 65, default, minimum) == expected, "Unchanged occupancy must remain resident");
+                if (expected != null)
+                {
+                    incremental.Place(small[expected.QuarterTurns], expected.X, expected.Y);
+                    if (step % 4 == 0)
+                    {
+                        // Missing multiple revisions requires a complete refresh.
+                        incremental.Place(SolidMask(1, 1), 64, step);
+                    }
+                }
             }
             var full = new TextureAtlasOccupancy(65);
             full.Place(SolidMask(65, 65), 0, 0);

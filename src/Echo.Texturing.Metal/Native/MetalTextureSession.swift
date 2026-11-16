@@ -35,10 +35,13 @@ final class MetalTextureSession {
     }
 
     func find(
-        occupancy: UnsafePointer<UInt32>, masks: UnsafePointer<UInt32>, spans: UnsafePointer<UInt32>,
-        spanCount: Int, maximumBottom: Int
+        occupancy: UnsafePointer<UInt32>, firstRow: Int, rowCount: Int, masks: UnsafePointer<UInt32>,
+        spans: UnsafePointer<UInt32>,
+        spanCount: Int, minimumBottom: Int, maximumBottom: Int
     ) throws -> UInt32 {
-        guard spanCount > 0, maximumBottom > 0, maximumBottom <= size else {
+        guard spanCount > 0, minimumBottom > 0, minimumBottom <= maximumBottom, maximumBottom <= size,
+            firstRow >= 0, rowCount >= 0, firstRow <= size, rowCount <= size - firstRow
+        else {
             throw Self.failure("Invalid texture search inputs")
         }
         let spanBytes = spanCount * 3 * 4
@@ -46,7 +49,11 @@ final class MetalTextureSession {
             self.spans = device.makeBuffer(length: spanBytes, options: .storageModeShared)
         }
         guard let spanBuffer = self.spans else { throw Self.failure("Could not allocate Metal island mask") }
-        self.occupancy.contents().copyMemory(from: occupancy, byteCount: self.occupancy.length)
+        let wordsPerRow = (size + 31) / 32
+        if rowCount > 0 {
+            self.occupancy.contents().advanced(by: firstRow * wordsPerRow * 4).copyMemory(
+                from: occupancy.advanced(by: firstRow * wordsPerRow), byteCount: rowCount * wordsPerRow * 4)
+        }
         self.masks.contents().copyMemory(from: masks, byteCount: self.masks.length)
         spanBuffer.contents().copyMemory(from: spans, byteCount: spanBytes)
         result.contents().assumingMemoryBound(to: UInt32.self).pointee = UInt32.max
@@ -58,13 +65,13 @@ final class MetalTextureSession {
         for (index, buffer) in [self.occupancy, self.masks, spanBuffer, result].enumerated() {
             encoder.setBuffer(buffer, offset: 0, index: index)
         }
-        // Four words preserve Metal uint3's 16-byte constant-buffer alignment.
-        let counts = [UInt32(size), UInt32((size + 31) / 32), UInt32(maximumBottom), 0]
+        // Search only this band of bottom edges; occupancy survives subsequent bands.
+        let counts = [UInt32(size), UInt32((size + 31) / 32), UInt32(maximumBottom), UInt32(minimumBottom)]
         counts.withUnsafeBytes { raw in
             encoder.setBytes(raw.baseAddress!, length: raw.count, index: 4)
         }
         encoder.dispatchThreads(
-            MTLSize(width: size, height: maximumBottom, depth: 4),
+            MTLSize(width: size, height: maximumBottom - minimumBottom + 1, depth: 4),
             threadsPerThreadgroup: MTLSize(width: min(256, pipeline.maxTotalThreadsPerThreadgroup), height: 1, depth: 1)
         )
         encoder.endEncoding()

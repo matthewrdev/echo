@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Echo.Texturing/Echo.Texturing.csproj" />
+    <EmbeddedResource Include="Native/TexturePlacement.metal" />
     <Content Include="Native/TexturePlacement.metal" Link="TexturePlacement.metal" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="obj/$(Configuration)/native/libEchoTextureMetal.dylib" Link="libEchoTextureMetal.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
   </ItemGroup>

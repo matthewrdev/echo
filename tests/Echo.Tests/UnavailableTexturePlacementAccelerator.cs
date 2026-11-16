@@ -4,6 +4,8 @@ namespace Echo.Tests;
 
 internal sealed class UnavailableTexturePlacementAccelerator : ITexturePlacementAccelerator
 {
+    public string Implementation => "unavailable-test";
+
     public int OpenCount
     {
         get; private set;

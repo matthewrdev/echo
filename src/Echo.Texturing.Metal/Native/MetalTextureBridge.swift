@@ -27,16 +27,18 @@ public func echoTextureMetalCreate(
 
 @_cdecl("echo_texture_metal_find")
 public func echoTextureMetalFind(
-    _ handle: UnsafeMutableRawPointer, _ occupancy: UnsafePointer<UInt32>, _ masks: UnsafePointer<UInt32>,
-    _ spans: UnsafePointer<UInt32>, _ spanCount: Int32, _ maximumBottom: Int32,
+    _ handle: UnsafeMutableRawPointer, _ occupancy: UnsafePointer<UInt32>, _ firstRow: Int32, _ rowCount: Int32,
+    _ masks: UnsafePointer<UInt32>,
+    _ spans: UnsafePointer<UInt32>, _ spanCount: Int32, _ minimumBottom: Int32, _ maximumBottom: Int32,
     _ output: UnsafeMutablePointer<UInt32>, _ details: UnsafeMutablePointer<CChar>?, _ capacity: Int32
 ) -> Int32 {
     autoreleasepool {
         do {
             let session = Unmanaged<MetalTextureSession>.fromOpaque(handle).takeUnretainedValue()
             output.pointee = try session.find(
-                occupancy: occupancy, masks: masks, spans: spans, spanCount: Int(spanCount),
-                maximumBottom: Int(maximumBottom))
+                occupancy: occupancy, firstRow: Int(firstRow), rowCount: Int(rowCount), masks: masks, spans: spans,
+                spanCount: Int(spanCount),
+                minimumBottom: Int(minimumBottom), maximumBottom: Int(maximumBottom))
             return 0
         } catch {
             writeTextureDetails(error.localizedDescription, to: details, capacity: capacity)

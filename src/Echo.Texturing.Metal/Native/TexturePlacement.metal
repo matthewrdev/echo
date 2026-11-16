@@ -9,12 +9,12 @@ kernel void texture_placement(
     device const uint4 *masks [[buffer(1)]],
     device const uint *spans [[buffer(2)]],
     device atomic_uint *result [[buffer(3)]],
-    constant uint3 &counts [[buffer(4)]],
+    constant uint4 &counts [[buffer(4)]],
     uint3 position [[thread_position_in_grid]])
 {
     const uint size = counts.x;
     const uint wordsPerRow = counts.y;
-    const uint bottom = position.y + 1;
+    const uint bottom = position.y + counts.w;
     const uint rotation = position.z;
     const uint x = position.x;
     const uint4 mask = masks[rotation];

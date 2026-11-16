@@ -1,11 +1,21 @@
+using Echo.Contracts;
+
 namespace Echo.Texturing;
 
 public interface ITexturePlacementSession : IDisposable
 {
-    string Backend
+    ComputeBackend Backend
+    {
+        get;
+    }
+    string Device
+    {
+        get;
+    }
+    string Implementation
     {
         get;
     }
     TextureMaskPlacement? Find(TextureAtlasOccupancy atlas, IReadOnlyList<TextureMask> masks,
-        int maximumBottom, CancellationToken cancellation);
+        int maximumBottom, CancellationToken cancellation, int minimumBottom = 1);
 }

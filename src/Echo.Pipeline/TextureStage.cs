@@ -12,13 +12,15 @@ public sealed class TextureStage : IPipelineStage
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
     private readonly ITextureBaker textureBaker;
+    private readonly ITexturePlacementAccelerator[] packingAccelerators;
 
     [ImportingConstructor]
-    public TextureStage(IFileOperations fileOperations, IJsonCodec jsonCodec, ITextureBaker textureBaker)
+    public TextureStage(IFileOperations fileOperations, IJsonCodec jsonCodec, ITextureBaker textureBaker, [ImportMany] IEnumerable<ITexturePlacementAccelerator> packingAccelerators)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
         this.textureBaker = textureBaker;
+        this.packingAccelerators = packingAccelerators.ToArray();
     }
 
     public string Name => "texture";
@@ -37,9 +39,10 @@ public sealed class TextureStage : IPipelineStage
             meshPath,
             alignment,
             project.Settings.TextureSize,
-            textureVersion = 16,
+            textureVersion = 17,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Texture),
+            packingImplementation = project.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : string.Join(";", packingAccelerators.Select(accelerator => accelerator.Implementation)),
             project.Settings.VegetationTextureScale,
             project.Settings.TextureJpegQuality,
             project.Settings.TextureChartFaces,

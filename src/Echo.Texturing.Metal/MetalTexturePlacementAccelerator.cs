@@ -1,14 +1,26 @@
 using System.ComponentModel.Composition;
 using System.Text;
+using System.Security.Cryptography;
 
 namespace Echo.Texturing.Metal;
 
 [Export(typeof(ITexturePlacementAccelerator)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MetalTexturePlacementAccelerator : ITexturePlacementAccelerator
 {
+    private readonly string source;
+
     [ImportingConstructor]
     public MetalTexturePlacementAccelerator()
     {
+        using var stream = typeof(MetalTexturePlacementAccelerator).Assembly.GetManifestResourceStream("Echo.Texturing.Metal.Native.TexturePlacement.metal")!;
+        using var reader = new StreamReader(stream);
+        source = reader.ReadToEnd();
+        Implementation = "echo-texture-metal-2;integer;" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
+    }
+
+    public string Implementation
+    {
+        get;
     }
 
     public ITexturePlacementSession Open(int size, CancellationToken cancellation)
@@ -20,14 +32,13 @@ public sealed class MetalTexturePlacementAccelerator : ITexturePlacementAccelera
         }
         try
         {
-            var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TexturePlacement.metal"));
             var details = new StringBuilder(2048);
             var pointer = MetalTextureNative.Create(source, size, details, details.Capacity);
             if (pointer == IntPtr.Zero)
             {
                 throw new TextureAccelerationException(details.ToString());
             }
-            return new MetalTexturePlacementSession(new MetalTextureHandle(pointer), size, details.ToString());
+            return new MetalTexturePlacementSession(new MetalTextureHandle(pointer), size, details.ToString(), Implementation);
         }
         catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException or IOException)
         {

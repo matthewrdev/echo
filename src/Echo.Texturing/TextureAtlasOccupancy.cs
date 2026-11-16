@@ -4,11 +4,13 @@ namespace Echo.Texturing;
 
 public sealed class TextureAtlasOccupancy
 {
+    private readonly uint[] words;
+
     public TextureAtlasOccupancy(int size)
     {
         Size = size;
         WordsPerRow = (size + 31) / 32;
-        Words = new uint[checked(size * WordsPerRow)];
+        words = new uint[checked(size * WordsPerRow)];
     }
 
     public int Size
@@ -19,9 +21,18 @@ public sealed class TextureAtlasOccupancy
     {
         get;
     }
-    public uint[] Words
+    public ReadOnlySpan<uint> Words => words;
+    public long Revision
     {
-        get;
+        get; private set;
+    }
+    public int ChangedFirstRow
+    {
+        get; private set;
+    }
+    public int ChangedRowCount
+    {
+        get; private set;
     }
     public int UsedHeight
     {
@@ -60,10 +71,13 @@ public sealed class TextureAtlasOccupancy
             var end = x + span.End;
             for (var word = start / 32; word <= (end - 1) / 32; word++)
             {
-                Words[(y + span.Y) * WordsPerRow + word] |= RangeBits(start, end, word);
+                words[(y + span.Y) * WordsPerRow + word] |= RangeBits(start, end, word);
             }
         }
         UsedHeight = Math.Max(UsedHeight, y + mask.Height);
+        ChangedFirstRow = y;
+        ChangedRowCount = mask.Height;
+        Revision++;
     }
 
     private int CollisionEnd(int y, int start, int end)
@@ -71,17 +85,17 @@ public sealed class TextureAtlasOccupancy
         var row = y * WordsPerRow;
         for (var word = start / 32; word <= (end - 1) / 32; word++)
         {
-            var overlap = Words[row + word] & RangeBits(start, end, word);
+            var overlap = words[row + word] & RangeBits(start, end, word);
             if (overlap == 0)
             {
                 continue;
             }
 
             var bit = BitOperations.TrailingZeroCount(overlap);
-            var empty = ~Words[row + word] & (uint.MaxValue << bit);
+            var empty = ~words[row + word] & (uint.MaxValue << bit);
             while (empty == 0 && word + 1 < WordsPerRow)
             {
-                empty = ~Words[row + ++word];
+                empty = ~words[row + ++word];
             }
             return Math.Min(Size, word * 32 + BitOperations.TrailingZeroCount(empty));
         }

@@ -1,3 +1,4 @@
+using Echo.Compute;
 using Echo.Contracts;
 using System.ComponentModel.Composition;
 using SkiaSharp;
@@ -8,21 +9,25 @@ namespace Echo.Texturing;
 public sealed class TextureGapPacker : ITextureGapPacker
 {
     private readonly ITexturePlacementAccelerator[] accelerators;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public TextureGapPacker([ImportMany] IEnumerable<ITexturePlacementAccelerator> accelerators)
+    public TextureGapPacker([ImportMany] IEnumerable<ITexturePlacementAccelerator> accelerators, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.accelerators = accelerators.ToArray();
+        this.compute = compute;
     }
 
     public double Improve(IReadOnlyList<TexturePatch> patches, int size, int gutter, double baseline,
-        CancellationToken cancellation, Action<string>? progress = null, ComputeBackend backend = ComputeBackend.Auto)
+        CancellationToken cancellation, Action<string>? progress = null, ComputeBackend backend = ComputeBackend.Auto,
+        long maximumCandidates = 64L * 1024 * 1024)
     {
+        var budget = new TexturePackingBudget(maximumCandidates);
         if (!Enum.IsDefined(backend))
         {
             throw new ArgumentException("Choose auto, cpu or metal for texture packing.", nameof(backend));
         }
-        if (patches.Count < 2)
+        if (patches.Count < 2 || maximumCandidates == 0)
         {
             return baseline;
         }
@@ -38,14 +43,19 @@ public sealed class TextureGapPacker : ITextureGapPacker
         var lower = baseline;
         using var session = Open(size / cellSize, backend, cancellation, progress);
         var accelerated = session != null;
-        progress?.Invoke($"Filling gaps between intact UV islands with {session?.Backend ?? "CPU"}…");
+        progress?.Invoke($"Filling gaps between intact UV islands with {(session == null ? "CPU" : $"{session.Backend} ({session.Device})")}…");
         try
         {
             for (var iteration = 0; iteration < 8; iteration++)
             {
                 cancellation.ThrowIfCancellationRequested();
                 var candidate = (lower + upper) * .5;
-                var packed = TryPack(patches, size, gutter, candidate, cellSize, session, ref accelerated, cancellation, progress, backend);
+                var packed = TryPack(patches, size, gutter, candidate, cellSize, session, ref accelerated, cancellation, progress, backend, budget);
+                if (budget.Exhausted)
+                {
+                    progress?.Invoke("Gap search reached its candidate budget; retaining the best complete layout.");
+                    break;
+                }
                 if (packed)
                 {
                     lower = candidate;
@@ -71,7 +81,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
 
     internal bool TryPack(IReadOnlyList<TexturePatch> patches, int size, int gutter, double scale, int cellSize,
         ITexturePlacementSession? session, ref bool accelerated, CancellationToken cancellation, Action<string>? progress = null,
-        ComputeBackend backend = ComputeBackend.Auto)
+        ComputeBackend backend = ComputeBackend.Auto, TexturePackingBudget? budget = null)
     {
         var atlas = new TextureAtlasOccupancy(size / cellSize);
         var padding = (int)Math.Ceiling((double)gutter / cellSize) * cellSize;
@@ -92,7 +102,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
             }
 
             var maximumBottom = Math.Min(atlas.Size, atlas.UsedHeight + masks.Min(mask => mask.Height));
-            var placement = Find(atlas, masks, maximumBottom, session, ref accelerated, cancellation, progress, backend);
+            var placement = Find(atlas, masks, maximumBottom, session, ref accelerated, cancellation, progress, backend, budget);
             if (placement == null)
             {
                 return false;
@@ -112,26 +122,48 @@ public sealed class TextureGapPacker : ITextureGapPacker
     }
 
     private TextureMaskPlacement? Find(TextureAtlasOccupancy atlas, TextureMask[] masks, int maximumBottom,
-        ITexturePlacementSession? session, ref bool accelerated, CancellationToken cancellation, Action<string>? progress, ComputeBackend backend)
+        ITexturePlacementSession? session, ref bool accelerated, CancellationToken cancellation, Action<string>? progress,
+        ComputeBackend backend, TexturePackingBudget? budget)
     {
-        if (accelerated && session != null)
+        // Search bottom edges in order. Both backends spend the same candidate
+        // budget and stop at the same band, preserving deterministic layouts.
+        for (var first = masks.Min(mask => mask.Height); first <= maximumBottom; first += 32)
         {
-            try
+            cancellation.ThrowIfCancellationRequested();
+            var last = Math.Min(first + 31, maximumBottom);
+            if (budget != null && !budget.TrySpend((long)atlas.Size * (last - first + 1) * 4))
             {
-                var placement = session.Find(atlas, masks, maximumBottom, cancellation);
-                if (placement != null && !atlas.CanPlace(masks[placement.QuarterTurns], placement.X, placement.Y))
+                return null;
+            }
+            TextureMaskPlacement? placement;
+            if (accelerated && session != null)
+            {
+                try
                 {
-                    throw new TextureAccelerationException("Metal returned an overlapping placement.");
+                    placement = session.Find(atlas, masks, last, cancellation, first);
+                    if (placement != null && !atlas.CanPlace(masks[placement.QuarterTurns], placement.X, placement.Y))
+                    {
+                        throw new TextureAccelerationException("Metal returned an overlapping placement.");
+                    }
+                    if (placement != null)
+                    {
+                        return placement;
+                    }
+                    continue;
                 }
+                catch (TextureAccelerationException error) when (backend == ComputeBackend.Auto)
+                {
+                    accelerated = false;
+                    progress?.Invoke($"Metal gap search unavailable; continuing on CPU: {error.Message}");
+                }
+            }
+            placement = TextureMaskSearch.Find(atlas, masks, last, cancellation, first);
+            if (placement != null)
+            {
                 return placement;
             }
-            catch (TextureAccelerationException error) when (backend == ComputeBackend.Auto)
-            {
-                accelerated = false;
-                progress?.Invoke($"Metal gap search unavailable; continuing on CPU: {error.Message}");
-            }
         }
-        return TextureMaskSearch.Find(atlas, masks, maximumBottom, cancellation);
+        return null;
     }
 
     private ITexturePlacementSession? Open(int size, ComputeBackend backend, CancellationToken cancellation, Action<string>? progress)
@@ -144,7 +176,8 @@ public sealed class TextureGapPacker : ITextureGapPacker
         {
             try
             {
-                return accelerator.Open(size, cancellation);
+                var session = accelerator.Open(size, cancellation);
+                return compute == null ? session : new ObservedTexturePlacementSession(session, compute);
             }
             catch (TextureAccelerationException error) when (backend == ComputeBackend.Auto)
             {
