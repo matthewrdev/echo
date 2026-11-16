@@ -24,6 +24,7 @@ struct CLICommandInvocation: Codable, Identifiable, Sendable {
         }
         isBackgroundQuery =
             words.first == "inspect" || words.first == "runtime-info"
+            || words.first == "trace"
             || words.starts(with: ["run", "list"]) || words.starts(with: ["run", "status"])
             || words.starts(with: ["images", "metadata"]) || words.starts(with: ["images", "payload"])
     }

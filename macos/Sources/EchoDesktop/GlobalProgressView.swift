@@ -22,6 +22,8 @@ struct GlobalProgressView: View {
                         .textSelection(.enabled)
                 }
                 Spacer(minLength: 10)
+                Button("Performance", systemImage: "chart.bar.xaxis") { workspace.sheet = .performance }
+                    .help("Recorded step timings, timeline and run comparisons")
                 Toggle("Telemetry", systemImage: "chart.xyaxis.line", isOn: $workspace.showsTelemetry)
                     .toggleStyle(.button)
                     .help("Show or hide memory, CPU and thread charts")

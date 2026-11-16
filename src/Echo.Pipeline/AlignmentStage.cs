@@ -62,6 +62,7 @@ public sealed class AlignmentStage : IPipelineStage
         {
             context.ReportProgress(Name, "Initial alignment: verifying image geometry and refining camera poses.");
             var scene = reconstructor.Align(project, pairs, context.Cancellation, Preview);
+            context.Trace.Operation(new OperationProgress("Save initial alignment", "Saving cameras and sparse points"));
             fileOperations.AtomicData(Path.Combine(directory, "scene.json"), scene);
         });
 

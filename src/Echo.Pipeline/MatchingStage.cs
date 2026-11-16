@@ -98,8 +98,10 @@ public sealed class MatchingStage : IPipelineStage
             project.Settings.MatchDistanceThreshold
         }, directory =>
         {
+            context.Trace.Operation(new OperationProgress("Load feature descriptors", "Reading pair inputs"));
             var a = cache.Read(context.Store.PathFor(featureUnits[pair.A] + "/features.json"), cancellation);
             var b = cache.Read(context.Store.PathFor(featureUnits[pair.B] + "/features.json"), cancellation);
+            context.Trace.Operation(new OperationProgress("Descriptor matching", "Matching image pair"));
             var matches = featureMatcher.Match(a, b, project.Settings, cancellation);
             foreach (var hint in hints)
             {
@@ -111,7 +113,9 @@ public sealed class MatchingStage : IPipelineStage
                 });
             }
 
+            context.Trace.Operation(new OperationProgress("Verify image geometry", "Rejecting inconsistent matches"));
             ImagePairVerifier.Verify(photos[pair.A], photos[pair.B], matches, cancellation, compute, project.Settings.ComputeBackend);
+            context.Trace.Operation(new OperationProgress("Save matched pair", "Saving verified correspondences", matches.Matches.Count, matches.Matches.Count, "matches"));
             fileOperations.AtomicJson(Path.Combine(directory, "pair.json"), matches);
         });
     }

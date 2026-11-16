@@ -2,6 +2,7 @@ import Foundation
 import Metal
 
 final class ComputeSession {
+    var gpuMilliseconds = 0.0
     let owner: ComputeDevice
     let budget: Int
     var buffers: [MTLBuffer?] = Array(repeating: nil, count: 8)
@@ -20,6 +21,9 @@ final class ComputeSession {
         dispatches = 0
         pending.commit()
         pending.waitUntilCompleted()
+        if pending.gpuStartTime > 0, pending.gpuEndTime >= pending.gpuStartTime {
+            gpuMilliseconds += (pending.gpuEndTime - pending.gpuStartTime) * 1000
+        }
         guard pending.status == .completed else {
             throw pending.error ?? ComputeDevice.failure("Metal command did not complete")
         }

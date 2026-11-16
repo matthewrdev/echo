@@ -29,4 +29,10 @@ internal static unsafe class MetalComputeNative
 
     [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_read")]
     internal static extern int Read(IntPtr session, int slot, void* output, int bytes, StringBuilder error, int capacity);
+    [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_gpu_time")]
+    internal static extern double GpuTime(IntPtr handle);
+
+    [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_close_timed")]
+    internal static extern double CloseTimed(IntPtr handle);
+
 }

@@ -2,6 +2,8 @@ using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
+using Echo.Telemetry;
+using System.Text.Json;
 
 namespace Echo.Pipeline;
 
@@ -10,12 +12,14 @@ public sealed class RunStateRecovery : IRunStateRecovery
 {
     private readonly IRunContextFactory contextFactory;
     private readonly IJsonCodec jsonCodec;
+    private readonly IPerformanceTraceStore traces;
 
     [ImportingConstructor]
-    public RunStateRecovery(IRunContextFactory contextFactory, IJsonCodec jsonCodec)
+    public RunStateRecovery(IRunContextFactory contextFactory, IJsonCodec jsonCodec, IPerformanceTraceStore traces)
     {
         this.contextFactory = contextFactory;
         this.jsonCodec = jsonCodec;
+        this.traces = traces;
     }
 
     public void Recover(IProjectStore store)
@@ -47,8 +51,20 @@ public sealed class RunStateRecovery : IRunStateRecovery
                     continue;
                 }
 
-                var context = contextFactory.Create(store, run, CancellationToken.None, null);
-                if (File.Exists(store.PathFor($"runs/{run.Id}/cancel")))
+                var cancelled = File.Exists(store.PathFor($"runs/{run.Id}/cancel"));
+                using var context = contextFactory.Create(store, run, CancellationToken.None, null);
+                try
+                {
+                    traces.RecoverInterrupted(Path.GetDirectoryName(path)!, cancelled);
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+                {
+                    context.Report("warning", new
+                    {
+                        message = "Interrupted performance trace could not be recovered: " + error.Message
+                    });
+                }
+                if (cancelled)
                 {
                     context.Cancel();
                 }

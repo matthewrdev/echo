@@ -66,12 +66,27 @@ public sealed class Processor : IProcessor
         try
         {
             context.ReportProgress(run.Target, "Checking source photographs and reusable saved work before processing.");
-            ValidateSources(context);
+            using (var validation = context.Trace.Begin("Validate source photographs", PerformanceSpanKind.Operation))
+            {
+                try
+                {
+                    ValidateSources(context);
+                }
+                catch (OperationCanceledException)
+                {
+                    validation?.Complete(PerformanceStatus.Cancelled);
+                    throw;
+                }
+                catch
+                {
+                    validation?.Complete(PerformanceStatus.Failed);
+                    throw;
+                }
+            }
             foreach (var stage in stages)
             {
                 context.Cancellation.ThrowIfCancellationRequested();
-                stage.Execute(context);
-                context.ReleaseStageResources();
+                ExecuteStage(context, stage);
                 if (stage.Name == run.Target)
                 {
                     resourceMonitor.Dispose();
@@ -102,6 +117,31 @@ public sealed class Processor : IProcessor
             resourceMonitor.Dispose();
             context.Fail(error);
             throw;
+        }
+    }
+
+    private void ExecuteStage(RunContext context, IPipelineStage stage)
+    {
+        using var span = context.Trace.Begin(stage.Name, PerformanceSpanKind.Stage, PerformanceBackend.Mixed, stage.Name);
+        try
+        {
+            stage.Execute(context);
+            context.ReleaseStageResources();
+            span?.Complete();
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            context.SaveTrace();
         }
     }
 

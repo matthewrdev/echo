@@ -32,6 +32,13 @@ public sealed class RunContext : IDisposable
     private long cachePeakBytes;
     private readonly ProcessingTelemetryTracker telemetry;
     private readonly IComputeService? compute;
+    private readonly IPerformanceTraceStore traces;
+    private PerformanceTraceSession? traceSession;
+    private bool traceWriteWarning;
+    public IPerformanceTrace Trace
+    {
+        get;
+    }
 
     public RunContext(IProjectStore store,
         RunData run,
@@ -40,9 +47,11 @@ public sealed class RunContext : IDisposable
         ICheckpointStore checkpoints,
         IJsonCodec jsonCodec,
         IFileOperations fileOperations, IBulkArtifactStore bulk, ProcessingResourcePlan resources, ProcessingMemoryTracker memory,
-        ProcessingTelemetryTracker telemetry, IComputeService? compute = null)
+        ProcessingTelemetryTracker telemetry, IPerformanceTrace trace, IPerformanceTraceStore traces, IComputeService? compute = null)
     {
         this.compute = compute;
+        Trace = trace;
+        this.traces = traces;
         Store = store;
         Run = run;
         Cancellation = cancellation;
@@ -112,6 +121,7 @@ public sealed class RunContext : IDisposable
         {
             ReleaseStageResources();
             Memory.Dispose();
+            traceSession?.Dispose();
         }
     }
 
@@ -184,6 +194,7 @@ public sealed class RunContext : IDisposable
             if (Run.Progress != null && Environment.TickCount64 - lastResourceReport >= 5000)
             {
                 lastResourceReport = Environment.TickCount64;
+                SaveTrace();
                 Run.Progress.Resources = usage;
                 SaveRun();
                 Report("resourceProgress", new
@@ -280,6 +291,7 @@ public sealed class RunContext : IDisposable
             };
         }
 
+        using var performance = Trace.Begin(stage, PerformanceSpanKind.Checkpoint, PerformanceBackend.Mixed, owner);
         using var computeScope = compute?.BeginScope(Math.Max(4, WorkingMemoryBytes / 4));
         var reused = true;
         if (metadata == null)
@@ -303,11 +315,26 @@ public sealed class RunContext : IDisposable
                 return result;
             };
         }
-        var artifact = checkpoints.Build(Store, stage, inputs, directory =>
+        string artifact;
+        try
         {
-            reused = false;
-            action(directory);
-        }, Cancellation, Report, metadata, algorithmVersion);
+            artifact = checkpoints.Build(Store, stage, inputs, directory =>
+            {
+                reused = false;
+                action(directory);
+            }, Cancellation, Report, metadata, algorithmVersion);
+            performance?.Complete(reused ? PerformanceStatus.Reused : PerformanceStatus.Completed);
+        }
+        catch (OperationCanceledException)
+        {
+            performance?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            performance?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
         lock (reportGate)
         {
             var path = artifact + "/processing.json";
@@ -350,6 +377,7 @@ public sealed class RunContext : IDisposable
 
     public void ReportOperation(string stage, OperationProgress progress)
     {
+        Trace.Operation(progress);
         Report("stageProgress", new
         {
             stage,
@@ -375,6 +403,8 @@ public sealed class RunContext : IDisposable
 
     public void Start()
     {
+        traceSession = Trace.BeginRun(Run.Id, Run.Target);
+        SaveTrace();
         Run.Status = "running";
         Run.Error = null;
         SaveRun();
@@ -387,6 +417,8 @@ public sealed class RunContext : IDisposable
 
     public void Complete()
     {
+        traceSession?.Finish(PerformanceStatus.Completed);
+        SaveTrace();
         Run.Status = "completed";
         SaveRun();
         Report("runCompleted", new
@@ -398,6 +430,8 @@ public sealed class RunContext : IDisposable
 
     public void Cancel()
     {
+        traceSession?.Finish(PerformanceStatus.Cancelled);
+        SaveTrace();
         Run.Status = "cancelled";
         SaveRun();
         Report("runCancelled", new
@@ -407,6 +441,8 @@ public sealed class RunContext : IDisposable
 
     public void Fail(Exception error)
     {
+        traceSession?.Finish(PerformanceStatus.Failed);
+        SaveTrace();
         Run.Status = error is EchoException { ExitCode: 5 } ? "needs-input" : "failed";
         Run.Error = error.Message;
         SaveRun();
@@ -501,6 +537,29 @@ public sealed class RunContext : IDisposable
                     : "Processing saved inputs…"
             };
             SaveRun();
+        }
+    }
+
+    public void SaveTrace()
+    {
+        if (traceSession == null)
+        {
+            return;
+        }
+        try
+        {
+            traces.Save(Store.PathFor($"runs/{Run.Id}"), traceSession.Snapshot());
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            if (!traceWriteWarning)
+            {
+                traceWriteWarning = true;
+                Report("warning", new
+                {
+                    message = "Performance trace could not be saved: " + error.Message
+                });
+            }
         }
     }
 

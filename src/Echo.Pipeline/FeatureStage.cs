@@ -91,7 +91,9 @@ public sealed class FeatureStage : IPipelineStage
         FeatureSet? detected = null;
         var unit = context.Build("feature-image", inputs, directory =>
         {
+            context.Trace.Operation(new OperationProgress("Feature extraction", image.Name));
             detected = featureExtractor.Extract(context.Store, image, settings, context.Cancellation);
+            context.Trace.Operation(new OperationProgress("Save feature descriptors", image.Name, detected.Features.Count, detected.Features.Count, "features"));
             fileOperations.AtomicJson(Path.Combine(directory, "features.json"), detected);
         });
         var features = detected ?? jsonCodec.Read<FeatureSet>(context.Store.PathFor(unit + "/features.json"));

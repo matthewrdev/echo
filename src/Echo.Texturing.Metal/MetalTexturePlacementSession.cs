@@ -1,10 +1,11 @@
 using Echo.Contracts;
+using Echo.Telemetry;
 using System.Buffers;
 using System.Text;
 
 namespace Echo.Texturing.Metal;
 
-internal sealed unsafe class MetalTexturePlacementSession : ITexturePlacementSession
+internal sealed unsafe class MetalTexturePlacementSession : ITexturePlacementSession, IGpuTimingSource
 {
     private readonly MetalTextureHandle handle;
     private readonly int size;
@@ -19,6 +20,8 @@ internal sealed unsafe class MetalTexturePlacementSession : ITexturePlacementSes
         Device = device;
         Implementation = implementation;
     }
+
+    public double CompletedGpuMilliseconds => MetalTextureNative.GpuTime(handle);
 
     public ComputeBackend Backend => ComputeBackend.Metal;
     public string Device

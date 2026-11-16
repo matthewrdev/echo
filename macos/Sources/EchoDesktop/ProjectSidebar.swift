@@ -23,6 +23,8 @@ struct ProjectSidebar: View {
                         .help("Placement hints")
                     Button("Generated files", systemImage: "externaldrive") { workspace.sheet = .storage }
                         .help("Generated files")
+                    Button("Performance", systemImage: "chart.bar.xaxis") { workspace.sheet = .performance }
+                        .help("Recorded step timings, timeline and run comparisons")
                     Button("Saved runs", systemImage: "clock.arrow.circlepath") { workspace.sheet = .history }
                         .help("Saved runs")
                 }

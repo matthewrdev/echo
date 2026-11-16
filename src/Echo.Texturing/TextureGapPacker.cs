@@ -1,4 +1,5 @@
 using Echo.Compute;
+using Echo.Telemetry;
 using Echo.Contracts;
 using System.ComponentModel.Composition;
 using SkiaSharp;
@@ -10,12 +11,14 @@ public sealed class TextureGapPacker : ITextureGapPacker
 {
     private readonly ITexturePlacementAccelerator[] accelerators;
     private readonly IComputeService? compute;
+    private readonly IPerformanceTrace? trace;
 
     [ImportingConstructor]
-    public TextureGapPacker([ImportMany] IEnumerable<ITexturePlacementAccelerator> accelerators, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public TextureGapPacker([ImportMany] IEnumerable<ITexturePlacementAccelerator> accelerators, [Import(AllowDefault = true)] IComputeService? compute = null, [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
     {
         this.accelerators = accelerators.ToArray();
         this.compute = compute;
+        this.trace = trace;
     }
 
     public double Improve(IReadOnlyList<TexturePatch> patches, int size, int gutter, double baseline,
@@ -177,7 +180,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
             try
             {
                 var session = accelerator.Open(size, cancellation);
-                return compute == null ? session : new ObservedTexturePlacementSession(session, compute);
+                return compute == null ? session : new ObservedTexturePlacementSession(session, compute, trace);
             }
             catch (TextureAccelerationException error) when (backend == ComputeBackend.Auto)
             {

@@ -1,27 +1,169 @@
+using System.Runtime.CompilerServices;
+using Echo.Contracts;
+using Echo.Telemetry;
+
 namespace Echo.Compute;
 
 internal sealed class ObservedComputeSession : IComputeSession
 {
     private readonly IComputeSession session;
     private readonly Action<ComputeKernel> record;
+    private readonly IPerformanceTrace trace;
+    private double recordedGpu;
 
-    public ObservedComputeSession(IComputeSession session, Action<ComputeKernel> record)
+    public ObservedComputeSession(IComputeSession session, Action<ComputeKernel> record, IPerformanceTrace trace)
     {
         this.session = session;
         this.record = record;
+        this.trace = trace;
     }
 
     public string Device => session.Device;
-    public void Upload<T>(int slot, ReadOnlySpan<T> values) where T : unmanaged => session.Upload(slot, values);
-    public void UploadRange<T>(int slot, int elementOffset, ReadOnlySpan<T> values) where T : unmanaged => session.UploadRange(slot, elementOffset, values);
-    public void Allocate(int slot, int byteCount) => session.Allocate(slot, byteCount);
-    public void Read<T>(int slot, Span<T> destination) where T : unmanaged => session.Read(slot, destination);
+
+    public void Upload<T>(int slot, ReadOnlySpan<T> values) where T : unmanaged
+    {
+        using var span = trace.Begin("Upload", PerformanceSpanKind.Transfer, PerformanceBackend.Metal);
+        try
+        {
+            session.Upload(slot, values);
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            Measure(span, null, (long)values.Length * Unsafe.SizeOf<T>());
+        }
+    }
+
+    public void UploadRange<T>(int slot, int elementOffset, ReadOnlySpan<T> values) where T : unmanaged
+    {
+        using var span = trace.Begin("Upload range", PerformanceSpanKind.Transfer, PerformanceBackend.Metal);
+        try
+        {
+            session.UploadRange(slot, elementOffset, values);
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            Measure(span, null, (long)values.Length * Unsafe.SizeOf<T>());
+        }
+    }
+
+    public void Allocate(int slot, int byteCount)
+    {
+        using var span = trace.Begin("Allocate buffer", PerformanceSpanKind.Transfer, PerformanceBackend.Metal);
+        try
+        {
+            session.Allocate(slot, byteCount);
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            Measure(span, null, byteCount);
+        }
+    }
+
+    public void Read<T>(int slot, Span<T> destination) where T : unmanaged
+    {
+        using var span = trace.Begin("Read results / wait", PerformanceSpanKind.Transfer, PerformanceBackend.Metal);
+        try
+        {
+            session.Read(slot, destination);
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            Measure(span, null, (long)destination.Length * Unsafe.SizeOf<T>());
+        }
+    }
 
     public void Dispatch(ComputeKernel kernel, int count, ReadOnlySpan<int> parameters)
     {
-        session.Dispatch(kernel, count, parameters);
-        record(kernel);
+        using var span = trace.Begin(kernel.ToString(), PerformanceSpanKind.Compute, PerformanceBackend.Metal);
+        try
+        {
+            session.Dispatch(kernel, count, parameters);
+            record(kernel);
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            Measure(span, count, 0);
+        }
     }
 
-    public void Dispose() => session.Dispose();
+    public void Dispose()
+    {
+        using var span = trace.Begin("Drain Metal session", PerformanceSpanKind.Wait, PerformanceBackend.Metal);
+        try
+        {
+            session.Dispose();
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            Measure(span, null, 0);
+        }
+    }
+
+    private void Measure(PerformanceTraceScope? span, long? items, long bytes)
+    {
+        var total = (session as IGpuTimingSource)?.CompletedGpuMilliseconds;
+        var elapsed = total.HasValue ? Math.Max(0, total.Value - recordedGpu) : (double?)null;
+        recordedGpu = total ?? 0;
+        span?.Measure(items, bytes, elapsed);
+    }
 }

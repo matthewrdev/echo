@@ -13,6 +13,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private var refreshing = false
     let projectThumbnails: ProjectThumbnailLoader?
     let telemetry = TelemetryHistory()
+    let performance: PerformanceTraceViewModel
 
     @Published var recentProjects: [RecentProject]
     @Published var openingProject = false
@@ -54,6 +55,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         self.logReader = logReader
         self.eventFormatter = eventFormatter
         self.client = client
+        performance = PerformanceTraceViewModel(client: client)
         self.commandLog = commandLog
         self.projectThumbnails = projectThumbnails
         root = project

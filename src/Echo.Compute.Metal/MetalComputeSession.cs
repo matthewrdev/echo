@@ -1,13 +1,16 @@
 using System.Text;
+using Echo.Telemetry;
 
 namespace Echo.Compute.Metal;
 
-internal sealed unsafe class MetalComputeSession : IComputeSession
+internal sealed unsafe class MetalComputeSession : IComputeSession, IGpuTimingSource
 {
     private readonly SemaphoreSlim gate;
     private readonly CancellationToken cancellation;
     private readonly StringBuilder error = new(4096);
     private IntPtr handle;
+    private double completedGpu;
+    public double CompletedGpuMilliseconds => handle == IntPtr.Zero ? completedGpu : MetalComputeNative.GpuTime(handle);
 
     public MetalComputeSession(IntPtr handle, string device, SemaphoreSlim gate, CancellationToken cancellation)
     {
@@ -87,7 +90,7 @@ internal sealed unsafe class MetalComputeSession : IComputeSession
             return;
         }
         // Closing drains commands even when the cancellation token is set.
-        MetalComputeNative.Close(handle);
+        completedGpu = MetalComputeNative.CloseTimed(handle);
         handle = IntPtr.Zero;
         gate.Release();
     }

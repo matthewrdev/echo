@@ -26,6 +26,7 @@ if (args.Contains("--texture", StringComparer.Ordinal))
     return scaleTests.Finish();
 }
 composition.Resolve<ProcessingTelemetryTests>().Run(scaleTests);
+composition.Resolve<PerformanceTraceTests>().Run(scaleTests);
 composition.Resolve<ProgressivePreviewTests>().Run(scaleTests);
 if (args.Contains("--telemetry", StringComparer.Ordinal))
 {
@@ -33,6 +34,7 @@ if (args.Contains("--telemetry", StringComparer.Ordinal))
 }
 if (args.Contains("--depth", StringComparer.Ordinal))
 {
+    composition.Resolve<SemanticQualityTests>().Run(scaleTests);
     composition.Resolve<DepthSkyFilterTests>().Run(scaleTests);
     composition.Resolve<StereoImageFilterTests>().Run(scaleTests);
     composition.Resolve<DepthBackendTests>().Run(scaleTests);

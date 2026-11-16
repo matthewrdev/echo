@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Echo.Telemetry;
 using System.ComponentModel.Composition;
 
 namespace Echo.Compute;
@@ -7,12 +8,14 @@ namespace Echo.Compute;
 public sealed class ComputeService : IComputeService
 {
     private readonly IComputeDevice[] devices;
+    private readonly IPerformanceTrace trace;
     private readonly AsyncLocal<ComputeScope?> scope = new();
 
     [ImportingConstructor]
-    public ComputeService([ImportMany] IEnumerable<IComputeDevice> devices)
+    public ComputeService([ImportMany] IEnumerable<IComputeDevice> devices, IPerformanceTrace trace)
     {
         this.devices = devices.ToArray();
+        this.trace = trace;
     }
 
     public string GetImplementation(ComputeOperation operation) => string.Join(";", devices.Select(device => device.GetImplementation(operation)));
@@ -61,7 +64,9 @@ public sealed class ComputeService : IComputeService
         {
             try
             {
+                using var opening = trace.Begin("Acquire Metal session", PerformanceSpanKind.Wait, PerformanceBackend.Metal);
                 var session = device.Open(cancellation, MemoryBudgetBytes);
+                opening?.Complete();
                 if (session != null)
                 {
                     var executions = new Dictionary<ComputeOperation, ComputeExecution>();
@@ -81,7 +86,7 @@ public sealed class ComputeService : IComputeService
                             executions.Add(operation, execution);
                         }
                         RecordExecution(execution);
-                    });
+                    }, trace);
                 }
             }
             catch (ComputeException) when (backend == ComputeBackend.Auto)

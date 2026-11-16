@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
+using Echo.Telemetry;
 using Echo.Geometry;
 using Echo.Optimization;
 
@@ -11,12 +12,14 @@ public sealed class Reconstructor : IReconstructor
 {
     private readonly IBundleAdjuster bundleAdjuster;
     private readonly IComputeService? compute;
+    private readonly IPerformanceTrace? trace;
 
     [ImportingConstructor]
-    public Reconstructor(IBundleAdjuster bundleAdjuster, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public Reconstructor(IBundleAdjuster bundleAdjuster, [Import(AllowDefault = true)] IComputeService? compute = null, [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
     {
         this.bundleAdjuster = bundleAdjuster;
         this.compute = compute;
+        this.trace = trace;
     }
 
     public ReconstructionScene Align(ProjectData project,
@@ -51,6 +54,7 @@ public sealed class Reconstructor : IReconstructor
 
         // Reject descriptor aliases before they can bias any camera or point estimate.
         // Recheck legacy artifacts too; serialized display flags are not solver authority.
+        trace?.Operation(new OperationProgress("Verify image geometry", "Verifying matched pairs"));
         var verifiedPairs = new List<ImagePair>(pairs.Count);
         foreach (var pair in pairs)
         {
@@ -61,6 +65,7 @@ public sealed class Reconstructor : IReconstructor
         }
         pairs = verifiedPairs;
 
+        trace?.Operation(new OperationProgress("Initialize cameras", "Building initial poses"));
         var result = new ReconstructionScene();
         foreach (var image in images.Values)
         {
@@ -120,6 +125,7 @@ public sealed class Reconstructor : IReconstructor
             result.Warnings.Add("Absolute elevation datum is unknown; altitude offsets are approximate. Horizontal referencing is not survey validated.");
         }
 
+        trace?.Operation(new OperationProgress("Refine camera rotations", "Refining initial poses"));
         if (result.Origin != null)
         {
             // Optimise only small rotation corrections: noisy GPS must not be disguised as precise visual poses.
@@ -143,6 +149,7 @@ public sealed class Reconstructor : IReconstructor
         // Register photographs without GPS against existing image-to-cloud observations using calibrated DLT + RANSAC.
         for (var pass = 0; pass < 3; pass++)
         {
+            trace?.Operation(new OperationProgress("Register cameras", "Registering remaining photographs"));
             var added = false;
             foreach (var image in images.Values)
             {
@@ -172,6 +179,7 @@ public sealed class Reconstructor : IReconstructor
 
         if (result.Cameras.Count >= 3)
         {
+            trace?.Operation(new OperationProgress("Bundle adjustment", "Refining cameras and tracks"));
             bundleAdjuster.Refine(project, result, pairs, cancellation, checkpoint);
         }
         else
@@ -199,6 +207,7 @@ public sealed class Reconstructor : IReconstructor
         List<ImagePair> pairs,
         CancellationToken cancellation, ComputeBackend backend, Action<ReconstructionScene>? checkpoint)
     {
+        trace?.Operation(new OperationProgress("Triangulation", "Constructing sparse points"));
         scene.Points.Clear();
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
         foreach (var camera in scene.Cameras)

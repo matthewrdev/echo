@@ -51,3 +51,8 @@ public func echoTextureMetalFind(
 public func echoTextureMetalDestroy(_ handle: UnsafeMutableRawPointer) {
     Unmanaged<MetalTextureSession>.fromOpaque(handle).release()
 }
+
+@_cdecl("echo_texture_metal_gpu_time")
+public func metalTextureGpuTime(_ handle: UnsafeMutableRawPointer) -> Double {
+    Unmanaged<MetalTextureSession>.fromOpaque(handle).takeUnretainedValue().gpuMilliseconds
+}

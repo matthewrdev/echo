@@ -15,4 +15,7 @@ internal static unsafe class MetalTextureNative
 
     [DllImport("EchoTextureMetal", EntryPoint = "echo_texture_metal_destroy", CallingConvention = CallingConvention.Cdecl)]
     internal static extern void Destroy(IntPtr session);
+    [DllImport("EchoTextureMetal", EntryPoint = "echo_texture_metal_gpu_time")]
+    internal static extern double GpuTime(MetalTextureHandle handle);
+
 }

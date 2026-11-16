@@ -44,6 +44,17 @@ final class CLIProjectClient: ProjectClient {
         return try JSONDecoder().decode(Data.self, from: bytes)
     }
 
+    func performanceTraces(root: String) async throws -> [PerformanceTraceSummary] {
+        let bytes = try await cli.execute(["--project", root, "trace", "list", "--all"], progress: { _ in })
+        return try JSONDecoder().decode([PerformanceTraceSummary].self, from: bytes)
+    }
+
+    func performanceTrace(root: String, run: String, attempt: String) async throws -> PerformanceTraceDocument {
+        let bytes = try await cli.execute(
+            ["--project", root, "trace", "show", attempt, "--run", run], progress: { _ in })
+        return try JSONDecoder().decode(PerformanceTraceDocument.self, from: bytes)
+    }
+
     func runs(root: String) async throws -> [RunSummary] {
         let bytes = try await cli.execute(["--project", root, "run", "list"], progress: { _ in })
         return try JSONDecoder().decode([RunSummary].self, from: bytes)

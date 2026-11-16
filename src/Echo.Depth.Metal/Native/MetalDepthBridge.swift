@@ -57,3 +57,8 @@ public func echoMetalCalculate(
 public func echoMetalDestroy(_ handle: UnsafeMutableRawPointer) {
     Unmanaged<MetalDepthSession>.fromOpaque(handle).release()
 }
+
+@_cdecl("echo_metal_gpu_time")
+public func metalDepthGpuTime(_ handle: UnsafeMutableRawPointer) -> Double {
+    Unmanaged<MetalDepthSession>.fromOpaque(handle).takeUnretainedValue().gpuMilliseconds
+}

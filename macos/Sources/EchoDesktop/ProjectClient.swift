@@ -8,6 +8,8 @@ protocol ProjectClient {
     func run(root: String, id: String) async throws -> RunData
     func metadata(root: String, imageID: String) async throws -> [String: JSONValue]
     func metadataPayload(root: String, imageID: String, tag: String) async throws -> Data
+    func performanceTraces(root: String) async throws -> [PerformanceTraceSummary]
+    func performanceTrace(root: String, run: String, attempt: String) async throws -> PerformanceTraceDocument
     func runs(root: String) async throws -> [RunSummary]
     func command(root: String?, arguments: [String], progress: @escaping @Sendable (String) -> Void) async throws
     func importValue<T: Encodable>(root: String, command: String, value: T) async throws

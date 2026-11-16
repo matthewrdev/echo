@@ -15,6 +15,11 @@ struct RunHistoryView: View {
                     }
                     Spacer()
                     Text(run.status.capitalized)
+                    Button("Performance") {
+                        workspace.performance.selected = ""
+                        workspace.sheet = .performance
+                        Task { await workspace.performance.refresh(root: workspace.root, preferredRun: run.id) }
+                    }
                     Button("View results") { choose(run.id) }
                 }.padding(.vertical, 5)
             }

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.Intrinsics;
 using Echo.Contracts;
 using Echo.Compute;
+using Echo.Telemetry;
 using Echo.Geometry;
 using Echo.Imaging;
 using Echo.Projects;
@@ -16,13 +17,15 @@ public sealed class DepthEstimator : IDepthEstimator
     private readonly IRasterImageService rasterImageService;
     private readonly IDepthCostAccelerator[] accelerators;
     private readonly IComputeService? compute;
+    private readonly IPerformanceTrace? trace;
 
     [ImportingConstructor]
-    public DepthEstimator(IRasterImageService rasterImageService, [ImportMany] IEnumerable<IDepthCostAccelerator> accelerators, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public DepthEstimator(IRasterImageService rasterImageService, [ImportMany] IEnumerable<IDepthCostAccelerator> accelerators, [Import(AllowDefault = true)] IComputeService? compute = null, [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
     {
         this.rasterImageService = rasterImageService;
         this.accelerators = accelerators.ToArray();
         this.compute = compute;
+        this.trace = trace;
     }
 
     public DepthMap Estimate(IProjectStore store,
@@ -35,6 +38,7 @@ public sealed class DepthEstimator : IDepthEstimator
         Action<DepthLevelMetrics>? metrics = null,
         Action<ProcessingExecution>? execution = null)
     {
+        trace?.Operation(new OperationProgress("Depth range and neighbours", "Planning depth search"));
         var photo = FindPhoto(project.Images, camera.ImageId);
         var range = DepthRangeEstimator.Estimate(project, scene, photo, camera, cancellation);
         progress?.Invoke($"Depth range {range.Near:F2}–{range.Far:F2} ({range.Source}, {range.SampleCount:N0} scene samples; metres when georeferenced)");
@@ -115,6 +119,7 @@ public sealed class DepthEstimator : IDepthEstimator
         Action<DepthLevelMetrics>? metrics,
         Action<ProcessingExecution>? execution)
     {
+        trace?.Operation(new OperationProgress($"Depth preparation {levelWidth}px", "Preparing image pyramid"));
         var preparationStart = Stopwatch.GetTimestamp();
         var patchSpacing = Math.Min(photo.Width, levelWidth) >= 1280 ? 2 : 1;
         var margin = 2 * patchSpacing + 1;
@@ -182,6 +187,7 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             progress?.Invoke($"{levelLabel}: CPU fallback: {acceleration.Failure}");
         }
+        trace?.Operation(new OperationProgress($"Depth search {levelWidth}px", "Searching stereo depths"));
         var searchStart = Stopwatch.GetTimestamp();
         var globalSearches = 0;
         var recoveredSamples = 0;
@@ -254,6 +260,7 @@ public sealed class DepthEstimator : IDepthEstimator
             Interlocked.Add(ref validatedSearches, scratch.ValidatedSearches);
             scratch.Dispose();
         });
+        trace?.Operation(new OperationProgress($"Depth filtering {levelWidth}px", "Filtering unsupported depths"));
         var filterStart = Stopwatch.GetTimestamp();
         progress?.Invoke($"{levelLabel}: filtering unsupported depth samples");
         var retainedSamples = DepthFilterCompute.TryFilter(compute, project.Settings.ComputeBackend, result, cancellation) ?? FilterUnsupportedSamples(result, cancellation);

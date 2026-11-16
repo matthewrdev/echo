@@ -2,6 +2,7 @@ import Foundation
 import Metal
 
 final class MetalTextureSession {
+    var gpuMilliseconds = 0.0
     let device: MTLDevice
     let queue: MTLCommandQueue
     let pipeline: MTLComputePipelineState
@@ -77,6 +78,9 @@ final class MetalTextureSession {
         encoder.endEncoding()
         command.commit()
         command.waitUntilCompleted()
+        if command.gpuStartTime > 0, command.gpuEndTime >= command.gpuStartTime {
+            gpuMilliseconds += (command.gpuEndTime - command.gpuStartTime) * 1000
+        }
         guard command.status == .completed else {
             throw command.error ?? Self.failure("Metal texture command did not complete")
         }

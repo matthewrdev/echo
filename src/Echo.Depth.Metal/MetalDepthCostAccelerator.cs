@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using System.Text;
+using Echo.Telemetry;
 using System.Security.Cryptography;
 
 namespace Echo.Depth.Metal;
@@ -7,9 +8,12 @@ namespace Echo.Depth.Metal;
 [Export(typeof(IDepthCostAccelerator)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MetalDepthCostAccelerator : IDepthCostAccelerator
 {
+    private readonly IPerformanceTrace trace;
+
     [ImportingConstructor]
-    public MetalDepthCostAccelerator()
+    public MetalDepthCostAccelerator(IPerformanceTrace trace)
     {
+        this.trace = trace;
     }
 
     public string Backend => "metal";
@@ -63,7 +67,7 @@ public sealed class MetalDepthCostAccelerator : IDepthCostAccelerator
                 throw new DepthAccelerationException(details.ToString());
             }
             var shaderHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
-            return new MetalDepthCostSession(new MetalDepthHandle(pointer), details.ToString(), shaderHash, origin);
+            return new MetalDepthCostSession(new MetalDepthHandle(pointer), details.ToString(), shaderHash, origin, trace);
         }
         catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException or IOException)
         {

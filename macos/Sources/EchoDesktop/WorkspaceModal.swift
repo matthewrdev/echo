@@ -28,6 +28,7 @@ struct WorkspaceModal: View {
         case .hints: HintEditor(workspace: workspace)
         case .storage: ArtifactStorageView(workspace: workspace)
         case .history: RunHistoryView(workspace: workspace)
+        case .performance: PerformanceTraceView(workspace: workspace, model: workspace.performance)
         }
     }
 }

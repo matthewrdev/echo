@@ -98,3 +98,17 @@ public func computeRead(
             slot: Int(slot), output: destination, bytes: Int(bytes))
     }
 }
+
+@_cdecl("echo_compute_gpu_time")
+public func computeGpuTime(_ handle: UnsafeMutableRawPointer) -> Double {
+    Unmanaged<ComputeSession>.fromOpaque(handle).takeUnretainedValue().gpuMilliseconds
+}
+
+@_cdecl("echo_compute_close_timed")
+public func computeCloseTimed(_ handle: UnsafeMutableRawPointer) -> Double {
+    autoreleasepool {
+        let session = Unmanaged<ComputeSession>.fromOpaque(handle).takeRetainedValue()
+        try? session.finish()
+        return session.gpuMilliseconds
+    }
+}

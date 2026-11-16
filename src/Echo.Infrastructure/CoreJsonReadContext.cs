@@ -6,6 +6,8 @@ namespace Echo.Infrastructure;
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true, UseStringEnumConverter = true, GenerationMode = JsonSourceGenerationMode.Default)]
 [JsonSerializable(typeof(AlignmentPreview))]
 [JsonSerializable(typeof(FusionPreview))]
+[JsonSerializable(typeof(PerformanceTraceDocument))]
+[JsonSerializable(typeof(List<PerformanceTraceSummary>))]
 [JsonSerializable(typeof(ProjectData))]
 [JsonSerializable(typeof(RunData))]
 [JsonSerializable(typeof(Artifact))]

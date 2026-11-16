@@ -15,4 +15,7 @@ internal static class MetalDepthNative
 
     [DllImport("EchoDepthMetal", EntryPoint = "echo_metal_destroy", CallingConvention = CallingConvention.Cdecl)]
     internal static extern void Destroy(IntPtr session);
+    [DllImport("EchoDepthMetal", EntryPoint = "echo_metal_gpu_time")]
+    internal static extern double GpuTime(MetalDepthHandle handle);
+
 }
