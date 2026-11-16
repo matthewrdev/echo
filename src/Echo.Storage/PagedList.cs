@@ -127,6 +127,17 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(start));
         }
+        if (destination.IsEmpty)
+        {
+            return;
+        }
+        if ((long)destination.Length * codec.Size <= 1024)
+        {
+            Span<byte> records = stackalloc byte[destination.Length * codec.Size];
+            file.ReadBytes(offset + (long)start * codec.Size, records);
+            recordCodec.DecodeBlock(records, destination);
+            return;
+        }
         var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(codec.Size, 65536));
         try
         {

@@ -5,10 +5,13 @@ namespace Echo.Storage;
 public sealed class PagedMinHeap<T>
 {
     private readonly IList<HeapEntry<T>> entries;
+    private readonly PagedList<HeapEntry<T>>? pagedEntries;
+    private readonly HeapEntry<T>[] children = new HeapEntry<T>[4];
 
     public PagedMinHeap(IList<HeapEntry<T>> entries)
     {
         this.entries = entries;
+        pagedEntries = entries as PagedList<HeapEntry<T>>;
     }
 
     public int Count => entries.Count;
@@ -65,7 +68,10 @@ public sealed class PagedMinHeap<T>
             entries[slot] = previous;
             slot = parent;
         }
-        entries[slot] = item;
+        if (slot != entries.Count - 1)
+        {
+            entries[slot] = item;
+        }
     }
 
     public bool TryDequeue(out T value, out double priority)
@@ -93,15 +99,29 @@ public sealed class PagedMinHeap<T>
     {
         while ((long)slot * 4 + 1 < entries.Count)
         {
-            var child = slot * 4 + 1;
-            var best = entries[child];
-            var limit = Math.Min((long)child + 4, entries.Count);
-            for (var candidate = child + 1; candidate < limit; candidate++)
+            var first = slot * 4 + 1;
+            var count = (int)Math.Min(4L, entries.Count - (long)first);
+            if (pagedEntries != null)
             {
-                var entry = entries[candidate];
+                // Siblings are contiguous. Decode all four under one cache
+                // access instead of acquiring the shared lock per candidate.
+                pagedEntries.ReadRange(first, children.AsSpan(0, count));
+            }
+            else
+            {
+                for (var index = 0; index < count; index++)
+                {
+                    children[index] = entries[first + index];
+                }
+            }
+            var child = first;
+            var best = children[0];
+            for (var candidate = 1; candidate < count; candidate++)
+            {
+                var entry = children[candidate];
                 if (entry.Priority.CompareTo(best.Priority) < 0)
                 {
-                    child = candidate;
+                    child = first + candidate;
                     best = entry;
                 }
             }
