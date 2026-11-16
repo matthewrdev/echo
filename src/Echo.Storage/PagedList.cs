@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections;
 
@@ -100,6 +101,62 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
         }
         Write(Count, value);
         Count++;
+    }
+
+    public void ReadRange(int start, Span<T> destination)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (start < 0 || start > Count - destination.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start));
+        }
+        var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(codec.Size, 65536));
+        try
+        {
+            while (!destination.IsEmpty)
+            {
+                var count = Math.Min(destination.Length, bytes.Length / codec.Size);
+                file.ReadBytes(offset + (long)start * codec.Size, bytes.AsSpan(0, count * codec.Size));
+                for (var index = 0; index < count; index++)
+                {
+                    destination[index] = codec.Decode(bytes.AsSpan(index * codec.Size, codec.Size));
+                }
+                destination = destination[count..];
+                start += count;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(bytes);
+        }
+    }
+
+    public void AddRange(ReadOnlySpan<T> source)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (source.Length > int.MaxValue - Count)
+        {
+            throw new InvalidDataException("Record count exceeds the supported index range.");
+        }
+        var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(codec.Size, 65536));
+        try
+        {
+            while (!source.IsEmpty)
+            {
+                var count = Math.Min(source.Length, bytes.Length / codec.Size);
+                for (var index = 0; index < count; index++)
+                {
+                    codec.Encode(source[index], bytes.AsSpan(index * codec.Size, codec.Size));
+                }
+                file.WriteBytes(offset + (long)Count * codec.Size, bytes.AsSpan(0, count * codec.Size));
+                Count += count;
+                source = source[count..];
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(bytes);
+        }
     }
 
     public void Commit()

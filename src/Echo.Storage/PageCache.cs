@@ -120,6 +120,36 @@ public sealed class PageCache : IDisposable
         }
     }
 
+    internal void ReserveSequentialScratch(long bytes)
+    {
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (diskLimit != 0 && bytes > diskLimit - scratch)
+            {
+                throw new EchoException("Processing scratch-disk budget exceeded. Saved results are safe. Increase ProcessingDiskBudgetMb and resume.", 5);
+            }
+            scratch = checked(scratch + bytes);
+        }
+    }
+
+    internal void ReleaseSequentialScratch(long bytes)
+    {
+        lock (gate)
+        {
+            scratch -= bytes;
+        }
+    }
+
+    internal void RecordSequentialIo(long readBytes, long writtenBytes)
+    {
+        lock (gate)
+        {
+            reads += readBytes;
+            writes += writtenBytes;
+        }
+    }
+
     internal void Read(PageFile file, long offset, Span<byte> destination)
     {
         lock (gate)

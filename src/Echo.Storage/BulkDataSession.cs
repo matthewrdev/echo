@@ -31,6 +31,9 @@ public sealed class BulkDataSession : IDisposable
         }
     }
 
+    public TemporaryRecordSet<T> TemporaryRecords<T>(string directory, RecordCodec<T> codec)
+        => new(directory, codec, cache);
+
     public T Read<T>(string path)
     {
         using var stream = File.OpenRead(path);

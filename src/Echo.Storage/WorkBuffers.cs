@@ -5,7 +5,7 @@ namespace Echo.Storage;
 public sealed class WorkBuffers : IDisposable
 {
     private readonly BulkDataSession session;
-    private readonly DiskCollections dictionaries;
+    private readonly Lazy<DiskCollections> dictionaries;
     private readonly string directory;
     private int nextFile;
     private long indexMemory;
@@ -16,10 +16,11 @@ public sealed class WorkBuffers : IDisposable
         this.directory = directory;
         Directory.CreateDirectory(directory);
         indexMemory = cacheBytes / 2;
-        dictionaries = new DiskCollections(Path.Combine(directory, "indices.sqlite"), cacheBytes - indexMemory, diskBytes);
+        var dictionaryCacheBytes = cacheBytes - indexMemory;
+        dictionaries = new Lazy<DiskCollections>(() => new DiskCollections(Path.Combine(directory, "indices.sqlite"), dictionaryCacheBytes, diskBytes));
     }
 
-    public long IndexDiskBytes => dictionaries.DiskBytes;
+    public long IndexDiskBytes => dictionaries.IsValueCreated ? dictionaries.Value.DiskBytes : 0;
 
     public long ReserveIndexMemory(long maximumBytes)
     {
@@ -39,11 +40,14 @@ public sealed class WorkBuffers : IDisposable
         // Includes Dictionary capacity slack, entry headers and managed objects.
         var recordBytes = Math.Max(512L, (keys.Size + (long)values.Size) * 4 + 128);
         var capacity = (int)Math.Min(int.MaxValue, reservation / recordBytes);
-        return new SpillDictionary<TKey, TValue>(capacity, () => dictionaries.Create(keys, values));
+        return new SpillDictionary<TKey, TValue>(capacity, () => dictionaries.Value.Create(keys, values));
     }
 
     public IList<T> List<T>(RecordCodec<T> codec)
         => session.Open(Path.Combine(directory, $"buffer-{nextFile++}.bin"), codec, true);
+
+    public TemporaryRecordSet<T> TemporaryRecords<T>(RecordCodec<T> codec)
+        => session.TemporaryRecords(directory, codec);
 
     public IList<T> Filled<T>(int count, T value, RecordCodec<T> codec)
     {
@@ -62,5 +66,11 @@ public sealed class WorkBuffers : IDisposable
         SourceImages = List(new StringTableCodec())
     };
 
-    public void Dispose() => dictionaries.Dispose();
+    public void Dispose()
+    {
+        if (dictionaries.IsValueCreated)
+        {
+            dictionaries.Value.Dispose();
+        }
+    }
 }
