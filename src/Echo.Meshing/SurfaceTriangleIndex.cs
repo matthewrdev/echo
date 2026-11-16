@@ -4,9 +4,10 @@ using Echo.Geometry;
 
 namespace Echo.Meshing;
 
-internal sealed class SurfaceTriangleIndex
+internal sealed class SurfaceTriangleIndex : IDisposable
 {
     private readonly Surface mesh;
+    private readonly SurfaceGeometrySnapshot geometry;
     private readonly int[] order;
     private readonly List<SurfaceSearchNode> nodes = [];
     private readonly List<SurfaceTriangle> additions = [];
@@ -14,26 +15,41 @@ internal sealed class SurfaceTriangleIndex
     public SurfaceTriangleIndex(Surface mesh, CancellationToken cancellation)
     {
         this.mesh = mesh;
-        order = Enumerable.Range(0, mesh.Faces.Count).ToArray();
-        if (order.Length > 0)
+        geometry = new SurfaceGeometrySnapshot(mesh, cancellation);
+        try
         {
-            var centres = ArrayPool<double>.Shared.Rent(order.Length);
-            try
+            order = Enumerable.Range(0, mesh.Faces.Count).ToArray();
+            if (order.Length > 0)
             {
-                Build(0, order.Length, centres, cancellation);
+                var centres = ArrayPool<double>.Shared.Rent(order.Length);
+                try
+                {
+                    Build(0, order.Length, centres, cancellation);
+                }
+                finally
+                {
+                    ArrayPool<double>.Shared.Return(centres);
+                }
             }
-            finally
-            {
-                ArrayPool<double>.Shared.Return(centres);
-            }
+        }
+        catch
+        {
+            geometry.Dispose();
+            throw;
         }
     }
 
-    private SurfaceTriangle Triangle(int index)
+    public SurfaceTriangle Triangle(int index)
     {
+        if (geometry.IsAvailable)
+        {
+            return geometry.Triangle(index);
+        }
         var face = mesh.Faces[index];
         return new SurfaceTriangle(new V3(mesh.Vertices[face[0]]), new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]]));
     }
+
+    public void Dispose() => geometry.Dispose();
 
     public void Add(SurfaceTriangle triangle) => additions.Add(triangle);
 

@@ -12,7 +12,7 @@ internal static class FaceViewSelection
         var scales = new double[mesh.Faces.Count];
         var selected = new int[mesh.Faces.Count];
         Array.Fill(selected, -1);
-        var visibility = new SurfaceTriangleIndex(mesh, cancellation);
+        using var visibility = new SurfaceTriangleIndex(mesh, cancellation);
         var checkedFaces = 0;
         progress?.Invoke("Checking source visibility and detail in original photograph pixels…");
         Parallel.For(0, mesh.Faces.Count, new ParallelOptions

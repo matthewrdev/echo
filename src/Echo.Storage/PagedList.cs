@@ -52,6 +52,12 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
     public bool IsReadOnly => !file.Writable;
     public RecordCodec<T> Codec => codec;
 
+    public PageMemoryReservation? TryReserveMemory(long bytes)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        return file.TryReserveMemory(bytes);
+    }
+
     // Copies the native record encoding, without the container header or page
     // padding. The destination must use this codec's layout. Reads include dirty
     // cached pages, so publication does not require an intermediate disk flush.
@@ -105,7 +111,18 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
 
     public void ReadRange(int start, Span<T> destination)
     {
+        ReadRange(start, destination, codec);
+    }
+
+    // The caller supplies a codec for the same binary layout, allowing compact
+    // value records to be decoded without allocating an array for each record.
+    public void ReadRange<TRecord>(int start, Span<TRecord> destination, RecordCodec<TRecord> recordCodec)
+    {
         ObjectDisposedException.ThrowIf(disposed, this);
+        if (recordCodec.Size != codec.Size)
+        {
+            throw new ArgumentException("The record layout must have the same size.", nameof(recordCodec));
+        }
         if (start < 0 || start > Count - destination.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(start));
@@ -117,7 +134,7 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
             {
                 var count = Math.Min(destination.Length, bytes.Length / codec.Size);
                 file.ReadBytes(offset + (long)start * codec.Size, bytes.AsSpan(0, count * codec.Size));
-                codec.DecodeBlock(bytes.AsSpan(0, count * codec.Size), destination[..count]);
+                recordCodec.DecodeBlock(bytes.AsSpan(0, count * codec.Size), destination[..count]);
                 destination = destination[count..];
                 start += count;
             }

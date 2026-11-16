@@ -39,7 +39,7 @@ public static class SurfaceSupportFilter
         {
             throw new ArgumentOutOfRangeException(nameof(maximumDistance));
         }
-        var index = new SurfaceTriangleIndex(observed, cancellation);
+        using var index = new SurfaceTriangleIndex(observed, cancellation);
         IList<bool> supported = work?.Filled(reconstruction.Vertices.Count, false, new BoolRecordCodec()) ?? new bool[reconstruction.Vertices.Count];
         for (var start = 0; start < reconstruction.Vertices.Count; start += 4096)
         {

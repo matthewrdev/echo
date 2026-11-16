@@ -16,7 +16,7 @@ public static class SurfaceVegetationClassifier
         var cameras = scene.Cameras.ToDictionary(camera => camera.ImageId);
         var views = maps.Where(map => semantics.ContainsKey(map.ImageId))
             .Select(map => new DepthView(photos[map.ImageId], cameras[map.ImageId], map)).ToArray();
-        var visibility = new SurfaceTriangleIndex(surface, cancellation);
+        using var visibility = new SurfaceTriangleIndex(surface, cancellation);
         IList<V3> normals = work?.Filled(surface.Vertices.Count, new V3(), new V3RecordCodec()) ?? new V3[surface.Vertices.Count];
         foreach (var face in surface.Faces)
         {

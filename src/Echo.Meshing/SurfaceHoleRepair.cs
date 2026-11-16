@@ -99,6 +99,7 @@ internal static class SurfaceHoleRepair
         }
         finally
         {
+            index?.Dispose();
             ArrayPool<V3>.Shared.Return(positions);
         }
         progress?.Invoke(new OperationProgress("Hole repair", $"Examined {examined:N0} enclosed boundaries; closed {repaired:N0} holes.", examined, examined, "boundaries"));

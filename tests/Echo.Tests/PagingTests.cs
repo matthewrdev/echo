@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Fusion;
+using Echo.Geometry;
 using Echo.Meshing;
 using Echo.Storage;
 using Echo.Simplification;
@@ -27,6 +28,102 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Resident geometry reservations share the page budget and preserve dirty data", () => InDirectory(directory =>
+        {
+            const int capacity = 8 * 65536;
+            using var session = artifacts.OpenSession(capacity, 0);
+            var records = session.Open(Path.Combine(directory, "values.bin"), new IntRecordCodec(), true);
+            for (var index = 0; index < 100000; index++)
+            {
+                records.Add(index);
+            }
+            var reservation = records.TryReserveMemory(3 * 65536 + 1);
+            Check(reservation != null, "Working memory was not reserved from the page budget");
+            Check(records.TryReserveMemory(capacity) == null, "Oversized reservation should fall back without changing the budget");
+            for (var index = 0; index < records.Count; index++)
+            {
+                Check(records[index] == index, "Reserving memory lost dirty records");
+            }
+            Check(session.Statistics.Evictions > 0 && session.Statistics.PeakResidentBytes <= capacity,
+                "Pages plus reservations exceeded the shared memory budget");
+            reservation!.Dispose();
+            reservation.Dispose();
+            using var reclaimed = records.TryReserveMemory(7 * 65536);
+            Check(reclaimed != null, "Disposing a reservation did not return its budget exactly once");
+        }));
+        tests.Run("Paged triangle queries match memory without per-query page reads", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(8 * 65536, 0);
+            using var work = new WorkBuffers(session, directory, 1024, 0);
+            var paged = work.Surface();
+            var memory = new Surface();
+            for (var index = 0; index < 250; index++)
+            {
+                var start = memory.Vertices.Count;
+                var x = index % 25;
+                var y = index / 25;
+                memory.Vertices.Add([x, y, 0]);
+                memory.Vertices.Add([x + .8, y, .1]);
+                memory.Vertices.Add([x, y + .8, -.1]);
+                memory.Faces.Add([start, start + 1, start + 2]);
+            }
+            foreach (var vertex in memory.Vertices)
+            {
+                paged.Vertices.Add(vertex);
+            }
+            foreach (var face in memory.Faces)
+            {
+                paged.Faces.Add(face);
+            }
+            using var expected = new SurfaceTriangleIndex(memory, default);
+            var beforeConstruction = session.Statistics.ResidentBytes;
+            using (var actual = new SurfaceTriangleIndex(paged, default))
+            {
+                var beforeQueries = session.Statistics;
+                Parallel.For(0, 2000, query =>
+                {
+                    var point = new V3(query % 25 + .2, query % 10 + .2, 1);
+                    var end = point - new V3(0, 0, 2);
+                    Check(actual.HasOccluder(point, end) == expected.HasOccluder(point, end), "Paged ray visibility changed");
+                    Check(actual.Nearest(point, 100) == expected.Nearest(point, 100), "Paged closest point changed");
+                    var patch = new SurfaceTriangle(point, end, point + new V3(.3, .3, 0));
+                    Check(actual.Intersects(patch) == expected.Intersects(patch), "Paged intersection changed");
+                });
+                var afterQueries = session.Statistics;
+                Check(beforeQueries.Hits == afterQueries.Hits && beforeQueries.Misses == afterQueries.Misses,
+                    "Parallel geometry queries still acquire the page cache");
+                var addition = new SurfaceTriangle(new V3(100, 100, 0), new V3(101, 100, 0), new V3(100, 101, 0));
+                actual.Add(addition);
+                Check(actual.Intersects(new SurfaceTriangle(new V3(100.2, 100.2, -1), new V3(100.2, 100.2, 1), new V3(100.4, 100.2, 0))),
+                    "An appended hole patch was not included in intersection queries");
+                Check(afterQueries.PeakResidentBytes <= 8 * 65536, "Geometry snapshot exceeded its page budget");
+            }
+            Check(session.Statistics.ResidentBytes == beforeConstruction, "Geometry snapshot retained its reservation after disposal");
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            try
+            {
+                using var interrupted = new SurfaceTriangleIndex(paged, cancelled.Token);
+                throw new InvalidOperationException("Cancelled index creation continued");
+            }
+            catch (OperationCanceledException)
+            {
+                Check(session.Statistics.ResidentBytes == beforeConstruction, "Cancelled snapshot retained its reservation");
+            }
+        }));
+        tests.Run("Triangle queries retain a paged fallback when a snapshot will not fit", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory, 1024, 0);
+            var surface = work.Surface();
+            surface.Vertices.Add([0, 0, 0]);
+            surface.Vertices.Add([1, 0, 0]);
+            surface.Vertices.Add([0, 1, 0]);
+            surface.Faces.Add([0, 1, 2]);
+            using var index = new SurfaceTriangleIndex(surface, default);
+            Check(index.HasOccluder(new V3(.2, .2, 1), new V3(.2, .2, -1)), "Low-memory visibility changed");
+            Check(session.Statistics.PeakResidentBytes <= 65536, "Snapshot ignored a small memory budget");
+        }));
         tests.Run("Initial edge indexing preserves first encounter order without a database", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);

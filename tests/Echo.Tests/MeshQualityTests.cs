@@ -38,7 +38,7 @@ public sealed class MeshQualityTests
                 mesh.Faces.Add([start, start + 1, start + 2]);
                 triangles.Add(new SurfaceTriangle(new V3(mesh.Vertices[start]), new V3(mesh.Vertices[start + 1]), new V3(mesh.Vertices[start + 2])));
             }
-            var search = new SurfaceTriangleIndex(mesh, default);
+            using var search = new SurfaceTriangleIndex(mesh, default);
             for (var query = 0; query < 100; query++)
             {
                 var point = new V3(random.NextDouble() * 10, random.NextDouble() * 10, random.NextDouble());

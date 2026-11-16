@@ -27,6 +27,12 @@ public sealed class PageFile : IDisposable
         get;
     }
 
+    public PageMemoryReservation? TryReserveMemory(long bytes)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        return cache.TryReserveMemory(bytes);
+    }
+
     public void ReadBytes(long offset, Span<byte> bytes)
     {
         ObjectDisposedException.ThrowIf(disposed, this);

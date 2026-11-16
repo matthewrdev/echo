@@ -23,6 +23,7 @@ public sealed class PageCache : IDisposable
     private long misses;
     private long evictions;
     private long scratch;
+    private long reservedMemory;
     private bool disposed;
 
     public PageCache(long capacity, long diskLimit, int pageSize = 65536)
@@ -42,8 +43,43 @@ public sealed class PageCache : IDisposable
         {
             lock (gate)
             {
-                return new(pages.Count * (long)pageSize, peak, reads, writes, hits, misses, evictions, scratch);
+                return new(pages.Count * (long)pageSize + reservedMemory, peak, reads, writes, hits, misses, evictions, scratch);
             }
+        }
+    }
+
+    // Read-only working sets can replace cached pages while staying inside the
+    // same resident budget. Leave at least one page for ongoing file access.
+    public PageMemoryReservation? TryReserveMemory(long bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bytes);
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (bytes > capacity - reservedMemory - pageSize)
+            {
+                return null;
+            }
+            while (pages.Count * (long)pageSize > capacity - reservedMemory - bytes)
+            {
+                var oldest = recent.Last!;
+                Flush(oldest.Value);
+                pages.Remove(oldest.Value.Address);
+                recent.RemoveLast();
+                evictions++;
+            }
+            var reservation = new PageMemoryReservation(this, bytes);
+            reservedMemory += bytes;
+            peak = Math.Max(peak, pages.Count * (long)pageSize + reservedMemory);
+            return reservation;
+        }
+    }
+
+    internal void ReleaseMemory(long bytes)
+    {
+        lock (gate)
+        {
+            reservedMemory -= bytes;
         }
     }
 
@@ -251,7 +287,7 @@ public sealed class PageCache : IDisposable
         }
         misses++;
         byte[] bytes;
-        if ((pages.Count + 1L) * pageSize > capacity)
+        if ((pages.Count + 1L) * pageSize > capacity - reservedMemory)
         {
             var oldest = recent.Last!;
             Flush(oldest.Value);
@@ -271,7 +307,7 @@ public sealed class PageCache : IDisposable
         reads += count;
         var page = new CachedPage { Address = address, Bytes = bytes };
         pages.Add(address, recent.AddFirst(page));
-        peak = Math.Max(peak, pages.Count * (long)pageSize);
+        peak = Math.Max(peak, pages.Count * (long)pageSize + reservedMemory);
         return page;
     }
 
