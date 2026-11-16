@@ -26,6 +26,14 @@ final class CancelledWorkspaceTests: XCTestCase {
         cli.status = "cancelled"
         await workspace.reload()
         XCTAssertEqual(workspace.stageStatus(.cloud), "Saved from earlier run")
+        XCTAssertTrue(workspace.progressMessage.contains("Saved results are still available"))
+        XCTAssertTrue(workspace.progressMessage.contains("repeats any unfinished steps"))
+        workspace.start(through: .fusion)
+        for _ in 0..<200 where workspace.busy {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(workspace.busy)
+        XCTAssertNil(workspace.errorMessage, "Normal cancellation must not present an error alert")
         XCTAssertEqual(workspace.geographicRun?.id, "saved", "Map exports must refer to the run owning the result")
         XCTAssertTrue(try XCTUnwrap(workspace.inspection?.run).artifacts.isEmpty)
         XCTAssertEqual(cli.requestedRuns.count, 6, "Polling must reuse loaded run metadata")

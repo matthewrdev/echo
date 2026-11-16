@@ -136,9 +136,12 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
     var progressMessage: String {
         if cancelRequested {
-            return "Stop requested. Completed checkpoints are retained; unfinished work will be discarded."
+            return "Stopping… Your saved results will be kept."
         }
         if isWorking { return workingRun?.progress?.message ?? status }
+        if inspection?.run?.status == "cancelled" {
+            return "Saved results are still available. Resume reuses saved work and repeats any unfinished steps."
+        }
         if let error = inspection?.run?.error { return error }
         return inspection?.run == nil
             ? "Choose a stage, then Process to that stage. Earlier stages run automatically."
@@ -156,7 +159,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     var progressDetail: String {
-        if cancelRequested { return "Stopping… completed checkpoints are retained." }
+        if cancelRequested { return "Stopping… Your saved results will be kept." }
         if isWorking, workingRun?.progress?.phase == "checking" {
             return
                 "Validating saved checkpoints. Existing results remain available; reconstruction is reused when compatible."
@@ -666,6 +669,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             do {
                 try await operation()
                 status = "Completed."
+            } catch is CancellationError {
+                status = "Processing stopped. Saved results are still available."
             } catch {
                 status = "Operation stopped. Completed artifacts are retained."
                 if !quitting { errorMessage = error.localizedDescription }

@@ -38,7 +38,10 @@ final class ProcessCLIClient: CLIClient {
                     process.waitUntilExit()
                     readers.wait()
 
-                    guard process.terminationStatus == 0 else {
+                    if process.terminationStatus == CLIExitCode.cancelled.rawValue {
+                        throw CancellationError()
+                    }
+                    guard process.terminationStatus == CLIExitCode.success.rawValue else {
                         let raw = String(decoding: errors.data, as: UTF8.self)
                         let lastLine = raw.split(separator: "\n").last.map(String.init) ?? raw
                         let record = lastLine.data(using: .utf8).flatMap {

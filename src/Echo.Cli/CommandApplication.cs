@@ -88,7 +88,7 @@ public sealed class CommandApplication : ICommandApplication
         }
         catch (OperationCanceledException)
         {
-            Console.Error.WriteLine("Cancelled. Completed checkpoints are retained.");
+            Console.Error.WriteLine("Processing stopped. Saved results are still available. Resume reuses saved work and repeats unfinished steps.");
             return 130;
         }
         catch (Exception error)

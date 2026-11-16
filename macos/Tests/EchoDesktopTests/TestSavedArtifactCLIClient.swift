@@ -8,6 +8,10 @@ final class TestSavedArtifactCLIClient: CLIClient {
 
     func execute(_ arguments: [String], progress: @escaping @Sendable (String) -> Void) async throws -> Data {
         let command = Array(arguments.dropFirst(2))
+        if command.prefix(2) == ["run", "start"] {
+            status = "cancelled"
+            throw CancellationError()
+        }
         if command.first == "inspect" {
             let selected = command[2] == "latest" ? "current" : command[2]
             return try JSONSerialization.data(withJSONObject: [

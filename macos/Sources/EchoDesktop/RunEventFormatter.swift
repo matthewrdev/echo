@@ -32,7 +32,9 @@ struct RunEventFormatter {
         case "runStarted":
             message = "Processing through \(title.lowercased()). Completed compatible work will be reused."
         case "runCompleted": message = "Processing finished. All requested outputs are saved."
-        case "runCancelled": message = "Processing stopped. Completed checkpoints are retained."
+        case "runCancelled":
+            message =
+                "Processing stopped. Saved results are still available. Resume reuses saved work and repeats unfinished steps."
         case "runFailed": message = payload["error"]?.description ?? "Processing failed."
         default: return nil
         }

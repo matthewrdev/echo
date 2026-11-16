@@ -4,6 +4,21 @@ import XCTest
 @testable import EchoDesktop
 
 final class CLICommandLogTests: XCTestCase {
+    func testCancellationExitIsDistinctFromProcessingFailure() async throws {
+        let client = ProcessCLIClient(executable: URL(fileURLWithPath: "/bin/sh"))
+        do {
+            _ = try await client.execute(["-c", "exit 130"], progress: { _ in })
+            XCTFail("A stopped worker must report cancellation")
+        } catch is CancellationError {
+        }
+        do {
+            _ = try await client.execute(["-c", "echo 'Actual failure' >&2; exit 5"], progress: { _ in })
+            XCTFail("A failed worker must still report an error")
+        } catch let error as CLIError {
+            XCTAssertTrue(error.message.contains("Actual failure"))
+        }
+    }
+
     func testCommandQuotingPreservesLiteralArgumentsAndDotnetLaunch() async throws {
         let values = ["", "two words", "Matt's cliff", "$(printf injected)", "semi;colon", "line\nbreak"]
         let invocation = CLICommandInvocation(
