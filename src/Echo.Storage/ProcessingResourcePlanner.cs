@@ -21,6 +21,6 @@ public sealed class ProcessingResourcePlanner : IProcessingResourcePlanner
             ? Math.Max(256L * 1024 * 1024, available / 2)
             : settings.ProcessingMemoryBudgetMb * 1024L * 1024;
         return new ProcessingResourcePlan(memory, Math.Max(8 * 1024 * 1024, memory / 8),
-            settings.ProcessingDiskBudgetMb * 1024L * 1024, Math.Max(64 * 1024 * 1024, memory / 8), settings.ProcessingMemoryMode);
+            settings.ProcessingDiskBudgetMb * 1024L * 1024, Math.Max(64 * 1024 * 1024, memory / 8), settings.ProcessingMemoryMode, settings.DepthMemoryBudgetMb);
     }
 }

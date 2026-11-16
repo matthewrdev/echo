@@ -11,7 +11,7 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
     {
     }
 
-    public DepthExecutionPlan Plan(ProjectData project, int cameraCount, long jobBudgetBytes = 0)
+    public DepthExecutionPlan Plan(ProjectData project, int cameraCount, long jobBudgetBytes = 0, int? depthMemoryBudgetMb = null)
     {
         var settings = project.Settings;
         long largestSource = 1;
@@ -37,14 +37,15 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
                 + settings.DepthRefinementSamples * 8L + 512);
             bytesPerImage += largestMap * neighbours * 8 + rowBytes * workers;
         }
-        var memoryBudgetMb = DepthMemoryBudget.ResolveMegabytes(settings.DepthMemoryBudgetMb, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
+        var memoryBudgetMb = DepthMemoryBudget.ResolveMegabytes(depthMemoryBudgetMb ?? settings.DepthMemoryBudgetMb, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
         var memoryBudgetBytes = memoryBudgetMb * 1024L * 1024;
         if (jobBudgetBytes > 0)
         {
             memoryBudgetBytes = Math.Min(memoryBudgetBytes, jobBudgetBytes);
             if (bytesPerImage > memoryBudgetBytes)
             {
-                throw new EchoException($"Depth needs an estimated {bytesPerImage / 1048576:N0} MiB for one image at the requested quality, but the job has {memoryBudgetBytes / 1048576:N0} MiB available. Increase the processing memory budget; image resolution was not reduced.", 5);
+                var setting = jobBudgetBytes < memoryBudgetMb * 1048576L ? "ProcessingMemoryBudgetMb" : "DepthMemoryBudgetMb";
+                throw new EchoException($"Depth needs an estimated {bytesPerImage / 1048576:N0} MiB for one image at the requested quality, but the job has {memoryBudgetBytes / 1048576:N0} MiB available. Increase {setting} and resume; image resolution was not reduced.", 5);
             }
         }
         var memorySlots = Math.Max(1, memoryBudgetBytes / Math.Max(1, bytesPerImage));

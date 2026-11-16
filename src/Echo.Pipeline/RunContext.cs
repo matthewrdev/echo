@@ -385,6 +385,7 @@ public sealed class RunContext : IDisposable
         {
             var data = JsonSerializer.SerializeToElement(payload, jsonCodec.Options);
             var stage = data.GetProperty("stage").GetString() ?? "";
+            var reportedStage = stage;
             if (stage is "cloud-preview" or "features-preview" or "depth-preview")
             {
                 return;
@@ -409,6 +410,13 @@ public sealed class RunContext : IDisposable
             }
             var checking = !processingStages.Contains(stage);
             var previous = Run.Progress?.Stage == stage ? Run.Progress : null;
+            var beginsChildCheckpoint = type == "stageStarted" && reportedStage != stage;
+            if (beginsChildCheckpoint && previous?.Phase == "processing")
+            {
+                // Checkpoint plumbing must not erase the algorithm's useful
+                // operation/counters or pretend another work item has finished.
+                return;
+            }
             var completed = data.TryGetProperty("completed", out var done) && done.ValueKind == JsonValueKind.Number
                 ? (long?)done.GetInt64()
                 : null;

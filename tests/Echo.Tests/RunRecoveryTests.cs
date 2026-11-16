@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using Echo.Cli;
 using Echo.Contracts;
+using Echo.Depth;
 using Echo.Infrastructure;
 using Echo.Pipeline;
 using Echo.Projects;
@@ -15,16 +16,18 @@ public sealed class RunRecoveryTests
     private readonly IFileOperations files;
     private readonly ICommandApplication application;
     private readonly IRunContextFactory contexts;
+    private readonly IDepthExecutionPlanner depthPlanner;
 
     [ImportingConstructor]
     public RunRecoveryTests(IRunStateRecovery recovery, IProjectStoreFactory stores,
-        IFileOperations files, ICommandApplication application, IRunContextFactory contexts)
+        IFileOperations files, ICommandApplication application, IRunContextFactory contexts, IDepthExecutionPlanner depthPlanner)
     {
         this.recovery = recovery;
         this.stores = stores;
         this.files = files;
         this.application = application;
         this.contexts = contexts;
+        this.depthPlanner = depthPlanner;
     }
 
     internal void Run(TestSuite tests)
@@ -73,6 +76,25 @@ public sealed class RunRecoveryTests
                 Check(second.Run.Progress?.Phase == "processing", "A changed input must switch back to actual processing");
             });
         });
+        tests.Run("Child checkpoint starts preserve algorithm progress and completed work", () => WithProject(store =>
+        {
+            using var context = contexts.Create(store, SaveRun(store), default, null);
+            context.Report("stageStarted", new
+            {
+                stage = "alignment"
+            });
+            context.ReportOperation("alignment", new OperationProgress("Guided matching", "Validating overlap", 532, 1682, "image pairs"));
+            var advanced = context.Run.Progress!.Updated;
+            context.Report("stageStarted", new
+            {
+                stage = "alignment-guided-pair"
+            });
+            Check(context.Run.Progress.Completed == 532 && context.Run.Progress.Total == 1682, "Child checkpoint erased parent work counters");
+            Check(context.Run.Progress.Message == "Validating overlap" && context.Run.Progress.Operation == "Guided matching", "Child checkpoint hid the active algorithm");
+            Check(context.Run.Progress.Updated == advanced, "Checkpoint start falsely reported completed work");
+            context.BeginOperation("alignment", "Camera refinement");
+            Check(context.Run.Progress.Completed == null, "A real operation transition must reset counters");
+        }));
         tests.Run("Substeps reset counters and resource heartbeats preserve last work time", () => WithProject(store =>
         {
             using var context = contexts.Create(store, SaveRun(store), default, null);
@@ -93,11 +115,42 @@ public sealed class RunRecoveryTests
                 project.Settings.ProcessingMemoryBudgetMb = 1024;
                 project.Settings.ProcessingDiskBudgetMb = 2048;
                 project.Settings.DepthWidth = width + 16;
+                project.Settings.DepthMemoryBudgetMb = 512;
             });
             using var context = contexts.Create(store, run, default, null);
             Check(context.Resources.MemoryBytes == 1024L * 1048576 && context.Resources.DiskBytes == 2048L * 1048576, "Resume ignored updated operational limits");
+            Check(context.Resources.DepthMemoryBudgetMb == 512, "Resume ignored the updated depth scheduling budget");
             Check(context.Run.Snapshot.Settings.DepthWidth == width, "Resource changes modified reconstruction inputs");
         }));
+        tests.Run("Depth admission identifies the limiting budget and accepts a scheduling-only override", () =>
+        {
+            var project = new ProjectData
+            {
+                Images = [new Photo { Width = 4032, Height = 2268 }],
+                Settings = new Settings { DepthWidth = 2048, DepthPlanes = 192, DepthNeighbours = 12, DepthWorkerThreads = 16, DepthMemoryBudgetMb = 1024 }
+            };
+            try
+            {
+                depthPlanner.Plan(project, 190, 16L * 1024 * 1048576);
+                throw new InvalidOperationException("Underfunded depth job was admitted");
+            }
+            catch (EchoException error)
+            {
+                Check(error.Message.Contains("DepthMemoryBudgetMb", StringComparison.Ordinal), "Identify the depth-specific limit");
+            }
+            var plan = depthPlanner.Plan(project, 190, 16L * 1024 * 1048576, 4096);
+            Check(plan.ConcurrentImages == 2 && plan.MemoryBudgetBytes == 4096L * 1048576, "Updated depth budget was not used");
+            Check(project.Settings.DepthMemoryBudgetMb == 1024 && project.Settings.DepthWidth == 2048, "Scheduling override mutated frozen reconstruction inputs");
+            try
+            {
+                depthPlanner.Plan(project, 190, 256L * 1048576, 4096);
+                throw new InvalidOperationException("Underfunded whole job was admitted");
+            }
+            catch (EchoException error)
+            {
+                Check(error.Message.Contains("ProcessingMemoryBudgetMb", StringComparison.Ordinal), "Identify the whole-job limit");
+            }
+        });
         tests.Run("Stop reconciles an exited worker and retains completed checkpoints", () =>
         {
             WithProject(store =>

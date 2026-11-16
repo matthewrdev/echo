@@ -36,6 +36,7 @@ public sealed class DepthStage : IPipelineStage
         var cancellation = context.Cancellation;
         var alignment = context.Artifact("alignment");
         var scene = jsonCodec.Read<ReconstructionScene>(store.PathFor(alignment + "/scene.json"));
+        var plan = executionPlanner.Plan(project, scene.Cameras.Count, context.WorkingMemoryBytes, context.Resources.DepthMemoryBudgetMb);
         var semantics = project.Settings.OptimiseVegetation || project.Settings.RecoverCliffDepth
             ? semanticArtifacts.Build(context) : new Dictionary<string, SemanticMap>();
         var depthUnits = new string[scene.Cameras.Count];
@@ -44,11 +45,10 @@ public sealed class DepthStage : IPipelineStage
             : new Dictionary<string, string>();
         var completed = 0;
         var progressGate = new object();
-        var plan = executionPlanner.Plan(project, scene.Cameras.Count, context.WorkingMemoryBytes);
         // Direct Metal has a different numerical contract. CPU and the fully
         // validated diagnostic backend retain their original checkpoint keys.
         var algorithmVersion = project.Settings.DepthBackend is "auto" or "metal" ? "echo-0.1.0-pyramid8-metal1" : null;
-        var budgetMode = project.Settings.DepthMemoryBudgetMb == 0 ? "automatic" : "manual";
+        var budgetMode = context.Resources.DepthMemoryBudgetMb == 0 ? "automatic" : "manual";
         context.ReportProgress(Name, $"Depth: {plan.ConcurrentImages} images concurrently, {plan.WorkersPerImage} CPU workers per image; estimated {plan.EstimatedBytesPerImage / 1024 / 1024:N0} MB per job; {budgetMode} memory budget {plan.MemoryBudgetBytes / 1024 / 1024:N0} MB.", 0, scene.Cameras.Count);
         var options = new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = plan.ConcurrentImages };
         Parallel.For(0, scene.Cameras.Count, options, index =>
