@@ -1,13 +1,15 @@
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 
 internal static class FaceViewSelection
 {
     public static int[] Select(Surface mesh, IReadOnlyList<DepthView> views, IReadOnlyDictionary<string, Photo> photos,
-        CancellationToken cancellation, Action<string>? progress = null, PhotographSelectionProgress? selectionProgress = null)
+        CancellationToken cancellation, Action<string>? progress = null, PhotographSelectionProgress? selectionProgress = null, WorkBuffers? work = null)
     {
+        using var scratch = work?.CreateScope();
         var reporter = selectionProgress ?? new PhotographSelectionProgress(progress);
         var candidates = new FaceViewCandidate[mesh.Faces.Count][];
         var scales = new double[mesh.Faces.Count];
@@ -21,8 +23,9 @@ internal static class FaceViewSelection
         {
             CancellationToken = cancellation,
             MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
-        }, index =>
+        }, () => new List<FaceViewCandidate>(views.Count), (index, _, options) =>
         {
+            options.Clear();
             var triangle = visibility.Triangle(index);
             var a = triangle.A;
             var b = triangle.B;
@@ -31,7 +34,6 @@ internal static class FaceViewSelection
             var cross = (b - a).Cross(c - a);
             var area = cross.Length;
             scales[index] = Math.Sqrt(area);
-            var options = new List<FaceViewCandidate>(33);
             var bestVisibleDensity = 0.0;
             for (var viewIndex = 0; viewIndex < views.Count; viewIndex++)
             {
@@ -49,8 +51,7 @@ internal static class FaceViewSelection
                     continue;
                 }
                 bestVisibleDensity = Math.Max(bestVisibleDensity, density);
-                var insert = options.FindIndex(option => option.Cost < score);
-                options.Insert(insert < 0 ? options.Count : insert, new FaceViewCandidate(viewIndex, score, density));
+                Insert(options, new FaceViewCandidate(viewIndex, score, density));
             }
             if (options.Count > 0)
             {
@@ -67,7 +68,8 @@ internal static class FaceViewSelection
             }
             candidates[index] = options.ToArray();
             reporter.Increment();
-        });
+            return options;
+        }, _ => { });
         reporter.Complete();
 
         var missing = selected.Count(view => view < 0);
@@ -78,11 +80,12 @@ internal static class FaceViewSelection
             {
                 CancellationToken = cancellation,
                 MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
-            }, index =>
+            }, () => new List<FaceViewCandidate>(views.Count), (index, _, options) =>
             {
+                options.Clear();
                 if (selected[index] >= 0)
                 {
-                    return;
+                    return options;
                 }
                 var triangle = visibility.Triangle(index);
                 var a = triangle.A;
@@ -90,7 +93,6 @@ internal static class FaceViewSelection
                 var c = triangle.C;
                 var centre = (a + b + c) / 3;
                 var area = (b - a).Cross(c - a).Length;
-                var options = new List<FaceViewCandidate>();
                 var bestVisibleDensity = 0.0;
                 for (var viewIndex = 0; viewIndex < views.Count; viewIndex++)
                 {
@@ -112,23 +114,30 @@ internal static class FaceViewSelection
                         continue;
                     }
                     bestVisibleDensity = Math.Max(bestVisibleDensity, density);
-                    options.Add(new FaceViewCandidate(viewIndex, density, density));
+                    Insert(options, new FaceViewCandidate(viewIndex, density, density));
                 }
                 if (options.Count > 0)
                 {
-                    options = options.OrderByDescending(option => option.Cost).ToList();
                     RetainDetail(options);
                     var best = options[0].Cost;
                     selected[index] = options[0].View;
-                    candidates[index] = options.Select(option => option with { Cost = -Math.Log(option.Cost / best) }).ToArray();
+                    for (var option = 0; option < options.Count; option++)
+                    {
+                        options[option] = options[option] with
+                        {
+                            Cost = -Math.Log(options[option].Cost / best)
+                        };
+                    }
+                    candidates[index] = options.ToArray();
                 }
                 reporter.Increment();
-            });
+                return options;
+            }, _ => { });
         }
         reporter.Complete();
 
         reporter.Start(PhotographSelectionPhase.BuildSeamNeighbours);
-        var neighbours = SurfaceTopologyBuilder.Build(mesh, cancellation).Neighbours;
+        var neighbours = SurfaceTopologyBuilder.Build(mesh, cancellation, scratch).Neighbours;
         var penalties = new double[neighbours.Count];
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
@@ -161,12 +170,31 @@ internal static class FaceViewSelection
         // Keep at least 90% of the best available linear photographic resolution.
         // Seam regularisation can choose among comparable views, but cannot spend
         // most of the available image detail just to avoid a source transition.
-        var bestDensity = candidates.Max(candidate => candidate.Density);
-        candidates.RemoveAll(candidate => candidate.Density < bestDensity * .81);
-        if (candidates.Count > 32)
+        var bestDensity = 0.0;
+        foreach (var candidate in candidates)
         {
-            candidates.RemoveRange(32, candidates.Count - 32);
+            bestDensity = Math.Max(bestDensity, candidate.Density);
         }
+        var retained = 0;
+        for (var index = 0; index < candidates.Count && retained < 32; index++)
+        {
+            var candidate = candidates[index];
+            if (candidate.Density >= bestDensity * .81)
+            {
+                candidates[retained++] = candidate;
+            }
+        }
+        candidates.RemoveRange(retained, candidates.Count - retained);
+    }
+
+    private static void Insert(List<FaceViewCandidate> options, FaceViewCandidate candidate)
+    {
+        var insert = 0;
+        while (insert < options.Count && options[insert].Cost >= candidate.Cost)
+        {
+            insert++;
+        }
+        options.Insert(insert, candidate);
     }
 
     private static double Score(DepthView view, V3 a, V3 b, V3 c, V3 centre, double density)

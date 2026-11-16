@@ -101,7 +101,7 @@ public sealed class MeshStage : IPipelineStage
                     {
                         progress.Report(new OperationProgress("Completion photograph selection", "Selecting photographs for surface completion…"));
                         var observed = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
-                            operationProgress: progress.Report);
+                            operationProgress: progress.Report, work: context.Work);
                         progress.Report(new OperationProgress("Surface reconstruction", "Reconstructing missing surface…"));
                         var reconstructed = surfaceReconstructor.Reconstruct(observed, scene, volume.VoxelSize, cancellation,
                             message => context.ReportProgress(Name, message), context.Memory);
@@ -152,7 +152,7 @@ public sealed class MeshStage : IPipelineStage
                     // of the surviving surface during source assignment.
                     progress.Begin(MeshPhase.SelectPhotographs);
                     var mesh = meshBuilder.AssignCameras(project, scene, maps, trimming.Surface, cancellation,
-                        retainUnobserved: true, operationProgress: progress.Report);
+                        retainUnobserved: true, operationProgress: progress.Report, work: context.Work);
                     var photographCoverage = SurfacePhotographCoverage.Measure(mesh, cancellation);
                     context.ReportProgress(Name, $"Photographs assigned to {photographCoverage.Faces - photographCoverage.InferredFaces:N0}/{photographCoverage.Faces:N0} triangles. Inferred colour covers {photographCoverage.InferredAreaPercent:F2}% of total surface area, including hidden and completed surfaces.");
                     if (project.Settings.OptimiseVegetation)

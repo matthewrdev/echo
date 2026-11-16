@@ -169,13 +169,14 @@ public sealed class MeshQualityTests
         tests.Run("Texture graph cuts match exhaustive binary energies and support long paths", () =>
         {
             var random = new Random(721);
+            var cut = new BinaryCut(15);
             for (var sample = 0; sample < 40; sample++)
             {
-                const int count = 7;
+                var count = 3 + sample % 5;
+                cut.Reset(count);
                 var keep = Enumerable.Range(0, count).Select(_ => random.NextDouble() * 3 - 1).ToArray();
                 var change = Enumerable.Range(0, count).Select(_ => random.NextDouble() * 3 - 1).ToArray();
                 var weights = new double[count, count];
-                var cut = new BinaryCut(count);
                 for (var node = 0; node < count; node++)
                 {
                     cut.Unary(node, keep[node], change[node]);
@@ -199,7 +200,9 @@ public sealed class MeshQualityTests
                     return value;
                 }
                 var minimum = Enumerable.Range(0, 1 << count).Min(mask => Energy(Enumerable.Range(0, count).Select(bit => (mask & (1 << bit)) != 0).ToArray()));
-                Check(Math.Abs(Energy(cut.Solve(default)) - minimum) < 1e-8, "The cut gives the globally minimal binary energy");
+                var labels = new bool[count];
+                cut.Solve(labels, default);
+                Check(Math.Abs(Energy(labels) - minimum) < 1e-8, "The cut gives the globally minimal binary energy");
             }
             var chain = new BinaryCut(20000);
             chain.Unary(0, 0, 2);
@@ -208,7 +211,8 @@ public sealed class MeshQualityTests
             {
                 chain.Pair(node, node + 1, 1, 1);
             }
-            var result = chain.Solve(default);
+            var result = new bool[20000];
+            chain.Solve(result, default);
             Check(!result[0] && result[^1], "Long augmenting paths do not require recursive stack space");
         });
         tests.Run("Tetrahedral extraction resolves saddle cells and welds exact grid crossings", () =>

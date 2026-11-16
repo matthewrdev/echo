@@ -5,14 +5,37 @@ internal static class FaceViewOptimizer
     public static void Optimize(FaceViewCandidate[][] candidates, int[] selected, IList<int> neighbours,
         double[] penalties, int viewCount, CancellationToken cancellation, Action<string>? progress = null)
     {
-        var available = Enumerable.Range(0, viewCount).Select(_ => new List<int>()).ToArray();
-        for (var face = 0; face < candidates.Length; face++)
+        // Exact contiguous view ranges avoid growing one List for every camera.
+        var offsets = new int[viewCount + 1];
+        foreach (var options in candidates)
         {
-            foreach (var candidate in candidates[face])
+            cancellation.ThrowIfCancellationRequested();
+            foreach (var candidate in options)
             {
-                available[candidate.View].Add(face);
+                offsets[candidate.View + 1]++;
             }
         }
+        var maximumActive = 0;
+        for (var view = 0; view < viewCount; view++)
+        {
+            maximumActive = Math.Max(maximumActive, offsets[view + 1]);
+            offsets[view + 1] = checked(offsets[view + 1] + offsets[view]);
+        }
+        var available = new int[offsets[^1]];
+        var writeOffsets = (int[])offsets.Clone();
+        for (var face = 0; face < candidates.Length; face++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            foreach (var candidate in candidates[face])
+            {
+                available[writeOffsets[candidate.View]++] = face;
+            }
+        }
+        var activeBuffer = new int[maximumActive];
+        var keep = new double[maximumActive];
+        var change = new double[maximumActive];
+        var expansionBuffer = new bool[maximumActive];
+        BinaryCut? cut = null;
         var activeIndex = new int[selected.Length];
         Array.Fill(activeIndex, -1);
         // Alpha expansion solves a binary cut for an entire region at a time.
@@ -26,7 +49,15 @@ internal static class FaceViewOptimizer
                 cancellation.ThrowIfCancellationRequested();
                 var view = pass % 2 == 0 ? step : viewCount - step - 1;
                 progress?.Invoke($"Choosing coherent source photographs: pass {pass + 1}/4, view {step + 1}/{viewCount}…");
-                var active = available[view].Where(face => selected[face] != view).ToArray();
+                var count = 0;
+                foreach (var face in available.AsSpan(offsets[view], offsets[view + 1] - offsets[view]))
+                {
+                    if (selected[face] != view)
+                    {
+                        activeBuffer[count++] = face;
+                    }
+                }
+                var active = activeBuffer.AsSpan(0, count);
                 if (active.Length == 0)
                 {
                     continue;
@@ -35,9 +66,10 @@ internal static class FaceViewOptimizer
                 {
                     activeIndex[active[index]] = index;
                 }
-                var keep = new double[active.Length];
-                var change = new double[active.Length];
-                var cut = new BinaryCut(active.Length);
+                keep.AsSpan(0, count).Clear();
+                change.AsSpan(0, count).Clear();
+                cut ??= new BinaryCut(maximumActive);
+                cut.Reset(count);
                 for (var index = 0; index < active.Length; index++)
                 {
                     var face = active[index];
@@ -75,7 +107,8 @@ internal static class FaceViewOptimizer
                 {
                     cut.Unary(index, keep[index], change[index]);
                 }
-                var expansion = cut.Solve(cancellation);
+                var expansion = expansionBuffer.AsSpan(0, count);
+                cut.Solve(expansion, cancellation);
                 var improvement = 0.0;
                 for (var index = 0; index < active.Length; index++)
                 {

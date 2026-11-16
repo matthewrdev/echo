@@ -7,7 +7,8 @@ public static class SurfaceTopologyBuilder
 {
     public static SurfaceTopology Build(Surface mesh, CancellationToken cancellation, WorkBuffers? work = null)
     {
-        var positions = new BinaryHashIndex<V3, int>(mesh.Vertices.Count, new PositionKeyCodec(), new IntRecordCodec(), work, cancellation);
+        using var scratch = work?.CreateScope();
+        var positions = new BinaryHashIndex<V3, int>(mesh.Vertices.Count, new PositionKeyCodec(), new IntRecordCodec(), scratch, cancellation);
         IList<int> welded = work?.Filled(mesh.Vertices.Count, 0, new IntRecordCodec()) ?? new int[mesh.Vertices.Count];
         for (var index = 0; index < welded.Count; index++)
         {
@@ -24,7 +25,7 @@ public static class SurfaceTopologyBuilder
         IList<int> neighbours = work?.Filled(checked(mesh.Faces.Count * 3), -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, checked(mesh.Faces.Count * 3)).ToArray();
         // Hash both endpoints independently. UInt64's XOR hash collapses packed
         // consecutive vertex IDs into a handful of buckets on regular meshes.
-        var edges = new BinaryHashIndex<SurfaceTopologyEdge, int>(mesh.Faces.Count, new SurfaceTopologyEdgeCodec(), new IntRecordCodec(), work, cancellation);
+        var edges = new BinaryHashIndex<SurfaceTopologyEdge, int>(mesh.Faces.Count, new SurfaceTopologyEdgeCodec(), new IntRecordCodec(), scratch, cancellation);
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();

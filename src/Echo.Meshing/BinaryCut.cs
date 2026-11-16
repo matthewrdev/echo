@@ -12,6 +12,7 @@ internal sealed class BinaryCut
     private int[] next;
     private double[] capacities;
     private int arcCount;
+    private int nodeCount;
 
     public BinaryCut(int nodes)
     {
@@ -22,16 +23,28 @@ internal sealed class BinaryCut
         queue = new int[heads.Length];
         path = new int[heads.Length];
         bottlenecks = new double[heads.Length];
-        destinations = new int[Math.Max(16, nodes * 12)];
+        destinations = new int[Math.Max(16, checked(nodes * 7))];
         next = new int[destinations.Length];
         capacities = new double[destinations.Length];
+        Reset(nodes);
+    }
+
+    public void Reset(int nodes)
+    {
+        if (nodes < 0 || nodes > heads.Length - 2)
+        {
+            throw new ArgumentOutOfRangeException(nameof(nodes));
+        }
+        nodeCount = nodes + 2;
+        arcCount = 0;
+        Array.Fill(heads, -1, 0, nodeCount);
     }
 
     public void Unary(int node, double keep, double change)
     {
         var minimum = Math.Min(keep, change);
-        Pair(heads.Length - 2, node, change - minimum, 0);
-        Pair(node, heads.Length - 1, keep - minimum, 0);
+        Pair(nodeCount - 2, node, change - minimum, 0);
+        Pair(node, nodeCount - 1, keep - minimum, 0);
     }
 
     public void Pair(int first, int second, double forward, double reverse)
@@ -52,13 +65,17 @@ internal sealed class BinaryCut
         heads[second] = arcCount++;
     }
 
-    public bool[] Solve(CancellationToken cancellation)
+    public void Solve(Span<bool> expansion, CancellationToken cancellation)
     {
-        var source = heads.Length - 2;
-        var sink = heads.Length - 1;
+        var source = nodeCount - 2;
+        var sink = nodeCount - 1;
+        if (expansion.Length != source)
+        {
+            throw new ArgumentException("Expected one output per active node.", nameof(expansion));
+        }
         while (Levels(source, sink, cancellation))
         {
-            heads.CopyTo(current, 0);
+            heads.AsSpan(0, nodeCount).CopyTo(current);
             var depth = 0;
             var node = source;
             bottlenecks[0] = double.PositiveInfinity;
@@ -116,12 +133,15 @@ internal sealed class BinaryCut
                 depth++;
             }
         }
-        return levels.Take(source).Select(level => level < 0).ToArray();
+        for (var index = 0; index < expansion.Length; index++)
+        {
+            expansion[index] = levels[index] < 0;
+        }
     }
 
     private bool Levels(int source, int sink, CancellationToken cancellation)
     {
-        Array.Fill(levels, -1);
+        Array.Fill(levels, -1, 0, nodeCount);
         levels[source] = 0;
         queue[0] = source;
         var count = 1;
