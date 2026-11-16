@@ -59,6 +59,29 @@ final class FeatureOverlayTests: XCTestCase {
     }
 
     @MainActor
+    func testSelectionFadesOtherFeaturesButKeepsSelectedLineProminent() throws {
+        let data = fixture()
+        let photograph = try draw(data, overlay: FeatureOverlayOptions(opacity: 0))
+        let faded = try draw(data, overlay: FeatureOverlayOptions(opacity: 0.15))
+        let focused = try draw(data, overlay: FeatureOverlayOptions(), selected: 2)
+        let lineOnly = try draw(
+            data, overlay: FeatureOverlayOptions(showsPoints: false, showsJunctions: false), selected: 2)
+        var fadedPixels = 0
+        var selectedPixels = 0
+        for offset in stride(from: 0, to: photograph.count, by: 4) {
+            let pixel = offset..<offset + 3
+            let selectedVisible = lineOnly[pixel] != photograph[pixel]
+            XCTAssertEqual(focused[pixel], selectedVisible ? lineOnly[pixel] : faded[pixel])
+            if selectedVisible { selectedPixels += 1 }
+            if !selectedVisible, faded[pixel] != photograph[pixel] { fadedPixels += 1 }
+        }
+        XCTAssertGreaterThan(fadedPixels, 50)
+        XCTAssertGreaterThan(selectedPixels, 50)
+        let hiddenLine = FeatureOverlayOptions(showsLines: false)
+        XCTAssertEqual(try draw(data, overlay: hiddenLine, selected: 2), try draw(data, overlay: hiddenLine))
+    }
+
+    @MainActor
     private func fixture() -> FeaturePresentation {
         let image = NSImage(size: CGSize(width: 100, height: 100))
         image.lockFocus()
@@ -80,14 +103,16 @@ final class FeatureOverlayTests: XCTestCase {
     }
 
     @MainActor
-    private func draw(_ data: FeaturePresentation, overlay: FeatureOverlayOptions) throws -> [UInt8] {
+    private func draw(_ data: FeaturePresentation, overlay: FeatureOverlayOptions, selected: Int? = nil) throws
+        -> [UInt8]
+    {
         let context = try XCTUnwrap(
             CGContext(
                 data: nil, width: 100, height: 100, bitsPerComponent: 8, bytesPerRow: 400,
                 space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-        FeatureCanvasRenderer(data: data, selected: nil, overlay: overlay) { _ in }.draw(in: context, scale: 1)
+        FeatureCanvasRenderer(data: data, selected: selected, overlay: overlay) { _ in }.draw(in: context, scale: 1)
         NSGraphicsContext.restoreGraphicsState()
         let bytes = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
         return Array(UnsafeBufferPointer(start: bytes, count: 40000))

@@ -53,7 +53,20 @@ final class MatchCanvasRenderer: CanvasRenderer {
             context.endTransparencyLayer()
             context.restoreGState()
         }
-        for index in indices.sorted(by: { ($0 == selected ? 1 : 0) < ($1 == selected ? 1 : 0) }) {
+        let indices = self.indices
+        let hasSelection = selected.map { indices.contains($0) } ?? false
+        drawOverlay(
+            in: context, scale: scale, indices: indices.filter { $0 != selected }, opacity: hasSelection ? 0.15 : 1)
+        if hasSelection, let selected {
+            drawOverlay(in: context, scale: scale, indices: [selected], opacity: 1)
+        }
+    }
+
+    private func drawOverlay(in context: CGContext, scale: CGFloat, indices: [Int], opacity: CGFloat) {
+        context.setAlpha(opacity)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        defer { context.endTransparencyLayer() }
+        for index in indices {
             let match = data.matches[index]
             let a = point(match.a, second: false)
             let b = point(match.b, second: true)

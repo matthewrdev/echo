@@ -50,6 +50,21 @@ final class SavedWorkspaceViewerTests: XCTestCase {
         host.layoutSubtreeIfNeeded()
         let firstHeight = split.arrangedSubviews[0].frame.height
         try snapshot(host, to: folder.appendingPathComponent("features-all.png"))
+        let features = try XCTUnwrap(model.presentation?.features)
+        let selectedFeature = features.features.indices.min {
+            hypot(
+                features.features[$0].x - Double(features.photo.width) / 2,
+                features.features[$0].y - Double(features.photo.height) / 2)
+                < hypot(
+                    features.features[$1].x - Double(features.photo.width) / 2,
+                    features.features[$1].y - Double(features.photo.height) / 2)
+        }
+        let focusedFeatures = NSHostingView(
+            rootView: CanvasViewport(
+                renderer: FeatureCanvasRenderer(data: features, selected: selectedFeature) { _ in },
+                controller: CanvasViewportController()))
+        focusedFeatures.frame = CGRect(x: 0, y: 0, width: 1200, height: 700)
+        try snapshot(focusedFeatures, to: folder.appendingPathComponent("features-selected.png"))
         split.setPosition(420, ofDividerAt: 0)
         host.layoutSubtreeIfNeeded()
         XCTAssertGreaterThan(firstHeight - split.arrangedSubviews[0].frame.height, 100)

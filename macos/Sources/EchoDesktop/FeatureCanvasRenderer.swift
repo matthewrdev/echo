@@ -30,8 +30,20 @@ final class FeatureCanvasRenderer: CanvasRenderer {
             context.endTransparencyLayer()
             context.restoreGState()
         }
+        let hasSelection = selected.map { overlay.shows(index: $0, in: data) } ?? false
+        drawOverlay(in: context, scale: scale, selectedOnly: false, opacity: hasSelection ? 0.15 : 1)
+        if hasSelection {
+            drawOverlay(in: context, scale: scale, selectedOnly: true, opacity: 1)
+        }
+    }
+
+    private func drawOverlay(in context: CGContext, scale: CGFloat, selectedOnly: Bool, opacity: CGFloat) {
+        context.setAlpha(opacity)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        defer { context.endTransparencyLayer() }
         let matched = Set(data.matches.map(\.featureIndex))
-        for (index, line) in data.lines.enumerated() where overlay.showsLines {
+        for (index, line) in data.lines.enumerated()
+        where overlay.showsLines && (selected == data.features.count + index) == selectedOnly {
             let featureIndex = data.features.count + index
             let color =
                 selected == featureIndex
@@ -44,7 +56,8 @@ final class FeatureCanvasRenderer: CanvasRenderer {
                 context.strokePath()
             }
         }
-        for (index, feature) in data.features.enumerated() where overlay.shows(feature) {
+        for (index, feature) in data.features.enumerated()
+        where overlay.shows(feature) && (selected == index) == selectedOnly {
             let highlighted = index == selected
             let radius: CGFloat = (highlighted ? 8 : 3.5) / scale
             let marker = CGRect(x: feature.x - radius, y: feature.y - radius, width: 2 * radius, height: 2 * radius)

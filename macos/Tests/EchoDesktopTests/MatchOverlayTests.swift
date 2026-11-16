@@ -70,6 +70,31 @@ final class MatchOverlayTests: XCTestCase {
     }
 
     @MainActor
+    func testSelectionFadesOtherMatchesOnBothPhotographs() throws {
+        let data = fixture()
+        let photograph = try draw(data, opacity: 0)
+        let faded = try draw(data, opacity: 0.15, selected: nil)
+        let focused = try draw(data, opacity: 1, selected: 2)
+        let lineOnly = try draw(
+            data, opacity: 1, selected: 2, overlay: FeatureOverlayOptions(showsPoints: false, showsJunctions: false))
+        var fadedPixels = 0
+        var selectedPixels = 0
+        for offset in stride(from: 0, to: photograph.count, by: 4) {
+            let pixel = offset..<offset + 3
+            let selectedVisible = lineOnly[pixel] != photograph[pixel]
+            XCTAssertEqual(focused[pixel], selectedVisible ? lineOnly[pixel] : faded[pixel])
+            if selectedVisible { selectedPixels += 1 }
+            if !selectedVisible, faded[pixel] != photograph[pixel] { fadedPixels += 1 }
+        }
+        XCTAssertGreaterThan(fadedPixels, 100)
+        XCTAssertGreaterThan(selectedPixels, 100)
+        let hiddenLine = FeatureOverlayOptions(showsLines: false)
+        XCTAssertEqual(
+            try draw(data, opacity: 1, selected: 2, overlay: hiddenLine),
+            try draw(data, opacity: 1, selected: nil, overlay: hiddenLine))
+    }
+
+    @MainActor
     private func fixture() -> MatchPresentation {
         let image = NSImage(size: CGSize(width: 100, height: 100))
         image.lockFocus()
@@ -95,7 +120,10 @@ final class MatchOverlayTests: XCTestCase {
     }
 
     @MainActor
-    private func draw(_ data: MatchPresentation, opacity: Double) throws -> [UInt8] {
+    private func draw(
+        _ data: MatchPresentation, opacity: Double, selected: Int? = 0,
+        overlay: FeatureOverlayOptions = FeatureOverlayOptions()
+    ) throws -> [UInt8] {
         let context = try XCTUnwrap(
             CGContext(
                 data: nil, width: 378, height: 189, bitsPerComponent: 8, bytesPerRow: 1512,
@@ -105,7 +133,9 @@ final class MatchOverlayTests: XCTestCase {
         context.scaleBy(x: 0.2, y: 0.2)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-        MatchCanvasRenderer(data: data, selected: 0, overlay: FeatureOverlayOptions(opacity: opacity)) { _ in }
+        var options = overlay
+        options.opacity = opacity
+        MatchCanvasRenderer(data: data, selected: selected, overlay: options) { _ in }
             .draw(in: context, scale: 0.2)
         NSGraphicsContext.restoreGraphicsState()
         let bytes = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
