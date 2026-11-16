@@ -9,16 +9,16 @@ internal sealed class VertexFacesStore
     private readonly IList<AdjacencyHead> heads;
     private readonly IList<AdjacencySlot> slots;
 
-    public VertexFacesStore(int count, WorkBuffers work, CancellationToken cancellation = default, Action<int>? progress = null)
+    public VertexFacesStore(int count, WorkBuffers? work, CancellationToken cancellation = default, Action<int>? progress = null)
     {
-        heads = work.List(new AdjacencyHeadCodec());
+        heads = work?.List(new AdjacencyHeadCodec()) ?? new List<AdjacencyHead>(count);
         for (var index = 0; index < count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             heads.Add(new AdjacencyHead(-1, -1, -1, 0));
             progress?.Invoke(index + 1);
         }
-        slots = work.List(new AdjacencySlotCodec());
+        slots = work?.List(new AdjacencySlotCodec()) ?? new List<AdjacencySlot>();
     }
 
     public int Count(int vertex) => heads[vertex].Count;
@@ -107,17 +107,5 @@ internal sealed class VertexFacesStore
         return -1;
     }
 
-    public IEnumerable<int> Faces(int vertex)
-    {
-        var slot = heads[vertex].First;
-        while (slot >= 0)
-        {
-            var item = slots[slot];
-            if (item.Face >= 0)
-            {
-                yield return item.Face;
-            }
-            slot = item.Next;
-        }
-    }
+    public VertexFaceEnumerable Faces(int vertex) => new(slots, heads[vertex].First);
 }

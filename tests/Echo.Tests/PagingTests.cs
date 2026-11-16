@@ -28,6 +28,36 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Simplification vertex records preserve coefficients without decoding allocations", () =>
+        {
+            var vertex = new Vertex { Id = 23, Position = new V3(-1.5, Math.PI, 12), PlaneCount = 500, Revision = 17, Removed = true };
+            for (var index = 0; index < 16; index++)
+            {
+                vertex[index] = (index - 5) * Math.PI;
+            }
+            var codec = new VertexRecordCodec();
+            Span<byte> bytes = stackalloc byte[165];
+            codec.Encode(vertex, bytes);
+            var decoded = codec.Decode(bytes);
+            Check(decoded.Id == vertex.Id && decoded.Position == vertex.Position, "Vertex identity or position changed");
+            Check(decoded.Removed && decoded.Revision == 17 && decoded.PlaneCount == 500, "Vertex state changed");
+            for (var index = 0; index < 16; index++)
+            {
+                Check(decoded[index] == vertex[index], "A quadric coefficient changed");
+            }
+            for (var index = 0; index < 1000; index++)
+            {
+                decoded = codec.Decode(bytes);
+            }
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var sum = 0.0;
+            for (var index = 0; index < 10000; index++)
+            {
+                sum += codec.Decode(bytes)[7];
+            }
+            Check(GC.GetAllocatedBytesForCurrentThread() - before < 1024 && sum > 0,
+                "Numeric vertex reads allocated managed objects");
+        });
         tests.Run("Resident geometry reservations share the page budget and preserve dirty data", () => InDirectory(directory =>
         {
             const int capacity = 8 * 65536;

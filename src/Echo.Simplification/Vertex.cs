@@ -2,14 +2,9 @@ using Echo.Geometry;
 
 namespace Echo.Simplification;
 
-internal sealed class Vertex
+internal struct Vertex
 {
     private Quadric quadric;
-
-    public Vertex(ICollection<int>? faces = null)
-    {
-        Faces = faces ?? new HashSet<int>();
-    }
 
     public int Id
     {
@@ -19,14 +14,14 @@ internal sealed class Vertex
     {
         get; set;
     }
-    public Span<double> Quadric => quadric;
+    public double this[int coefficient]
+    {
+        readonly get => quadric[coefficient];
+        set => quadric[coefficient] = value;
+    }
     public int PlaneCount
     {
         get; set;
-    }
-    public ICollection<int> Faces
-    {
-        get;
     }
     public int Revision
     {

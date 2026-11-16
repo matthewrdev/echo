@@ -43,8 +43,8 @@ public sealed class EdgeCollapse : IEdgeCollapse
         var updates = new SimplificationProgress(progress);
         var adjacencyRecords = work == null ? 0 : sourceMesh.Vertices.Count;
         updates.Start(SimplificationPhase.Vertices, sourceMesh.Vertices.Count + (long)adjacencyRecords, "records");
-        var adjacency = work == null ? null : new VertexFacesStore(sourceMesh.Vertices.Count, work, cancellation, count => updates.Advance(count));
-        IList<Vertex> vertices = work?.List(new VertexRecordCodec(adjacency!)) ?? new List<Vertex>(sourceMesh.Vertices.Count);
+        var adjacency = new VertexFacesStore(sourceMesh.Vertices.Count, work, cancellation, count => updates.Advance(work == null ? 0 : count));
+        IList<Vertex> vertices = work?.List(new VertexRecordCodec()) ?? new List<Vertex>(sourceMesh.Vertices.Count);
         IList<int> revisions = work?.List(new IntRecordCodec()) ?? new List<int>(sourceMesh.Vertices.Count);
         IList<BoundaryState> boundaries = work?.List(new BoundaryStateRecordCodec()) ?? new List<BoundaryState>(sourceMesh.Vertices.Count);
         for (var index = 0; index < sourceMesh.Vertices.Count; index++)
@@ -57,12 +57,12 @@ public sealed class EdgeCollapse : IEdgeCollapse
         }
         updates.Complete();
         updates.Start(SimplificationPhase.Triangles, sourceMesh.Faces.Count, "triangles");
-        IList<int[]> faces = work?.List(new TriangleRecordCodec()) ?? new List<int[]>(sourceMesh.Faces.Count);
+        IList<FaceVertices> faces = work?.List(new FaceVerticesCodec()) ?? new List<FaceVertices>(sourceMesh.Faces.Count);
         IList<bool> removed = work?.List(new BoolRecordCodec()) ?? new bool[sourceMesh.Faces.Count];
         foreach (var face in sourceMesh.Faces)
         {
             cancellation.ThrowIfCancellationRequested();
-            faces.Add(work == null ? (int[])face.Clone() : face);
+            faces.Add(new FaceVertices(face[0], face[1], face[2]));
             if (work != null)
             {
                 removed.Add(false);
@@ -78,9 +78,9 @@ public sealed class EdgeCollapse : IEdgeCollapse
             cancellation.ThrowIfCancellationRequested();
             updates.Advance(i);
             var f = faces[i];
-            foreach (var v in f)
+            for (var corner = 0; corner < 3; corner++)
             {
-                vertices[v].Faces.Add(i);
+                adjacency.Add(f[corner], i);
             }
 
             var a = vertices[f[0]].Position;
@@ -89,15 +89,16 @@ public sealed class EdgeCollapse : IEdgeCollapse
             plane[1] = normal.Y;
             plane[2] = normal.Z;
             plane[3] = -(normal).Dot(a);
-            foreach (var v in f)
+            for (var corner = 0; corner < 3; corner++)
             {
+                var v = f[corner];
                 var vertex = vertices[v];
                 vertex.PlaneCount++;
                 for (var r = 0; r < 4; r++)
                 {
                     for (var c = 0; c < 4; c++)
                     {
-                        vertex.Quadric[r * 4 + c] += plane[r] * plane[c];
+                        vertex[r * 4 + c] += plane[r] * plane[c];
                     }
                 }
                 vertices[v] = vertex;
@@ -111,10 +112,12 @@ public sealed class EdgeCollapse : IEdgeCollapse
         void Neighbours(int vertex, HashSet<int> result)
         {
             result.Clear();
-            foreach (var face in vertices[vertex].Faces)
+            foreach (var face in adjacency.Faces(vertex))
             {
-                foreach (var neighbour in faces[face])
+                var triangleVertices = faces[face];
+                for (var corner = 0; corner < 3; corner++)
                 {
+                    var neighbour = triangleVertices[corner];
                     if (neighbour != vertex)
                     {
                         result.Add(neighbour);
@@ -130,10 +133,12 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 return cached == BoundaryState.Boundary;
             }
             edgeCounts.Clear();
-            foreach (var face in vertex.Faces)
+            foreach (var face in adjacency.Faces(vertex.Id))
             {
-                foreach (var neighbour in faces[face])
+                var triangleVertices = faces[face];
+                for (var corner = 0; corner < 3; corner++)
                 {
+                    var neighbour = triangleVertices[corner];
                     if (neighbour != vertex.Id)
                     {
                         edgeCounts.TryGetValue(neighbour, out var count);
@@ -176,8 +181,6 @@ public sealed class EdgeCollapse : IEdgeCollapse
             {
                 return;
             }
-            var qa = va.Quadric;
-            var qb = vb.Quadric;
             var aBoundary = Boundary(va);
             var bBoundary = Boundary(vb);
             Span<V3> options = stackalloc V3[3];
@@ -211,7 +214,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 {
                     for (var c = 0; c < 4; c++)
                     {
-                        error += p[r] * p[c] * (qa[r * 4 + c] + qb[r * 4 + c]);
+                        error += p[r] * p[c] * (va[r * 4 + c] + vb[r * 4 + c]);
                     }
                 }
 
@@ -255,9 +258,9 @@ public sealed class EdgeCollapse : IEdgeCollapse
             var vertexB = vertices[edge.B];
             var sharedCount = 0;
             var sharedFace = -1;
-            foreach (var face in vertexA.Faces)
+            foreach (var face in adjacency.Faces(vertexA.Id))
             {
-                if (vertexB.Faces.Contains(face))
+                if (adjacency.Contains(vertexB.Id, face))
                 {
                     sharedCount++;
                     sharedFace = face;
@@ -286,7 +289,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 {
                     for (var c = 0; c < 4; c++)
                     {
-                        vertex.Quadric[r * 4 + c] += 100 * plane[r] * plane[c];
+                        vertex[r * 4 + c] += 100 * plane[r] * plane[c];
                     }
                 }
                 vertices[vi] = vertex;
@@ -353,9 +356,9 @@ public sealed class EdgeCollapse : IEdgeCollapse
             var b = vertices[edge.B];
 
             commonFaces.Clear();
-            foreach (var face in a.Faces)
+            foreach (var face in adjacency.Faces(a.Id))
             {
-                if (b.Faces.Contains(face))
+                if (adjacency.Contains(b.Id, face))
                 {
                     commonFaces.Add(face);
                 }
@@ -387,12 +390,12 @@ public sealed class EdgeCollapse : IEdgeCollapse
 
             affected.Clear();
             affectedSet.Clear();
-            foreach (var face in a.Faces)
+            foreach (var face in adjacency.Faces(a.Id))
             {
                 affected.Add(face);
                 affectedSet.Add(face);
             }
-            foreach (var face in b.Faces)
+            foreach (var face in adjacency.Faces(b.Id))
             {
                 if (affectedSet.Add(face))
                 {
@@ -439,16 +442,18 @@ public sealed class EdgeCollapse : IEdgeCollapse
             touched.Clear();
             foreach (var face in affected)
             {
-                foreach (var vertex in faces[face])
+                var triangleVertices = faces[face];
+                for (var corner = 0; corner < 3; corner++)
                 {
-                    touched.Add(vertex);
+                    touched.Add(triangleVertices[corner]);
                 }
             }
             foreach (var fi in affected)
             {
-                foreach (var vi in faces[fi])
+                var original = faces[fi];
+                for (var corner = 0; corner < 3; corner++)
                 {
-                    vertices[vi].Faces.Remove(fi);
+                    adjacency.Remove(original[corner], fi);
                 }
 
                 if (commonFaces.Contains(fi))
@@ -458,19 +463,12 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     continue;
                 }
 
-                var updated = faces[fi];
-                for (var i = 0; i < 3; i++)
-                {
-                    if (updated[i] == edge.B)
-                    {
-                        updated[i] = edge.A;
-                    }
-                }
+                var updated = original.Replace(edge.B, edge.A);
                 faces[fi] = updated;
 
-                foreach (var vi in updated)
+                for (var corner = 0; corner < 3; corner++)
                 {
-                    vertices[vi].Faces.Add(fi);
+                    adjacency.Add(updated[corner], fi);
                 }
             }
 
@@ -482,7 +480,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             a.PlaneCount += b.PlaneCount;
             for (var i = 0; i < 16; i++)
             {
-                a.Quadric[i] += b.Quadric[i];
+                a[i] += b[i];
             }
 
             b.Removed = true;
