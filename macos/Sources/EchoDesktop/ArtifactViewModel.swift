@@ -9,6 +9,7 @@ final class ArtifactViewModel: ObservableObject {
     private var run: RunData?
     private var requestedMatch: FeatureMatchLink?
     private var presentedMode = ""
+    private var presentedUnit: ArtifactUnit?
     @Published var selectedMatchIndex: Int?
     private var stage = PipelineStage.alignment
 
@@ -86,8 +87,8 @@ final class ArtifactViewModel: ObservableObject {
                 selectedUnit = units.first?.id ?? ""
                 selectedMatchIndex = nil
             }
-            // New image checkpoints extend the browser without replacing the
-            // photo, zoom or selected feature that the user is inspecting.
+            // New checkpoints extend the browser without replacing the
+            // photograph or pair that the user is inspecting.
             let currentUnit = units.first { $0.id == selectedUnit }
             let unchangedFeature =
                 stage == .features && presentation?.features?.photo.id == selectedUnit
@@ -95,7 +96,9 @@ final class ArtifactViewModel: ObservableObject {
             let unchangedDepth =
                 stage == .depth && presentation?.depthImage?.identity == currentUnit?.file.path
                 && presentedMode == mode
-            if sameSelection, presentation != nil, previousUnit == currentUnit, unchangedFeature || unchangedDepth {
+            let unchangedMatch = stage == .matching && presentation?.matches != nil && presentedUnit == currentUnit
+            let unchangedPresentation = unchangedFeature || unchangedDepth || unchangedMatch
+            if sameSelection, presentation != nil, previousUnit == currentUnit, unchangedPresentation {
                 return
             }
             await load()
@@ -152,6 +155,7 @@ final class ArtifactViewModel: ObservableObject {
             guard generation == request else { return }
             presentation = value
             presentedMode = mode
+            presentedUnit = unit
         } catch is CancellationError {
             guard generation == request else { return }
         } catch {

@@ -56,7 +56,7 @@ struct ArtifactViewer: View {
                 )
                 .font(.callout).foregroundStyle(.orange)
             }
-            if workspace.selectedStage == .features, let imageReadiness {
+            if [.features, .matching].contains(workspace.selectedStage), let imageReadiness {
                 Text(imageReadiness).font(.caption).foregroundStyle(.secondary)
             }
             if workspace.selectedStage == .cloud {
@@ -126,12 +126,18 @@ struct ArtifactViewer: View {
     }
 
     private var imageReadiness: String? {
-        guard [.features, .depth].contains(workspace.selectedStage), let run = workspace.displayedRun else {
+        guard [.features, .matching, .depth].contains(workspace.selectedStage), let run = workspace.displayedRun else {
             return nil
         }
         let stage = workspace.selectedStage.rawValue
         let partial = run.artifacts[stage] == nil && run.artifacts[stage + "Preview"] != nil
         guard partial || workspace.selectedStage == .depth else { return nil }
+        if workspace.selectedStage == .matching {
+            if let progress = run.progress, progress.stage == stage, let total = progress.total {
+                return "\(model.units.count) / \(total) image pairs ready"
+            }
+            return "\(model.units.count) image pairs ready"
+        }
         let total =
             run.progress?.stage == stage
             ? run.progress?.total ?? run.snapshot.images.filter(\.enabled).count

@@ -99,8 +99,21 @@ public sealed class ImageStageConcurrencyTests
                 ExpectCancellation(() => matching.Execute(context));
             }
             Check(!run.Artifacts.ContainsKey("matching"), "Cancelled matching must not publish its final index");
+            var partialPairs = json.Read<List<string>>(store.PathFor(run.Artifacts["matchingPreview"] + "/units.json"));
+            Check(partialPairs.Count == 1, "Cancelled matching retains its committed, viewable pair index");
             Check(Directory.GetDirectories(store.PathFor("artifacts/match-pair")).Length == 2, "Keep completed pair checkpoints for resume");
-            matching.Execute(contexts.Create(store, run, default, null));
+            var previewCount = partialPairs.Count;
+            matching.Execute(contexts.Create(store, run, default, record =>
+            {
+                if (EventType(record) == "pairCheckpoint")
+                {
+                    var current = store.GetRun(run.Id);
+                    var index = json.Read<List<string>>(store.PathFor(current.Artifacts["matchingPreview"] + "/units.json"));
+                    Check(index.Count >= previewCount, "Resuming matching must not shrink the live pair browser");
+                    Check(!current.Artifacts.ContainsKey("matching"), "Pair previews must be visible before matching completes");
+                    previewCount = index.Count;
+                }
+            }));
             Check(json.Encode(expected.Artifacts) == json.Encode(run.Artifacts), "Resume changed final artifact fingerprints");
             Check(json.Encode(expectedHashes) == json.Encode(ArtifactHashes(store)), "Resume changed saved output");
             Check(!Directory.EnumerateFileSystemEntries(store.PathFor("work")).Any(), "No temporary worker directories may remain");
@@ -112,7 +125,16 @@ public sealed class ImageStageConcurrencyTests
     private RunData RunStages(IProjectStore store, int workers, long cacheBytes, IJsonCodec? cacheJson)
     {
         var run = NewRun(store);
-        var context = contexts.Create(store, run, default, null);
+        var context = contexts.Create(store, run, default, record =>
+        {
+            var data = JsonSerializer.SerializeToElement(record, json.Options);
+            var matchingPreview = data.GetProperty("type").GetString() == "checkpoint"
+                && data.GetProperty("payload").GetProperty("stage").GetString() == "matchingPreview";
+            if (matchingPreview)
+            {
+                Check(store.GetRun(run.Id).Progress?.Stage == "matching", "Publishing pair previews must preserve matching progress");
+            }
+        });
         context.Start();
         var plan = new FixedImageWorkPlanner(workers, cacheBytes);
         new FeatureStage(files, extractor, json, plan, executor).Execute(context);
@@ -161,6 +183,17 @@ public sealed class ImageStageConcurrencyTests
         Check(previews.Length == 4, "Publish each completed image preview");
         var pairs = events.Where(record => record.GetProperty("type").GetString() == "pairCheckpoint").ToArray();
         Check(pairs.Select(record => record.GetProperty("payload").GetProperty("completed").GetInt32()).SequenceEqual(Enumerable.Range(1, 6)), "Pair completion counts must be ordered");
+        var pairPreviews = events.Where(record => record.GetProperty("type").GetString() == "checkpoint")
+            .Select(record => record.GetProperty("payload")).Where(payload => payload.GetProperty("stage").GetString() == "matchingPreview").ToArray();
+        var finalPairs = json.Read<List<string>>(store.PathFor(run.Artifacts["matching"] + "/units.json"));
+        Check(pairPreviews.Length == finalPairs.Count, "Publish each completed pair preview");
+        for (var index = 0; index < pairPreviews.Length; index++)
+        {
+            var path = pairPreviews[index].GetProperty("artifact").GetString();
+            var units = json.Read<List<string>>(store.PathFor(path + "/units.json"));
+            Check(units.SequenceEqual(finalPairs.Take(index + 1)), "Pair preview must contain an immutable prefix of committed pairs");
+            Check(units.All(unit => File.Exists(store.PathFor(unit + "/pair.json"))), "Publish only readable pair artifacts");
+        }
         Check(events.Select(record => record.GetProperty("sequence").GetInt64()).SequenceEqual(Enumerable.Range(1, events.Length).Select(i => (long)i)), "Concurrent reports must retain contiguous event sequences");
     }
 

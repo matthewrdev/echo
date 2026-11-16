@@ -270,6 +270,7 @@ public sealed class RunContext : IDisposable
             "feature-image" => "features",
             "features-preview" => "features",
             "match-pair" => "matching",
+            "matching-preview" => "matching",
             "semantic-image" => "depth",
             "semantics" => "depth",
             "cliff-depth-image" => "depth",
@@ -509,7 +510,7 @@ public sealed class RunContext : IDisposable
             var data = JsonSerializer.SerializeToElement(payload, jsonCodec.Options);
             var stage = data.GetProperty("stage").GetString() ?? "";
             var reportedStage = stage;
-            if (stage is "cloud-preview" or "features-preview" or "depth-preview")
+            if (stage is "cloud-preview" or "features-preview" or "matching-preview" or "depth-preview")
             {
                 return;
             }

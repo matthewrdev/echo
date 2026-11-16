@@ -48,12 +48,21 @@ public sealed class MatchingStage : IPipelineStage
         context.ReportProgress("matching", $"Selected {wanted.Count:N0} image pairs using viewing overlap, spatial neighbours, capture sequence and hints.");
 
         var pairUnits = new List<string>();
+        var previewCount = context.Run.Artifacts.ContainsKey("matchingPreview")
+            ? context.ReadArtifact<List<string>>("matchingPreview", "units.json").Count
+            : 0;
         var plan = workPlanner.Matching(project.Settings, wanted.Count);
         using var cache = cacheFactory.Create(plan.FeatureCacheBytes);
         workExecutor.Run(wanted.Count, plan.Workers, index => BuildPair(context, wanted[index], photos, featureUnits, cache), (index, unit) =>
         {
             var pair = wanted[index];
             pairUnits.Add(unit);
+            if (pairUnits.Count > previewCount)
+            {
+                PublishPreview(context, pairUnits);
+                previewCount = pairUnits.Count;
+            }
+
             context.Report("pairCheckpoint", new
             {
                 stage = "matching",
@@ -79,6 +88,17 @@ public sealed class MatchingStage : IPipelineStage
                 pairs = wanted
             });
         }));
+    }
+
+    private void PublishPreview(RunContext context, List<string> pairUnits)
+    {
+        // Index only committed pairs, keeping earlier previews safe to read
+        // while matching continues or a cancelled run resumes.
+        var artifact = context.Build("matching-preview", pairUnits, directory =>
+        {
+            fileOperations.AtomicJson(Path.Combine(directory, "units.json"), pairUnits);
+        });
+        context.Publish("matchingPreview", artifact);
     }
 
     private string BuildPair(RunContext context, PairIdentity pair, IReadOnlyDictionary<string, Photo> photos, IReadOnlyDictionary<string, string> featureUnits, FeatureSetCache cache)
