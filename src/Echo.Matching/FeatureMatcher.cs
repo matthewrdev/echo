@@ -1,21 +1,25 @@
 using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
+using Echo.Compute;
 
 namespace Echo.Matching;
 
 [Export(typeof(IFeatureMatcher)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class FeatureMatcher : IFeatureMatcher
 {
+    private readonly IComputeService? compute;
+
     [ImportingConstructor]
-    public FeatureMatcher()
+    public FeatureMatcher([Import(AllowDefault = true)] IComputeService? compute = null)
     {
+        this.compute = compute;
     }
 
     public ImagePair Match(FeatureSet leftFeatures, FeatureSet rightFeatures, Settings settings, CancellationToken cancellation)
     {
         var points = DescriptorMatcher.Match<Feature>(CollectionsMarshal.AsSpan(leftFeatures.Features),
-            CollectionsMarshal.AsSpan(rightFeatures.Features), settings, cancellation);
+            CollectionsMarshal.AsSpan(rightFeatures.Features), settings, cancellation, compute: compute);
         var result = new ImagePair { A = leftFeatures.ImageId, B = rightFeatures.ImageId, Diagnostics = points.Diagnostics };
         foreach (var match in points.Matches)
         {
@@ -31,7 +35,7 @@ public sealed class FeatureMatcher : IFeatureMatcher
         }
 
         var lines = DescriptorMatcher.Match<LineFeature>(CollectionsMarshal.AsSpan(leftFeatures.Lines),
-            CollectionsMarshal.AsSpan(rightFeatures.Lines), settings, cancellation, allowReversedDescriptor: true);
+            CollectionsMarshal.AsSpan(rightFeatures.Lines), settings, cancellation, allowReversedDescriptor: true, compute: compute);
         foreach (var match in lines.Matches)
         {
             var first = leftFeatures.Lines[match.A];

@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Echo.Compute;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 
@@ -10,7 +11,7 @@ namespace Echo.Geometry;
 /// </summary>
 public static class FundamentalMatrixEstimator
 {
-    public static FundamentalMatrixEstimate? Estimate(IReadOnlyList<Match> matches, double thresholdPixels, CancellationToken cancellation)
+    public static FundamentalMatrixEstimate? Estimate(IReadOnlyList<Match> matches, double thresholdPixels, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         if (matches.Count < 12)
         {
@@ -28,11 +29,42 @@ public static class FundamentalMatrixEstimator
         var maximumIterations = 8192;
         var iteration = 0;
         var squaredThreshold = thresholdPixels * thresholdPixels;
+        using var acceleration = EpipolarCompute.Open(compute, backend, matches, cancellation);
+        var batchSize = acceleration == null ? 1 : 32;
+        var matrices = new double[]?[batchSize];
+        var upperBounds = new int[batchSize];
+        var failed = false;
         for (; iteration < maximumIterations; iteration++)
         {
             cancellation.ThrowIfCancellationRequested();
-            RandomSampleSelector.Select<Match>(matches, random, sample);
-            var matrix = Fit(sample);
+            var slot = iteration % batchSize;
+            if (slot == 0)
+            {
+                var count = Math.Min(batchSize, maximumIterations - iteration);
+                for (var hypothesis = 0; hypothesis < count; hypothesis++)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    RandomSampleSelector.Select<Match>(matches, random, sample);
+                    matrices[hypothesis] = Fit(sample);
+                }
+                Array.Fill(upperBounds, int.MaxValue);
+                if (acceleration != null && !failed)
+                {
+                    try
+                    {
+                        EpipolarCompute.Count(acceleration, matrices, count, matches.Count, thresholdPixels, upperBounds);
+                    }
+                    catch (ComputeException) when (backend == ComputeBackend.Auto)
+                    {
+                        failed = true;
+                    }
+                }
+            }
+            if (upperBounds[slot] <= best.Count)
+            {
+                continue;
+            }
+            var matrix = matrices[slot];
             if (matrix == null)
             {
                 continue;

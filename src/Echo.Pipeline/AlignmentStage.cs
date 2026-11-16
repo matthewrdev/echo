@@ -42,7 +42,9 @@ public sealed class AlignmentStage : IPipelineStage
         }
         var initial = context.Build("alignment-initial", new
         {
-            algorithmVersion = 4,
+            algorithmVersion = 5,
+            project.Settings.ComputeBackend,
+            context.ComputeImplementation,
             pairUnits,
             cameras = context.Images,
             project.Settings.BundleIterations,
@@ -57,7 +59,9 @@ public sealed class AlignmentStage : IPipelineStage
         var recoveryUnits = project.Settings.GuidedAlignmentPass ? RecoverPairs(context, pairUnits, pairs) : [];
         var alignment = context.Build(Name, new
         {
-            algorithmVersion = 4,
+            algorithmVersion = 5,
+            project.Settings.ComputeBackend,
+            context.ComputeImplementation,
             initial,
             recoveryUnits,
             project.Settings.GuidedAlignmentPass,
@@ -130,7 +134,9 @@ public sealed class AlignmentStage : IPipelineStage
             var threshold = Math.Max(photos[pair.A].Width, photos[pair.B].Width) / 1000.0;
             var unit = context.Build("alignment-guided-pair", new
             {
-                algorithmVersion = 1,
+                algorithmVersion = 2,
+                settings.ComputeBackend,
+                context.ComputeImplementation,
                 initialPair = pairUnits[index],
                 left = features[pair.A],
                 right = features[pair.B],

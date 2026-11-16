@@ -1,12 +1,19 @@
 using System.Buffers;
 using Echo.Contracts;
+using Echo.Compute;
 
 namespace Echo.Matching;
 
 public static class DescriptorMatcher
 {
-    public static DescriptorMatches Match<T>(ReadOnlySpan<T> leftFeatures, ReadOnlySpan<T> rightFeatures, Settings settings, CancellationToken cancellation, bool allowReversedDescriptor = false) where T : IFeatureDescriptor
+    public static DescriptorMatches Match<T>(ReadOnlySpan<T> leftFeatures, ReadOnlySpan<T> rightFeatures, Settings settings, CancellationToken cancellation, bool allowReversedDescriptor = false, IComputeService? compute = null) where T : IFeatureDescriptor
     {
+        var accelerated = AcceleratedDescriptorMatcher.TryMatch(leftFeatures, rightFeatures, settings, allowReversedDescriptor, compute, cancellation);
+        if (accelerated != null)
+        {
+            return accelerated;
+        }
+
         var diagnostics = new MatchingDiagnostics
         {
             FeaturesA = leftFeatures.Length,

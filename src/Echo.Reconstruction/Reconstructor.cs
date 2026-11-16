@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Geometry;
 using Echo.Optimization;
 
@@ -9,11 +10,13 @@ namespace Echo.Reconstruction;
 public sealed class Reconstructor : IReconstructor
 {
     private readonly IBundleAdjuster bundleAdjuster;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public Reconstructor(IBundleAdjuster bundleAdjuster)
+    public Reconstructor(IBundleAdjuster bundleAdjuster, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.bundleAdjuster = bundleAdjuster;
+        this.compute = compute;
     }
 
     public ReconstructionScene Align(ProjectData project,
@@ -53,7 +56,7 @@ public sealed class Reconstructor : IReconstructor
         {
             if (images.TryGetValue(pair.A, out var left) && images.TryGetValue(pair.B, out var right))
             {
-                verifiedPairs.Add(ImagePairVerifier.Verify(left, right, pair, cancellation));
+                verifiedPairs.Add(ImagePairVerifier.Verify(left, right, pair, cancellation, compute, project.Settings.ComputeBackend));
             }
         }
         pairs = verifiedPairs;
@@ -130,7 +133,7 @@ public sealed class Reconstructor : IReconstructor
             }
         }
 
-        TriangulateAll(result, images, pairs, cancellation);
+        TriangulateAll(result, images, pairs, cancellation, project.Settings.ComputeBackend);
         if (result.Cameras.Count == 2)
         {
             checkpoint?.Invoke(result);
@@ -167,7 +170,7 @@ public sealed class Reconstructor : IReconstructor
                 break;
             }
 
-            TriangulateAll(result, images, pairs, cancellation);
+            TriangulateAll(result, images, pairs, cancellation, project.Settings.ComputeBackend);
         }
 
         if (result.Cameras.Count >= 3)
@@ -197,7 +200,7 @@ public sealed class Reconstructor : IReconstructor
     private void TriangulateAll(ReconstructionScene scene,
         Dictionary<string, Photo> images,
         List<ImagePair> pairs,
-        CancellationToken cancellation)
+        CancellationToken cancellation, ComputeBackend backend)
     {
         scene.Points.Clear();
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
@@ -213,9 +216,12 @@ public sealed class Reconstructor : IReconstructor
                 continue;
             }
 
-            foreach (var match in pair.Matches)
+            var tolerance = 18.0 * images[pair.A].Width / 1000;
+            var accelerated = TriangulationCompute.TryCalculate(compute, backend, images[pair.A], images[pair.B], a, b, pair.Matches, tolerance, cancellation);
+            for (var matchIndex = 0; matchIndex < pair.Matches.Count; matchIndex++)
             {
-                var triangulated = CameraGeometry.Triangulate(images[pair.A], images[pair.B], a, b, match, 18.0 * images[pair.A].Width / 1000);
+                var match = pair.Matches[matchIndex];
+                var triangulated = accelerated == null ? CameraGeometry.Triangulate(images[pair.A], images[pair.B], a, b, match, tolerance) : accelerated[matchIndex];
                 if (triangulated != null)
                 {
                     scene.Points.Add(new CloudPoint

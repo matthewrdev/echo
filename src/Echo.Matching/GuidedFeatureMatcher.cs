@@ -1,6 +1,8 @@
 using System.Buffers;
+using System.Runtime.InteropServices;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Geometry;
 
 namespace Echo.Matching;
@@ -9,15 +11,18 @@ namespace Echo.Matching;
 public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
 {
 
+    private readonly IComputeService? compute;
+
     [ImportingConstructor]
-    public GuidedFeatureMatcher()
+    public GuidedFeatureMatcher([Import(AllowDefault = true)] IComputeService? compute = null)
     {
+        this.compute = compute;
     }
 
     public ImagePair? Recover(FeatureSet left, FeatureSet right, IReadOnlyList<Match> initialMatches, Settings settings,
         double thresholdPixels, CancellationToken cancellation)
     {
-        var seed = FundamentalMatrixEstimator.Estimate(initialMatches, thresholdPixels, cancellation);
+        var seed = FundamentalMatrixEstimator.Estimate(initialMatches, thresholdPixels, cancellation, compute, settings.ComputeBackend);
         if (seed == null || seed.Inliers.Count < 20)
         {
             return null;
@@ -37,7 +42,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
                 candidates.Add(match);
             }
         }
-        var verified = FundamentalMatrixEstimator.Estimate(candidates, thresholdPixels, cancellation);
+        var verified = FundamentalMatrixEstimator.Estimate(candidates, thresholdPixels, cancellation, compute, settings.ComputeBackend);
         if (verified == null || verified.Inliers.Count <= seed.Inliers.Count)
         {
             return null;
@@ -48,6 +53,11 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
     private List<Match> Search(FeatureSet left, FeatureSet right, ReadOnlySpan<double> matrix, Settings settings,
         double thresholdPixels, CancellationToken cancellation)
     {
+        var accelerated = GuidedDescriptorCompute.TrySearch(compute, left, right, matrix, settings, thresholdPixels, cancellation);
+        if (accelerated != null)
+        {
+            return accelerated;
+        }
         var leftCount = left.Features.Count;
         var rightCount = right.Features.Count;
         var distances = ArrayPool<double>.Shared.Rent(rightCount + leftCount * 2);

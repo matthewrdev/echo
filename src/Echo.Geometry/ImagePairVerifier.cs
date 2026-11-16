@@ -1,10 +1,11 @@
 using Echo.Contracts;
+using Echo.Compute;
 
 namespace Echo.Geometry;
 
 public static class ImagePairVerifier
 {
-    public static ImagePair Verify(Photo leftPhoto, Photo rightPhoto, ImagePair candidates, CancellationToken cancellation)
+    public static ImagePair Verify(Photo leftPhoto, Photo rightPhoto, ImagePair candidates, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         cancellation.ThrowIfCancellationRequested();
         var threshold = Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000.0;
@@ -16,7 +17,7 @@ public static class ImagePairVerifier
                 automatic.Add(match);
             }
         }
-        var estimate = FundamentalMatrixEstimator.Estimate(automatic, threshold, cancellation);
+        var estimate = FundamentalMatrixEstimator.Estimate(automatic, threshold, cancellation, compute, backend);
         var inliers = estimate == null ? new HashSet<Match>() : new HashSet<Match>(estimate.Inliers);
         var verified = new ImagePair { A = candidates.A, B = candidates.B };
         foreach (var match in candidates.Matches)

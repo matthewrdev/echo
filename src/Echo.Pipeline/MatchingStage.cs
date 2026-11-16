@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Infrastructure;
 using Echo.Matching;
 using Echo.Geometry;
@@ -15,9 +16,10 @@ public sealed class MatchingStage : IPipelineStage
     private readonly IImageWorkPlanner workPlanner;
     private readonly IOrderedWorkExecutor workExecutor;
     private readonly IFeatureSetCacheFactory cacheFactory;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IFeatureMatcher featureMatcher, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory)
+    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IFeatureMatcher featureMatcher, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.fileOperations = fileOperations;
         this.featureMatcher = featureMatcher;
@@ -25,6 +27,7 @@ public sealed class MatchingStage : IPipelineStage
         this.workPlanner = workPlanner;
         this.workExecutor = workExecutor;
         this.cacheFactory = cacheFactory;
+        this.compute = compute;
     }
 
     public string Name => "matching";
@@ -88,7 +91,9 @@ public sealed class MatchingStage : IPipelineStage
             a = featureUnits[pair.A],
             b = featureUnits[pair.B],
             hints,
-            matcherVersion = 5,
+            matcherVersion = 6,
+            project.Settings.ComputeBackend,
+            context.ComputeImplementation,
             project.Settings.MatchRatioThreshold,
             project.Settings.MatchDistanceThreshold
         }, directory =>
@@ -106,7 +111,7 @@ public sealed class MatchingStage : IPipelineStage
                 });
             }
 
-            ImagePairVerifier.Verify(photos[pair.A], photos[pair.B], matches, cancellation);
+            ImagePairVerifier.Verify(photos[pair.A], photos[pair.B], matches, cancellation, compute, project.Settings.ComputeBackend);
             fileOperations.AtomicJson(Path.Combine(directory, "pair.json"), matches);
         });
     }
