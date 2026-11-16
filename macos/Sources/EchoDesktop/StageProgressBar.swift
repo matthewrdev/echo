@@ -3,10 +3,9 @@ import SwiftUI
 struct StageProgressBar: View {
     let progress: RunProgress
     let showsLegend: Bool
-    var usesStagePlan = true
 
     private var colors: [Color] { [.blue, .teal, .orange, .purple] }
-    private var isStagePlan: Bool { usesStagePlan && progress.activeStageStepIndex != nil }
+    private var isStagePlan: Bool { progress.activeStageStepIndex != nil }
     private var steps: [String]? { isStagePlan ? progress.stageSteps : progress.steps }
     private var active: Int? { isStagePlan ? progress.activeStageStepIndex : progress.activeStepIndex }
 
@@ -67,13 +66,19 @@ struct StageProgressBar: View {
                     }
                 }
                 if showsLegend && isStagePlan {
-                    if let summary = progress.stepSummary {
-                        Text(summary).font(.caption).foregroundStyle(.secondary)
-                        StageProgressBar(progress: progress, showsLegend: false, usesStagePlan: false)
-                    } else if let fraction = progress.fractionCompleted {
-                        ProgressView(value: fraction)
-                            .help(progress.countSummary ?? progress.message)
+                    HStack(spacing: 10) {
+                        if let steps = progress.steps, let index = progress.activeStepIndex {
+                            Text("\(steps[index]) · substep \(index + 1) of \(steps.count)")
+                        }
+                        if let fraction = progress.fractionCompleted {
+                            ProgressView(value: fraction)
+                                .progressViewStyle(.linear).controlSize(.small).tint(.secondary)
+                                .frame(width: 140)
+                                .accessibilityLabel(progress.operation ?? "Current step")
+                                .help(progress.countSummary ?? progress.message)
+                        }
                     }
+                    .font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
