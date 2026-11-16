@@ -27,6 +27,27 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Initial edge indexing preserves first encounter order without a database", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory, 1024, 0);
+            var paged = new InitialEdgeIndex(2048, work, default);
+            var memory = new InitialEdgeIndex(2048, null, default);
+            var expected = new HashSet<Edge>();
+            var random = new Random(52);
+            for (var index = 0; index < 20000; index++)
+            {
+                var a = index < 4000 ? 0 : random.Next(100);
+                var b = index < 4000 ? index : random.Next(100);
+                paged.Add(a, b);
+                paged.Add(b, a);
+                memory.Add(a, b);
+                expected.Add(new Edge(Math.Min(a, b), Math.Max(a, b)));
+            }
+            Check(paged.Count == expected.Count && paged.Edges().SequenceEqual(expected), "Paged edge membership or order changed");
+            Check(memory.Edges().SequenceEqual(expected), "In-memory edge membership or order changed");
+            Check(work.IndexDiskBytes == 0, "Initial edge indexing still created a database");
+        }));
         tests.Run("Paged vertex adjacency preserves membership and slot order without a global index", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);
