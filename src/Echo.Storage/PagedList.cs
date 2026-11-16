@@ -58,6 +58,21 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
         return file.TryReserveMemory(bytes);
     }
 
+    // Read whole records in this codec's binary layout, including dirty pages.
+    public void ReadEncodedRecords(int start, Span<byte> destination)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (destination.Length % codec.Size != 0)
+        {
+            throw new ArgumentException("The buffer must contain whole records.", nameof(destination));
+        }
+        if (start < 0 || start > Count - destination.Length / codec.Size)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start));
+        }
+        file.ReadBytes(offset + (long)start * codec.Size, destination);
+    }
+
     // Copies the native record encoding, without the container header or page
     // padding. The destination must use this codec's layout. Reads include dirty
     // cached pages, so publication does not require an intermediate disk flush.

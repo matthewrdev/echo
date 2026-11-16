@@ -3,6 +3,9 @@ using Echo.Contracts;
 using Echo.DenseCloud;
 using Echo.Fusion;
 using Echo.Storage;
+using Echo.Pipeline;
+using System.Buffers.Binary;
+using System.Text;
 
 namespace Echo.Tests;
 
@@ -11,16 +14,77 @@ public sealed class DiskIoTests
 {
     private readonly IBulkArtifactStore artifacts;
     private readonly ICloudBuilder clouds;
+    private readonly IPlyWriter plyWriter;
 
     [ImportingConstructor]
-    public DiskIoTests(IBulkArtifactStore artifacts, ICloudBuilder clouds)
+    public DiskIoTests(IBulkArtifactStore artifacts, ICloudBuilder clouds, IPlyWriter plyWriter)
     {
         this.artifacts = artifacts;
         this.clouds = clouds;
+        this.plyWriter = plyWriter;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Binary mesh PLY preserves float coordinates and triangle order across paged block tails", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory);
+            var paged = work.Surface();
+            var memory = new Surface();
+            for (var index = 0; index < 6007; index++)
+            {
+                double[] point = [index * Math.PI, -0d, float.Epsilon];
+                int[] face = [index, (index + 1) % 6007, (index + 2) % 6007];
+                memory.Vertices.Add(point);
+                paged.Vertices.Add(point);
+                memory.Faces.Add(face);
+                paged.Faces.Add(face);
+            }
+            paged.Vertices[3] = memory.Vertices[3] = [-17.25, double.Epsilon, float.MaxValue];
+            paged.Faces[4] = memory.Faces[4] = [17, 23, 6006];
+            var actualPath = Path.Combine(directory, "actual.ply");
+            var expectedPath = Path.Combine(directory, "expected.ply");
+            foreach (var withFaces in new[] { true, false })
+            {
+                plyWriter.Write(actualPath, paged.Vertices, withFaces ? paged.Faces : null);
+                plyWriter.Write(expectedPath, memory.Vertices, withFaces ? memory.Faces : null);
+                var bytes = File.ReadAllBytes(actualPath);
+                Check(bytes.SequenceEqual(File.ReadAllBytes(expectedPath)), "Paged PLY did not include dirty records or changed encoding");
+                var header = "ply\nformat binary_little_endian 1.0\nelement vertex 6007\nproperty float x\nproperty float y\nproperty float z\n";
+                if (withFaces)
+                {
+                    header += "element face 6007\nproperty list uchar int vertex_indices\n";
+                }
+                header += "end_header\n";
+                Check(Encoding.ASCII.GetString(bytes, 0, header.Length) == header, "PLY schema changed");
+                var position = header.Length;
+                foreach (var point in memory.Vertices)
+                {
+                    foreach (var coordinate in point)
+                    {
+                        var actual = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(position, 4));
+                        Check(actual == BitConverter.SingleToInt32Bits((float)coordinate), "PLY coordinate precision or signed zero changed");
+                        position += 4;
+                    }
+                }
+                if (withFaces)
+                {
+                    foreach (var face in memory.Faces)
+                    {
+                        Check(bytes[position++] == 3, "PLY triangle lost its list count");
+                        foreach (var vertex in face)
+                        {
+                            Check(BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(position, 4)) == vertex, "PLY changed face winding or indices");
+                            position += 4;
+                        }
+                    }
+                }
+                Check(position == bytes.Length, "PLY contains padding or trailing records");
+            }
+            plyWriter.Write(actualPath, Array.Empty<double[]>(), Array.Empty<int[]>());
+            Check(Encoding.ASCII.GetString(File.ReadAllBytes(actualPath)).EndsWith("end_header\n", StringComparison.Ordinal), "Empty PLY contains a payload");
+        }));
         tests.Run("Live cloud previews remain bounded without reading paged points", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);
