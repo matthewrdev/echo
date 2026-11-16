@@ -62,13 +62,12 @@ public sealed class WorkBuffers : IDisposable
     public TemporaryRecordSet<T> TemporaryRecords<T>(RecordCodec<T> codec)
         => session.TemporaryRecords(directory, codec);
 
-    public IList<T> Filled<T>(int count, T value, RecordCodec<T> codec)
+    public IList<T> Filled<T>(int count, T value, RecordCodec<T> codec, CancellationToken cancellation = default)
     {
-        var result = List(codec);
-        for (var index = 0; index < count; index++)
-        {
-            result.Add(value);
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        cancellation.ThrowIfCancellationRequested();
+        var result = (PagedList<T>)List(codec);
+        result.AddRepeated(value, count, cancellation);
         return result;
     }
 

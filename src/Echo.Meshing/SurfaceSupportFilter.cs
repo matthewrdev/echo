@@ -39,8 +39,9 @@ public static class SurfaceSupportFilter
         {
             throw new ArgumentOutOfRangeException(nameof(maximumDistance));
         }
+        using var scratch = work?.CreateScope();
         using var index = new SurfaceTriangleIndex(observed, cancellation);
-        IList<bool> supported = work?.Filled(reconstruction.Vertices.Count, false, new BoolRecordCodec()) ?? new bool[reconstruction.Vertices.Count];
+        IList<bool> supported = scratch?.Filled(reconstruction.Vertices.Count, false, new BoolRecordCodec()) ?? new bool[reconstruction.Vertices.Count];
         for (var start = 0; start < reconstruction.Vertices.Count; start += 4096)
         {
             var end = Math.Min(reconstruction.Vertices.Count, start + 4096);
@@ -52,7 +53,7 @@ public static class SurfaceSupportFilter
             progress?.Invoke(new("Surface support", "Checking completion against the observed surface.", end, reconstruction.Vertices.Count, "vertices"));
         }
         var result = work?.Surface() ?? new Surface();
-        IList<int> lookup = work?.Filled(reconstruction.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, reconstruction.Vertices.Count).ToArray();
+        IList<int> lookup = scratch?.Filled(reconstruction.Vertices.Count, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, reconstruction.Vertices.Count).ToArray();
         foreach (var face in reconstruction.Faces)
         {
             cancellation.ThrowIfCancellationRequested();

@@ -8,7 +8,9 @@ internal static class SurfaceFragments
 {
     public static Surface RemoveSmall(Surface source, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null)
     {
-        IList<int> parents = work?.List(new IntRecordCodec()) ?? new List<int>(source.Vertices.Count);
+        cancellation.ThrowIfCancellationRequested();
+        using var scratch = work?.CreateScope();
+        IList<int> parents = scratch?.List(new IntRecordCodec()) ?? new List<int>(source.Vertices.Count);
         for (var index = 0; index < source.Vertices.Count; index++)
         {
             parents.Add(index);
@@ -24,8 +26,8 @@ internal static class SurfaceFragments
             }
         }
 
-        IList<int> counts = work?.Filled(parents.Count, 0, new IntRecordCodec()) ?? new int[parents.Count];
-        IList<double> areas = work?.Filled(parents.Count, 0d, new DoubleRecordCodec()) ?? new double[parents.Count];
+        IList<int> counts = scratch?.Filled(parents.Count, 0, new IntRecordCodec()) ?? new int[parents.Count];
+        IList<double> areas = scratch?.Filled(parents.Count, 0d, new DoubleRecordCodec()) ?? new double[parents.Count];
         var largest = 0;
         foreach (var face in source.Faces)
         {
@@ -41,7 +43,7 @@ internal static class SurfaceFragments
         }
 
         var result = work?.Surface() ?? new Surface();
-        IList<int> remap = work?.Filled(source.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, source.Vertices.Count).ToArray();
+        IList<int> remap = scratch?.Filled(source.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, source.Vertices.Count).ToArray();
         foreach (var face in source.Faces)
         {
             cancellation.ThrowIfCancellationRequested();

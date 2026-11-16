@@ -30,8 +30,9 @@ public static class SurfaceIslandTrimmer
             return new SurfaceIslandTrimResult { Surface = source, InputComponents = 0 };
         }
 
-        var parents = BuildComponents(source, cancellation, work, progress);
-        IList<double> areas = work?.Filled(source.Faces.Count, 0d, new DoubleRecordCodec()) ?? new double[source.Faces.Count];
+        using var scratch = work?.CreateScope();
+        var parents = BuildComponents(source, cancellation, scratch, progress);
+        IList<double> areas = scratch?.Filled(source.Faces.Count, 0d, new DoubleRecordCodec()) ?? new double[source.Faces.Count];
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -52,7 +53,7 @@ public static class SurfaceIslandTrimmer
             }
         }
         var threshold = areas[largest] * minimumAreaPercent / 100;
-        IList<bool> remove = work?.Filled(areas.Count, false, new BoolRecordCodec()) ?? new bool[areas.Count];
+        IList<bool> remove = scratch?.Filled(areas.Count, false, new BoolRecordCodec()) ?? new bool[areas.Count];
         var componentCount = 0;
         var removedCount = 0;
         var removedArea = 0d;
@@ -84,10 +85,11 @@ public static class SurfaceIslandTrimmer
 
     private static IList<int> BuildComponents(Surface source, CancellationToken cancellation, WorkBuffers? work, Action<OperationProgress>? progress)
     {
+        using var scratch = work?.CreateScope();
         // Weld only exact positions for connectivity. Keep the original vertices
         // and photograph seams in the output; never bridge a physical gap.
-        var positions = new BinaryHashIndex<V3, int>(source.Vertices.Count, new PositionKeyCodec(), new IntRecordCodec(), work, cancellation);
-        IList<int> welded = work?.Filled(source.Vertices.Count, 0, new IntRecordCodec()) ?? new int[source.Vertices.Count];
+        var positions = new BinaryHashIndex<V3, int>(source.Vertices.Count, new PositionKeyCodec(), new IntRecordCodec(), scratch, cancellation);
+        IList<int> welded = scratch?.Filled(source.Vertices.Count, 0, new IntRecordCodec()) ?? new int[source.Vertices.Count];
         for (var index = 0; index < welded.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -105,8 +107,8 @@ public static class SurfaceIslandTrimmer
         {
             parents.Add(index);
         }
-        IList<int> sizes = work?.Filled(parents.Count, 1, new IntRecordCodec()) ?? Enumerable.Repeat(1, parents.Count).ToArray();
-        var edges = new BinaryHashIndex<SurfaceEdge, int>(source.Faces.Count, new SurfaceEdgeRecordCodec(), new IntRecordCodec(), work, cancellation);
+        IList<int> sizes = scratch?.Filled(parents.Count, 1, new IntRecordCodec()) ?? Enumerable.Repeat(1, parents.Count).ToArray();
+        var edges = new BinaryHashIndex<SurfaceEdge, int>(source.Faces.Count, new SurfaceEdgeRecordCodec(), new IntRecordCodec(), scratch, cancellation);
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -154,8 +156,9 @@ public static class SurfaceIslandTrimmer
 
     private static Surface CopyRetainedFaces(Surface source, IList<int> parents, IList<bool> remove, CancellationToken cancellation, WorkBuffers? work)
     {
+        using var scratch = work?.CreateScope();
         var result = work?.Surface() ?? new Surface();
-        IList<int> remap = work?.Filled(source.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, source.Vertices.Count).ToArray();
+        IList<int> remap = scratch?.Filled(source.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, source.Vertices.Count).ToArray();
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();

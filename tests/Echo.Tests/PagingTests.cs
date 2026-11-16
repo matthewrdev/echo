@@ -28,6 +28,37 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Repeated record fills cross pages, append correctly and retain codec tables", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory);
+            var values = (PagedList<V3>)work.List(new V3RecordCodec());
+            values.Add(new V3(1, 2, 3));
+            var point = new V3(Math.PI, -0d, double.Epsilon);
+            values.AddRepeated(point, 10003);
+            values.AddRepeated(new V3(4, 5, 6), 2);
+            values.AddRepeated(default, 0);
+            Check(values.Count == 10006 && values[0] == new V3(1, 2, 3) && values[^1] == new V3(4, 5, 6), "Fill overwrote neighbouring records");
+            for (var index = 1; index <= 10003; index++)
+            {
+                var value = values[index];
+                Check(value.X == point.X && BitConverter.DoubleToInt64Bits(value.Y) == long.MinValue && value.Z == point.Z,
+                    "Fill changed record bytes across a page boundary");
+            }
+            var strings = (PagedList<string>)work.Filled(20003, "same", new StringTableCodec());
+            strings.Add("next");
+            Check(strings[0] == "same" && strings[20002] == "same" && strings[20003] == "next", "Fill did not preserve the codec's string table");
+            try
+            {
+                values.AddRepeated(default, 10, new CancellationToken(true));
+                throw new InvalidOperationException("Fill ignored cancellation");
+            }
+            catch (OperationCanceledException)
+            {
+                Check(values.Count == 10006, "Cancelled fill appended records");
+            }
+            Check(session.Statistics.Evictions > 0, "Fill test did not exercise paging");
+        }));
         tests.Run("Indexed collapse queue updates and removes edges without accumulating obsolete candidates", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);

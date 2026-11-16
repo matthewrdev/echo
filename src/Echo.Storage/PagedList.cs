@@ -181,6 +181,46 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
         }
     }
 
+    public void AddRepeated(T value, int count, CancellationToken cancellation = default)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        cancellation.ThrowIfCancellationRequested();
+        if (count > int.MaxValue - Count)
+        {
+            throw new InvalidDataException("Record count exceeds the supported index range.");
+        }
+        if (count == 0)
+        {
+            return;
+        }
+        var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(codec.Size, 65536));
+        try
+        {
+            var capacity = Math.Min(count, bytes.Length / codec.Size);
+            codec.Encode(value, bytes.AsSpan(0, codec.Size));
+            var filled = 1;
+            while (filled < capacity)
+            {
+                var copy = Math.Min(filled, capacity - filled);
+                bytes.AsSpan(0, copy * codec.Size).CopyTo(bytes.AsSpan(filled * codec.Size));
+                filled += copy;
+            }
+            while (count > 0)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                var batch = Math.Min(capacity, count);
+                file.WriteBytes(offset + (long)Count * codec.Size, bytes.AsSpan(0, batch * codec.Size));
+                Count += batch;
+                count -= batch;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(bytes);
+        }
+    }
+
     public void Commit()
     {
         ObjectDisposedException.ThrowIf(disposed, this);

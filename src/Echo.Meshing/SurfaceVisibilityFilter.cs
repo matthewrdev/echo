@@ -21,10 +21,11 @@ public static class SurfaceVisibilityFilter
         {
             throw new ArgumentOutOfRangeException(nameof(relativeTolerance));
         }
+        using var scratch = work?.CreateScope();
         var origin = views.Count == 0 ? default : views[0].Centre;
         using var acceleration = DepthCompute.Open(compute, backend, views, origin, cancellation);
         var accelerationFailed = false;
-        IList<bool> rejected = work?.Filled(surface.Faces.Count, false, new BoolRecordCodec()) ?? new bool[surface.Faces.Count];
+        IList<bool> rejected = scratch?.Filled(surface.Faces.Count, false, new BoolRecordCodec()) ?? new bool[surface.Faces.Count];
         for (var start = 0; start < surface.Faces.Count; start += 4096)
         {
             var end = Math.Min(surface.Faces.Count, start + 4096);
@@ -56,7 +57,7 @@ public static class SurfaceVisibilityFilter
         }
 
         var result = work?.Surface() ?? new Surface();
-        IList<int> vertices = work?.Filled(surface.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, surface.Vertices.Count).ToArray();
+        IList<int> vertices = scratch?.Filled(surface.Vertices.Count, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, surface.Vertices.Count).ToArray();
         var assigned = surface.SourceImages.Count == surface.Faces.Count;
         for (var index = 0; index < surface.Faces.Count; index++)
         {
