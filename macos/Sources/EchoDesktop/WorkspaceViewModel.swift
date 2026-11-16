@@ -27,9 +27,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var query = ""
     @Published var selectedSet = "All sets"
     @Published var locationFilter = "All images"
-    @Published var selectedStage = PipelineStage.alignment
+    @Published var destination = WorkspaceDestination.images
+    @Published var imagesViewMode = ImagesViewMode.tiles
+    private var lastArtifactStage = PipelineStage.alignment
     @Published var sheet: WorkspaceSheet?
-    @Published var mapFocusPhotoID: String?
     @Published var logs: [RunLogEntry] = []
     @Published var commands: [CLICommandInvocation] = []
     @Published var commandLogError: String?
@@ -60,6 +61,17 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     var selectedPhoto: Photo? {
         inspection?.project.images.first { $0.id == selectedPhotoID }
+    }
+
+    var selectedStage: PipelineStage {
+        get {
+            if case .artifact(let stage) = destination { return stage }
+            return lastArtifactStage
+        }
+        set {
+            lastArtifactStage = newValue
+            destination = .artifact(newValue)
+        }
     }
 
     var activeRun: RunSummary? { runs.first { $0.status == "running" } }
@@ -111,7 +123,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         if let error = inspection?.run?.error { return error }
         return inspection?.run == nil
             ? "Choose a stage, then Process to that stage. Earlier stages run automatically."
-            : "Choose a stage tab to inspect its saved output."
+            : "Choose an artifact in the workspace tree to inspect its saved output."
     }
 
     var progressActivity: String {
@@ -181,9 +193,17 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     func openMap(for photo: Photo? = nil) {
-        mapFocusPhotoID = photo?.id
-        if let photo { selectedPhotoID = photo.id }
-        sheet = .map
+        if let photo {
+            selectedPhotoID = photo.id
+            if !filteredPhotos.contains(where: { $0.id == photo.id }) {
+                query = ""
+                selectedSet = "All sets"
+                locationFilter = "All images"
+            }
+        }
+        sheet = nil
+        destination = .images
+        imagesViewMode = .map
     }
 
     func metadata(for photo: Photo) async throws -> [String: JSONValue] {
@@ -325,6 +345,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     func showProjects() {
         guard canEdit else { return }
+        destination = .images
+        imagesViewMode = .tiles
         root = ""
         workingRun = nil
         telemetry.record(root: root, runID: nil, resources: nil)
@@ -341,6 +363,11 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     private func open(path: String) {
         root = path
+        destination = .images
+        imagesViewMode = .tiles
+        query = ""
+        selectedSet = "All sets"
+        locationFilter = "All images"
         selectedRun = "latest"
         selectedPhotoID = nil
         inspection = nil

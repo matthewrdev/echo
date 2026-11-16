@@ -64,10 +64,13 @@ struct GeoreferenceView: View {
             } else {
                 ContentUnavailableView(
                     "Geographic view unavailable", systemImage: "globe",
-                    description: Text(model.error ?? "Complete alignment to view geographic placement."))
+                    description: Text(model.error ?? "Complete alignment to view geographic placement.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task(id: identity) { await model.load(root: workspace.root, run: workspace.inspection?.run) }
         .onDisappear { model.cancel() }
     }
@@ -93,7 +96,7 @@ struct GeoreferenceView: View {
             }.font(.callout)
             NativePhotoMap(
                 cameras: showCameras ? artifact.cameras : [], identity: identity + fit.uuidString,
-                satellite: satellite, showAll: true, selected: $workspace.selectedPhotoID,
+                satellite: satellite, selected: $workspace.selectedPhotoID,
                 modelOverlay: showModel ? artifact.overlay : nil, modelOpacity: opacity)
             if artifact.overlay == nil {
                 Text("Process through Mesh to add the model.").font(.caption).foregroundStyle(.secondary)

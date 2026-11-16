@@ -49,26 +49,32 @@ struct WorkspaceView: View {
     }
 
     private var projectWorkspace: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             ProjectSidebar(workspace: workspace)
-                .frame(width: 310)
-            Divider()
+                .frame(minWidth: 250, idealWidth: 310, maxWidth: 500, maxHeight: .infinity)
             VStack(spacing: 0) {
-                StageTabBar(workspace: workspace)
-                Divider()
                 GeometryReader { bounds in
-                    ArtifactViewer(workspace: workspace, model: artifacts)
-                        .frame(width: bounds.size.width, height: bounds.size.height, alignment: .topLeading)
-                        .clipped()
+                    Group {
+                        switch workspace.destination {
+                        case .images:
+                            ImagesView(workspace: workspace)
+                        case .artifact:
+                            ArtifactViewer(workspace: workspace, model: artifacts)
+                        }
+                    }
+                    .frame(width: bounds.size.width, height: bounds.size.height, alignment: .topLeading)
+                    .clipped()
                 }
-                Divider()
-                StageLogView(workspace: workspace)
+                if workspace.destination != .images {
+                    Divider()
+                    StageLogView(workspace: workspace)
+                }
                 if workspace.showsProgress {
                     Divider()
                     GlobalProgressView(workspace: workspace)
                 }
             }
-            .frame(minWidth: 780, maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 740, maxWidth: .infinity, maxHeight: .infinity)
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -76,7 +82,7 @@ struct WorkspaceView: View {
                     .disabled(!workspace.canEdit)
             }
             ToolbarItem(placement: .principal) {
-                Text(workspace.selectedStage.title).font(.headline)
+                Text(workspace.destination.title).font(.headline)
             }
             ToolbarItemGroup {
                 Button("Runtime information", systemImage: "info.circle", action: showRuntimeInfo)

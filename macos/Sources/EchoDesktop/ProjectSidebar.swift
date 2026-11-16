@@ -2,96 +2,49 @@ import SwiftUI
 
 struct ProjectSidebar: View {
     @ObservedObject var workspace: WorkspaceViewModel
-    @State private var collapsed: Set<String> = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .top, spacing: 8) {
                     Button("Back to projects", systemImage: "chevron.left") { workspace.showProjects() }
                         .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).disabled(!workspace.canEdit)
+                        .help("Back to projects")
                     Text(workspace.inspection?.project.name ?? "Open a project")
                         .font(.headline).lineLimit(1).truncationMode(.tail)
                         .help(workspace.inspection?.project.name ?? "")
                 }
                 HStack(spacing: 16) {
                     Button("Project settings", systemImage: "gearshape") { workspace.sheet = .settings }
+                        .help("Project settings")
                     Button("Georeference", systemImage: "globe") { workspace.sheet = .georeference }
+                        .help("Georeference")
                     Button("Placement hints", systemImage: "pin") { workspace.sheet = .hints }
+                        .help("Placement hints")
                     Button("Generated files", systemImage: "externaldrive") { workspace.sheet = .storage }
+                        .help("Generated files")
                     Button("Saved runs", systemImage: "clock.arrow.circlepath") { workspace.sheet = .history }
+                        .help("Saved runs")
                 }
                 .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).disabled(workspace.inspection == nil)
             }
+            .padding(14)
             Divider()
-            HStack {
-                Text("PHOTOS").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                Spacer()
-                Button("Trim similar photos", systemImage: "square.on.square") { workspace.trimSimilarPhotos() }
-                    .help(
-                        "Keep the sharpest of similar photos and mark the extras as discarded. Originals can be restored."
-                    )
-                    .disabled(!workspace.canEdit)
-                Button("Photo map", systemImage: "map") { workspace.openMap() }.help(
-                    "Photo locations and camera frustums")
-                Button("Import photos", systemImage: "plus") { workspace.importPhotos() }.disabled(!workspace.canEdit)
-            }.labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain)
-            TextField("Search name or camera", text: $workspace.query).textFieldStyle(.roundedBorder)
-            ScrollView(.horizontal) {
-                HStack(spacing: 4) {
-                    ForEach(["All images", "Discarded", "GPS present", "No GPS", "Unplaced", "Disabled"], id: \.self) {
-                        filter in
-                        Button(filter) { workspace.locationFilter = filter }
-                            .buttonStyle(.borderless).font(.caption).padding(5)
-                            .background(
-                                workspace.locationFilter == filter ? Color.accentColor.opacity(0.15) : Color.clear,
-                                in: RoundedRectangle(cornerRadius: 4))
-                    }
-                }
+            Text("WORKSPACE").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
+            ArtifactTreeView(workspace: workspace)
+            Divider()
+            Button {
+                workspace.sheet = .history
+            } label: {
+                Label(workspace.viewingDescription, systemImage: "clock.arrow.circlepath")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
             }
-            Text(
-                "\(workspace.filteredPhotos.count) of \(workspace.inspection?.project.images.count ?? 0) photos · \(workspace.inspection?.project.images.filter(\.enabled).count ?? 0) enabled"
-            )
-            .font(.caption).foregroundStyle(.secondary)
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(workspace.photoGroups) { group in
-                        DisclosureGroup(
-                            isExpanded: Binding(
-                                get: { !collapsed.contains(group.name) },
-                                set: { expanded in
-                                    if expanded { collapsed.remove(group.name) } else { collapsed.insert(group.name) }
-                                })
-                        ) {
-                            LazyVStack(spacing: 3) {
-                                ForEach(group.photos) { PhotoThumbnailRow(photo: $0, workspace: workspace) }
-                            }
-                        } label: {
-                            Text("\(group.name) · \(group.photos.count)").font(.subheadline.weight(.semibold))
-                        }
-                    }
-                }
-            }
-            if let photo = workspace.selectedPhoto {
-                Divider()
-                if photo.isDiscarded {
-                    Label("Discarded", systemImage: "archivebox").font(.caption.weight(.semibold))
-                    if let kept = workspace.inspection?.project.images.first(where: { $0.id == photo.duplicateOf }) {
-                        Text("Similar to \(kept.name)").font(.caption2).foregroundStyle(.secondary)
-                    }
-                    Button("Restore photo", systemImage: "arrow.uturn.backward") {
-                        workspace.setEnabled(photo, enabled: true)
-                    }.disabled(!workspace.canEdit)
-                }
-                Toggle(
-                    "Use in processing",
-                    isOn: Binding(get: { photo.enabled }, set: { workspace.setEnabled(photo, enabled: $0) })
-                )
-                .disabled(!workspace.canEdit)
-                Button("Open photograph & metadata") { workspace.sheet = .photo }.font(.caption)
-            }
+            .buttonStyle(.plain).padding(14).help("Choose a saved run")
         }
-        .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(.bar)
     }
 }

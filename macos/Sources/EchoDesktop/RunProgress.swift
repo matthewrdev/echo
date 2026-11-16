@@ -17,6 +17,17 @@ struct RunProgress: Decodable {
         return min(1, max(0, Double(completed) / Double(total)))
     }
 
+    var activityDescription: String {
+        var lines: [String] = []
+        if let operation, !operation.isEmpty { lines.append(operation) }
+        if !message.isEmpty { lines.append(message) }
+        if let completed, let total, total > 0 {
+            lines.append("\(completed.formatted()) of \(total.formatted()) \(unit ?? "items")")
+        }
+        if let resources { lines.append(resources.summary) }
+        return lines.joined(separator: "\n")
+    }
+
     var countSummary: String? {
         guard let completed, let total, let fractionCompleted else { return nil }
         return "\(completed.formatted()) of \(total.formatted()) \(unit ?? "items") · \(Int(fractionCompleted * 100))%"

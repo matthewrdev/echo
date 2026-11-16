@@ -4,6 +4,20 @@ enum PipelineStage: String, CaseIterable, Identifiable {
     case features, matching, alignment, depth, cloud, fusion, mesh, texture, export
     var id: String { rawValue }
 
+    var symbol: String {
+        switch self {
+        case .features: return "viewfinder"
+        case .matching: return "point.3.connected.trianglepath.dotted"
+        case .alignment: return "camera.metering.matrix"
+        case .depth: return "square.3.layers.3d"
+        case .cloud: return "cloud"
+        case .fusion: return "cube.transparent"
+        case .mesh: return "pyramid"
+        case .texture: return "square.grid.3x3"
+        case .export: return "shippingbox"
+        }
+    }
+
     var title: String {
         switch self {
         case .features: return "Image features"

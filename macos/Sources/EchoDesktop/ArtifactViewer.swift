@@ -4,6 +4,7 @@ struct ArtifactViewer: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @ObservedObject var model: ArtifactViewModel
     @StateObject private var sceneController = SceneViewportController()
+    @State private var openingSelection = true
     @AppStorage("viewer.showGroundGrid") private var showGround = false
 
     private var artifactKey: String {
@@ -136,6 +137,14 @@ struct ArtifactViewer: View {
             await model.configure(
                 root: workspace.root, run: workspace.inspection?.run, stage: workspace.selectedStage,
                 preferredPhotoID: workspace.selectedPhotoID)
+            guard !Task.isCancelled else { return }
+            if openingSelection, [.features, .depth].contains(workspace.selectedStage),
+                let photoID = workspace.selectedPhotoID,
+                let unit = model.units.first(where: { $0.imageIDs.contains(photoID) }), unit.id != model.selectedUnit
+            {
+                model.selectUnit(unit.id)
+            }
+            openingSelection = false
         }
     }
 

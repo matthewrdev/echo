@@ -5,7 +5,6 @@ struct NativePhotoMap: NSViewRepresentable {
     let cameras: [MapCamera]
     let identity: String
     let satellite: Bool
-    let showAll: Bool
     @Binding var selected: String?
     var modelOverlay: ModelMapOverlay? = nil
     var modelOpacity = 0.8
@@ -27,7 +26,7 @@ struct NativePhotoMap: NSViewRepresentable {
     func updateNSView(_ map: ScrollablePhotoMap, context: Context) {
         map.mapType = satellite ? .satellite : .standard
         context.coordinator.updateModel(map: map, model: modelOverlay, opacity: modelOpacity)
-        context.coordinator.update(map: map, cameras: cameras, identity: identity, selected: selected, showAll: showAll)
+        context.coordinator.update(map: map, cameras: cameras, identity: identity, selected: selected)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: ScrollablePhotoMap, context: Context) -> CGSize? {

@@ -5,19 +5,17 @@ final class PhotoMapRenderer: CanvasRenderer {
     let size = CGSize(width: 1200, height: 800)
     private let cameras: [MapCamera]
     private let selected: String?
-    private let showAll: Bool
-    private let selection: (String) -> Void
+    private let selection: (String?) -> Void
     private let latitude: Double
     private let longitude: Double
     private let bounds: CGRect
 
     init(
-        identity: String, cameras: [MapCamera], selected: String?, showAll: Bool, selection: @escaping (String) -> Void
+        identity: String, cameras: [MapCamera], selected: String?, selection: @escaping (String?) -> Void
     ) {
         self.identity = identity
         self.cameras = cameras
-        self.selected = selected
-        self.showAll = showAll
+        self.selected = cameras.contains { $0.id == selected } ? selected : nil
         self.selection = selection
         latitude = cameras.first?.position.latitude ?? 0
         longitude = cameras.first?.position.longitude ?? 0
@@ -62,11 +60,13 @@ final class PhotoMapRenderer: CanvasRenderer {
         context.strokePath()
         // Draw the selected camera last so it remains legible among overlapping frustums.
         for camera in cameras.sorted(by: { ($0.id == selected ? 1 : 0) < ($1.id == selected ? 1 : 0) }) {
+            context.saveGState()
             let origin = point(camera.position)
             let highlighted = camera.id == selected
+            context.setAlpha(selected != nil && !highlighted ? 0.18 : 1)
             let color = CameraTiltPalette().color(pitch: camera.pitchDegrees)
             let corners = camera.corners.map(point)
-            if !corners.isEmpty && (showAll || highlighted) {
+            if !corners.isEmpty {
                 context.setStrokeColor(color.withAlphaComponent(highlighted ? 1 : 0.42).cgColor)
                 context.setFillColor(color.withAlphaComponent(highlighted ? 0.22 : 0.055).cgColor)
                 context.setLineWidth((highlighted ? 2 : 1) / scale)
@@ -85,6 +85,7 @@ final class PhotoMapRenderer: CanvasRenderer {
             context.setFillColor(color.cgColor)
             context.fillEllipse(
                 in: CGRect(x: origin.x - radius, y: origin.y - radius, width: radius * 2, height: radius * 2))
+            context.restoreGState()
         }
         let scaleMetres = max(1, pow(10, floor(log10(Double(bounds.width) / 5))))
         let length = scaleMetres * metresToPixels
@@ -107,6 +108,8 @@ final class PhotoMapRenderer: CanvasRenderer {
             hypot(point(closest.position).x - position.x, point(closest.position).y - position.y) <= tolerance
         {
             selection(closest.id)
+        } else {
+            selection(nil)
         }
     }
 }

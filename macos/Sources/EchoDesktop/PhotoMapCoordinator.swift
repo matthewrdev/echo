@@ -1,17 +1,18 @@
 import MapKit
 
 final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
-    private let selection: (String) -> Void
+    private let selection: (String?) -> Void
     private let palette = CameraTiltPalette()
     private var identity = ""
     private var signature = ""
     private var colors: [ObjectIdentifier: NSColor] = [:]
-    private var widths: [ObjectIdentifier: CGFloat] = [:]
+    private var cameraIDs: [ObjectIdentifier: String] = [:]
+    private var selectedPhotoID: String?
     private var updating = false
     private var model: ModelMapOverlay?
     private var modelOpacity = 0.8
 
-    init(selection: @escaping (String) -> Void) { self.selection = selection }
+    init(selection: @escaping (String?) -> Void) { self.selection = selection }
 
     func updateModel(map: MKMapView, model: ModelMapOverlay?, opacity: Double) {
         if self.model !== model {
@@ -27,20 +28,31 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         if let model { map.renderer(for: model)?.alpha = opacity }
     }
 
-    func update(map: MKMapView, cameras: [MapCamera], identity: String, selected: String?, showAll: Bool) {
+    func update(map: MKMapView, cameras: [MapCamera], identity: String, selected: String?) {
         let signature =
             cameras.map {
                 "\($0.id):\($0.position.latitude):\($0.position.longitude):\($0.pitchDegrees ?? 0):\($0.corners.first?.latitude ?? 0)"
-            }.joined() + (selected ?? "") + String(showAll)
-        guard self.signature != signature || self.identity != identity else { return }
+            }.joined()
+        let selected = cameras.contains { $0.id == selected } ? selected : nil
+        let camerasChanged = self.signature != signature || self.identity != identity
+        guard camerasChanged || selectedPhotoID != selected else { return }
         let shouldFit = self.identity != identity
+        selectedPhotoID = selected
         self.identity = identity
         self.signature = signature
         updating = true
+        defer { updating = false }
+        if camerasChanged {
+            rebuild(map: map, cameras: cameras, fit: shouldFit)
+        }
+        updateEmphasis(map: map)
+    }
+
+    private func rebuild(map: MKMapView, cameras: [MapCamera], fit: Bool) {
         map.removeAnnotations(map.annotations)
         map.removeOverlays(map.overlays.filter { !($0 is ModelMapOverlay) })
         colors.removeAll()
-        widths.removeAll()
+        cameraIDs.removeAll()
         var extent = model?.boundingMapRect ?? MKMapRect.null
         for camera in cameras {
             let annotation = PhotoMapAnnotation(camera: camera)
@@ -49,32 +61,65 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
             let location = MKMapPoint(origin)
             extent = extent.union(MKMapRect(x: location.x, y: location.y, width: 1, height: 1))
             let color = palette.color(pitch: camera.pitchDegrees)
-            if !camera.corners.isEmpty && (showAll || camera.id == selected) {
+            if !camera.corners.isEmpty {
                 let corners = camera.corners.map {
                     CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
                 }
                 let polygon = MKPolygon(coordinates: corners, count: corners.count)
-                add(polygon, color: color, selected: camera.id == selected, map: map)
+                add(polygon, color: color, cameraID: camera.id, map: map)
                 extent = extent.union(polygon.boundingMapRect)
                 for corner in corners {
                     let ray = MKPolyline(coordinates: [origin, corner], count: 2)
-                    add(ray, color: color.withAlphaComponent(0.6), selected: camera.id == selected, map: map)
+                    add(ray, color: color.withAlphaComponent(0.6), cameraID: camera.id, map: map)
                 }
             }
-            if camera.id == selected { map.selectAnnotation(annotation, animated: false) }
         }
-        if shouldFit, !extent.isNull {
+        if fit, !extent.isNull {
             let minimum = 40 / MKMetersPerMapPointAtLatitude(cameras.first?.position.latitude ?? 0)
             let padding = max(minimum, max(extent.width, extent.height) * 0.15)
             map.setVisibleMapRect(extent.insetBy(dx: -padding, dy: -padding), animated: false)
         }
-        updating = false
     }
 
-    private func add(_ overlay: MKOverlay, color: NSColor, selected: Bool, map: MKMapView) {
+    private func add(_ overlay: MKOverlay, color: NSColor, cameraID: String, map: MKMapView) {
         colors[ObjectIdentifier(overlay)] = color
-        widths[ObjectIdentifier(overlay)] = selected ? 3 : 1
+        cameraIDs[ObjectIdentifier(overlay)] = cameraID
         map.addOverlay(overlay)
+    }
+
+    private func updateEmphasis(map: MKMapView) {
+        for annotation in map.annotations {
+            guard let annotation = annotation as? PhotoMapAnnotation else { continue }
+            if let view = map.view(for: annotation) {
+                applyEmphasis(to: view, cameraID: annotation.camera.id)
+            }
+            if annotation.camera.id == selectedPhotoID {
+                map.selectAnnotation(annotation, animated: false)
+            } else {
+                map.deselectAnnotation(annotation, animated: false)
+            }
+        }
+        for overlay in map.overlays {
+            guard let renderer = map.renderer(for: overlay) as? MKOverlayPathRenderer,
+                let cameraID = cameraIDs[ObjectIdentifier(overlay)]
+            else { continue }
+            renderer.alpha = opacity(for: cameraID)
+            renderer.lineWidth = cameraID == selectedPhotoID ? 3 : 1
+            renderer.setNeedsDisplay()
+        }
+    }
+
+    private func opacity(for cameraID: String) -> CGFloat {
+        selectedPhotoID == nil || selectedPhotoID == cameraID ? 1 : 0.18
+    }
+
+    private func applyEmphasis(to view: MKAnnotationView, cameraID: String) {
+        view.alphaValue = opacity(for: cameraID)
+        if let marker = view as? MKMarkerAnnotationView {
+            let highlighted = selectedPhotoID == cameraID
+            marker.titleVisibility = selectedPhotoID == nil ? .adaptive : highlighted ? .visible : .hidden
+            marker.subtitleVisibility = highlighted ? .visible : .hidden
+        }
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -94,7 +139,10 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
             return MKOverlayRenderer(overlay: overlay)
         }
         renderer.strokeColor = colors[ObjectIdentifier(overlay)]
-        renderer.lineWidth = widths[ObjectIdentifier(overlay)] ?? 1
+        if let cameraID = cameraIDs[ObjectIdentifier(overlay)] {
+            renderer.lineWidth = cameraID == selectedPhotoID ? 3 : 1
+            renderer.alpha = opacity(for: cameraID)
+        }
         return renderer
     }
 
@@ -105,11 +153,24 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         view.glyphImage = NSImage(systemSymbolName: "camera.fill", accessibilityDescription: "Camera")
         view.canShowCallout = true
         view.displayPriority = .required
+        applyEmphasis(to: view, cameraID: annotation.camera.id)
         return view
     }
 
     func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
         guard !updating, let annotation = view.annotation as? PhotoMapAnnotation else { return }
         selection(annotation.camera.id)
+    }
+
+    func mapView(_ mapView: MKMapView, didDeselect view: MKAnnotationView) {
+        guard !updating, let annotation = view.annotation as? PhotoMapAnnotation else { return }
+        // MapKit deselects the previous marker before selecting another one.
+        // Only clear selection once that transition has settled on empty space.
+        DispatchQueue.main.async { [weak self, weak mapView] in
+            guard let self, let mapView, mapView.selectedAnnotations.isEmpty,
+                self.selectedPhotoID == annotation.camera.id
+            else { return }
+            self.selection(nil)
+        }
     }
 }
