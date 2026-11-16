@@ -45,12 +45,27 @@ final class RunProgressTests: XCTestCase {
     }
 
     func testFusionVoxelPresetsUseMetres() {
+        XCTAssertEqual(FusionVoxelPreset.twoPointFiveCentimetres.metres, 0.025)
         XCTAssertEqual(FusionVoxelPreset.tenCentimetres.metres, 0.1)
         XCTAssertEqual(FusionVoxelPreset.fiftyCentimetres.metres, 0.5)
         XCTAssertEqual(FusionVoxelPreset(metres: 0), .automatic)
+        XCTAssertEqual(FusionVoxelPreset(metres: 0.025), .twoPointFiveCentimetres)
         XCTAssertEqual(FusionVoxelPreset(metres: 0.1), .tenCentimetres)
         XCTAssertEqual(FusionVoxelPreset(metres: 0.5), .fiftyCentimetres)
         XCTAssertEqual(FusionVoxelPreset(metres: 0.23), .custom)
+    }
+
+    func testFusionVoxelEntryClampsAtMinimumAndWarnsForFineResolution() {
+        for value in [-10.0, 0, 1, 2.499, 2.5, .infinity, .nan] {
+            XCTAssertEqual(FusionVoxelPreset.clampedMetres(centimetres: value), 0.025)
+        }
+        XCTAssertEqual(FusionVoxelPreset.clampedMetres(centimetres: 10), 0.1)
+        XCTAssertEqual(FusionVoxelPreset.clampedMetres(centimetres: 50), 0.5)
+        XCTAssertTrue(FusionVoxelPreset.needsDetailWarning(metres: 0.025))
+        XCTAssertTrue(FusionVoxelPreset.needsDetailWarning(metres: 0.05))
+        XCTAssertFalse(FusionVoxelPreset.needsDetailWarning(metres: 0))
+        XCTAssertFalse(FusionVoxelPreset.needsDetailWarning(metres: 0.1))
+        XCTAssertFalse(FusionVoxelPreset.needsDetailWarning(metres: 0.5))
     }
 
     func testProgressReadsDotNetTimestampAndOldArtifacts() throws {

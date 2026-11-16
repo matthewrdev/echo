@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Fusion;
+using Echo.Geometry;
 using Echo.Infrastructure;
 
 namespace Echo.Tests;
@@ -59,6 +60,38 @@ public sealed class FusionSettingsTests
                 "The explicit fallback retains complete coverage within the budget");
             Check(messages.Any(message => message.Contains("Coarser resolution is enabled")), "Every fallback is visible in progress logs");
         });
+        tests.Run("Automatic fusion respects the 2.5 cm floor and explicit spacing remains exact", () =>
+        {
+            var fixture = new FusionFixture();
+            fixture.Cloud.Samples.Clear();
+            fixture.Cloud.Samples.Add(new DenseSample(-.25f, 0, 10, 0, 0, 0, 0, 1));
+            fixture.Views.Clear();
+            for (var index = 0; index < fixture.Project.Images.Count; index++)
+            {
+                var photo = fixture.Project.Images[index];
+                photo.FocalPixels = 6400;
+                fixture.Views.Add(new DepthView(photo, fixture.Scene.Cameras[index], fixture.Maps[index]));
+            }
+            fixture.Project.Settings.FusionDetailMultiplier = 16;
+            var resources = new FusionResourcePlan(25600000, 100000);
+            foreach (var target in new[] { 0, .025, .1, .5 })
+            {
+                fixture.Project.Settings.FusionVoxelSize = target;
+                fixture.Project.Settings.Validate();
+                var grid = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, resources, default);
+                var expected = target == 0 ? .025 : target;
+                Check(grid.RequestedVoxelSize == expected && grid.VoxelSize == expected, "Fusion did not respect the target or minimum spacing");
+            }
+            fixture.Project.Settings.FusionVoxelSize = .024999;
+            try
+            {
+                FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, resources, default);
+                throw new InvalidOperationException("Grid planning accepted voxels below 2.5 cm");
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+            }
+        });
         tests.Run("Automatic paged fusion obeys its candidate budget before integration", () =>
         {
             var fixture = new FusionFixture();
@@ -95,7 +128,7 @@ public sealed class FusionSettingsTests
             {
                 Invalid(new Settings { FusionMemoryBudgetMb = megabytes });
             }
-            foreach (var spacing in new[] { -1, double.NaN, double.PositiveInfinity })
+            foreach (var spacing in new[] { -1, .001, .024999, double.NaN, double.PositiveInfinity })
             {
                 Invalid(new Settings { FusionVoxelSize = spacing });
             }

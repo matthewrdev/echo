@@ -21,9 +21,11 @@ internal static class FusionGridBuilder
         {
             throw new ArgumentOutOfRangeException(nameof(settings));
         }
-        if (!double.IsFinite(settings.FusionVoxelSize) || settings.FusionVoxelSize < 0)
+        var invalidVoxelSize = !double.IsFinite(settings.FusionVoxelSize)
+            || settings.FusionVoxelSize != 0 && settings.FusionVoxelSize < Settings.MinimumFusionVoxelSize;
+        if (invalidVoxelSize)
         {
-            throw new ArgumentOutOfRangeException(nameof(settings));
+            throw new ArgumentOutOfRangeException(nameof(settings), "Target voxel size must be Auto or at least 2.5 cm.");
         }
         if (resources.MaximumGridSamples < 64)
         {
@@ -32,7 +34,8 @@ internal static class FusionGridBuilder
         var footprint = FusionFootprint.Measure(views, cloud, cancellation);
         var byId = views.ToDictionary(view => view.Map.ImageId, StringComparer.Ordinal);
         var sources = cloud.ImageIds.Select(id => byId.GetValueOrDefault(id)).ToArray();
-        var requested = settings.FusionVoxelSize > 0 ? settings.FusionVoxelSize : footprint * .8 / Math.Sqrt(detail);
+        var requested = settings.FusionVoxelSize > 0 ? settings.FusionVoxelSize
+            : Math.Max(Settings.MinimumFusionVoxelSize, footprint * .8 / Math.Sqrt(detail));
         var voxel = requested;
         // Automatic resolution plans a bounded workload. Explicit spacing in
         // paged mode may use disk, but must still fit downstream record indices.

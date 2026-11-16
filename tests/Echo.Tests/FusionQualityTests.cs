@@ -164,10 +164,11 @@ public sealed class FusionQualityTests
             }
             var volume = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud,
                 new FusionResourcePlan(25600000, 100000), default);
-            Check(volume.VoxelSize < .013, "Fine source resolution is retained");
+            Check(volume.VoxelSize == .025, "Fine source resolution stops at the 2.5 cm minimum");
             Check(volume.Samples.Any(s => s.Distance > 0) && volume.Samples.Any(s => s.Distance < 0), "Both sides of the jointly supported surface survive");
             var mesh = meshes.Extract(volume, default);
-            Check(mesh.Vertices.All(p => Math.Abs(p[2] - 10) < .002), "Integration recovers the shared surface instead of separate noise layers");
+            Check(mesh.Vertices.Count > 0 && mesh.Vertices.All(p => Math.Abs(p[2] - 10) < .002),
+                "Integration recovers the shared surface instead of separate noise layers");
         });
         tests.Run("Fusion footprint uses verified surfaces rather than rejected background depths", () =>
         {

@@ -33,7 +33,7 @@ public sealed class CheckpointStore : ICheckpointStore
         var version = algorithmVersion ?? stage switch
         {
             "alignment" => "echo-0.1.0-bundle5",
-            "fusion" => "echo-0.1.0-tsdf5-resident",
+            "fusion" => "echo-0.1.0-tsdf6-minimum",
             "fusion-chunk" => "echo-fusion-batch2",
             "mesh" => "echo-0.1.0-surface9",
             "texture" => "echo-0.1.0-charts8-bounded-gap",

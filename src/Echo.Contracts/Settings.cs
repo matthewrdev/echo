@@ -2,6 +2,8 @@ namespace Echo.Contracts;
 
 public sealed class Settings
 {
+    public const double MinimumFusionVoxelSize = .025;
+
     public ProcessingMemoryMode ProcessingMemoryMode { get; set; } = ProcessingMemoryMode.Paged;
     public int ProcessingMemoryBudgetMb { get; set; } = 0;
     public int ProcessingDiskBudgetMb { get; set; } = 0;
@@ -98,7 +100,13 @@ public sealed class Settings
         var invalidFusionSettings = !double.IsFinite(FusionDetailMultiplier)
             || FusionDetailMultiplier < .25 || FusionDetailMultiplier > 16;
         var invalidFusionMemory = FusionMemoryBudgetMb != 0 && FusionMemoryBudgetMb is < 64 or > 524287;
-        var invalidFusionResolution = !double.IsFinite(FusionVoxelSize) || FusionVoxelSize < 0;
+        var invalidFusionResolution = !double.IsFinite(FusionVoxelSize)
+            || FusionVoxelSize != 0 && FusionVoxelSize < MinimumFusionVoxelSize;
+        if (invalidFusionResolution)
+        {
+            throw new EchoException("Fusion target voxel size must be Auto (0) or at least 2.5 cm (0.025 m).", 2);
+        }
+
         var invalidFusionIslands = !Enum.IsDefined(FusionIslandMode)
             || !double.IsFinite(FusionIslandMinimumSizePercent)
             || FusionIslandMinimumSizePercent is < 0 or > 100;
@@ -142,7 +150,6 @@ public sealed class Settings
             || invalidCloudGeometry
             || invalidFusionSettings
             || invalidFusionMemory
-            || invalidFusionResolution
             || invalidFusionIslands
             || invalidDepthExecution
             || invalidDepthResolution

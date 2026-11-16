@@ -25,14 +25,21 @@ struct FusionSettingsEditor: View {
                     "Target voxel size (cm)",
                     value: Binding(
                         get: { settings.fusionVoxelSize * 100 },
-                        set: { settings.fusionVoxelSize = $0 / 100 }),
+                        set: { settings.fusionVoxelSize = FusionVoxelPreset.clampedMetres(centimetres: $0) }),
                     format: .number.grouping(.never)
                 ).textFieldStyle(.roundedBorder).frame(width: 120)
             }
+            Text("Minimum: 2.5 cm").font(.caption).foregroundStyle(.secondary)
+        }
+        if FusionVoxelPreset.needsDetailWarning(metres: settings.fusionVoxelSize) {
+            Label(
+                "Fine voxels can substantially increase fusion time and disk usage. Use 10 cm or 50 cm for a faster first pass.",
+                systemImage: "exclamationmark.triangle"
+            ).font(.caption).foregroundStyle(.orange)
         }
         if settings.fusionVoxelSize == 0 {
             Text(
-                "Auto balances image detail against the fusion voxel budget. The selected spacing is reported before integration."
+                "Auto balances image detail against the fusion voxel budget, with a minimum of 2.5 cm. The selected spacing is reported before integration."
             )
             .font(.caption).foregroundStyle(.secondary)
         } else {
