@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Geometry;
 using Echo.Storage;
 
@@ -6,7 +7,7 @@ namespace Echo.Meshing;
 
 internal static class TetrahedralSurface
 {
-    public static Surface Extract(IDictionary<Grid, float> samples, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null)
+    public static Surface Extract(IDictionary<Grid, float> samples, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         ReadOnlySpan<Grid> offsets = [new(0, 0, 0), new(1, 0, 0), new(1, 1, 0), new(0, 1, 0),
             new(0, 0, 1), new(1, 0, 1), new(1, 1, 1), new(0, 1, 1)];
@@ -20,39 +21,79 @@ internal static class TetrahedralSurface
         Span<float> values = stackalloc float[8];
         operationProgress?.Invoke(new OperationProgress("Surface extraction", "Extracting the zero crossing surface…", 0, samples.Count, "lattice cells"));
         var completed = 0;
-        foreach (var key in samples.Keys)
+        using var acceleration = SparseVolumeCompute.Open(compute, backend, samples, cancellation, out var mask);
+        var failed = false;
+        var keys = new Grid[4096];
+        var computedValues = new float[keys.Length * 8];
+        using var enumerator = samples.Keys.GetEnumerator();
+        while (true)
         {
-            cancellation.ThrowIfCancellationRequested();
-            if (++completed % 50000 == 0)
+            var count = 0;
+            while (count < keys.Length && enumerator.MoveNext())
             {
-                var message = $"Extracting surface: {completed:N0}/{samples.Count:N0} lattice cells; {mesh.Faces.Count:N0} triangles…";
-                progress?.Invoke(message);
-                operationProgress?.Invoke(new OperationProgress("Surface extraction", message, completed, samples.Count, "lattice cells"));
+                keys[count++] = enumerator.Current;
             }
-            var complete = true;
-            var negative = false;
-            var positive = false;
-            for (var index = 0; index < 8; index++)
+            if (count == 0)
             {
-                var offset = offsets[index];
-                corners[index] = key.Add(offset.X, offset.Y, offset.Z);
-                if (!samples.TryGetValue(corners[index], out values[index]) || !float.IsFinite(values[index]))
+                break;
+            }
+            var accelerated = acceleration != null && !failed;
+            if (accelerated)
+            {
+                try
                 {
-                    complete = false;
-                    break;
+                    SparseVolumeCompute.Read(acceleration!, keys.AsSpan(0, count), computedValues.AsSpan(0, count * 8), mask);
                 }
-                negative |= values[index] < 0;
-                positive |= values[index] >= 0;
+                catch (ComputeException) when (backend == ComputeBackend.Auto)
+                {
+                    failed = true;
+                    accelerated = false;
+                }
             }
-            var crossesSurface = complete && negative && positive;
-            if (!crossesSurface)
+            for (var cell = 0; cell < count; cell++)
             {
-                continue;
-            }
+                var key = keys[cell];
+                cancellation.ThrowIfCancellationRequested();
+                if (++completed % 50000 == 0)
+                {
+                    var message = $"Extracting surface: {completed:N0}/{samples.Count:N0} lattice cells; {mesh.Faces.Count:N0} triangles…";
+                    progress?.Invoke(message);
+                    operationProgress?.Invoke(new OperationProgress("Surface extraction", message, completed, samples.Count, "lattice cells"));
+                }
+                var complete = true;
+                var negative = false;
+                var positive = false;
+                for (var index = 0; index < 8; index++)
+                {
+                    var offset = offsets[index];
+                    corners[index] = key.Add(offset.X, offset.Y, offset.Z);
+                    var found = accelerated;
+                    if (accelerated)
+                    {
+                        values[index] = computedValues[cell * 8 + index];
+                    }
+                    else
+                    {
+                        found = samples.TryGetValue(corners[index], out values[index]);
+                    }
+                    if (!found || !float.IsFinite(values[index]))
+                    {
+                        complete = false;
+                        break;
+                    }
+                    negative |= values[index] < 0;
+                    positive |= values[index] >= 0;
+                }
+                var crossesSurface = complete && negative && positive;
+                if (!crossesSurface)
+                {
+                    continue;
+                }
 
-            for (var index = 0; index < tetrahedra.Length; index += 4)
-            {
-                Append(mesh, vertices, corners, values, tetrahedra.Slice(index, 4), voxelSize);
+                for (var index = 0; index < tetrahedra.Length; index += 4)
+                {
+                    Append(mesh, vertices, corners, values, tetrahedra.Slice(index, 4), voxelSize);
+                }
             }
         }
         operationProgress?.Invoke(new OperationProgress("Surface extraction", $"Extracted {mesh.Faces.Count:N0} triangles.", samples.Count, samples.Count, "lattice cells"));

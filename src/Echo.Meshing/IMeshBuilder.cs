@@ -5,7 +5,7 @@ namespace Echo.Meshing;
 
 public interface IMeshBuilder
 {
-    Surface Extract(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null);
+    Surface Extract(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null, ComputeBackend backend = ComputeBackend.Auto);
     void FillHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
         Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null);
 

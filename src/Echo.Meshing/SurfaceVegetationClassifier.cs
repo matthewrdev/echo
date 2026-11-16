@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Geometry;
 using Echo.SceneSemantics;
 using Echo.Storage;
@@ -8,7 +9,7 @@ namespace Echo.Meshing;
 public static class SurfaceVegetationClassifier
 {
     public static IReadOnlyList<bool> Classify(Surface surface, ProjectData project, ReconstructionScene scene,
-        IReadOnlyList<DepthMap> maps, IReadOnlyDictionary<string, SemanticMap> semantics, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
+        IReadOnlyList<DepthMap> maps, IReadOnlyDictionary<string, SemanticMap> semantics, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null, IComputeService? compute = null)
     {
         var photos = project.Images.ToDictionary(photo => photo.Id);
         var cameras = scene.Cameras.ToDictionary(camera => camera.ImageId);
@@ -28,16 +29,60 @@ public static class SurfaceVegetationClassifier
             }
         }
         IList<bool> result = work?.Filled(surface.Vertices.Count, false, new BoolRecordCodec()) ?? new bool[surface.Vertices.Count];
+        var origin = views.Length == 0 ? default : views[0].Centre;
+        using var acceleration = SemanticProjectionCompute.Open(compute, project, views, photos, semantics, origin, cancellation);
+        var failed = false;
         for (var start = 0; start < result.Count; start += 1024)
         {
             var end = Math.Min(result.Count, start + 1024);
+            float[]? projectedVotes = null;
+            if (acceleration != null && !failed)
+            {
+                try
+                {
+                    projectedVotes = SemanticProjectionCompute.Evaluate(acceleration, surface, normals, start, end - start, origin, views.Length);
+                }
+                catch (ComputeException) when (project.Settings.ComputeBackend == ComputeBackend.Auto)
+                {
+                    failed = true;
+                }
+            }
             Parallel.For(start, end, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = Math.Min(8, Environment.ProcessorCount) }, index =>
         {
             var point = new V3(surface.Vertices[index]);
             Span<VegetationViewVote> votes = stackalloc VegetationViewVote[8];
             var count = 0;
-            foreach (var view in views)
+            for (var viewIndex = 0; viewIndex < views.Length; viewIndex++)
             {
+                var view = views[viewIndex];
+                if (projectedVotes != null)
+                {
+                    var entry = ((index - start) * views.Length + viewIndex) * 4;
+                    if (projectedVotes[entry + 3] == 0)
+                    {
+                        continue;
+                    }
+                    var acceleratedWeakest = 0;
+                    for (var vote = 1; vote < count; vote++)
+                    {
+                        if (votes[vote].Weight < votes[acceleratedWeakest].Weight)
+                        {
+                            acceleratedWeakest = vote;
+                        }
+                    }
+                    var acceleratedWeight = projectedVotes[entry];
+                    if (count == votes.Length && acceleratedWeight <= votes[acceleratedWeakest].Weight)
+                    {
+                        continue;
+                    }
+                    if (visibility.HasOccluder(view.Centre, point))
+                    {
+                        continue;
+                    }
+                    var acceleratedSlot = count < votes.Length ? count++ : acceleratedWeakest;
+                    votes[acceleratedSlot] = new VegetationViewVote(acceleratedWeight, projectedVotes[entry + 1], projectedVotes[entry + 2]);
+                    continue;
+                }
                 var projection = view.Projection.Project(point);
                 if (!projection.HasValue)
                 {

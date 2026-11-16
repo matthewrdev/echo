@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Storage;
 using Echo.Geometry;
 
@@ -8,15 +9,18 @@ namespace Echo.Meshing;
 [Export(typeof(IMeshBuilder)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MeshBuilder : IMeshBuilder
 {
+    private readonly IComputeService? compute;
+
     [ImportingConstructor]
-    public MeshBuilder()
+    public MeshBuilder([Import(AllowDefault = true)] IComputeService? compute = null)
     {
+        this.compute = compute;
     }
 
-    public Surface Extract(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null)
+    public Surface Extract(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         var samples = VolumeGapRepair.Complete(volume, cancellation, work, progress);
-        var result = TetrahedralSurface.Extract(samples, volume.VoxelSize, cancellation, work, progress, operationProgress);
+        var result = TetrahedralSurface.Extract(samples, volume.VoxelSize, cancellation, work, progress, operationProgress, compute, backend);
         if (result.Faces.Count == 0)
         {
             throw new EchoException("No connected surface could be extracted from the fused cloud.", 5);

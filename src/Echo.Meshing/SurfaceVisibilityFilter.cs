@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Geometry;
 using Echo.Storage;
 
@@ -7,23 +8,39 @@ namespace Echo.Meshing;
 public static class SurfaceVisibilityFilter
 {
     public static Surface Filter(Surface surface, ProjectData project, ReconstructionScene scene,
-        IReadOnlyList<DepthMap> maps, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
+        IReadOnlyList<DepthMap> maps, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null, IComputeService? compute = null)
     {
-        return Filter(surface, MeshDepthViews.Build(project, scene, maps), project.Settings.CloudDepthTolerance, cancellation, work, progress);
+        return Filter(surface, MeshDepthViews.Build(project, scene, maps), project.Settings.CloudDepthTolerance, cancellation, work, progress, compute, project.Settings.ComputeBackend);
     }
 
     public static Surface Filter(Surface surface, IReadOnlyList<DepthView> views,
-        double relativeTolerance, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
+        double relativeTolerance, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!(relativeTolerance > 0) || !double.IsFinite(relativeTolerance))
         {
             throw new ArgumentOutOfRangeException(nameof(relativeTolerance));
         }
+        var origin = views.Count == 0 ? default : views[0].Centre;
+        using var acceleration = DepthCompute.Open(compute, backend, views, origin, cancellation);
+        var accelerationFailed = false;
         IList<bool> rejected = work?.Filled(surface.Faces.Count, false, new BoolRecordCodec()) ?? new bool[surface.Faces.Count];
         for (var start = 0; start < surface.Faces.Count; start += 4096)
         {
             var end = Math.Min(surface.Faces.Count, start + 4096);
+            if (acceleration != null && !accelerationFailed)
+            {
+                try
+                {
+                    SurfaceEvidenceCompute.Evaluate(acceleration, surface, start, end - start, origin, views.Count, relativeTolerance, rejected, cancellation);
+                    progress?.Invoke(new("Visibility filtering", "Checking triangles with Metal.", end, surface.Faces.Count, "triangles"));
+                    continue;
+                }
+                catch (ComputeException) when (backend == ComputeBackend.Auto)
+                {
+                    accelerationFailed = true;
+                }
+            }
             Parallel.For(start, end, new ParallelOptions
             {
                 CancellationToken = cancellation,

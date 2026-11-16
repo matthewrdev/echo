@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.SceneSemantics;
 using Echo.Infrastructure;
 using Echo.Meshing;
@@ -17,6 +18,7 @@ public sealed class MeshStage : IPipelineStage
     private readonly IEdgeCollapse edgeCollapse;
     private readonly IPlyWriter plyWriter;
     private readonly ISurfaceReconstructor surfaceReconstructor;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
     public MeshStage(IFileOperations fileOperations,
@@ -24,7 +26,7 @@ public sealed class MeshStage : IPipelineStage
         IMeshBuilder meshBuilder,
         IEdgeCollapse edgeCollapse,
         IPlyWriter plyWriter,
-        ISurfaceReconstructor surfaceReconstructor)
+        ISurfaceReconstructor surfaceReconstructor, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
@@ -32,6 +34,7 @@ public sealed class MeshStage : IPipelineStage
         this.edgeCollapse = edgeCollapse;
         this.plyWriter = plyWriter;
         this.surfaceReconstructor = surfaceReconstructor;
+        this.compute = compute;
     }
 
     public string Name => "mesh";
@@ -54,7 +57,9 @@ public sealed class MeshStage : IPipelineStage
             fusionPath,
             depthUnits,
             alignment,
-            completionVersion = 4,
+            completionVersion = 5,
+            project.Settings.ComputeBackend,
+            context.ComputeImplementation,
             photographSelectionVersion = 2,
             vegetationVersion = 2,
             semanticsPath,
@@ -70,7 +75,7 @@ public sealed class MeshStage : IPipelineStage
                     var maps = context.DepthMaps();
                     var volume = context.ReadData<FusedVolume>(store.PathFor(fusionPath + "/volume.json"));
                     context.BeginOperation(Name, "Surface extraction");
-                    var extracted = meshBuilder.Extract(volume, cancellation, context.Work, message => context.ReportProgress(Name, message), update => context.ReportOperation(Name, update));
+                    var extracted = meshBuilder.Extract(volume, cancellation, context.Work, message => context.ReportProgress(Name, message), update => context.ReportOperation(Name, update), project.Settings.ComputeBackend);
                     var detailTolerance = volume.VoxelSize * .15;
                     context.BeginOperation(Name, "Geometry simplification");
                     var reduced = edgeCollapse.Reduce(extracted, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: message => context.ReportProgress(Name, message));
@@ -82,7 +87,7 @@ public sealed class MeshStage : IPipelineStage
                     }
                     context.ReportProgress(Name, "Removing surfaces contradicted by visible depth rays before completion…");
                     var facesBeforeVisibility = reduced.Faces.Count;
-                    reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, context.Work, update => context.ReportOperation(Name, update));
+                    reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, context.Work, update => context.ReportOperation(Name, update), compute);
                     var rejectedBeforeCompletion = facesBeforeVisibility - reduced.Faces.Count;
                     var rejectedAfterCompletion = 0;
                     context.ReportProgress(Name, $"Rejected {rejectedBeforeCompletion:N0} triangles contradicted by observed empty space.");
@@ -99,7 +104,7 @@ public sealed class MeshStage : IPipelineStage
                         reduced = edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: message => context.ReportProgress(Name, message));
                         context.ReportProgress(Name, "Checking completed surfaces against observed empty space…");
                         facesBeforeVisibility = reduced.Faces.Count;
-                        reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, context.Work, update => context.ReportOperation(Name, update));
+                        reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, context.Work, update => context.ReportOperation(Name, update), compute);
                         rejectedAfterCompletion = facesBeforeVisibility - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Rejected {rejectedAfterCompletion:N0} completed triangles contradicted by observed empty space.");
                     }
@@ -116,7 +121,7 @@ public sealed class MeshStage : IPipelineStage
                     {
                         context.ReportProgress(Name, "Allocating fewer triangles to vegetation confirmed by multiple visible photographs…");
                         context.BeginOperation(Name, "Vegetation classification");
-                        var labels = SurfaceVegetationClassifier.Classify(reduced, project, scene, maps, semantics, cancellation, context.Work, update => context.ReportOperation(Name, update));
+                        var labels = SurfaceVegetationClassifier.Classify(reduced, project, scene, maps, semantics, cancellation, context.Work, update => context.ReportOperation(Name, update), compute);
                         var tolerances = SurfaceVegetationClassifier.Tolerances(reduced, labels,
                             detailTolerance * project.Settings.VegetationMeshToleranceMultiplier, context.Work, cancellation);
                         var before = reduced.Faces.Count;
@@ -145,7 +150,7 @@ public sealed class MeshStage : IPipelineStage
                     context.ReportProgress(Name, $"Photographs assigned to {photographCoverage.Faces - photographCoverage.InferredFaces:N0}/{photographCoverage.Faces:N0} triangles. Inferred colour covers {photographCoverage.InferredAreaPercent:F2}% of total surface area, including hidden and completed surfaces.");
                     if (project.Settings.OptimiseVegetation)
                     {
-                        var labels = SurfaceVegetationClassifier.Classify(mesh, project, scene, maps, semantics, cancellation, context.Work, update => context.ReportOperation(Name, update));
+                        var labels = SurfaceVegetationClassifier.Classify(mesh, project, scene, maps, semantics, cancellation, context.Work, update => context.ReportOperation(Name, update), compute);
                         var faces = mesh.Faces.Select(face => face.All(vertex => labels[vertex])).ToArray();
                         fileOperations.AtomicJson(Path.Combine(dir, "vegetation.json"), faces);
                     }
