@@ -14,7 +14,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
     {
     }
 
-    public Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation, double detailTolerance = 0, IReadOnlyList<double>? vertexTolerances = null, WorkBuffers? work = null, Action<string>? progress = null)
+    public Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation, double detailTolerance = 0, IReadOnlyList<double>? vertexTolerances = null, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!double.IsFinite(detailTolerance) || detailTolerance < 0)
@@ -40,24 +40,39 @@ public sealed class EdgeCollapse : IEdgeCollapse
             return sourceMesh;
         }
 
-        var adjacency = work == null ? null : new VertexFacesStore(sourceMesh.Vertices.Count, work);
+        var updates = new SimplificationProgress(progress);
+        var adjacencyRecords = work == null ? 0 : sourceMesh.Vertices.Count;
+        updates.Start(SimplificationPhase.Vertices, sourceMesh.Vertices.Count + (long)adjacencyRecords, "records");
+        var adjacency = work == null ? null : new VertexFacesStore(sourceMesh.Vertices.Count, work, cancellation, count => updates.Advance(count));
         IList<Vertex> vertices = work?.List(new VertexRecordCodec(adjacency!)) ?? new List<Vertex>(sourceMesh.Vertices.Count);
         for (var index = 0; index < sourceMesh.Vertices.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             vertices.Add(new Vertex { Id = index, Position = new V3(sourceMesh.Vertices[index]) });
+            updates.Advance(adjacencyRecords + (long)index + 1);
         }
+        updates.Complete();
+        updates.Start(SimplificationPhase.Triangles, sourceMesh.Faces.Count, "triangles");
         IList<int[]> faces = work?.List(new TriangleRecordCodec()) ?? new List<int[]>(sourceMesh.Faces.Count);
+        IList<bool> removed = work?.List(new BoolRecordCodec()) ?? new bool[sourceMesh.Faces.Count];
         foreach (var face in sourceMesh.Faces)
         {
             cancellation.ThrowIfCancellationRequested();
-            faces.Add((int[])face.Clone());
+            faces.Add(work == null ? (int[])face.Clone() : face);
+            if (work != null)
+            {
+                removed.Add(false);
+            }
+            updates.Advance(faces.Count);
         }
-        IList<bool> removed = work?.Filled(faces.Count, false, new BoolRecordCodec()) ?? new bool[faces.Count];
+        updates.Complete();
+        updates.Start(SimplificationPhase.Quadrics, faces.Count, "triangles");
         var remaining = faces.Count;
         Span<double> plane = stackalloc double[4];
         for (var i = 0; i < faces.Count; i++)
         {
+            cancellation.ThrowIfCancellationRequested();
+            updates.Advance(i);
             var f = faces[i];
             foreach (var v in f)
             {
@@ -85,20 +100,9 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
         }
 
-        var queue = new PriorityQueue<Candidate, double>();
-        var pagedQueue = work == null ? null : new PagedMinHeap<Candidate>(work.List(new HeapEntryCodec<Candidate>(new CandidateRecordCodec())));
-        void Enqueue(Candidate candidate, double priority)
-        {
-            if (pagedQueue == null)
-            {
-                queue.Enqueue(candidate, priority);
-            }
-            else
-            {
-                pagedQueue.Enqueue(candidate, priority);
-            }
-        }
-        bool Dequeue(out Candidate candidate) => pagedQueue == null ? queue.TryDequeue(out candidate, out _) : pagedQueue.TryDequeue(out candidate, out _);
+        updates.Complete();
+        IList<HeapEntry<Candidate>> candidates = work?.List(new HeapEntryCodec<Candidate>(new CandidateRecordCodec())) ?? new List<HeapEntry<Candidate>>();
+        var queue = new PagedMinHeap<Candidate>(candidates);
         var edgeCounts = new Dictionary<int, int>();
         void Neighbours(int vertex, HashSet<int> result)
         {
@@ -114,14 +118,14 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 }
             }
         }
-        bool Boundary(int vertex)
+        bool Boundary(Vertex vertex)
         {
             edgeCounts.Clear();
-            foreach (var face in vertices[vertex].Faces)
+            foreach (var face in vertex.Faces)
             {
                 foreach (var neighbour in faces[face])
                 {
-                    if (neighbour != vertex)
+                    if (neighbour != vertex.Id)
                     {
                         edgeCounts.TryGetValue(neighbour, out var count);
                         edgeCounts[neighbour] = count + 1;
@@ -139,7 +143,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
         }
         void Offer(int a, int b)
         {
-            if (a == b || vertices[a].Removed || vertices[b].Removed)
+            if (a == b)
             {
                 return;
             }
@@ -157,10 +161,14 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
             var va = vertices[a];
             var vb = vertices[b];
+            if (va.Removed || vb.Removed)
+            {
+                return;
+            }
             var qa = va.Quadric;
             var qb = vb.Quadric;
-            var aBoundary = Boundary(a);
-            var bBoundary = Boundary(b);
+            var aBoundary = Boundary(va);
+            var bBoundary = Boundary(vb);
             Span<V3> options = stackalloc V3[3];
             var optionCount = 1;
             if (aBoundary && !bBoundary)
@@ -205,12 +213,16 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
 
             var priority = best + (va.Position - vb.Position).Length * 1e-8;
-            Enqueue(new Candidate(a, b, va.Revision, vb.Revision, bestPoint, best), priority);
+            queue.Enqueue(new Candidate(a, b, va.Revision, vb.Revision, bestPoint, best), priority);
         }
 
+        updates.Start(SimplificationPhase.Edges, faces.Count, "triangles");
+        var indexedFaces = 0;
         IDictionary<Edge, int> edges = work?.Map(new EdgeRecordCodec(), new IntRecordCodec()) ?? new Dictionary<Edge, int>();
         foreach (var f in faces)
         {
+            cancellation.ThrowIfCancellationRequested();
+            updates.Advance(indexedFaces++);
             for (var i = 0; i < 3; i++)
             {
                 var a = f[i];
@@ -219,15 +231,22 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
         }
 
+        updates.Complete();
+        updates.Start(SimplificationPhase.Boundaries, edges.Count, "edges");
+        var constrainedEdges = 0;
         // Constrain open boundaries in their own perpendicular planes. On a flat
         // patch, face quadrics alone have zero cost for cutting away its corners.
         foreach (var edge in edges.Keys)
         {
+            cancellation.ThrowIfCancellationRequested();
+            updates.Advance(constrainedEdges++);
+            var vertexA = vertices[edge.A];
+            var vertexB = vertices[edge.B];
             var sharedCount = 0;
             var sharedFace = -1;
-            foreach (var face in vertices[edge.A].Faces)
+            foreach (var face in vertexA.Faces)
             {
-                if (vertices[edge.B].Faces.Contains(face))
+                if (vertexB.Faces.Contains(face))
                 {
                     sharedCount++;
                     sharedFace = face;
@@ -239,9 +258,10 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
 
             var f = faces[sharedFace];
-            var a = vertices[edge.A].Position;
-            var b = vertices[edge.B].Position;
-            var faceNormal = (vertices[f[1]].Position - vertices[f[0]].Position).Cross(vertices[f[2]].Position - vertices[f[0]].Position).Unit;
+            var a = vertexA.Position;
+            var b = vertexB.Position;
+            var origin = vertices[f[0]].Position;
+            var faceNormal = (vertices[f[1]].Position - origin).Cross(vertices[f[2]].Position - origin).Unit;
             var normal = (b - a).Cross(faceNormal).Unit;
             plane[0] = normal.X;
             plane[1] = normal.Y;
@@ -250,7 +270,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             for (var endpoint = 0; endpoint < 2; endpoint++)
             {
                 var vi = endpoint == 0 ? edge.A : edge.B;
-                var vertex = vertices[vi];
+                var vertex = endpoint == 0 ? vertexA : vertexB;
                 for (var r = 0; r < 4; r++)
                 {
                     for (var c = 0; c < 4; c++)
@@ -262,10 +282,17 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
         }
 
+        updates.Complete();
+        updates.Start(SimplificationPhase.Candidates, edges.Count, "edges");
+        var rankedEdges = 0;
         foreach (var edge in edges.Keys)
         {
+            cancellation.ThrowIfCancellationRequested();
             Offer(edge.A, edge.B);
+            updates.Advance(++rankedEdges);
         }
+        updates.Complete();
+        updates.Start(SimplificationPhase.Collapse, null, "candidates");
 
         var commonFaces = new List<int>(3);
         var neighboursA = new HashSet<int>();
@@ -283,13 +310,28 @@ public sealed class EdgeCollapse : IEdgeCollapse
         // is small. Normalizing by plane count keeps the tolerance in distance
         // units instead of growing with the number of contributing planes.
         var maximumDetailError = detailTolerance * detailTolerance;
-        var evaluated = 0;
-        while (Dequeue(out var edge))
+        var evaluated = 0L;
+        var targetOnly = detailTolerance == 0 && tolerances == null;
+        var queueLimit = Math.Max(16384L, faces.Count * 3L);
+        bool Current(Candidate candidate)
+        {
+            var a = vertices[candidate.A];
+            if (a.Removed || a.Revision != candidate.RevisionA)
+            {
+                return false;
+            }
+            var b = vertices[candidate.B];
+            return !b.Removed && b.Revision == candidate.RevisionB;
+        }
+        while ((!targetOnly || remaining > targetFaceCount) && queue.TryDequeue(out var edge, out _))
         {
             cancellation.ThrowIfCancellationRequested();
-            if (++evaluated % 50000 == 0)
+            updates.Advance(++evaluated, remaining, queue.Count);
+            if (queue.Count > queueLimit)
             {
-                progress?.Invoke($"Simplifying: {remaining:N0} triangles remain; {evaluated:N0} candidates examined; {pagedQueue?.Count ?? queue.Count:N0} queued");
+                queue.Retain(Current, cancellation, updates.Prune);
+                queueLimit = Math.Max(16384L, Math.Max(queue.Count * 2L, remaining * 3L));
+                updates.Start(SimplificationPhase.Collapse, null, "candidates", evaluated);
             }
             var allowedError = tolerances == null ? maximumDetailError : Math.Pow(Math.Min(tolerances[edge.A], tolerances[edge.B]), 2);
             if (remaining <= targetFaceCount && (allowedError == 0 || edge.Error > allowedError))
@@ -331,7 +373,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 continue;
             }
 
-            if (Boundary(edge.A) && Boundary(edge.B) && commonFaces.Count != 1)
+            if (Boundary(a) && Boundary(b) && commonFaces.Count != 1)
             {
                 continue;
             }
@@ -463,17 +505,23 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
         }
 
+        updates.Complete(remaining);
+        updates.Start(SimplificationPhase.Output, faces.Count, "triangles");
         var result = work?.Surface() ?? new Surface();
-        IDictionary<int, int> remap = work?.Map(new IntRecordCodec(), new IntRecordCodec()) ?? new Dictionary<int, int>();
+        IList<int> remap = work?.Filled(vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, vertices.Count).ToArray();
         for (var i = 0; i < faces.Count; i++)
         {
+            cancellation.ThrowIfCancellationRequested();
+            updates.Advance(i);
             if (!removed[i])
             {
                 var output = new int[3];
+                var face = faces[i];
                 for (var j = 0; j < 3; j++)
                 {
-                    var v = faces[i][j];
-                    if (!remap.TryGetValue(v, out var index))
+                    var v = face[j];
+                    var index = remap[v];
+                    if (index < 0)
                     {
                         index = result.Vertices.Count;
                         remap[v] = index;
@@ -487,6 +535,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
         }
 
+        updates.Complete(result.Faces.Count);
         return result;
     }
 }

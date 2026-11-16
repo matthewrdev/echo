@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Storage;
 using Echo.Geometry;
@@ -15,71 +17,91 @@ internal static class SurfaceHoleRepair
         SurfaceTriangleIndex? index = null;
         var repaired = 0;
         var examined = 0;
-        foreach (var boundary in loops)
+        var progressClock = Stopwatch.StartNew();
+        var positions = ArrayPool<V3>.Shared.Rent(maximumLoop);
+        try
         {
-            cancellation.ThrowIfCancellationRequested();
-            progress?.Invoke(new OperationProgress("Hole repair", $"Examined {++examined:N0} enclosed boundaries; closed {repaired:N0} holes.", examined, Unit: "boundaries"));
-            var loop = boundary.Vertices;
-            if (loop.Count > maximumLoop)
+            foreach (var boundary in loops)
             {
-                continue;
-            }
-            loop.Reverse();
-            if (!SupportedLoop(mesh, loop, boundary.AdjacentNormal, voxelSize, supportsSurface != null,
-                out var patchNormal, out var requiresObservation))
-            {
-                continue;
-            }
-            if (requiresObservation && supportsSurface == null)
-            {
-                continue;
-            }
-
-            var patch = Triangulate(mesh, loop, patchNormal, edges, cancellation);
-            if (patch == null && supportsSurface != null)
-            {
-                index ??= new SurfaceTriangleIndex(mesh, cancellation);
-                patch = CurvedHoleTriangulation.Fill(mesh, loop, edges, index, cancellation);
-            }
-            if (patch == null)
-            {
-                continue;
-            }
-            if (requiresObservation && !ObservedPatch(mesh, patch, supportsSurface!, cancellation))
-            {
-                continue;
-            }
-            if (acceptsTriangle != null)
-            {
-                index ??= new SurfaceTriangleIndex(mesh, cancellation);
-                if (!AcceptedPatch(mesh, patch, acceptsTriangle, index, cancellation))
+                cancellation.ThrowIfCancellationRequested();
+                if (examined == 0 || progressClock.ElapsedMilliseconds >= 125)
+                {
+                    progress?.Invoke(new OperationProgress("Hole repair", $"Examined {examined:N0} enclosed boundaries; closed {repaired:N0} holes.", examined, Unit: "boundaries"));
+                    progressClock.Restart();
+                }
+                examined++;
+                var loop = boundary.Vertices;
+                if (loop.Count > maximumLoop)
                 {
                     continue;
                 }
-            }
-
-            repaired++;
-            foreach (var face in patch)
-            {
-                mesh.Faces.Add(face);
-            }
-            foreach (var face in patch)
-            {
-                index?.Add(new SurfaceTriangle(new V3(mesh.Vertices[face[0]]), new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]])));
-                for (var corner = 0; corner < 3; corner++)
+                loop.Reverse();
+                var points = positions.AsSpan(0, loop.Count);
+                for (var vertex = 0; vertex < loop.Count; vertex++)
                 {
-                    var from = face[corner];
-                    var to = face[(corner + 1) % 3];
-                    var key = new SurfaceEdge(Math.Min(from, to), Math.Max(from, to));
-                    edges[key] = edges.TryGetValue(key, out var existing)
-                        ? existing with
-                        {
-                            Count = existing.Count + 1
-                        }
-                        : new BoundaryEdge(from, to, patchNormal, 1);
+                    points[vertex] = new V3(mesh.Vertices[loop[vertex]]);
+                }
+                if (!SupportedLoop(points, boundary.AdjacentNormal, voxelSize, supportsSurface != null,
+                    out var patchNormal, out var requiresObservation))
+                {
+                    continue;
+                }
+                if (requiresObservation && supportsSurface == null)
+                {
+                    continue;
+                }
+
+                var patch = Triangulate(loop, points, patchNormal, edges, cancellation);
+                if (patch == null && supportsSurface != null)
+                {
+                    index ??= new SurfaceTriangleIndex(mesh, cancellation);
+                    patch = CurvedHoleTriangulation.Fill(mesh, loop, edges, index, cancellation);
+                }
+                if (patch == null)
+                {
+                    continue;
+                }
+                if (requiresObservation && !ObservedPatch(mesh, patch, supportsSurface!, cancellation))
+                {
+                    continue;
+                }
+                if (acceptsTriangle != null)
+                {
+                    index ??= new SurfaceTriangleIndex(mesh, cancellation);
+                    if (!AcceptedPatch(mesh, patch, acceptsTriangle, index, cancellation))
+                    {
+                        continue;
+                    }
+                }
+
+                repaired++;
+                foreach (var face in patch)
+                {
+                    mesh.Faces.Add(face);
+                }
+                foreach (var face in patch)
+                {
+                    index?.Add(new SurfaceTriangle(new V3(mesh.Vertices[face[0]]), new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]])));
+                    for (var corner = 0; corner < 3; corner++)
+                    {
+                        var from = face[corner];
+                        var to = face[(corner + 1) % 3];
+                        var key = new SurfaceEdge(Math.Min(from, to), Math.Max(from, to));
+                        edges[key] = edges.TryGetValue(key, out var existing)
+                            ? existing with
+                            {
+                                Count = existing.Count + 1
+                            }
+                            : new BoundaryEdge(from, to, patchNormal, 1);
+                    }
                 }
             }
         }
+        finally
+        {
+            ArrayPool<V3>.Shared.Return(positions);
+        }
+        progress?.Invoke(new OperationProgress("Hole repair", $"Examined {examined:N0} enclosed boundaries; closed {repaired:N0} holes.", examined, examined, "boundaries"));
         return repaired;
     }
 
@@ -133,31 +155,34 @@ internal static class SurfaceHoleRepair
         return edges;
     }
 
-    private static bool SupportedLoop(Surface mesh, List<int> loop, V3 adjacentNormal, double voxelSize,
+    private static bool SupportedLoop(ReadOnlySpan<V3> points, V3 adjacentNormal, double voxelSize,
         bool allowObservedCompletion, out V3 normal, out bool requiresObservation)
     {
         requiresObservation = false;
-        var origin = new V3(mesh.Vertices[loop[0]]);
+        var origin = points[0];
         var area = new V3();
         var centre = new V3();
-        for (var index = 0; index < loop.Count; index++)
+        for (var index = 0; index < points.Length; index++)
         {
-            var point = new V3(mesh.Vertices[loop[index]]);
-            var next = new V3(mesh.Vertices[loop[(index + 1) % loop.Count]]);
+            var point = points[index];
+            var next = points[(index + 1) % points.Length];
             area += (point - origin).Cross(next - origin);
             centre += point;
         }
         normal = area.Unit;
-        centre /= loop.Count;
+        centre /= points.Length;
         if (area.Length < voxelSize * voxelSize * 1e-6 || normal.Dot(adjacentNormal) < .5)
         {
             return false;
         }
 
-        var radius = loop.Max(vertex => (new V3(mesh.Vertices[vertex]) - centre).Length);
-        foreach (var vertex in loop)
+        var radius = 0d;
+        foreach (var point in points)
         {
-            var point = new V3(mesh.Vertices[vertex]);
+            radius = Math.Max(radius, (point - centre).Length);
+        }
+        foreach (var point in points)
+        {
             var deviation = Math.Abs((point - centre).Dot(normal));
             requiresObservation |= deviation > voxelSize * .75;
             var maximumDeviation = allowObservedCompletion ? Math.Max(voxelSize * 4, radius * .4) : voxelSize * .75;
@@ -167,9 +192,9 @@ internal static class SurfaceHoleRepair
             }
             if (!allowObservedCompletion)
             {
-                foreach (var other in loop)
+                foreach (var other in points)
                 {
-                    if ((point - new V3(mesh.Vertices[other])).Length > voxelSize * 12)
+                    if ((point - other).Length > voxelSize * 12)
                     {
                         return false;
                     }
@@ -199,15 +224,15 @@ internal static class SurfaceHoleRepair
         return true;
     }
 
-    private static List<int[]>? Triangulate(Surface mesh, List<int> boundary, V3 normal,
+    private static List<int[]>? Triangulate(List<int> boundary, ReadOnlySpan<V3> points, V3 normal,
         IDictionary<SurfaceEdge, BoundaryEdge> edges, CancellationToken cancellation)
     {
-        if (CrossesItself(mesh, boundary, normal))
+        if (CrossesItself(points, normal))
         {
             return null;
         }
-        var remaining = new List<int>(boundary);
-        var result = new List<int[]>();
+        var remaining = Enumerable.Range(0, boundary.Count).ToList();
+        var result = new List<int[]>(boundary.Count - 2);
         while (remaining.Count > 3)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -217,10 +242,10 @@ internal static class SurfaceHoleRepair
                 var before = remaining[(index + remaining.Count - 1) % remaining.Count];
                 var current = remaining[index];
                 var after = remaining[(index + 1) % remaining.Count];
-                var a = new V3(mesh.Vertices[before]);
-                var b = new V3(mesh.Vertices[current]);
-                var c = new V3(mesh.Vertices[after]);
-                var diagonal = new SurfaceEdge(Math.Min(before, after), Math.Max(before, after));
+                var a = points[before];
+                var b = points[current];
+                var c = points[after];
+                var diagonal = new SurfaceEdge(Math.Min(boundary[before], boundary[after]), Math.Max(boundary[before], boundary[after]));
                 if ((b - a).Cross(c - a).Dot(normal) <= 1e-12 || edges.ContainsKey(diagonal))
                 {
                     continue;
@@ -234,7 +259,7 @@ internal static class SurfaceHoleRepair
                     {
                         continue;
                     }
-                    var point = new V3(mesh.Vertices[vertex]);
+                    var point = points[vertex];
                     var inside = (b - a).Cross(point - a).Dot(normal) >= -1e-12
                         && (c - b).Cross(point - b).Dot(normal) >= -1e-12
                         && (a - c).Cross(point - c).Dot(normal) >= -1e-12;
@@ -249,7 +274,7 @@ internal static class SurfaceHoleRepair
                     continue;
                 }
 
-                result.Add([before, current, after]);
+                result.Add([boundary[before], boundary[current], boundary[after]]);
                 remaining.RemoveAt(index);
                 found = true;
                 break;
@@ -260,33 +285,33 @@ internal static class SurfaceHoleRepair
             }
         }
 
-        var first = new V3(mesh.Vertices[remaining[0]]);
-        var second = new V3(mesh.Vertices[remaining[1]]);
-        var third = new V3(mesh.Vertices[remaining[2]]);
+        var first = points[remaining[0]];
+        var second = points[remaining[1]];
+        var third = points[remaining[2]];
         if ((second - first).Cross(third - first).Dot(normal) <= 1e-12)
         {
             return null;
         }
-        result.Add(remaining.ToArray());
+        result.Add([boundary[remaining[0]], boundary[remaining[1]], boundary[remaining[2]]]);
         return result;
     }
 
-    private static bool CrossesItself(Surface mesh, List<int> boundary, V3 normal)
+    private static bool CrossesItself(ReadOnlySpan<V3> points, V3 normal)
     {
-        for (var first = 0; first < boundary.Count; first++)
+        for (var first = 0; first < points.Length; first++)
         {
-            var firstEnd = (first + 1) % boundary.Count;
-            var a = new V3(mesh.Vertices[boundary[first]]);
-            var b = new V3(mesh.Vertices[boundary[firstEnd]]);
-            for (var second = first + 2; second < boundary.Count; second++)
+            var firstEnd = (first + 1) % points.Length;
+            var a = points[first];
+            var b = points[firstEnd];
+            for (var second = first + 2; second < points.Length; second++)
             {
-                var secondEnd = (second + 1) % boundary.Count;
+                var secondEnd = (second + 1) % points.Length;
                 if (secondEnd == first)
                 {
                     continue;
                 }
-                var c = new V3(mesh.Vertices[boundary[second]]);
-                var d = new V3(mesh.Vertices[boundary[secondEnd]]);
+                var c = points[second];
+                var d = points[secondEnd];
                 var oppositeFirst = (b - a).Cross(c - a).Dot(normal) * (b - a).Cross(d - a).Dot(normal) < -1e-12;
                 var oppositeSecond = (d - c).Cross(a - c).Dot(normal) * (d - c).Cross(b - c).Dot(normal) < -1e-12;
                 if (oppositeFirst && oppositeSecond)

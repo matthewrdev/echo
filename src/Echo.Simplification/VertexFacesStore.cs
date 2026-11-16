@@ -8,22 +8,25 @@ internal sealed class VertexFacesStore
 {
     private readonly IList<AdjacencyHead> heads;
     private readonly IList<AdjacencySlot> slots;
-    private readonly IDictionary<Edge, int> lookup;
 
-    public VertexFacesStore(int count, WorkBuffers work)
+    public VertexFacesStore(int count, WorkBuffers work, CancellationToken cancellation = default, Action<int>? progress = null)
     {
-        heads = work.Filled(count, new AdjacencyHead(-1, -1, -1, 0), new AdjacencyHeadCodec());
+        heads = work.List(new AdjacencyHeadCodec());
+        for (var index = 0; index < count; index++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            heads.Add(new AdjacencyHead(-1, -1, -1, 0));
+            progress?.Invoke(index + 1);
+        }
         slots = work.List(new AdjacencySlotCodec());
-        lookup = work.Map(new EdgeRecordCodec(), new IntRecordCodec());
     }
 
     public int Count(int vertex) => heads[vertex].Count;
-    public bool Contains(int vertex, int face) => lookup.ContainsKey(new Edge(vertex, face));
+    public bool Contains(int vertex, int face) => Find(vertex, face) >= 0;
 
     public void Add(int vertex, int face)
     {
-        var key = new Edge(vertex, face);
-        if (lookup.ContainsKey(key))
+        if (Find(vertex, face) >= 0)
         {
             return;
         }
@@ -59,7 +62,6 @@ internal sealed class VertexFacesStore
                 Last = slot
             };
         }
-        lookup.Add(key, slot);
         heads[vertex] = head with
         {
             Count = head.Count + 1
@@ -68,8 +70,8 @@ internal sealed class VertexFacesStore
 
     public bool Remove(int vertex, int face)
     {
-        var key = new Edge(vertex, face);
-        if (!lookup.TryGetValue(key, out var slot))
+        var slot = Find(vertex, face);
+        if (slot < 0)
         {
             return false;
         }
@@ -84,8 +86,25 @@ internal sealed class VertexFacesStore
             Free = slot,
             Count = head.Count - 1
         };
-        lookup.Remove(key);
         return true;
+    }
+
+    // A vertex normally touches only a handful of faces. Search its compact
+    // paged slot chain instead of maintaining a second, global SQL index for
+    // every adjacency insertion, removal and membership test.
+    private int Find(int vertex, int face)
+    {
+        var slot = heads[vertex].First;
+        while (slot >= 0)
+        {
+            var item = slots[slot];
+            if (item.Face == face)
+            {
+                return slot;
+            }
+            slot = item.Next;
+        }
+        return -1;
     }
 
     public IEnumerable<int> Faces(int vertex)

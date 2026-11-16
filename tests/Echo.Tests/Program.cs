@@ -61,6 +61,15 @@ if (args.Contains("--run-recovery", StringComparer.Ordinal))
     composition.Resolve<RunRecoveryTests>().Run(scaleTests);
     return scaleTests.Finish();
 }
+if (args.Contains("--mesh", StringComparer.Ordinal))
+{
+    composition.Resolve<RunRecoveryTests>().Run(scaleTests);
+    composition.Resolve<MeshQualityTests>().Run(scaleTests);
+    composition.Resolve<PagingTests>().Run(scaleTests);
+    composition.Resolve<SurfaceCompletionTests>().Run(scaleTests);
+    composition.Resolve<FinalHoleRepairTests>().Run(scaleTests);
+    return scaleTests.Finish();
+}
 composition.Resolve<SceneStorageTests>().Run(scaleTests);
 if (args.Contains("--scene-storage", StringComparer.Ordinal))
 {

@@ -27,6 +27,38 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Paged vertex adjacency preserves membership and slot order without a global index", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory, 1024, 0);
+            var store = new VertexFacesStore(16, work);
+            var expected = Enumerable.Range(0, 16).Select(_ => new HashSet<int>()).ToArray();
+            var random = new Random(721);
+            for (var iteration = 0; iteration < 5000; iteration++)
+            {
+                var vertex = random.Next(16);
+                var face = random.Next(100);
+                if (random.Next(3) == 0)
+                {
+                    Check(store.Remove(vertex, face) == expected[vertex].Remove(face), "Removal result changed");
+                }
+                else
+                {
+                    store.Add(vertex, face);
+                    expected[vertex].Add(face);
+                }
+                Check(store.Contains(vertex, face) == expected[vertex].Contains(face), "Membership changed");
+                Check(store.Count(vertex) == expected[vertex].Count, "Adjacency count changed");
+                Check(store.Faces(vertex).SequenceEqual(expected[vertex]), "Slot reuse changed candidate ordering");
+            }
+            for (var face = 0; face < 2000; face++)
+            {
+                store.Add(0, face);
+                expected[0].Add(face);
+            }
+            Check(store.Faces(0).SequenceEqual(expected[0]) && store.Contains(0, 1999), "High-valence vertices lost faces");
+            Check(work.IndexDiskBytes == 0, "Vertex adjacency still created a global database index");
+        }));
         tests.Run("Paged records preserve bytes across dirty eviction and reopen", () => InDirectory(directory =>
         {
             var path = Path.Combine(directory, "records.bin");
@@ -60,6 +92,31 @@ public sealed class PagingTests
             Check(records.Select(pair => pair.Key.X).SequenceEqual(coordinates), "Dictionary insertion order changed");
             Check(records[new Echo.Fusion.Grid(-2, 0, 0)] == 42, "Dictionary update failed");
             Check(records.OrderedKeys().Select(key => key.X).SequenceEqual(coordinates.Order()), "Signed sorting changed");
+        }));
+        tests.Run("Candidate heap compaction removes obsolete entries and remains ordered", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            var heap = new PagedMinHeap<int>(session.Open(Path.Combine(directory, "compact.bin"), new HeapEntryCodec<int>(new IntRecordCodec()), true));
+            for (var index = 0; index < 20000; index++)
+            {
+                heap.Enqueue(index, index % 127);
+            }
+            var removed = heap.Retain(value => value % 3 == 0, default);
+            Check(removed == 13333 && heap.Count == 6667, "Compaction lost or retained the wrong candidates");
+            heap.Enqueue(20001, -1);
+            var priority = double.NegativeInfinity;
+            var seen = new HashSet<int>();
+            while (heap.TryDequeue(out var value, out var next))
+            {
+                Check(next >= priority && value % 3 == 0 && seen.Add(value), "Compaction broke heap ordering or duplicated a candidate");
+                priority = next;
+            }
+            Check(seen.Count == 6668, "Compacted queue lost valid candidates");
+            Check(heap.Retain(_ => false, default) == 0, "Empty compaction failed");
+            heap.Enqueue(1, 1);
+            Check(heap.Retain(_ => false, default) == 1 && heap.Count == 0, "Complete removal failed");
+            heap.Enqueue(2, 2);
+            Check(heap.TryDequeue(out var final, out _) && final == 2, "Cleared heap could not be reused");
         }));
         tests.Run("Paged heap preserves framework priority ordering including ties", () => InDirectory(directory =>
         {

@@ -58,6 +58,7 @@ public sealed class MeshStage : IPipelineStage
             depthUnits,
             alignment,
             completionVersion = 5,
+            simplificationVersion = 2,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Mesh),
             photographSelectionVersion = 2,
@@ -78,12 +79,12 @@ public sealed class MeshStage : IPipelineStage
                     var extracted = meshBuilder.Extract(volume, cancellation, context.Work, message => context.ReportProgress(Name, message), update => context.ReportOperation(Name, update), project.Settings.ComputeBackend);
                     var detailTolerance = volume.VoxelSize * .15;
                     context.BeginOperation(Name, "Geometry simplification");
-                    var reduced = edgeCollapse.Reduce(extracted, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: message => context.ReportProgress(Name, message));
+                    var reduced = edgeCollapse.Reduce(extracted, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: update => context.ReportOperation(Name, update));
                     context.BeginOperation(Name, "Observed hole repair");
                     meshBuilder.FillHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, update => context.ReportOperation(Name, update));
                     if (reduced.Faces.Count > project.Settings.FaceLimit)
                     {
-                        reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: context.Work, progress: message => context.ReportProgress(Name, message));
+                        reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: context.Work, progress: update => context.ReportOperation(Name, update));
                     }
                     context.ReportProgress(Name, "Removing surfaces contradicted by visible depth rays before completion…");
                     var facesBeforeVisibility = reduced.Faces.Count;
@@ -101,7 +102,7 @@ public sealed class MeshStage : IPipelineStage
                         context.ReportProgress(Name, "Restricting surface completion to the scanned neighbourhood…");
                         var supported = SurfaceSupportFilter.Filter(reconstructed, observed, volume.VoxelSize * 24, cancellation, context.Work, update => context.ReportOperation(Name, update));
                         context.ReportProgress(Name, "Adapting the completed surface to its geometric detail…");
-                        reduced = edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: message => context.ReportProgress(Name, message));
+                        reduced = edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance, work: context.Work, progress: update => context.ReportOperation(Name, update));
                         context.ReportProgress(Name, "Checking completed surfaces against observed empty space…");
                         facesBeforeVisibility = reduced.Faces.Count;
                         reduced = SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, context.Work, update => context.ReportOperation(Name, update), compute);
@@ -114,7 +115,7 @@ public sealed class MeshStage : IPipelineStage
                     context.ReportProgress(Name, $"Closed {finalRepair.RepairedHoles:N0} small holes with {finalRepair.AddedFaces:N0} triangles.");
                     if (reduced.Faces.Count > project.Settings.FaceLimit)
                     {
-                        reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: context.Work, progress: message => context.ReportProgress(Name, message));
+                        reduced = edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: context.Work, progress: update => context.ReportOperation(Name, update));
                     }
                     var vegetationRemovedFaces = 0;
                     if (project.Settings.OptimiseVegetation)
@@ -126,7 +127,7 @@ public sealed class MeshStage : IPipelineStage
                             detailTolerance * project.Settings.VegetationMeshToleranceMultiplier, context.Work, cancellation);
                         var before = reduced.Faces.Count;
                         context.BeginOperation(Name, "Vegetation simplification");
-                        reduced = edgeCollapse.Reduce(reduced, before, cancellation, vertexTolerances: tolerances, work: context.Work, progress: message => context.ReportProgress(Name, message));
+                        reduced = edgeCollapse.Reduce(reduced, before, cancellation, vertexTolerances: tolerances, work: context.Work, progress: update => context.ReportOperation(Name, update));
                         vegetationRemovedFaces = before - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Removed {vegetationRemovedFaces:N0} vegetation triangles; rock and material boundaries remain fixed.");
                     }

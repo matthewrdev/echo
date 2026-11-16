@@ -18,14 +18,13 @@ internal sealed class VertexRecordCodec : RecordCodec<Vertex>
     public override Vertex Decode(ReadOnlySpan<byte> bytes)
     {
         var id = BinaryPrimitives.ReadInt32LittleEndian(bytes);
-        var vertex = new Vertex
+        var vertex = new Vertex(new VertexFaces(faces, id))
         {
             Id = id,
             Position = new V3(BinaryPrimitives.ReadDoubleLittleEndian(bytes[4..]), BinaryPrimitives.ReadDoubleLittleEndian(bytes[12..]), BinaryPrimitives.ReadDoubleLittleEndian(bytes[20..])),
             PlaneCount = BinaryPrimitives.ReadInt32LittleEndian(bytes[156..]),
             Revision = BinaryPrimitives.ReadInt32LittleEndian(bytes[160..]),
-            Removed = bytes[164] != 0,
-            Faces = new VertexFaces(faces, id)
+            Removed = bytes[164] != 0
         };
         for (var index = 0; index < 16; index++)
         {

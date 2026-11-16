@@ -21,6 +21,68 @@ public sealed class MeshQualityTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Hole repair reports bounded updates and the final boundary count", () =>
+        {
+            var mesh = new Surface();
+            const int count = 1000;
+            for (var index = 0; index < count; index++)
+            {
+                var start = mesh.Vertices.Count;
+                mesh.Vertices.Add([index * 10, 0, 0]);
+                mesh.Vertices.Add([index * 10 + 1, 0, 0]);
+                mesh.Vertices.Add([index * 10, 1, 0]);
+                mesh.Faces.Add([start, start + 1, start + 2]);
+            }
+            var updates = new List<OperationProgress>();
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            SurfaceHoleRepair.Fill(mesh, 1, default, progress: updates.Add);
+            var repair = updates.Where(update => update.Operation == "Hole repair").ToArray();
+            Check(repair.Last().Completed == count && repair.Last().Total == count, "Final examined boundaries were not reported");
+            Check(repair.Length <= 2 + Math.Ceiling(clock.Elapsed.TotalSeconds * 8), "Boundary processing emitted per-item progress spam");
+            Check(mesh.Faces.Count == count, "Outer boundaries were incorrectly filled");
+        });
+        tests.Run("Simplification reports preparation and compaction with real totals", () =>
+        {
+            var mesh = new Surface
+            {
+                Vertices = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]],
+                Faces = [[0, 1, 2], [0, 2, 3]]
+            };
+            var updates = new List<OperationProgress>();
+            var reduced = simplifier.Reduce(mesh, 1, default, progress: updates.Add);
+            Check(updates.Select(update => update.StepIndex).Distinct().SequenceEqual(Enumerable.Range(0, 8).Select(index => (int?)index)),
+                "Preparation, quadrics, edges, constraints, ranking, collapse and output must be visible in order");
+            Check(updates.All(update => update.Steps?.Length == 8), "Substage progress needs its complete plan");
+            Check(updates.First().Completed == 0 && updates.First().Total == 4, "Vertex preparation has a known total");
+            Check(updates.Any(update => update.Operation == "Collapse edges" && update.Total == null),
+                "A changing candidate queue must not pretend to have a fixed total");
+            Check(updates.Last().Completed == 2 && updates.Last().Total == 2, "Compaction must report completion");
+            Check(updates.Last().Message.Contains($"{reduced.Faces.Count:N0} triangles remain", StringComparison.Ordinal), "The final face count was lost");
+        });
+        tests.Run("Simplification can be cancelled during candidate preparation", () =>
+        {
+            var mesh = new Surface
+            {
+                Vertices = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]],
+                Faces = [[0, 1, 2], [0, 2, 3]]
+            };
+            using var cancellation = new CancellationTokenSource();
+            try
+            {
+                simplifier.Reduce(mesh, 1, cancellation.Token, progress: update =>
+                {
+                    if (update.Operation == "Rank collapse candidates")
+                    {
+                        cancellation.Cancel();
+                    }
+                });
+                throw new InvalidOperationException("Cancellation was ignored during preparation");
+            }
+            catch (OperationCanceledException)
+            {
+                Check(mesh.Faces.Count == 2 && mesh.Vertices.Count == 4, "Cancellation mutated the saved source");
+            }
+        });
         tests.Run("Irregular holes requiring observations remain open until a support check is available", () =>
         {
             var height = Math.Sqrt(3) * 11.5 / 2;
