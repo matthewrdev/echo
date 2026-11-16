@@ -5,6 +5,15 @@ struct FeatureViewer: View {
     let openMatch: (FeatureMatchLink) -> Void
     @StateObject private var controller = CanvasViewportController()
     @State private var selected: Int?
+    @AppStorage("features.overlayOpacity") private var overlayOpacity = 1.0
+    @AppStorage("features.showsPoints") private var showsPoints = true
+    @AppStorage("features.showsLines") private var showsLines = true
+    @AppStorage("features.showsJunctions") private var showsJunctions = true
+
+    private var overlay: FeatureOverlayOptions {
+        FeatureOverlayOptions(
+            opacity: overlayOpacity, showsPoints: showsPoints, showsLines: showsLines, showsJunctions: showsJunctions)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -19,9 +28,13 @@ struct FeatureViewer: View {
                 .font(.caption).foregroundStyle(.orange)
             }
             CanvasControls(controller: controller)
+            FeatureOverlayControls(
+                opacity: $overlayOpacity, showsPoints: $showsPoints, showsLines: $showsLines,
+                showsJunctions: $showsJunctions)
             HSplitView {
                 CanvasViewport(
-                    renderer: FeatureCanvasRenderer(data: data, selected: selected, selection: { selected = $0 }),
+                    renderer: FeatureCanvasRenderer(
+                        data: data, selected: selected, overlay: overlay, selection: { selected = $0 }),
                     controller: controller)
                 if selected != nil {
                     ScrollView {
@@ -90,6 +103,10 @@ struct FeatureViewer: View {
                     }.frame(minWidth: 260, idealWidth: 290, maxWidth: 350)
                 }
             }
-        }.onChange(of: data.photo.id) { _, _ in selected = nil }
+        }
+        .onChange(of: data.photo.id) { _, _ in selected = nil }
+        .onChange(of: overlay) { _, options in
+            if let selected, !options.shows(index: selected, in: data) { self.selected = nil }
+        }
     }
 }

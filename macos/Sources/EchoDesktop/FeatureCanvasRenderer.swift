@@ -3,13 +3,18 @@ import AppKit
 final class FeatureCanvasRenderer: CanvasRenderer {
     private let data: FeaturePresentation
     private let selected: Int?
+    private let overlay: FeatureOverlayOptions
     private let selection: (Int) -> Void
     var identity: String { data.photo.id }
     var size: CGSize { CGSize(width: data.photo.width, height: data.photo.height) }
 
-    init(data: FeaturePresentation, selected: Int?, selection: @escaping (Int) -> Void) {
+    init(
+        data: FeaturePresentation, selected: Int?, overlay: FeatureOverlayOptions = FeatureOverlayOptions(),
+        selection: @escaping (Int) -> Void
+    ) {
         self.data = data
         self.selected = selected
+        self.overlay = overlay
         self.selection = selection
     }
 
@@ -17,8 +22,16 @@ final class FeatureCanvasRenderer: CanvasRenderer {
         data.image.draw(
             in: CGRect(origin: .zero, size: size), from: .zero,
             operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        guard overlay.opacity > 0 else { return }
+        context.saveGState()
+        context.setAlpha(min(1, overlay.opacity))
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        defer {
+            context.endTransparencyLayer()
+            context.restoreGState()
+        }
         let matched = Set(data.matches.map(\.featureIndex))
-        for (index, line) in data.lines.enumerated() {
+        for (index, line) in data.lines.enumerated() where overlay.showsLines {
             let featureIndex = data.features.count + index
             let color =
                 selected == featureIndex
@@ -31,7 +44,7 @@ final class FeatureCanvasRenderer: CanvasRenderer {
                 context.strokePath()
             }
         }
-        for (index, feature) in data.features.enumerated() {
+        for (index, feature) in data.features.enumerated() where overlay.shows(feature) {
             let highlighted = index == selected
             let radius: CGFloat = (highlighted ? 8 : 3.5) / scale
             let marker = CGRect(x: feature.x - radius, y: feature.y - radius, width: 2 * radius, height: 2 * radius)
@@ -61,16 +74,17 @@ final class FeatureCanvasRenderer: CanvasRenderer {
     }
 
     func select(at point: CGPoint, tolerance: CGFloat) {
+        guard overlay.opacity > 0 else { return }
         var nearest: Int?
         var distance = tolerance
-        for (index, feature) in data.features.enumerated() {
+        for (index, feature) in data.features.enumerated() where overlay.shows(feature) {
             let candidate = hypot(point.x - feature.x, point.y - feature.y)
             if candidate < distance {
                 nearest = index
                 distance = candidate
             }
         }
-        for (index, line) in data.lines.enumerated() {
+        for (index, line) in data.lines.enumerated() where overlay.showsLines {
             let candidate = SegmentGeometry().distance(
                 point, from: CGPoint(x: line.start[0], y: line.start[1]),
                 to: CGPoint(x: line.end[0], y: line.end[1]))
