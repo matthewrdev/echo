@@ -35,7 +35,7 @@ public sealed class DepthStage : IPipelineStage
         var store = context.Store;
         var cancellation = context.Cancellation;
         var alignment = context.Artifact("alignment");
-        var scene = jsonCodec.Read<ReconstructionScene>(store.PathFor(alignment + "/scene.json"));
+        var scene = context.Scene();
         var plan = executionPlanner.Plan(project, scene.Cameras.Count, context.WorkingMemoryBytes, context.Resources.DepthMemoryBudgetMb);
         var semantics = project.Settings.OptimiseVegetation || project.Settings.RecoverCliffDepth
             ? semanticArtifacts.Build(context) : new Dictionary<string, SemanticMap>();

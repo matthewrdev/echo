@@ -24,6 +24,10 @@ struct BinaryRecordBuffer {
         }
     }
 
+    func byte(_ record: Int, _ offset: Int) -> UInt8 {
+        data[16 + record * size + offset]
+    }
+
     func float(_ record: Int, _ offset: Int = 0) -> Float {
         data.withUnsafeBytes { raw in
             Float(

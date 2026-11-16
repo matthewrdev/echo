@@ -35,7 +35,7 @@ public sealed class GisCommandTests
             try
             {
                 var id = Guid.NewGuid().ToString("N");
-                files.AtomicJson(store.PathFor("artifacts/alignment/test/scene.json"), new ReconstructionScene
+                files.AtomicData(store.PathFor("artifacts/alignment/test/scene.json"), new ReconstructionScene
                 {
                     Origin = new GeoPosition { Latitude = -33, Longitude = 150, Altitude = 87.202 }
                 });

@@ -8,7 +8,7 @@ public sealed class ReconstructionScene
         get; set;
     }
     public List<CameraPose> Cameras { get; set; } = [];
-    public List<CloudPoint> Points { get; set; } = [];
+    public IList<CloudPoint> Points { get; set; } = new List<CloudPoint>();
     public List<string> Unplaced { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
     public BundleReport? Bundle

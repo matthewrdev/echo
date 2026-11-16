@@ -71,7 +71,7 @@ public sealed class AlignmentVerificationTests
             var recovered = AlignmentRecoveryFilter.Filter(project, clean, [reduced], [proposed], default);
             Check(recovered[0].Matches.Count == 70 && !recovered[0].Matches.Contains(alias),
                 "Independent 3D observations must reject same-epipolar-line aliases while admitting a real added match");
-            var depleted = new ReconstructionScene { Points = clean.Points.GetRange(0, 20) };
+            var depleted = new ReconstructionScene { Points = clean.Points.Take(20).ToList() };
             Check(!AlignmentRecoveryEvaluator.Evaluate(clean, depleted).Accepted, "Recovery cannot replace a cloud after losing established observations");
             var expanded = new ReconstructionScene { Points = new List<CloudPoint>(clean.Points) };
             expanded.Points.Add(new CloudPoint { ImageA = left.Id, PixelA = pair.Matches[0].A, ImageB = "third", PixelB = [200, 100] });

@@ -117,7 +117,7 @@ public sealed class GisExportTests
             store.Init("GIS test");
             try
             {
-                files.AtomicJson(store.PathFor("artifacts/alignment/test/scene.json"), Scene());
+                files.AtomicData(store.PathFor("artifacts/alignment/test/scene.json"), Scene());
                 files.AtomicData(store.PathFor("artifacts/mesh/test/mesh.json"), Surface());
                 files.AtomicJson(store.PathFor("runs/0123456789abcdef0123456789abcdef/run.json"), new RunData
                 {
@@ -141,7 +141,8 @@ public sealed class GisExportTests
                 }
                 var scene = Scene();
                 scene.Origin = null;
-                files.AtomicJson(store.PathFor("artifacts/alignment/test/scene.json"), scene);
+                Directory.Delete(store.PathFor("artifacts/alignment/test"), recursive: true);
+                files.AtomicData(store.PathFor("artifacts/alignment/test/scene.json"), scene);
                 var invalid = Path.Combine(root, "unplaced");
                 try
                 {

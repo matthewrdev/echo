@@ -9,7 +9,7 @@ final class SavedDepthArtifactReaderTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let alignment = root.appendingPathComponent("scene.json")
-        try Data(#"{"frame":"arbitrary","origin":null,"cameras":[],"points":"unused"}"#.utf8).write(to: alignment)
+        try BinaryArtifactFixture.write(alignment, value: ["frame": "arbitrary", "cameras": []])
         let photos = (1...4).map { photo("p\($0)") }
         let units = try photos.map { photo in
             let file = root.appendingPathComponent(photo.id + ".json")
@@ -39,9 +39,8 @@ final class SavedDepthArtifactReaderTests: XCTestCase {
         let changed = try await reader.load(root: root, run: run, unit: units[0], mode: "Depth")
         XCTAssertEqual(changed.depthImage?.map.depth, [123.25, 0])
         XCTAssertFalse(try XCTUnwrap(changed.depthImage).overlay === depth.overlay)
-        try Data(
-            #"{"frame":"local metres","origin":{"latitude":0,"longitude":0},"cameras":[],"points":"unused"}"#.utf8
-        ).write(to: alignment)
+        try BinaryArtifactFixture.write(
+            alignment, value: ["frame": "local metres", "origin": ["latitude": 0, "longitude": 0], "cameras": []])
         let metric = try await reader.load(root: root, run: run, unit: units[0], mode: "Depth")
         XCTAssertTrue(try XCTUnwrap(metric.depthImage).isMetric)
 

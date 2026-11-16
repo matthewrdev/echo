@@ -10,6 +10,10 @@ public sealed class ReconstructionOverview
     public List<CameraPose> Cameras { get; set; } = [];
     public List<string> Unplaced { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
+    public BundleReport? Bundle
+    {
+        get; set;
+    }
 
     public ReconstructionScene ToScene() => new()
     {
@@ -17,6 +21,7 @@ public sealed class ReconstructionOverview
         Origin = Origin,
         Cameras = Cameras,
         Unplaced = Unplaced,
-        Warnings = Warnings
+        Warnings = Warnings,
+        Bundle = Bundle
     };
 }

@@ -40,7 +40,7 @@ public sealed class Processor : IProcessor
             throw new EchoException("Unknown target: " + run.Target, 2);
         }
 
-        if (run.StorageVersion != 2)
+        if (run.StorageVersion != 3)
         {
             throw new EchoException("This run uses obsolete artifact storage. Start a new run to reprocess the source photographs.", 2);
         }
@@ -109,7 +109,7 @@ public sealed class Processor : IProcessor
     {
         return new RunData
         {
-            StorageVersion = 2,
+            StorageVersion = 3,
             Id = Guid.NewGuid().ToString("N"),
             Snapshot = store.Load(),
             Target = target

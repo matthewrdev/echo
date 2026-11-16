@@ -9,4 +9,5 @@ struct BulkArtifactHeader: Decodable {
     let voxelSize: Double
     let images: [String]
     let buffers: [String: String]
+    let scene: ReconstructionArtifactMetadata?
 }

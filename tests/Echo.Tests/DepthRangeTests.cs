@@ -65,8 +65,8 @@ public sealed class DepthRangeTests
             Check(nearby.Near < .1 && nearby.Far == clean.Far,
                 "Genuinely close geometry with strong parallax must remain in the range; no metric near clamp");
 
-            scene.Points.RemoveRange(0, 30);
-            scene.Points.RemoveRange(14, 12);
+            scene.Points = scene.Points.Skip(30).ToList();
+            scene.Points = scene.Points.Take(14).Concat(scene.Points.Skip(26)).ToList();
             var fallback = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(fallback.SampleCount == 0 && fallback.Source.Contains("fallback"),
                 "All-weak observations must fall back to capture bounds");

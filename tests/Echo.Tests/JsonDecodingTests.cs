@@ -40,7 +40,6 @@ public sealed class JsonDecodingTests
             RoundTrip(new List<Hint> { new Hint() });
             RoundTrip(new FeatureSet { ImageId = "photo", Features = [new Feature { X = 1.25, Y = 2.5, Descriptor = [0.1f, 0.2f] }] });
             RoundTrip(new ImagePair());
-            RoundTrip(new ReconstructionScene());
             RoundTrip(new DenseCloudReport());
             RoundTrip(new bool[] { true, false });
             RoundTrip(new Settings { OptimiseVegetation = true, RecoverCliffDepth = true, VegetationMeshToleranceMultiplier = 3, VegetationTextureScale = .5 });
@@ -103,9 +102,6 @@ public sealed class JsonDecodingTests
         });
         tests.Run("Inspection summaries omit bulk payload while retaining camera and cloud metadata", () =>
         {
-            var scene = new ReconstructionScene { Frame = "local metres", Cameras = [new CameraPose { ImageId = "p" }], Points = [new CloudPoint()], Warnings = ["saved warning"] };
-            var overview = Read<ReconstructionOverview>(json.Encode(scene)).ToScene();
-            Check(overview.Points.Count == 0 && overview.Cameras.Single().ImageId == "p" && overview.Warnings.Single() == "saved warning", "Scene summary");
             var cloud = new DenseCloudReport { InputSamples = 100, RetainedSamples = 50, Preview = [new CloudPoint()], ImageIds = ["p"] };
             var report = Read<DenseCloudOverview>(json.Encode(cloud)).ToReport();
             Check(report.Preview.Count == 0 && report.RetainedSamples == 50 && report.InputSamples == 100 && report.ImageIds.Single() == "p", "Cloud summary");

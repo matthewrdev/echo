@@ -12,12 +12,13 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
     {
     }
 
-    public bool CanStore<T>(T value) => value is DepthMap or FusedVolume or Surface or TextureCoordinates or SemanticMap;
+    public bool CanStore<T>(T value) => value is DepthMap or FusedVolume or Surface or TextureCoordinates or SemanticMap or ReconstructionScene;
 
     public BulkDataSession OpenSession(long memoryBytes, long diskBytes) => new(memoryBytes, diskBytes);
 
     public bool Supports(Type type) => type == typeof(DepthMap) || type == typeof(FusedVolume)
-        || type == typeof(Surface) || type == typeof(TextureCoordinates) || type == typeof(SemanticMap);
+        || type == typeof(Surface) || type == typeof(TextureCoordinates) || type == typeof(SemanticMap)
+        || type == typeof(ReconstructionScene) || type == typeof(ReconstructionOverview);
 
     public T Read<T>(string path)
     {
@@ -27,6 +28,17 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
         // session so no record collection outlives its backing storage.
         object result = value switch
         {
+            ReconstructionOverview overview => overview,
+            ReconstructionScene scene => new ReconstructionScene
+            {
+                Frame = scene.Frame,
+                Origin = scene.Origin,
+                Cameras = scene.Cameras,
+                Points = scene.Points.ToList(),
+                Unplaced = scene.Unplaced,
+                Warnings = scene.Warnings,
+                Bundle = scene.Bundle
+            },
             DepthMap map => new DepthMap
             {
                 ImageId = map.ImageId,
@@ -84,6 +96,32 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
         {
             switch (value)
             {
+                case ReconstructionScene scene:
+                    header.Kind = "scene";
+                    header.Scene = new ReconstructionOverview
+                    {
+                        Frame = scene.Frame,
+                        Origin = scene.Origin,
+                        Cameras = scene.Cameras,
+                        Unplaced = scene.Unplaced,
+                        Warnings = scene.Warnings,
+                        Bundle = scene.Bundle
+                    };
+                    var photographIds = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var point in scene.Points)
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        if (photographIds.Add(point.ImageA))
+                        {
+                            header.Images.Add(point.ImageA);
+                        }
+                        if (photographIds.Add(point.ImageB))
+                        {
+                            header.Images.Add(point.ImageB);
+                        }
+                    }
+                    Save("points", scene.Points, new CloudPointRecordCodec(header.Images));
+                    break;
                 case DepthMap map:
                     header.Kind = "depth";
                     header.ImageId = map.ImageId;

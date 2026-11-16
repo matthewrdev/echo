@@ -152,7 +152,7 @@ public sealed class DepthBackendTests
                     var alignment = context.Build("alignment", new
                     {
                         fixture = "backend"
-                    }, directory => files.AtomicJson(Path.Combine(directory, "scene.json"), scene));
+                    }, directory => files.AtomicData(Path.Combine(directory, "scene.json"), scene));
                     context.Publish("alignment", alignment);
                     new DepthStage(files, json, composedEstimator, planner, semantics, recovery).Execute(context);
                     context.Complete();

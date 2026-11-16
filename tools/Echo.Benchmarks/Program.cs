@@ -3,6 +3,10 @@ using Echo.Composition;
 using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(DepthBenchmark).Assembly, typeof(Processor).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly);
+if (args.FirstOrDefault() == "scene-storage")
+{
+    return composition.Resolve<SceneStorageBenchmark>().Run(args[1..]);
+}
 if (args.FirstOrDefault() == "metal-depth")
 {
     return composition.Resolve<MetalDepthBenchmark>().Run(args[1..]);

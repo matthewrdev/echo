@@ -51,7 +51,17 @@ public sealed class BulkDataSession : IDisposable
         }
 
         object result;
-        if (typeof(T) == typeof(DepthMap) && header.Kind == "depth")
+        if (typeof(T) == typeof(ReconstructionOverview) && header.Kind == "scene")
+        {
+            result = header.Scene ?? throw new InvalidDataException("Missing scene metadata.");
+        }
+        else if (typeof(T) == typeof(ReconstructionScene) && header.Kind == "scene")
+        {
+            var scene = (header.Scene ?? throw new InvalidDataException("Missing scene metadata.")).ToScene();
+            scene.Points = Open(Buffer("points"), new CloudPointRecordCodec(header.Images));
+            result = scene;
+        }
+        else if (typeof(T) == typeof(DepthMap) && header.Kind == "depth")
         {
             var depth = Open(Buffer("depth"), new FloatRecordCodec());
             var confidence = Open(Buffer("confidence"), new FloatRecordCodec());

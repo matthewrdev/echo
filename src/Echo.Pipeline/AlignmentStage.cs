@@ -51,7 +51,7 @@ public sealed class AlignmentStage : IPipelineStage
         {
             context.ReportProgress(Name, "Initial alignment: verifying image geometry and refining camera poses.");
             var scene = reconstructor.Align(project, pairs, context.Cancellation, preview => PublishPreview(context, preview));
-            fileOperations.AtomicJson(Path.Combine(directory, "scene.json"), scene);
+            fileOperations.AtomicData(Path.Combine(directory, "scene.json"), scene);
         });
 
         var recoveryUnits = project.Settings.GuidedAlignmentPass ? RecoverPairs(context, pairUnits, pairs) : [];
@@ -102,7 +102,7 @@ public sealed class AlignmentStage : IPipelineStage
                 recoveredPairs,
                 assessment
             });
-            fileOperations.AtomicJson(Path.Combine(directory, "scene.json"), scene);
+            fileOperations.AtomicData(Path.Combine(directory, "scene.json"), scene);
             var positions = new double[scene.Points.Count][];
             for (var index = 0; index < positions.Length; index++)
             {
@@ -177,7 +177,7 @@ public sealed class AlignmentStage : IPipelineStage
     private void PublishPreview(RunContext context, ReconstructionScene scene)
     {
         var preview = context.Build("alignment-preview", scene,
-            directory => fileOperations.AtomicJson(Path.Combine(directory, "scene.json"), scene));
+            directory => fileOperations.AtomicData(Path.Combine(directory, "scene.json"), scene));
         context.Publish("alignmentPreview", preview);
     }
 }

@@ -48,7 +48,7 @@ public sealed class AlignmentBenchmark
         {
             Console.WriteLine($"{clock.Elapsed.TotalSeconds:F1}s: {preview.Points.Count} point records; {preview.Bundle?.AcceptedIterations ?? 0} accepted iterations");
         });
-        files.AtomicJson(Path.Combine(output, "initial.json"), scene);
+        files.AtomicData(Path.Combine(output, "initial.json"), scene);
         Console.WriteLine($"Initial: {scene.Bundle?.Tracks} tracks, error {scene.Bundle?.FinalMedianError:F4}");
         using var recovery = System.Text.Json.JsonDocument.Parse(File.ReadAllText(store.PathFor(run.Artifacts["alignment"] + "/recovery.json")));
         var originals = new List<ImagePair>(pairs);
@@ -77,7 +77,7 @@ public sealed class AlignmentBenchmark
                 Console.WriteLine($"{clock.Elapsed.TotalSeconds:F1}s: second pass, {preview.Bundle?.AcceptedIterations ?? 0} accepted iterations");
             });
         }
-        files.AtomicJson(Path.Combine(output, "final.json"), scene);
+        files.AtomicData(Path.Combine(output, "final.json"), scene);
         files.AtomicJson(Path.Combine(output, "metrics.json"), new
         {
             seconds = clock.Elapsed.TotalSeconds,

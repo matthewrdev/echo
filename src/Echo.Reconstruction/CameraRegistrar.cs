@@ -6,12 +6,12 @@ namespace Echo.Reconstruction;
 
 public static class CameraRegistrar
 {
-    public static CameraPose? Register(Photo photo, List<ImagePair> pairs, List<CloudPoint> points)
+    public static CameraPose? Register(Photo photo, List<ImagePair> pairs, IEnumerable<CloudPoint> points)
     {
         return Register(photo, CollectObservations(photo.Id, pairs, points));
     }
 
-    private static List<Observation> CollectObservations(string imageId, List<ImagePair> pairs, List<CloudPoint> points)
+    private static List<Observation> CollectObservations(string imageId, List<ImagePair> pairs, IEnumerable<CloudPoint> points)
     {
         var lookup = new Dictionary<string, double[]>();
         string Key(string image, double[] pixel) => $"{image}:{Math.Round(pixel[0], 1)}:{Math.Round(pixel[1], 1)}";

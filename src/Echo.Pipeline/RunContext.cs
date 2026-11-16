@@ -206,7 +206,7 @@ public sealed class RunContext : IDisposable
 
     public T ReadArtifact<T>(string stage, string file) => jsonCodec.Read<T>(Store.PathFor(Artifact(stage) + "/" + file));
 
-    public ReconstructionScene Scene() => ReadArtifact<ReconstructionScene>("alignment", "scene.json");
+    public ReconstructionScene Scene() => ReadData<ReconstructionScene>(Store.PathFor(Artifact("alignment") + "/scene.json"));
 
     public List<string> DepthUnits() => ReadArtifact<List<string>>("depth", "units.json");
 

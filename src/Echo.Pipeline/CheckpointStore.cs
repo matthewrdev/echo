@@ -43,7 +43,7 @@ public sealed class CheckpointStore : ICheckpointStore
         };
         var key = fileOperations.Hash(new
         {
-            storageVersion = 2,
+            storageVersion = 3,
             version,
             stage,
             inputs

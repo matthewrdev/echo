@@ -32,5 +32,9 @@ public sealed class BulkArtifactHeader
         get; set;
     }
     public List<string> Images { get; set; } = [];
+    public ReconstructionOverview? Scene
+    {
+        get; set;
+    }
     public Dictionary<string, string> Buffers { get; set; } = [];
 }

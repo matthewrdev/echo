@@ -99,20 +99,17 @@ final class ArtifactJSONReaderTests: XCTestCase {
         let run: RunData = try json.read(root.appendingPathComponent("runs/\(id)/run.json"))
         let sceneFile = root.appendingPathComponent(try XCTUnwrap(run.artifacts["alignment"])).appendingPathComponent(
             "scene.json")
-        let bytes = try Data(contentsOf: sceneFile)
-        let legacyStart = Date()
-        let expected = try JSONDecoder().decode(ReconstructionScene.self, from: bytes)
         let fastStart = Date()
         let actual: ReconstructionScene = try json.read(sceneFile)
         let cachedStart = Date()
         let cached: ReconstructionScene = try json.read(sceneFile)
         print(
-            "SCENE DECODE legacy \(fastStart.timeIntervalSince(legacyStart)) s, direct \(cachedStart.timeIntervalSince(fastStart)) s, cached \(Date().timeIntervalSince(cachedStart)) s"
+            "SCENE DECODE binary \(cachedStart.timeIntervalSince(fastStart)) s, cached \(Date().timeIntervalSince(cachedStart)) s"
         )
-        XCTAssertEqual(actual.points.map(\.position), expected.points.map(\.position))
-        XCTAssertEqual(actual.points.map(\.pixelA), expected.points.map(\.pixelA))
-        XCTAssertEqual(actual.points.map(\.colour), expected.points.map(\.colour))
-        XCTAssertEqual(cached.points.count, expected.points.count)
+        let metadata: ReconstructionMetadata = try json.read(sceneFile)
+        XCTAssertEqual(actual.cameras.map(\.imageId), metadata.cameras.map(\.imageId))
+        XCTAssertGreaterThan(actual.points.count, 0)
+        XCTAssertEqual(cached.points.map(\.position), actual.points.map(\.position))
         let featuresFolder = root.appendingPathComponent(try XCTUnwrap(run.artifacts["features"]))
         let units: [String: String] = try json.read(featuresFolder.appendingPathComponent("units.json"))
         let file = root.appendingPathComponent(try XCTUnwrap(units.sorted { $0.key < $1.key }.first?.value))

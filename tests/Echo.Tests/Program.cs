@@ -15,6 +15,11 @@ if (args.Contains("--run-recovery", StringComparer.Ordinal))
     composition.Resolve<RunRecoveryTests>().Run(scaleTests);
     return scaleTests.Finish();
 }
+composition.Resolve<SceneStorageTests>().Run(scaleTests);
+if (args.Contains("--scene-storage", StringComparer.Ordinal))
+{
+    return scaleTests.Finish();
+}
 composition.Resolve<GisExportTests>().Run(scaleTests);
 composition.Resolve<GisCommandTests>().Run(scaleTests);
 composition.Resolve<PagingTests>().Run(scaleTests);

@@ -50,7 +50,12 @@ actor SavedDepthArtifactReader {
         let map = try maps.read(file)
         let image = NSImage(contentsOf: photograph)
         let metadata: ReconstructionMetadata? = alignment.flatMap { file in
-            try? json.read(file)
+            do {
+                let value: ReconstructionMetadata = try json.read(file)
+                return value
+            } catch {
+                return nil
+            }
         }
         let depth = try DepthImagePresentation(
             identity: file.path, overlay: images.depth(map, confidence: false), photograph: image,

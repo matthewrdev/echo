@@ -19,7 +19,9 @@ final class ArtifactJSONReader {
         }
         let data = try Data(contentsOf: file, options: .mappedIfSafe)
         var value: T
-        if T.self == Surface.self || T.self == FusedVolume.self || T.self == DepthMap.self {
+        if T.self == Surface.self || T.self == FusedVolume.self || T.self == DepthMap.self
+            || T.self == ReconstructionScene.self || T.self == ReconstructionMetadata.self
+        {
             value = try BulkArtifactReader().read(file, metadata: data)
         } else {
             value = try decode(data)
@@ -42,6 +44,8 @@ final class ArtifactJSONReader {
         // Summaries retain no sample arrays. Reserve more than the input size for decoded nested arrays.
         let cost: Int
         switch value {
+        case let scene as ReconstructionScene:
+            cost = scene.points.count * 256 + data.count
         case let surface as Surface:
             cost = surface.vertices.count * 96 + surface.faces.count * 80 + surface.sourceImages.count * 32
         case let volume as FusedVolume:
