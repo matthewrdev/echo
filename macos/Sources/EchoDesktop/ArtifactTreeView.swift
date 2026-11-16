@@ -51,7 +51,7 @@ struct ArtifactTreeView: View {
             Button("Process to \(stage.shortTitle)") { workspace.start(through: stage) }
                 .disabled(!workspace.canEdit || photos.filter(\.enabled).count < 2)
             Button("Show artifact files") { workspace.revealArtifact(stage) }
-                .disabled(workspace.inspection?.run?.artifacts[stage.rawValue] == nil)
+                .disabled(workspace.displayedRun?.artifacts[stage.rawValue] == nil)
         }
     }
 

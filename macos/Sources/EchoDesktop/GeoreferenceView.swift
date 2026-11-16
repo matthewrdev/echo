@@ -14,11 +14,11 @@ struct GeoreferenceView: View {
     @State private var fit = UUID()
 
     private var identity: String {
-        workspace.root + (workspace.inspection?.run?.id ?? "")
-            + (workspace.inspection?.run?.artifacts["alignment"] ?? "")
-            + (workspace.inspection?.run?.artifacts["mesh"] ?? "")
-            + (workspace.inspection?.run?.artifacts["texture"] ?? "")
-            + (workspace.inspection?.run?.artifacts["export"] ?? "")
+        workspace.root + (workspace.geographicRun?.id ?? "")
+            + (workspace.geographicRun?.artifacts["alignment"] ?? "")
+            + (workspace.geographicRun?.artifacts["mesh"] ?? "")
+            + (workspace.geographicRun?.artifacts["texture"] ?? "")
+            + (workspace.geographicRun?.artifacts["export"] ?? "")
     }
 
     var body: some View {
@@ -52,7 +52,7 @@ struct GeoreferenceView: View {
             if model.exporting { ProgressView("Exporting geographic data…").controlSize(.small) }
             if let message = model.exportMessage { Text(message).font(.caption).textSelection(.enabled) }
             if tab == "Details" {
-                GeoreferenceDetailsView(workspace: workspace)
+                GeoreferenceDetailsView(workspace: workspace, reconstruction: model.artifact?.reconstruction)
             } else if model.loading {
                 ProgressView("Preparing geographic model…").frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let artifact = model.artifact {
@@ -71,13 +71,13 @@ struct GeoreferenceView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .task(id: identity) { await model.load(root: workspace.root, run: workspace.inspection?.run) }
+        .task(id: identity) { await model.load(root: workspace.root, run: workspace.geographicRun) }
         .onDisappear { model.cancel() }
     }
 
     private var referenceSummary: String {
         guard let origin = model.artifact?.reconstruction.origin else { return "" }
-        let photos = workspace.inspection?.run?.snapshot.images ?? []
+        let photos = workspace.geographicRun?.snapshot.images ?? []
         let count = photos.filter { $0.gps?.altitude != nil }.count
         return String(format: "WGS84 · %.6f, %.6f", origin.latitude, origin.longitude)
             + " · Altitude \(count)/\(photos.count) photos · Reference: \(origin.altitudeDatum ?? "unknown")"
@@ -129,7 +129,7 @@ struct GeoreferenceView: View {
     }
 
     private func export() {
-        guard let run = workspace.inspection?.run, let artifact = model.artifact else { return }
+        guard let run = workspace.geographicRun, let artifact = model.artifact else { return }
         let panel = NSSavePanel()
         panel.title = "Export geographic data for QGIS"
         panel.prompt = "Export"

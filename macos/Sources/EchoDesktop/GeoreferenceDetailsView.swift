@@ -2,13 +2,14 @@ import SwiftUI
 
 struct GeoreferenceDetailsView: View {
     @ObservedObject var workspace: WorkspaceViewModel
+    var reconstruction: ReconstructionScene? = nil
     @State private var sidecar = ""
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Georeference").font(.title.bold())
-                if let scene = workspace.inspection?.reconstruction {
+                if let scene = reconstruction ?? workspace.inspection?.reconstruction {
                     Text(scene.frame)
                     if let origin = scene.origin {
                         Text(
@@ -37,8 +38,8 @@ struct GeoreferenceDetailsView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading).padding(24)
         }
-        .task(id: workspace.inspection?.run?.artifacts["export"]) {
-            guard let path = workspace.inspection?.run?.artifacts["export"] else {
+        .task(id: workspace.geographicRun?.artifacts["export"]) {
+            guard let path = workspace.geographicRun?.artifacts["export"] else {
                 sidecar = ""
                 return
             }

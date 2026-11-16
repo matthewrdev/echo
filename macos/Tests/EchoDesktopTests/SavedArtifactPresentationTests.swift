@@ -12,7 +12,8 @@ final class SavedArtifactPresentationTests: XCTestCase {
         XCTAssertEqual(displayed.run.artifacts["features"], "features/old")
         XCTAssertEqual(displayed.retainedStages, [.features, .depth])
         let finished = try run(id: "new", status: "completed")
-        XCTAssertTrue(SavedArtifactPresentation(current: finished, candidates: [saved]).run.artifacts.isEmpty)
+        XCTAssertEqual(
+            SavedArtifactPresentation(current: finished, candidates: [saved]).retainedStages, [.features, .depth])
     }
 
     func testChangedInputsAndLivePreviewsTakePrecedence() throws {
@@ -25,6 +26,31 @@ final class SavedArtifactPresentationTests: XCTestCase {
         XCTAssertNil(SavedArtifactPresentation(current: preview, candidates: [saved]).run.artifacts["features"])
         let reset = try run(id: "new", status: "running", revisions: ["features": "reset"])
         XCTAssertTrue(SavedArtifactPresentation(current: reset, candidates: [saved]).run.artifacts.isEmpty)
+    }
+
+    func testStoppedAttemptsRetainCompletedResultsOverPartialPreviews() throws {
+        let saved = try run(
+            id: "saved", status: "completed", artifacts: ["features": "features/old", "depth": "depth/old"])
+        for status in ["cancelled", "failed", "needs-input"] {
+            let stopped = try run(id: "stopped", status: status, artifacts: ["featuresPreview": "preview/partial"])
+            let displayed = SavedArtifactPresentation(current: stopped, candidates: [saved])
+            XCTAssertEqual(displayed.retainedStages, [.features, .depth], status)
+            XCTAssertEqual(displayed.sourceRuns[.depth]?.id, saved.id)
+            XCTAssertNil(stopped.artifacts["depth"], "Presentation must not rewrite the attempt's record")
+            let changed = try run(id: "changed", status: status, settings: ["depthWidth": 2048])
+            XCTAssertEqual(SavedArtifactPresentation(current: changed, candidates: [saved]).retainedStages, [.features])
+        }
+    }
+
+    func testChangedUpstreamArtifactsAndMissingSavedFilesAreNotRestored() throws {
+        let saved = try run(
+            id: "saved", status: "completed", artifacts: ["features": "features/old", "depth": "depth/old"])
+        let changed = try run(id: "new", status: "cancelled", artifacts: ["features": "features/new-algorithm"])
+        XCTAssertTrue(SavedArtifactPresentation(current: changed, candidates: [saved]).retainedStages.isEmpty)
+        let stopped = try run(id: "stopped", status: "cancelled")
+        XCTAssertTrue(
+            SavedArtifactPresentation(current: stopped, candidates: [saved], artifactExists: { _ in false })
+                .retainedStages.isEmpty)
     }
 
     private func run(

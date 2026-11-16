@@ -13,6 +13,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private var refreshing = false
     private var savedRunKey = ""
     private var savedRuns: [RunData] = []
+    private var savedArtifactSources: [PipelineStage: RunData] = [:]
     @Published private(set) var displayedRun: RunData?
     @Published private(set) var retainedStages: Set<PipelineStage> = []
     let projectThumbnails: ProjectThumbnailLoader?
@@ -102,6 +103,18 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     var viewingDescription: String {
         selectedRun == "latest" ? "Following latest results" : "Viewing saved run \(selectedRun.prefix(8))"
     }
+    var savedResultsNotice: String {
+        inspection?.run?.status == "running"
+            ? "Showing saved results while this run validates reusable work."
+            : "Showing completed results from an earlier run. Stopping processing keeps saved work available."
+    }
+    var geographicRun: RunData? {
+        guard let run = displayedRun else { return nil }
+        for stage in [PipelineStage.export, .texture, .mesh, .alignment] {
+            if run.artifacts[stage.rawValue] != nil { return savedArtifactSources[stage] ?? run }
+        }
+        return run
+    }
     var savedStageCount: Int {
         PipelineStage.allCases.filter { workingRun?.artifacts[$0.rawValue] != nil }.count
     }
@@ -157,13 +170,15 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     func stageStatus(_ stage: PipelineStage) -> String {
-        if retainedStages.contains(stage) { return "Saved · awaiting validation" }
         if let firstOutdatedStage, ProcessingImpact().stages(from: firstOutdatedStage).contains(stage),
-            inspection?.run?.artifacts[stage.rawValue] != nil
+            displayedRun?.artifacts[stage.rawValue] != nil
         {
             return "Out of date"
         }
-        if inspection?.run?.artifacts[stage.rawValue] != nil { return "Saved" }
+        if retainedStages.contains(stage) {
+            return inspection?.run?.status == "running" ? "Saved · awaiting validation" : "Saved from earlier run"
+        }
+        if displayedRun?.artifacts[stage.rawValue] != nil { return "Saved" }
         if inspection?.run?.artifacts[stage.rawValue + "Preview"] != nil {
             return inspection?.run?.status == "running" ? "Live preview" : "Partial preview"
         }
@@ -176,7 +191,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     func stageSymbol(_ stage: PipelineStage) -> String {
         switch stageStatus(stage) {
         case "Out of date": return "exclamationmark.triangle.fill"
-        case "Saved", "Saved · awaiting validation": return "checkmark.circle.fill"
+        case "Saved", "Saved · awaiting validation", "Saved from earlier run": return "checkmark.circle.fill"
         case "Live preview", "Processing": return "arrow.trianglehead.2.clockwise.rotate.90"
         case "Partial preview": return "circle.lefthalf.filled"
         default: return "circle"
@@ -186,7 +201,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     func stageColor(_ stage: PipelineStage) -> Color {
         switch stageStatus(stage) {
         case "Out of date": return .orange
-        case "Saved", "Saved · awaiting validation": return .green
+        case "Saved", "Saved · awaiting validation", "Saved from earlier run": return .green
         case "Live preview", "Processing": return .accentColor
         default: return .secondary
         }
@@ -263,11 +278,12 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             async let snapshot = client.inspect(root: requestedRoot, run: requestedRun)
             let result = try await (summaries, snapshot)
             guard requestedRoot == root, requestedRun == selectedRun else { return }
-            if let run = result.1.run, run.status == "running" {
+            if let run = result.1.run, requestedRun == "latest" {
                 let key = requestedRoot + "/" + run.id
                 if key != savedRunKey {
                     var previous: [RunData] = []
-                    for summary in result.0.filter({ $0.id != run.id }).prefix(4) {
+                    // Latest may be an older run being resumed. Explicit history views stay unchanged.
+                    for summary in result.0 where summary.id != run.id && summary.status != "running" {
                         if let saved = try? await client.run(root: requestedRoot, id: summary.id) {
                             previous.append(saved)
                         }
@@ -276,13 +292,19 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
                     savedRuns = previous
                     savedRunKey = key
                 }
-                let presentation = SavedArtifactPresentation(current: run, candidates: savedRuns)
+                let projectURL = URL(fileURLWithPath: requestedRoot)
+                let presentation = SavedArtifactPresentation(current: run, candidates: savedRuns) { path in
+                    FileManager.default.fileExists(
+                        atPath: projectURL.appendingPathComponent(path).appendingPathComponent("manifest.json").path)
+                }
                 displayedRun = presentation.run
                 retainedStages = presentation.retainedStages
+                savedArtifactSources = presentation.sourceRuns
             } else {
                 displayedRun = result.1.run
                 retainedStages = []
                 savedRuns = []
+                savedArtifactSources = [:]
                 savedRunKey = ""
             }
             runs = result.0
@@ -411,6 +433,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         displayedRun = nil
         retainedStages = []
         savedRuns = []
+        savedArtifactSources = [:]
         savedRunKey = ""
         runs = []
         logs = []
@@ -434,6 +457,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         displayedRun = nil
         retainedStages = []
         savedRuns = []
+        savedArtifactSources = [:]
         savedRunKey = ""
         runs = []
         workingRun = nil
@@ -618,7 +642,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     func revealArtifact(_ stage: PipelineStage) {
-        guard let path = inspection?.run?.artifacts[stage.rawValue] else { return }
+        guard let path = displayedRun?.artifacts[stage.rawValue] else { return }
         NSWorkspace.shared.open(URL(fileURLWithPath: root).appendingPathComponent(path))
     }
 

@@ -86,7 +86,7 @@ struct ArtifactViewer: View {
                     )
             }
             if workspace.retainedStages.contains(workspace.selectedStage) {
-                Label("Showing saved results while this run validates reusable work.", systemImage: "checkmark.circle")
+                Label(workspace.savedResultsNotice, systemImage: "checkmark.circle")
                     .font(.callout).foregroundStyle(.secondary)
             }
             if workspace.stageStatus(workspace.selectedStage) == "Out of date" {
