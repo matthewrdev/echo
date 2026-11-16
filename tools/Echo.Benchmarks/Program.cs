@@ -8,6 +8,10 @@ if (args.FirstOrDefault() == "fusion-planning")
 {
     return composition.Resolve<FusionPlanningBenchmark>().Run(args[1..]);
 }
+if (args.FirstOrDefault() == "fusion-integration")
+{
+    return composition.Resolve<FusionIntegrationBenchmark>().Run(args[1..]);
+}
 if (args.FirstOrDefault() == "scene-storage")
 {
     return composition.Resolve<SceneStorageBenchmark>().Run(args[1..]);
