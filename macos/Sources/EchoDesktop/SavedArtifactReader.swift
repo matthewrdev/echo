@@ -253,6 +253,8 @@ final class SavedArtifactReader: ArtifactReader {
             return ArtifactPresentation(
                 title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue,
                 sparseInspection: inspection,
+                cloudInspection: stage == .cloud
+                    ? CloudInspectionData(root: root, cameras: reconstruction?.cameras ?? [], photos: photos) : nil,
                 metricScale: reconstruction?.origin != nil && !(reconstruction?.frame.contains("arbitrary") ?? true))
         }
     }

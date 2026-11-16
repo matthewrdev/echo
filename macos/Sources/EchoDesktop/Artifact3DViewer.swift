@@ -19,6 +19,30 @@ struct Artifact3DViewer: View {
                         observationIndex = 0
                     }
                 )
+                .overlay(alignment: .topLeading) {
+                    if let data = presentation.cloudInspection, !data.cameras.isEmpty {
+                        Menu {
+                            Button("Clear camera selection") { selected = nil }
+                            Divider()
+                            ForEach(data.cameraIDs, id: \.self) { imageID in
+                                Button(data.photos[imageID]?.name ?? imageID) { selected = .camera(imageID) }
+                            }
+                        } label: {
+                            Label("Select camera", systemImage: "camera")
+                        }
+                        .fixedSize().font(.caption).padding(8)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8)).padding(10)
+                        .help("Select a camera here or click its marker to highlight points inside its field of view")
+                    }
+                }
+                .overlay(alignment: .bottomLeading) {
+                    if let data = presentation.cloudInspection, let scene = presentation.scene,
+                        case .camera(let imageID) = selected
+                    {
+                        CloudCameraComparison(data: data, imageID: imageID, scene: scene) { selected = nil }
+                            .frame(maxWidth: 520).padding(10).padding(.bottom, 42)
+                    }
+                }
                 .overlay(alignment: .topTrailing) {
                     VStack(spacing: 0) {
                         SceneOrientationView(orientation: controller.orientation, metricScale: presentation.metricScale)
@@ -88,6 +112,11 @@ struct Artifact3DViewer: View {
             }
         }
         .onChange(of: presentation.id) { _, _ in
+            if presentation.cloudInspection != nil { return }
+            selected = nil
+            observationIndex = 0
+        }
+        .onChange(of: presentation.sceneIdentity) { _, _ in
             selected = nil
             observationIndex = 0
         }

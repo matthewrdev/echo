@@ -44,6 +44,7 @@ struct SceneViewport: NSViewRepresentable {
         }
         view.scene?.rootNode.childNode(withName: "ground-grid", recursively: false)?.isHidden = !showGround
         view.inspection = presentation.sparseInspection
+        view.cloudInspection = presentation.cloudInspection
         view.selection = selection
         view.highlight(selected)
     }

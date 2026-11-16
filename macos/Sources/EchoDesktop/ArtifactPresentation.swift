@@ -12,6 +12,7 @@ struct ArtifactPresentation {
     var features: FeaturePresentation?
     var sceneIdentity: String = ""
     var sparseInspection: SparseInspectionData?
+    var cloudInspection: CloudInspectionData?
     var metricScale = false
     var fusion: FusionPresentationInfo?
 }

@@ -5,7 +5,9 @@ final class ArtifactSceneView: SCNView {
     var artifactIdentity = ""
     var needsInitialFit = true
     var inspection: SparseInspectionData?
+    var cloudInspection: CloudInspectionData?
     var selection: ((SparseSelection?) -> Void)?
+    private let cloudHighlight = CloudCameraHighlight()
     private var mouseStart: NSPoint?
     private var highlighted: SparseSelection?
     private weak var highlightedScene: SCNScene?
@@ -31,6 +33,7 @@ final class ArtifactSceneView: SCNView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
         mouseStart = convert(event.locationInWindow, from: nil)
         super.mouseDown(with: event)
     }
@@ -39,16 +42,33 @@ final class ArtifactSceneView: SCNView {
         super.mouseUp(with: event)
         let location = convert(event.locationInWindow, from: nil)
         guard let start = mouseStart, hypot(location.x - start.x, location.y - start.y) < 4,
-            let inspection, selection != nil
+            selection != nil
         else { return }
-        selection?(pick(at: location, inspection: inspection))
+        if let cloudInspection {
+            selection?(pick(at: location, cameras: cloudInspection.cameras, tracks: []))
+        } else if let inspection {
+            selection?(pick(at: location, inspection: inspection))
+        }
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53, highlighted != nil {
+            selection?(nil)
+            highlight(nil)
+        } else {
+            super.keyDown(with: event)
+        }
     }
 
     func pick(at location: NSPoint, inspection: SparseInspectionData) -> SparseSelection? {
+        pick(at: location, cameras: inspection.cameras, tracks: inspection.tracks)
+    }
+
+    func pick(at location: NSPoint, cameras: [String: CameraPose], tracks: [SparseTrack]) -> SparseSelection? {
         var nearest: SparseSelection?
         var distance = 12.0
         var nearestDepth = Double.infinity
-        for camera in inspection.cameras.values.sorted(by: { $0.imageId < $1.imageId }) {
+        for camera in cameras.values.sorted(by: { $0.imageId < $1.imageId }) {
             let p = camera.centre
             let projected = projectPoint(SCNVector3(p[0], p[1], p[2]))
             guard projected.z >= 0, projected.z <= 1 else { continue }
@@ -60,7 +80,7 @@ final class ArtifactSceneView: SCNView {
                 nearestDepth = projected.z
             }
         }
-        for (index, track) in inspection.tracks.enumerated() {
+        for (index, track) in tracks.enumerated() {
             let p = track.position
             let projected = projectPoint(SCNVector3(p[0], p[1], p[2]))
             guard projected.z >= 0, projected.z <= 1 else { continue }
@@ -81,6 +101,18 @@ final class ArtifactSceneView: SCNView {
         highlightedScene = scene
         scene?.rootNode.childNode(withName: "sparse-selection", recursively: false)?.removeFromParentNode()
         scene?.rootNode.childNode(withName: "artifact", recursively: false)?.opacity = 1
+        if case .camera(let imageID) = selected, let cloudInspection,
+            let frustum = cloudInspection.frustums[imageID], let scene,
+            let artifact = scene.rootNode.childNode(withName: "artifact", recursively: false)
+        {
+            cloudHighlight.show(frustum, on: artifact)
+            let marker = markers(
+                [SCNVector3(frustum.centre.x, frustum.centre.y, frustum.centre.z)], color: .systemYellow, radius: 8)
+            marker.name = "sparse-selection"
+            scene.rootNode.addChildNode(marker)
+            return
+        }
+        cloudHighlight.clear()
         guard let selected, let inspection, let scene else { return }
         switch selected {
         case .point(let index):
