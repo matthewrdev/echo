@@ -13,12 +13,20 @@ struct WorkspaceView: View {
                 projectWorkspace
             }
         }
+        .disabled(workspace.sheet == .georeference)
+        .accessibilityHidden(workspace.sheet == .georeference)
         .frame(minWidth: 1100, minHeight: 760)
         .task { await workspace.poll() }
         .modifier(ProjectEditConfirmation(workspace: workspace, active: workspace.sheet == nil))
-        .sheet(item: $workspace.sheet) {
+        .sheet(item: standardSheet) {
             WorkspaceModal(sheet: $0, workspace: workspace, artifacts: artifacts)
                 .disclosureGroupStyle(ClickableDisclosureStyle())
+        }
+        .overlay {
+            if workspace.sheet == .georeference {
+                GeoreferenceModal(workspace: workspace)
+                    .disclosureGroupStyle(ClickableDisclosureStyle())
+            }
         }
         .alert(
             "Echo",
@@ -30,6 +38,14 @@ struct WorkspaceView: View {
         } message: {
             Text(workspace.errorMessage ?? "")
         }
+    }
+
+    private var standardSheet: Binding<WorkspaceSheet?> {
+        Binding(
+            get: { workspace.sheet == .georeference ? nil : workspace.sheet },
+            set: { value in
+                if workspace.sheet != .georeference { workspace.sheet = value }
+            })
     }
 
     private var projectWorkspace: some View {

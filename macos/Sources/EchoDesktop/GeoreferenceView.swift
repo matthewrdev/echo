@@ -2,50 +2,160 @@ import SwiftUI
 
 struct GeoreferenceView: View {
     @ObservedObject var workspace: WorkspaceViewModel
-    @State private var sidecar = ""
+    @Binding var expanded: Bool
+    @StateObject private var model = GeoreferenceViewModel()
+    @StateObject private var controller = SceneViewportController()
+    @State private var tab = "Map"
+    @State private var opacity = 0.8
+    @State private var showCameras = true
+    @State private var showModel = true
+    @State private var showGround = false
+    @State private var satellite = true
+    @State private var fit = UUID()
+
+    private var identity: String {
+        workspace.root + (workspace.inspection?.run?.id ?? "")
+            + (workspace.inspection?.run?.artifacts["alignment"] ?? "")
+            + (workspace.inspection?.run?.artifacts["mesh"] ?? "")
+            + (workspace.inspection?.run?.artifacts["texture"] ?? "")
+            + (workspace.inspection?.run?.artifacts["export"] ?? "")
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Georeference").font(.title.bold())
-                if let scene = workspace.inspection?.reconstruction {
-                    Text(scene.frame)
-                    if let origin = scene.origin {
-                        Text(
-                            "Origin: \(origin.latitude), \(origin.longitude) · altitude \(origin.altitude.map { String($0) } ?? "unknown") m"
-                        )
-                        Text("Altitude datum: \(origin.altitudeDatum ?? "unknown")").foregroundStyle(.secondary)
-                    }
-                    ForEach(scene.warnings, id: \.self) { Text($0).foregroundStyle(.orange) }
-                }
-                if let photo = workspace.selectedPhoto {
-                    Text(photo.name).font(.headline)
-                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 6) {
-                        ForEach(photo.metadata.keys.sorted(), id: \.self) { key in
-                            GridRow {
-                                Text(key).foregroundStyle(.secondary)
-                                Text(photo.metadata[key]?.description ?? "").textSelection(.enabled)
-                            }
-                        }
-                    }
-                }
-                if !sidecar.isEmpty {
-                    DisclosureGroup("Export coordinate transform and camera data") {
-                        Text(sidecar).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                    }
-                }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Georeference").font(.headline)
+                Picker("Geographic view", selection: $tab) {
+                    Text("Map").tag("Map")
+                    Text("3D").tag("3D")
+                    Text("Details").tag("Details")
+                }.labelsHidden().pickerStyle(.segmented).frame(width: 260)
+                Spacer()
+                Button("Export for QGIS…", systemImage: "square.and.arrow.up") { export() }
+                    .labelStyle(.iconOnly).help("Export geographic data for QGIS")
+                    .disabled(model.artifact == nil || model.loading || model.exporting)
+                Button(
+                    expanded ? "Restore viewer size" : "Fill window",
+                    systemImage: expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
+                ) { expanded.toggle() }
+                .labelStyle(.iconOnly).help(expanded ? "Restore viewer size" : "Fill window")
+                Button("Close", systemImage: "xmark") { workspace.sheet = nil }
+                    .labelStyle(.iconOnly).help("Close geographic viewer").keyboardShortcut(.cancelAction)
             }
-            .frame(maxWidth: .infinity, alignment: .leading).padding(24)
+            if model.artifact != nil {
+                Text(referenceSummary).font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(1).textSelection(.enabled)
+                    .help(
+                        "Photo altitudes and their reference evidence are retained in the export. Geographic accuracy depends on GPS and placement hints."
+                    )
+            }
+            if model.exporting { ProgressView("Exporting geographic data…").controlSize(.small) }
+            if let message = model.exportMessage { Text(message).font(.caption).textSelection(.enabled) }
+            if tab == "Details" {
+                GeoreferenceDetailsView(workspace: workspace)
+            } else if model.loading {
+                ProgressView("Preparing geographic model…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let artifact = model.artifact {
+                if tab == "Map" {
+                    map(artifact)
+                } else {
+                    modelView(artifact)
+                }
+            } else {
+                ContentUnavailableView(
+                    "Geographic view unavailable", systemImage: "globe",
+                    description: Text(model.error ?? "Complete alignment to view geographic placement."))
+            }
         }
-        .task(id: workspace.inspection?.run?.artifacts["export"]) {
-            guard let path = workspace.inspection?.run?.artifacts["export"] else {
-                sidecar = ""
-                return
+        .padding(16)
+        .task(id: identity) { await model.load(root: workspace.root, run: workspace.inspection?.run) }
+        .onDisappear { model.cancel() }
+    }
+
+    private var referenceSummary: String {
+        guard let origin = model.artifact?.reconstruction.origin else { return "" }
+        let photos = workspace.inspection?.run?.snapshot.images ?? []
+        let count = photos.filter { $0.gps?.altitude != nil }.count
+        return String(format: "WGS84 · %.6f, %.6f", origin.latitude, origin.longitude)
+            + " · Altitude \(count)/\(photos.count) photos · Reference: \(origin.altitudeDatum ?? "unknown")"
+    }
+
+    private func map(_ artifact: GeoreferenceArtifact) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Toggle("Satellite", isOn: $satellite)
+                Toggle("Model", isOn: $showModel).disabled(artifact.overlay == nil)
+                Toggle("Cameras", isOn: $showCameras).help("Camera positions and viewing directions")
+                Text("Opacity")
+                Slider(value: $opacity, in: 0...1).frame(width: 120).disabled(artifact.overlay == nil)
+                Spacer()
+                Button("Fit view") { fit = UUID() }
+            }.font(.callout)
+            NativePhotoMap(
+                cameras: showCameras ? artifact.cameras : [], identity: identity + fit.uuidString,
+                satellite: satellite, showAll: true, selected: $workspace.selectedPhotoID,
+                modelOverlay: showModel ? artifact.overlay : nil, modelOpacity: opacity)
+            if artifact.overlay == nil {
+                Text("Process through Mesh to add the model.").font(.caption).foregroundStyle(.secondary)
             }
-            sidecar =
-                (try? String(
-                    contentsOf: URL(fileURLWithPath: workspace.root).appendingPathComponent(path)
-                        .appendingPathComponent("cliff.geo.json"), encoding: .utf8)) ?? ""
+        }
+    }
+
+    private func modelView(_ artifact: GeoreferenceArtifact) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Map display height")
+                TextField("Local up", value: $model.mapHeight, format: .number.precision(.fractionLength(2)))
+                    .frame(width: 90).onSubmit { model.updateMapHeight() }
+                Text("m · display only")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if model.mapLoading { ProgressView().controlSize(.small) }
+                if model.mapError != nil {
+                    Button("Retry imagery") { Task { await model.loadMap() } }
+                }
+            }.font(.caption)
+            if let error = model.mapError { Text(error).font(.caption).foregroundStyle(.orange) }
+            Artifact3DViewer(
+                presentation: artifact.presentation, openFeatures: { _ in }, controller: controller,
+                showGround: $showGround)
+            Text("Apple Maps · Flat imagery")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .task(id: artifact.presentation.id) { await model.loadMap() }
+    }
+
+    private func export() {
+        guard let run = workspace.inspection?.run, let artifact = model.artifact else { return }
+        let panel = NSSavePanel()
+        panel.title = "Export geographic data for QGIS"
+        panel.prompt = "Export"
+        panel.nameFieldStringValue = "Echo-GIS-\(run.id.prefix(8))"
+        panel.message = "Creates a new folder with GeoJSON, coordinates, reference data and the model projection."
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        model.exporting = true
+        model.exportMessage = nil
+        let root = workspace.root
+        Task {
+            defer { model.exporting = false }
+            do {
+                try await workspace.exportGeoreference(root: root, runID: run.id, destination: destination)
+                if let overlay = artifact.overlay {
+                    do {
+                        try GeographicRasterWriter().write(overlay, directory: destination)
+                    } catch {
+                        model.exportMessage =
+                            "GIS geometry exported, but the model image failed: \(error.localizedDescription). Folder: \(destination.path)"
+                        NSWorkspace.shared.open(destination)
+                        return
+                    }
+                }
+                model.exportMessage = "Exported to \(destination.path). Open QGIS.txt for import instructions."
+                NSWorkspace.shared.open(destination)
+            } catch {
+                model.exportMessage = "Export failed: \(error.localizedDescription)"
+            }
         }
     }
 }

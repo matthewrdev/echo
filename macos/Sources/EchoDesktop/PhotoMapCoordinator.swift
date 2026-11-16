@@ -8,8 +8,24 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     private var colors: [ObjectIdentifier: NSColor] = [:]
     private var widths: [ObjectIdentifier: CGFloat] = [:]
     private var updating = false
+    private var model: ModelMapOverlay?
+    private var modelOpacity = 0.8
 
     init(selection: @escaping (String) -> Void) { self.selection = selection }
+
+    func updateModel(map: MKMapView, model: ModelMapOverlay?, opacity: Double) {
+        if self.model !== model {
+            if let previous = self.model { map.removeOverlay(previous) }
+            self.model = model
+            if let model {
+                map.addOverlay(model, level: .aboveRoads)
+                let rect = model.boundingMapRect
+                map.setVisibleMapRect(rect.insetBy(dx: -rect.width * 0.2, dy: -rect.height * 0.2), animated: false)
+            }
+        }
+        modelOpacity = opacity
+        if let model { map.renderer(for: model)?.alpha = opacity }
+    }
 
     func update(map: MKMapView, cameras: [MapCamera], identity: String, selected: String?, showAll: Bool) {
         let signature =
@@ -22,10 +38,10 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         self.signature = signature
         updating = true
         map.removeAnnotations(map.annotations)
-        map.removeOverlays(map.overlays)
+        map.removeOverlays(map.overlays.filter { !($0 is ModelMapOverlay) })
         colors.removeAll()
         widths.removeAll()
-        var extent = MKMapRect.null
+        var extent = model?.boundingMapRect ?? MKMapRect.null
         for camera in cameras {
             let annotation = PhotoMapAnnotation(camera: camera)
             map.addAnnotation(annotation)
@@ -62,6 +78,11 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        if let model = overlay as? ModelMapOverlay {
+            let renderer = ModelMapOverlayRenderer(model: model)
+            renderer.alpha = modelOpacity
+            return renderer
+        }
         let renderer: MKOverlayPathRenderer
         if let polygon = overlay as? MKPolygon {
             let polygonRenderer = MKPolygonRenderer(polygon: polygon)

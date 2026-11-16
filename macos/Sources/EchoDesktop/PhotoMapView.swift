@@ -34,6 +34,8 @@ struct PhotoMapView: View {
                 Toggle("Selected photo only", isOn: $selectedOnly).disabled(workspace.selectedPhoto == nil)
                 Toggle("All frustums", isOn: $showAll)
                 Spacer()
+                Button("Model + geographic export") { workspace.sheet = .georeference }
+                    .disabled(workspace.inspection?.run?.artifacts["alignment"] == nil)
             }
             HStack {
                 Text("Frustum depth")

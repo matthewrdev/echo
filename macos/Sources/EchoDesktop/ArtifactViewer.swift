@@ -20,6 +20,11 @@ struct ArtifactViewer: View {
                 Text(workspace.selectedStage.title).font(.title2.bold())
                 Spacer(minLength: 16)
                 HStack(spacing: 8) {
+                    if [.alignment, .cloud, .mesh, .texture, .export].contains(workspace.selectedStage) {
+                        Button("View on map", systemImage: "map") { workspace.sheet = .georeference }
+                            .disabled(workspace.inspection?.run?.artifacts["alignment"] == nil)
+                            .help("View geographic placement and export for QGIS")
+                    }
                     Button("Process to \(workspace.selectedStage.shortTitle)", systemImage: "play.fill") {
                         workspace.start(through: workspace.selectedStage)
                     }

@@ -47,12 +47,7 @@ struct MapCameraProjector {
     }
 
     func offset(_ origin: GeoPosition, east: Double, up: Double, south: Double) -> GeoPosition {
-        let radius = 6_378_137.0
-        return GeoPosition(
-            latitude: origin.latitude - south / radius * 180 / .pi,
-            longitude: origin.longitude + east / (radius * cos(origin.latitude * .pi / 180)) * 180 / .pi,
-            altitude: origin.altitude.map { $0 + up }, altitudeDatum: origin.altitudeDatum,
-            uncertaintyMetres: origin.uncertaintyMetres)
+        GeographicTransform(origin: origin).geographic([east, up, south])
     }
 
     private func matrix(_ attitude: Attitude) -> [Double] {

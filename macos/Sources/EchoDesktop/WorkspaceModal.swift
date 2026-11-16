@@ -25,7 +25,7 @@ struct WorkspaceModal: View {
         case .photo: PhotoInspector(workspace: workspace, artifacts: artifacts)
         case .map: PhotoMapView(workspace: workspace, focusPhotoID: workspace.mapFocusPhotoID)
         case .settings: ProcessingSettingsView(workspace: workspace)
-        case .georeference: GeoreferenceView(workspace: workspace)
+        case .georeference: EmptyView()  // Presented inside the window by WorkspaceView.
         case .hints: HintEditor(workspace: workspace)
         case .storage: ArtifactStorageView(workspace: workspace)
         case .history: RunHistoryView(workspace: workspace)

@@ -158,6 +158,11 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         try await client.inspect(root: root, run: "latest").run
     }
 
+    func exportGeoreference(root: String, runID: String, destination: URL) async throws {
+        try await client.command(
+            root: root, arguments: ["export-gis", "--run", runID, "--output", destination.path], progress: { _ in })
+    }
+
     func openMap(for photo: Photo? = nil) {
         mapFocusPhotoID = photo?.id
         if let photo { selectedPhotoID = photo.id }
