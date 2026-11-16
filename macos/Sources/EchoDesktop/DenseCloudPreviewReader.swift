@@ -14,7 +14,7 @@ final class DenseCloudPreviewReader {
             (bytes.count - end.upperBound) / 23 == expectedCount,
             (bytes.count - end.upperBound) % 23 == 0
         else { throw CLIError(message: "Dense cloud layout or point count does not match its checkpoint.") }
-        let budget = min(expectedCount, max(1, limit))
+        let budget = CloudDisplayDetail.pointLimit(limit).limit(for: expectedCount)
         var packed = Data(count: budget * 16)
         var retained = 0
         try bytes.withUnsafeBytes { source in

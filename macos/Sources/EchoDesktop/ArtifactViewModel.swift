@@ -16,13 +16,18 @@ final class ArtifactViewModel: ObservableObject {
     @Published var selectedUnit = ""
     @Published var mode = "Cameras"
     @Published var slice = 0.5
-    @Published var pointPercentage = 100.0
+    @Published var automaticPointDetail = true
+    @Published var pointPercentage = 25.0
     @Published var depthAgreementPercentage = 0.0
     @Published var loading = false
     @Published var presentation: ArtifactPresentation?
     @Published var error: String?
 
     init(reader: ArtifactReader) { self.reader = reader }
+
+    var pointLimit: Int {
+        CloudDisplayDetail.maximumPointLimit * Int(pointPercentage.rounded()) / 100
+    }
 
     func photoFeatures(root: String, run: RunData, photoID: String) async throws -> FeaturePresentation? {
         let root = URL(fileURLWithPath: root)
@@ -134,7 +139,7 @@ final class ArtifactViewModel: ObservableObject {
         let unit = units.first { $0.id == selectedUnit }
         let mode = self.mode
         let slice = self.slice
-        let cloudDetail = CloudDisplayDetail.percentage(Int(pointPercentage.rounded()))
+        let cloudDetail: CloudDisplayDetail = automaticPointDetail ? .automatic : .pointLimit(pointLimit)
         let cloudMinimumSupport = depthAgreementPercentage / 100
         let task = Task {
             try await reader.load(

@@ -230,7 +230,7 @@ final class SavedArtifactReader: ArtifactReader {
                 let updated =
                     (attributes[.modificationDate] as? Date)?.formatted(date: .omitted, time: .standard) ?? "unknown"
                 let density =
-                    !partial && cloudDetail.limit(for: report.retainedSamples) >= report.retainedSamples
+                    !partial && displayedCount == report.retainedSamples
                     ? "all saved points" : "sampled points"
                 detail =
                     "\(label) · \(report.retainedSamples.formatted()) accepted points · displaying \(displayedCount.formatted()) \(density) · updated \(updated)"

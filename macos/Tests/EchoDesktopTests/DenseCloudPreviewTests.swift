@@ -72,7 +72,7 @@ final class DenseCloudPreviewTests: XCTestCase {
         XCTAssertGreaterThan(redPixels, 0, "The implicit point indices and packed vertex colors must render")
     }
 
-    func testSavedDenseCloudAtHigherDetail() async throws {
+    func testSavedDenseCloudAtMaximumViewportDetail() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["ECHO_TEST_CLOUD_PROJECT"], let id = environment["ECHO_TEST_CLOUD_RUN"] else {
             throw XCTSkip("Saved dense cloud not configured")
@@ -88,10 +88,11 @@ final class DenseCloudPreviewTests: XCTestCase {
             fusion: SavedFusionArtifactReader(json: json, scenes: NativeSceneFactory()), json: json)
         let presentation = try await reader.load(
             root: root, run: run, stage: .cloud, unit: nil, mode: "All support", slice: 0.5,
-            cloudDetail: .pointLimit(500_000))
+            cloudDetail: .percentage(100))
         let scene = try XCTUnwrap(presentation.scene)
         let artifact = try XCTUnwrap(scene.rootNode.childNode(withName: "artifact", recursively: false))
-        XCTAssertEqual(artifact.geometry?.sources(for: .vertex).first?.vectorCount, 500_000)
+        XCTAssertEqual(artifact.geometry?.sources(for: .vertex).first?.vectorCount, 4_000_000)
+        XCTAssertTrue(presentation.detail.contains("4,000,000 sampled points"))
         guard let output = environment["ECHO_TEST_RENDER_DIR"], let device = MTLCreateSystemDefaultDevice() else {
             return
         }
@@ -101,15 +102,44 @@ final class DenseCloudPreviewTests: XCTestCase {
         let renderer = SCNRenderer(device: device, options: nil)
         renderer.scene = scene
         renderer.pointOfView = camera
+        scene.background.contents = NSColor.white
+        for node in scene.rootNode.childNodes where node !== artifact && node !== camera { node.isHidden = true }
         for direction in [SceneViewDirection.north, .east, .top] {
             bounds.fit(camera: camera, size: CGSize(width: 1100, height: 700), direction: direction)
             let snapshot = renderer.snapshot(
                 atTime: 0, with: CGSize(width: 1100, height: 700), antialiasingMode: .multisampling4X)
             let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(snapshot.tiffRepresentation)))
+            assertCloudRendered(bitmap)
             try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
             try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
                 to: URL(fileURLWithPath: output).appendingPathComponent("dense-\(direction).png"))
         }
+        let highlighter = CloudCameraHighlight()
+        let frustum = try XCTUnwrap(presentation.cloudInspection?.frustums.values.first)
+        highlighter.show(frustum, on: artifact)
+        bounds.fit(camera: camera, size: CGSize(width: 2200, height: 1400), direction: .north)
+        let snapshot = renderer.snapshot(
+            atTime: 0, with: CGSize(width: 2200, height: 1400), antialiasingMode: .multisampling4X)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(snapshot.tiffRepresentation)))
+        assertCloudRendered(bitmap)
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
+            to: URL(fileURLWithPath: output).appendingPathComponent("dense-highlight.png"))
+        highlighter.clear()
+    }
+
+    private func assertCloudRendered(_ bitmap: NSBitmapImageRep) {
+        var cloudPixels = 0
+        var backgroundPixels = 0
+        for y in stride(from: 0, to: bitmap.pixelsHigh, by: 8) {
+            for x in stride(from: 0, to: bitmap.pixelsWide, by: 8) {
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                if brightness > 0.1 && brightness < 0.98 { cloudPixels += 1 }
+                if brightness >= 0.98 { backgroundPixels += 1 }
+            }
+        }
+        XCTAssertGreaterThan(cloudPixels, 100, "The saved cloud must draw, including both camera highlight passes")
+        XCTAssertGreaterThan(backgroundPixels, 100, "The renderer must not return an aborted black frame")
     }
 
     private func fixture(count: Int, confidence: Float? = nil) throws -> URL {

@@ -27,13 +27,21 @@ struct CloudDisplayControls: View {
             if hasSavedCloud {
                 HStack {
                     Text("Point detail").fixedSize()
-                    Slider(
-                        value: $model.pointPercentage, in: 1...100, step: 1,
-                        onEditingChanged: reloadAfterEditing
-                    ).frame(maxWidth: 260).accessibilityLabel("Percentage of saved points")
-                    Text("\(Int(model.pointPercentage))%")
-                        .monospacedDigit().frame(width: 40, alignment: .trailing)
+                    Toggle("Auto", isOn: $model.automaticPointDetail).toggleStyle(.checkbox)
+                        .onChange(of: model.automaticPointDetail) { _, _ in Task { await model.load() } }
+                    if !model.automaticPointDetail {
+                        Slider(
+                            value: $model.pointPercentage, in: 1...100, step: 1,
+                            onEditingChanged: reloadAfterEditing
+                        ).frame(maxWidth: 260).accessibilityLabel("Point preview detail")
+                            .accessibilityValue("Up to \(model.pointLimit.formatted()) points")
+                        Text(model.pointLimit.formatted(.number.notation(.compactName)))
+                            .monospacedDigit().frame(width: 52, alignment: .trailing)
+                    }
                 }
+                .help(
+                    "Auto displays up to one million points across the whole cloud. Manual detail supports up to four million. This changes only the preview; all saved points remain available for processing and export."
+                )
             }
         }.font(.caption)
     }

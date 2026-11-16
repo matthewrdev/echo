@@ -15,6 +15,6 @@ extension ArtifactReader {
     {
         try await load(
             root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice,
-            cloudDetail: .percentage(100), cloudMinimumSupport: 0)
+            cloudDetail: .automatic, cloudMinimumSupport: 0)
     }
 }

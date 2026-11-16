@@ -135,8 +135,7 @@ struct ArtifactViewer: View {
             if model.loading {
                 HStack {
                     ProgressView(
-                        model.pointPercentage == 100 && workspace.selectedStage == .cloud
-                            ? "Loading all saved points…" : "Opening artifact…")
+                        workspace.selectedStage == .cloud ? "Loading point preview…" : "Opening artifact…")
                     Button("Cancel") { model.cancelLoading() }
                 }
                 .controlSize(.small).padding(12).background(
