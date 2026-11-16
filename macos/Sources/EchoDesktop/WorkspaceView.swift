@@ -65,21 +65,14 @@ struct WorkspaceView: View {
                     .background(Color.orange.opacity(0.1))
                     Divider()
                 }
-                GeometryReader { bounds in
-                    Group {
-                        switch workspace.destination {
-                        case .images:
-                            ImagesView(workspace: workspace)
-                        case .artifact:
-                            ArtifactViewer(workspace: workspace, model: artifacts)
-                        }
+                if workspace.destination == .images {
+                    GeometryReader { bounds in
+                        ImagesView(workspace: workspace)
+                            .frame(width: bounds.size.width, height: bounds.size.height, alignment: .topLeading)
+                            .clipped()
                     }
-                    .frame(width: bounds.size.width, height: bounds.size.height, alignment: .topLeading)
-                    .clipped()
-                }
-                if workspace.destination != .images {
-                    Divider()
-                    StageLogView(workspace: workspace)
+                } else {
+                    StageWorkspaceView(workspace: workspace, artifacts: artifacts)
                 }
                 if workspace.showsProgress {
                     Divider()

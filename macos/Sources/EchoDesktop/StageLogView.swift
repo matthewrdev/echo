@@ -2,7 +2,7 @@ import SwiftUI
 
 struct StageLogView: View {
     @ObservedObject var workspace: WorkspaceViewModel
-    @State private var expanded = true
+    @Binding var expanded: Bool
     @State private var scope = ActivityLogScope.stage
     @State private var followLatest = true
     @State private var showBackgroundQueries = false
@@ -88,7 +88,7 @@ struct StageLogView: View {
                     .padding(.vertical, 6)
                     .background(LogScrollPositionObserver(followLatest: $followLatest))
                 }
-                .frame(height: 160)
+                .frame(minHeight: 0, maxHeight: .infinity)
                 .onAppear { if let lastID { proxy.scrollTo(lastID, anchor: .bottom) } }
                 .onChange(of: lastID) { _, id in
                     if followLatest, let id { proxy.scrollTo(id, anchor: .bottom) }

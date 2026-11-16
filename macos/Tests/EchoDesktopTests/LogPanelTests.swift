@@ -51,7 +51,7 @@ final class LogPanelTests: XCTestCase {
         XCTAssertTrue(workspace.commands.contains { !$0.isBackgroundQuery })
         let view = NSHostingView(
             rootView:
-                StageLogView(workspace: workspace).environment(\.colorScheme, .light)
+                StageLogView(workspace: workspace, expanded: .constant(true)).environment(\.colorScheme, .light)
                 .frame(width: 1100, height: 350).background(Color.white))
         view.frame = NSRect(x: 0, y: 0, width: 1100, height: 350)
         view.layoutSubtreeIfNeeded()
