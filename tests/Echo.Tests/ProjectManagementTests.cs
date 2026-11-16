@@ -28,6 +28,13 @@ public sealed class ProjectManagementTests
         store.Edit(project => project.StageRevisions["mesh"] = "retained");
         try
         {
+            tests.Run("Project info and deletion do not depend on saved run or artifact formats", () =>
+            {
+                var savedRun = store.PathFor("runs/obsolete");
+                Directory.CreateDirectory(savedRun);
+                File.WriteAllText(Path.Combine(savedRun, "run.json"), "unreadable old run");
+                Check(application.Run(["--project", root, "project", "info"]) == 0, "Project identity can be read independently");
+            });
             tests.Run("Rename persists the display name while preserving identity, path and saved artifacts", () =>
             {
                 Check(application.Run(["--project", root, "project", "rename", "--name", "  New name  "]) == 0, "Rename succeeds");

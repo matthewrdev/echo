@@ -245,9 +245,9 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         guard !root.isEmpty, !refreshing else { return }
         refreshing = true
         defer { refreshing = false }
+        let requestedRoot = root
+        let requestedRun = selectedRun
         do {
-            let requestedRoot = root
-            let requestedRun = selectedRun
             async let summaries = client.runs(root: requestedRoot)
             async let snapshot = client.inspect(root: requestedRoot, run: requestedRun)
             let result = try await (summaries, snapshot)
@@ -282,6 +282,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
                 status = result.1.run.map { "\($0.target.capitalized) · \($0.status)" } ?? "Ready to import photos."
             }
         } catch {
+            guard requestedRoot == root, requestedRun == selectedRun else { return }
             status = error.localizedDescription
             openingProject = false
             if inspection == nil { openingError = error.localizedDescription }
@@ -304,7 +305,9 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     func removeRecent(_ project: RecentProject) {
+        if root == project.path, inspection == nil { clearProject() }
         recentProjects = recentProjectStore.remove(path: project.path)
+        openingError = nil
     }
 
     func renameRecent(_ project: RecentProject, name: String) async throws {
@@ -324,7 +327,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         Task {
             defer { busy = false }
             do {
-                let inspection = try await client.inspect(root: project.path, run: "latest")
+                guard let data = try await projectForDeletion(project) else { return }
                 let alert = NSAlert()
                 alert.messageText = "Delete “\(project.name)” from disk?"
                 alert.informativeText =
@@ -334,17 +337,37 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
                 alert.addButton(withTitle: "Delete from Disk").hasDestructiveAction = true
                 guard alert.runModal() == .alertSecondButtonReturn else { return }
                 try await client.command(
-                    root: project.path, arguments: ["project", "delete", "--confirm", inspection.project.id],
+                    root: project.path, arguments: ["project", "delete", "--confirm", data.id],
                     progress: { _ in })
-                recentProjects = recentProjectStore.remove(path: project.path)
+                removeRecent(project)
             } catch {
                 openingError = error.localizedDescription
             }
         }
     }
 
+    func projectForDeletion(_ project: RecentProject) async throws -> ProjectData? {
+        let folder = URL(fileURLWithPath: project.path)
+        if !FileManager.default.fileExists(atPath: folder.path) {
+            removeRecent(project)
+            return nil
+        }
+        guard FileManager.default.fileExists(atPath: folder.appendingPathComponent("project.json").path) else {
+            throw CLIError(
+                message:
+                    "This folder no longer contains an Echo project. Remove it from recents, or use Finder to manage its remaining files."
+            )
+        }
+        return try await client.project(root: project.path)
+    }
+
     func showProjects() {
         guard canEdit else { return }
+        clearProject()
+    }
+
+    private func clearProject() {
+        openingProject = false
         destination = .images
         imagesViewMode = .tiles
         root = ""

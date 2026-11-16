@@ -1,6 +1,7 @@
 import Foundation
 
 protocol ProjectClient {
+    func project(root: String) async throws -> ProjectData
     func storage(root: String) async throws -> ArtifactStorageInventory
     func deletionPlan(root: String, artifact: String?) async throws -> ArtifactDeletionPlan
     func inspect(root: String, run: String) async throws -> Inspection

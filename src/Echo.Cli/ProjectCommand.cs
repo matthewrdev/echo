@@ -36,6 +36,9 @@ public sealed class ProjectCommand : ICliCommand
             ?? throw new EchoException("--project PATH is required.", 2));
         switch (action)
         {
+            case "info":
+                output.Write(project.Load());
+                return 0;
             case "rename":
                 management.Rename(project, arguments.Get("name", null)
                     ?? throw new EchoException("--name NAME is required.", 2));
@@ -50,7 +53,7 @@ public sealed class ProjectCommand : ICliCommand
                 });
                 return 0;
             default:
-                throw new EchoException("Expected project init, rename or delete. Use --help.", 2);
+                throw new EchoException("Expected project init, info, rename or delete. Use --help.", 2);
         }
     }
 

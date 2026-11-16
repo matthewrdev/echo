@@ -15,6 +15,7 @@ public sealed class CommandApplication : ICommandApplication
     Echo 0.1 — experimental C# photogrammetry workbench
 
     echo-photo project init PATH [--name NAME]
+    echo-photo --project PATH project info
     echo-photo --project PATH project rename --name NAME
     echo-photo --project PATH project delete --confirm PROJECT_ID
     echo-photo --project PATH images import DIRECTORY [--set NAME] [--limit N]
