@@ -38,7 +38,8 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
                 map.ImageId,
                 alignment = context.Artifact("alignment"),
                 semantics = context.Artifact("semantics"),
-                context.Run.Snapshot.Settings.DepthNeighbours
+                context.Run.Snapshot.Settings.DepthNeighbours,
+                context.Run.Snapshot.Settings.DepthSuppressSky
             }, directory =>
             {
                 var result = recovery.Recover(context.Store, context.Run.Snapshot, scene, map, maps, semantics[map.ImageId], context.Cancellation,
@@ -55,7 +56,7 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
                     method = "Bounded missing-rock stereo search; two original depth confirmations and two photographic confirmations; no generative geometry"
                 });
             }, () => new ProcessingMetadata { SourceArtifacts = [.. originalUnits, context.Artifact("semantics"), context.Artifact("alignment")] },
-                algorithmVersion: "echo-cliff-recovery1");
+                algorithmVersion: "echo-cliff-recovery2-sky");
             context.ReportProgress("depth", $"Cliff recovery checked · {photo.Name} · {index + 1}/{maps.Length}", index + 1, maps.Length);
         }
         return units;

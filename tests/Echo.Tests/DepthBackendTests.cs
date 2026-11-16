@@ -172,7 +172,7 @@ public sealed class DepthBackendTests
                     var fastUnit = accelerated.DepthUnits()[0];
                     Check(fastUnit != unit, "Fast Metal cannot reuse CPU/validated depth checkpoints");
                     var fastMetadata = json.Read<ProcessingMetadata>(store.PathFor(fastUnit + "/processing.json"));
-                    Check(fastMetadata.AlgorithmVersion == "echo-0.1.0-pyramid8-metal1", "Version the direct Metal numerical contract");
+                    Check(fastMetadata.AlgorithmVersion == "echo-depth-pyramid9-metal-sky1", "Version the direct Metal numerical contract");
                     Check(fastMetadata.Executions.All(item => item.ActualBackend == "metal" && item.CpuSearches == 0), "Persist actual direct GPU execution without duplicate CPU work");
                     var fastRunMetadata = json.Read<RunProcessingMetadata>(store.PathFor($"runs/{accelerated.Run.Id}/processing.json"));
                     Check(fastRunMetadata.Artifacts[fastUnit].MetadataPath == fastUnit + "/processing.json", "Run indexes fast Metal provenance");
@@ -260,7 +260,7 @@ public sealed class DepthBackendTests
             }
             var project = new ProjectData
             {
-                Settings = new Settings { DepthWidth = 192, DepthPlanes = 49, DepthNeighbours = 2, DepthRangeAutomatic = false, DepthNear = 8, DepthFar = 12 }
+                Settings = new Settings { DepthSuppressSky = false, DepthWidth = 192, DepthPlanes = 49, DepthNeighbours = 2, DepthRangeAutomatic = false, DepthNear = 8, DepthFar = 12 }
             };
             var scene = new ReconstructionScene();
             foreach (var shift in new[] { 0, -6, 6 })

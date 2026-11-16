@@ -94,12 +94,14 @@ public sealed class BulkDataSession : IDisposable
         {
             var vegetation = Open(Buffer("vegetation"), new ByteRecordCodec());
             var rock = Open(Buffer("rock"), new ByteRecordCodec());
+            IReadOnlyList<byte> sky = header.Buffers.ContainsKey("sky") ? Open(Buffer("sky"), new ByteRecordCodec()) : Array.Empty<byte>();
             var valid = header.Width > 0 && header.Height > 0 && (long)header.Width * header.Height == vegetation.Count;
-            if (!valid || rock.Count != vegetation.Count)
+            var inconsistentCounts = rock.Count != vegetation.Count || sky.Count != 0 && sky.Count != vegetation.Count;
+            if (!valid || inconsistentCounts)
             {
                 throw new InvalidDataException("Invalid semantic map dimensions.");
             }
-            result = new SemanticMap { ImageId = header.ImageId, Width = header.Width, Height = header.Height, VegetationSamples = vegetation, RockSamples = rock };
+            result = new SemanticMap { ImageId = header.ImageId, Width = header.Width, Height = header.Height, VegetationSamples = vegetation, RockSamples = rock, SkySamples = sky };
         }
         else if (typeof(T) == typeof(TextureCoordinates) && header.Kind == "uvs")
         {

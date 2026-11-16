@@ -45,6 +45,7 @@ public sealed class SemanticQualityTests
             var map = SemanticProbabilities.Decode("image", 2, 2, logits);
             Check(map.Vegetation.SequenceEqual(new byte[] { 255, 0, 0, 255 }), "ADE20K vegetation labels");
             Check(map.Rock.SequenceEqual(new byte[] { 0, 255, 0, 0 }), "Rock excludes sky");
+            Check(map.Sky.SequenceEqual(new byte[] { 0, 0, 255, 0 }), "Sky probabilities are retained separately");
             Check(SemanticProbabilities.ConservativeSample(map, map.Vegetation, .5, .5) == 0, "Mixed boundary stays full detail");
             Check(SemanticProbabilities.ConservativeSample(map, map.Vegetation, -1, .5) == 0, "Outside evidence is unknown");
         });
@@ -230,6 +231,9 @@ public sealed class SemanticQualityTests
                     Check(Math.Abs(recovered.Map.Depth[index] - 10) < .03, "Recovered samples agree with the known ten-metre plane");
                 }
             }
+            semantics.Sky = Enumerable.Repeat((byte)255, 256).ToArray();
+            Check(recovery.Recover(store, project, scene, source, maps, semantics, default).RecoveredSamples == 0, "Sky veto prevents recovery from refilling masked pixels even with conflicting rock labels");
+            semantics.Sky = [];
             maps[2].Depth = new float[source.Depth.Length];
             Check(recovery.Recover(store, project, scene, source, maps, semantics, default).RecoveredSamples == 0, "A single confirming view cannot fill a gap");
             maps[2].Depth = Enumerable.Repeat(10f, source.Depth.Length).ToArray();

@@ -48,10 +48,10 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
                     }
                     var map = session.Segment(context.Store.PathFor(photo.Source), photo.Id, context.Cancellation);
                     files.AtomicData(Path.Combine(directory, "semantics.json"), map, context.Cancellation);
-                }, algorithmVersion: "echo-semantic-upernet1");
+                }, algorithmVersion: "echo-semantic-upernet2-sky");
                 units.Add(photo.Id, unit);
                 maps.Add(photo.Id, context.ReadData<SemanticMap>(context.Store.PathFor(unit + "/semantics.json")));
-                context.ReportProgress("depth", $"Classified vegetation and rock · {photo.Name} · {maps.Count}/{context.Images.Count}", maps.Count, context.Images.Count);
+                context.ReportProgress("depth", $"Classified sky, vegetation and rock · {photo.Name} · {maps.Count}/{context.Images.Count}", maps.Count, context.Images.Count);
             }
         }
         finally

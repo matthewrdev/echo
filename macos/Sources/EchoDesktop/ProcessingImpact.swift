@@ -22,7 +22,7 @@ struct ProcessingImpact {
         let oldDirectMetal = old.depthBackend == "auto" || old.depthBackend == "metal"
         let newDirectMetal = new.depthBackend == "auto" || new.depthBackend == "metal"
         let depth =
-            old.recoverCliffDepth != new.recoverCliffDepth
+            old.depthSuppressSky != new.depthSuppressSky || old.recoverCliffDepth != new.recoverCliffDepth
             || oldDirectMetal != newDirectMetal || old.depthWidth != new.depthWidth
             || old.depthPlanes != new.depthPlanes
             || old.depthRefinementSamples != new.depthRefinementSamples || old.depthNeighbours != new.depthNeighbours

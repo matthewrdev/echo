@@ -11,7 +11,7 @@ public static class SemanticProbabilities
         {
             throw new ArgumentException("Invalid ADE20K logits.", nameof(logits));
         }
-        var map = new SemanticMap { ImageId = imageId, Width = width, Height = height, Vegetation = new byte[count], Rock = new byte[count] };
+        var map = new SemanticMap { ImageId = imageId, Width = width, Height = height, Vegetation = new byte[count], Rock = new byte[count], Sky = new byte[count] };
         for (var pixel = 0; pixel < count; pixel++)
         {
             var maximum = float.NegativeInfinity;
@@ -41,6 +41,8 @@ public static class SemanticProbabilities
             {
                 map.Vegetation[pixel] = (byte)Math.Round(255 * vegetation / total);
                 map.Rock[pixel] = (byte)Math.Round(255 * rock / total);
+                // ADE20K's zero-based sky label is 2, including cloudy skies.
+                map.Sky[pixel] = (byte)Math.Round(255 * Math.Exp(logits[2 * count + pixel] - maximum) / total);
             }
         }
         return map;

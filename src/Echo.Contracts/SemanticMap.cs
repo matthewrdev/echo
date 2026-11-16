@@ -4,6 +4,14 @@ public sealed class SemanticMap
 {
     private IReadOnlyList<byte>? vegetationSamples;
     private IReadOnlyList<byte>? rockSamples;
+    private IReadOnlyList<byte>? skySamples;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<byte> SkySamples
+    {
+        get => skySamples ?? Sky;
+        set => skySamples = value;
+    }
 
     [System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyList<byte> VegetationSamples
@@ -29,4 +37,5 @@ public sealed class SemanticMap
     }
     public byte[] Vegetation { get; set; } = [];
     public byte[] Rock { get; set; } = [];
+    public byte[] Sky { get; set; } = [];
 }

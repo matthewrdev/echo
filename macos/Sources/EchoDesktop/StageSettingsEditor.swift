@@ -123,6 +123,10 @@ struct StageSettingsEditor: View {
                 IntegerSettingSlider(
                     title: "Refinement samples per level", value: $settings.depthRefinementSamples, range: 3...128)
                 IntegerSettingSlider(title: "Stereo neighbours", value: $settings.depthNeighbours, range: 1...32)
+                Toggle("Exclude sky from depth", isOn: $settings.depthSuppressSky)
+                Text(
+                    "Removes confidently classified sky, including clouds, from saved depth maps. Uncertain skyline boundaries are preserved. Uses the local scene classifier, downloaded once (228 MB); photographs stay on this computer."
+                ).font(.caption).foregroundStyle(.secondary)
                 Toggle("Recover missing cliff detail", isOn: $settings.recoverCliffDepth)
                 Text(
                     "Searches small rock gaps using finer source photographs and additional views. Requires two independent depth confirmations; existing samples stay fixed. The first semantic pass downloads a 228 MB model, then runs locally."

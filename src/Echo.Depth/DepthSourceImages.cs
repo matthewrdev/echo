@@ -20,7 +20,7 @@ internal sealed class DepthSourceImages : IDisposable
         levelBuffers = new List<float[]>(imageCount);
     }
 
-    public GrayscaleImage ReadLevel(Photo photo, int width)
+    public GrayscaleImage ReadLevel(Photo photo, int width, bool filter = false, CancellationToken cancellation = default)
     {
         if (!sources.TryGetValue(photo.Id, out var source))
         {
@@ -33,7 +33,12 @@ internal sealed class DepthSourceImages : IDisposable
         var size = images.ResizeDimensions(source.Width, source.Height, width);
         var pixels = ArrayPool<float>.Shared.Rent(checked(size.Width * size.Height));
         levelBuffers.Add(pixels);
-        return images.ResizeGray(source, width, pixels);
+        var gray = images.ResizeGray(source, width, pixels);
+        if (filter)
+        {
+            StereoImageFilter.Apply(pixels.AsSpan(0, gray.Width * gray.Height), gray.Width, gray.Height, cancellation);
+        }
+        return gray;
     }
 
     public void ReleaseLevel()

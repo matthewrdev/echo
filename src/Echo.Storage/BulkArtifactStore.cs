@@ -55,7 +55,7 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
                 Resolution = volume.Resolution,
                 Samples = volume.Samples.ToList()
             },
-            SemanticMap semantic => new SemanticMap { ImageId = semantic.ImageId, Width = semantic.Width, Height = semantic.Height, Vegetation = semantic.VegetationSamples.ToArray(), Rock = semantic.RockSamples.ToArray() },
+            SemanticMap semantic => new SemanticMap { ImageId = semantic.ImageId, Width = semantic.Width, Height = semantic.Height, Vegetation = semantic.VegetationSamples.ToArray(), Rock = semantic.RockSamples.ToArray(), Sky = semantic.SkySamples.ToArray() },
             TextureCoordinates coordinates => new TextureCoordinates { Values = coordinates.Values.ToArray() },
             Surface surface => new Surface
             {
@@ -145,6 +145,10 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
                     header.Height = semantic.Height;
                     Save("vegetation", semantic.VegetationSamples, new ByteRecordCodec());
                     Save("rock", semantic.RockSamples, new ByteRecordCodec());
+                    if (semantic.SkySamples.Count > 0)
+                    {
+                        Save("sky", semantic.SkySamples, new ByteRecordCodec());
+                    }
                     break;
                 case TextureCoordinates coordinates:
                     header.Kind = "uvs";

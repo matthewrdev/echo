@@ -113,7 +113,9 @@ public sealed class DepthEstimator : IDepthEstimator
         Action<ProcessingExecution>? execution)
     {
         var preparationStart = Stopwatch.GetTimestamp();
-        var reference = sources.ReadLevel(photo, levelWidth);
+        var patchSpacing = Math.Min(photo.Width, levelWidth) >= 1280 ? 2 : 1;
+        var margin = 2 * patchSpacing + 1;
+        var reference = sources.ReadLevel(photo, levelWidth, patchSpacing > 1, cancellation);
         var gray = reference.Pixels;
         var width = reference.Width;
         var height = reference.Height;
@@ -129,15 +131,15 @@ public sealed class DepthEstimator : IDepthEstimator
         var far = range.Far;
         var focal = CameraGeometry.Focal(photo, camera) * width / photo.Width;
         var centre = new V3(camera.Centre);
-        var patchRight = CameraGeometry.Rotate(camera.Rotation, new V3(1 / focal, 0, 0));
-        var patchDown = CameraGeometry.Rotate(camera.Rotation, new V3(0, 1 / focal, 0));
+        var patchRight = CameraGeometry.Rotate(camera.Rotation, new V3(patchSpacing / focal, 0, 0));
+        var patchDown = CameraGeometry.Rotate(camera.Rotation, new V3(0, patchSpacing / focal, 0));
         var views = new StereoView[neighbours.Length];
         for (var index = 0; index < neighbours.Length; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             var other = neighbours[index].Camera;
             var otherPhoto = neighbours[index].Photo;
-            var resized = sources.ReadLevel(otherPhoto, levelWidth);
+            var resized = sources.ReadLevel(otherPhoto, levelWidth, patchSpacing > 1, cancellation);
             var inverse = neighbours[index].WorldToCamera;
             views[index] = new StereoView
             {
@@ -171,7 +173,7 @@ public sealed class DepthEstimator : IDepthEstimator
         var sampleCount = planeDepths.Length + (prior == null ? 0 : project.Settings.DepthRefinementSamples);
         var description = $"{levelLabel}, {operation}, {views.Length} neighbours, up to {sampleCount} samples/pixel";
         progress?.Invoke(description);
-        var levelProgress = new DepthLevelProgress(progress, description, height - 6);
+        var levelProgress = new DepthLevelProgress(progress, description, height - 2 * margin);
         using var acceleration = OpenAcceleration(project.Settings.DepthBackend, views, cancellation);
         if (acceleration.Failure != null)
         {
@@ -185,14 +187,14 @@ public sealed class DepthEstimator : IDepthEstimator
         long cpuSearches = 0;
         long validatedSearches = 0;
         var validate = project.Settings.DepthBackend == "metal-validated";
-        Parallel.For(3, height - 3, options,
+        Parallel.For(margin, height - margin, options,
             () => new DepthRowScratch(project.Settings.DepthRefinementSamples, Math.Max(planeDepths.Length, project.Settings.DepthRefinementSamples)),
             (y, _, scratch) =>
         {
             cancellation.ThrowIfCancellationRequested();
             if (acceleration.Session != null)
             {
-                SearchAcceleratedRow(y, gray, width, height, focal, camera, centre, views, prior, near, far,
+                SearchAcceleratedRow(y, gray, width, height, patchSpacing, focal, camera, centre, views, prior, near, far,
                     planeDepths, scratch, result, acceleration, validate, cancellation);
                 levelProgress.CompleteRow();
                 return scratch;
@@ -201,10 +203,10 @@ public sealed class DepthEstimator : IDepthEstimator
             var hypothesisBuffer = scratch.Hypotheses;
             var costBuffer = scratch.Costs;
             var rayY = (y - height * .5) / focal;
-            for (var x = 3; x < width - 3; x++)
+            for (var x = margin; x < width - margin; x++)
             {
                 cancellation.ThrowIfCancellationRequested();
-                var norm = NormalizePatch(gray, width, x, y, patch);
+                var norm = NormalizePatch(gray, width, x, y, patch, patchSpacing);
                 if (norm < .0008)
                 {
                     continue;
@@ -400,7 +402,7 @@ public sealed class DepthEstimator : IDepthEstimator
         }
     }
 
-    private void SearchAcceleratedRow(int y, float[] gray, int width, int height, double focal,
+    private void SearchAcceleratedRow(int y, float[] gray, int width, int height, int patchSpacing, double focal,
         CameraPose camera, V3 centre, StereoView[] views, DepthMap? prior, double near, double far,
         double[] planeDepths, DepthRowScratch scratch, DepthMap result, DepthAccelerationState acceleration,
         bool validate, CancellationToken cancellation)
@@ -409,10 +411,11 @@ public sealed class DepthEstimator : IDepthEstimator
         var global = new List<DepthSearchSample>();
         Span<double> patch = stackalloc double[25];
         var rayY = (y - height * .5) / focal;
-        for (var x = 3; x < width - 3; x++)
+        var margin = 2 * patchSpacing + 1;
+        for (var x = margin; x < width - margin; x++)
         {
             cancellation.ThrowIfCancellationRequested();
-            var norm = NormalizePatch(gray, width, x, y, patch);
+            var norm = NormalizePatch(gray, width, x, y, patch, patchSpacing);
             if (norm < .0008)
             {
                 continue;
@@ -600,16 +603,16 @@ public sealed class DepthEstimator : IDepthEstimator
         return hypotheses.Length;
     }
 
-    internal double NormalizePatch(float[] gray, int width, int x, int y, Span<double> patch)
+    internal double NormalizePatch(float[] gray, int width, int x, int y, Span<double> patch, int spacing = 1)
     {
         var n = 0;
         double mean = 0;
         for (var dy = -2; dy <= 2; dy++)
         {
-            var row = gray.AsSpan((y + dy) * width + x - 2, 5);
-            for (var dx = 0; dx < row.Length; dx++)
+            var row = (y + dy * spacing) * width;
+            for (var dx = -2; dx <= 2; dx++)
             {
-                patch[n] = row[dx];
+                patch[n] = gray[row + x + dx * spacing];
                 mean += patch[n++];
             }
         }

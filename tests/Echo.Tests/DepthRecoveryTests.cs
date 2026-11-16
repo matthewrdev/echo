@@ -24,6 +24,7 @@ public sealed class DepthRecoveryTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Wide high-resolution stereo patches retain the known plane without inventing blank-image depth", VerifyWidePatches);
         tests.Run("Depth recovers fine stereo texture after an empty coarse level without filling blank pixels", () =>
         {
             var store = stores.Open(Path.Combine(Path.GetTempPath(), "echo-depth-recovery-" + Guid.NewGuid().ToString("N")));
@@ -103,6 +104,66 @@ public sealed class DepthRecoveryTests
                 Directory.Delete(store.Root, true);
             }
         });
+    }
+
+    private void VerifyWidePatches()
+    {
+        var store = stores.Open(Path.Combine(Path.GetTempPath(), "echo-wide-depth-" + Guid.NewGuid().ToString("N")));
+        store.Init();
+        try
+        {
+            var project = new ProjectData
+            {
+                Settings = new Settings { DepthWidth = 1280, DepthPlanes = 97, DepthRefinementSamples = 18, DepthNeighbours = 2, DepthBackend = "cpu", DepthRangeAutomatic = false, DepthNear = 8, DepthFar = 12 }
+            };
+            var scene = new ReconstructionScene();
+            using var texture = new SKBitmap(1280, 64);
+            var random = new Random(158);
+            for (var y = 0; y < texture.Height; y++)
+            {
+                for (var x = 0; x < texture.Width; x++)
+                {
+                    SetGray(texture, x, y, random.Next(20, 235));
+                }
+            }
+            foreach (var shift in new[] { 0, -12, 12 })
+            {
+                var id = "wide" + shift;
+                using var bitmap = new SKBitmap(texture.Width, texture.Height);
+                for (var y = 0; y < bitmap.Height; y++)
+                {
+                    for (var x = 0; x < bitmap.Width; x++)
+                    {
+                        bitmap.SetPixel(x, y, texture.GetPixel(Math.Clamp(x + shift, 0, texture.Width - 1), y));
+                    }
+                }
+                images.Save(bitmap, store.PathFor(id + ".png"), SKEncodedImageFormat.Png);
+                project.Images.Add(new Photo { Id = id, Source = id + ".png", Width = 1280, Height = 64, FocalPixels = 960 });
+                scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [shift / 96.0, 0, 0] });
+            }
+            var map = estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2);
+            var depths = Enumerable.Range(12, 40).SelectMany(y => Enumerable.Range(32, 1216).Select(x => map.Depth[y * map.Width + x])).Where(depth => depth > 0).ToArray();
+            Check(depths.Length > 44000, "The widened footprint should retain most visible planar texture");
+            Check(depths.Count(depth => Math.Abs(depth - 10) > .15) < depths.Length / 100, "Additional coverage must retain known geometric accuracy");
+            if (Environment.GetEnvironmentVariable("ECHO_TEST_METAL") == "1")
+            {
+                project.Settings.DepthBackend = "metal-validated";
+                var executions = new List<ProcessingExecution>();
+                var accelerated = estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2, execution: executions.Add);
+                Check(executions.Any(item => item.LevelWidth == 1280 && item.AcceleratedSearches > 0), "Exercise the wider patch basis on native Metal");
+                Check(map.Depth.AsSpan().SequenceEqual(accelerated.Depth) && map.Confidence.AsSpan().SequenceEqual(accelerated.Confidence), "Validated Metal and CPU retain identical widened-patch geometry");
+            }
+            texture.Erase(new SKColor(127, 127, 127));
+            foreach (var photo in project.Images)
+            {
+                images.Save(texture, store.PathFor(photo.Source), SKEncodedImageFormat.Png);
+            }
+            Check(estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2).Depth.All(depth => depth == 0), "Smoothing cannot fabricate depth for flat inputs");
+        }
+        finally
+        {
+            Directory.Delete(store.Root, true);
+        }
     }
 
     private void SetGray(SKBitmap bitmap, int x, int y, int value)

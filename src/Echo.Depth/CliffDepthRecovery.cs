@@ -88,6 +88,10 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
                 cancellation.ThrowIfCancellationRequested();
                 var offset = y * source.Width + x;
                 var missing = !float.IsFinite(source.DepthAt(offset)) || source.DepthAt(offset) <= 0;
+                if (project.Settings.DepthSuppressSky && DepthSkyFilter.IsSky(semantics, (x + .5) / source.Width, (y + .5) / source.Height))
+                {
+                    continue;
+                }
                 if (!missing || SemanticProbabilities.ConservativeSample(semantics, semantics.RockSamples,
                     (double)x / source.Width, (double)y / source.Height) < .6)
                 {

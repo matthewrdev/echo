@@ -43,6 +43,11 @@ public sealed class PagingSerializationTests
             artifacts.Write(semanticPath, new SemanticMap { Width = 3, Height = 1, Vegetation = [0, 128, 255], Rock = [255, 1, 0] });
             var semantics = session.Read<SemanticMap>(semanticPath);
             Check(semantics.VegetationSamples.SequenceEqual(new byte[] { 0, 128, 255 }) && semantics.RockSamples.SequenceEqual(new byte[] { 255, 1, 0 }), "Semantic probabilities changed");
+            Check(semantics.SkySamples.Count == 0, "Legacy semantic artifacts without sky remain readable");
+            var skyPath = Path.Combine(directory, "sky-semantics.json");
+            artifacts.Write(skyPath, new SemanticMap { Width = 3, Height = 1, Vegetation = [0, 128, 255], Rock = [255, 1, 0], Sky = [0, 90, 255] });
+            Check(session.Read<SemanticMap>(skyPath).SkySamples.SequenceEqual(new byte[] { 0, 90, 255 }), "Paged sky probabilities survive serialization");
+            Check(artifacts.Read<SemanticMap>(skyPath).Sky.SequenceEqual(new byte[] { 0, 90, 255 }), "Materialized sky probabilities survive serialization");
         }));
         tests.Run("Binary UV records preserve precision and reject truncated buffers", () => InDirectory(directory =>
         {

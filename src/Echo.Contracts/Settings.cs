@@ -9,6 +9,7 @@ public sealed class Settings
     public double VegetationMeshToleranceMultiplier { get; set; } = 2.5;
     public double VegetationTextureScale { get; set; } = .65;
     public bool RecoverCliffDepth { get; set; } = false;
+    public bool DepthSuppressSky { get; set; } = true;
     public bool ScaleInvariantFeatures { get; set; } = true;
     public bool GuidedAlignmentPass { get; set; } = true;
     public bool DetectLines { get; set; } = true;

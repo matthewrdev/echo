@@ -8,6 +8,7 @@ struct ProcessingSettings: Codable {
     var vegetationMeshToleranceMultiplier: Double = 2.5
     var vegetationTextureScale: Double = 0.65
     var recoverCliffDepth: Bool = false
+    var depthSuppressSky: Bool = true
     var scaleInvariantFeatures: Bool = true
     var guidedAlignmentPass: Bool = true
     var detectLines: Bool = true
@@ -74,6 +75,7 @@ struct ProcessingSettings: Codable {
             try values.decodeIfPresent(Double.self, forKey: .vegetationMeshToleranceMultiplier) ?? 2.5
         vegetationTextureScale = try values.decodeIfPresent(Double.self, forKey: .vegetationTextureScale) ?? 0.65
         recoverCliffDepth = try values.decodeIfPresent(Bool.self, forKey: .recoverCliffDepth) ?? false
+        depthSuppressSky = try values.decodeIfPresent(Bool.self, forKey: .depthSuppressSky) ?? true
         scaleInvariantFeatures = try values.decodeIfPresent(Bool.self, forKey: .scaleInvariantFeatures) ?? true
         guidedAlignmentPass = try values.decodeIfPresent(Bool.self, forKey: .guidedAlignmentPass) ?? true
         detectLines = try values.decodeIfPresent(Bool.self, forKey: .detectLines) ?? true
@@ -142,6 +144,7 @@ struct ProcessingSettings: Codable {
         try values.encode(vegetationMeshToleranceMultiplier, forKey: .vegetationMeshToleranceMultiplier)
         try values.encode(vegetationTextureScale, forKey: .vegetationTextureScale)
         try values.encode(recoverCliffDepth, forKey: .recoverCliffDepth)
+        try values.encode(depthSuppressSky, forKey: .depthSuppressSky)
         try values.encode(scaleInvariantFeatures, forKey: .scaleInvariantFeatures)
         try values.encode(guidedAlignmentPass, forKey: .guidedAlignmentPass)
         try values.encode(detectLines, forKey: .detectLines)
