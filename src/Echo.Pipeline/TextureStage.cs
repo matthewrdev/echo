@@ -1,3 +1,4 @@
+using Echo.Compute;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -38,7 +39,7 @@ public sealed class TextureStage : IPipelineStage
             project.Settings.TextureSize,
             textureVersion = 16,
             project.Settings.ComputeBackend,
-            context.ComputeImplementation,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Texture),
             project.Settings.VegetationTextureScale,
             project.Settings.TextureJpegQuality,
             project.Settings.TextureChartFaces,

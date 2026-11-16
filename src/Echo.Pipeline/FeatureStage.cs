@@ -1,3 +1,4 @@
+using Echo.Compute;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Features;
@@ -77,7 +78,7 @@ public sealed class FeatureStage : IPipelineStage
             image.SourceHash,
             detectorVersion = 7,
             settings.ComputeBackend,
-            context.ComputeImplementation,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Features),
             settings.ScaleInvariantFeatures,
             settings.DetectLines,
             settings.LineLimit,

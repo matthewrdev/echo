@@ -31,7 +31,7 @@ internal static class SurfaceEvidenceCompute
             session.Upload<float>(2, triangles.AsSpan(0, count * 12));
             session.Allocate(3, count * sizeof(int));
             session.Upload<float>(4, [(float)tolerance]);
-            session.Dispatch("surface_visibility", count, [views]);
+            session.Dispatch(ComputeKernel.SurfaceVisibility, count, [views]);
             session.Read<int>(3, values.AsSpan(0, count));
             for (var i = 0; i < count; i++)
             {

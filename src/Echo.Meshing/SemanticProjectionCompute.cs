@@ -81,7 +81,7 @@ internal static class SemanticProjectionCompute
             var result = new float[checked(count * views * 4)];
             session.Upload<float>(2, points.AsSpan(0, count * 8));
             session.Allocate(3, checked(result.Length * sizeof(float)));
-            session.Dispatch("semantic_project", count * views, [views, surface.Faces.Count]);
+            session.Dispatch(ComputeKernel.SemanticProject, count * views, [views, surface.Faces.Count]);
             session.Read<float>(3, result);
             return result;
         }

@@ -89,7 +89,7 @@ public sealed class ComputeTests
                 session.Upload<float>(1, new float[128 * 128]);
                 session.Upload<float>(2, new float[128 * 128]);
                 session.Allocate(3, 128 * 128 * 4);
-                session.Dispatch("depth_filter", 128 * 128, [128, 128]);
+                session.Dispatch(ComputeKernel.DepthFilter, 128 * 128, [128, 128]);
                 session.Read<int>(3, new int[128 * 128]);
             }
             Check(outer.Devices.Length == 1, "Artifact scope did not record GPU work");

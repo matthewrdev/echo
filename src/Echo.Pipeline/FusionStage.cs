@@ -1,3 +1,4 @@
+using Echo.Compute;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.DenseCloud;
@@ -47,7 +48,7 @@ public sealed class FusionStage : IPipelineStage
             maximumGridSamples = context.Paged ? 0 : resources.MaximumGridSamples,
             fusionVersion = 8,
             project.Settings.ComputeBackend,
-            context.ComputeImplementation,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Fusion),
             project.Settings.CloudDepthTolerance,
             project.Settings.FusionDetailMultiplier,
             project.Settings.FusionVoxelSize,

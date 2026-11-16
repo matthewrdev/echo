@@ -5,7 +5,7 @@ public sealed class ComputeScope : IDisposable
     private readonly Action restore;
     private readonly ComputeScope? parent;
     private readonly object gate = new();
-    private readonly HashSet<string> devices = new(StringComparer.Ordinal);
+    private readonly HashSet<ComputeExecution> executions = [];
     private bool disposed;
 
     internal ComputeScope(long memoryBudgetBytes, ComputeScope? parent, Action restore)
@@ -20,24 +20,26 @@ public sealed class ComputeScope : IDisposable
         get;
     }
 
-    public string[] Devices
+    public string[] Devices => Executions.Select(execution => execution.Device).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+
+    public ComputeExecution[] Executions
     {
         get
         {
             lock (gate)
             {
-                return devices.Order(StringComparer.Ordinal).ToArray();
+                return executions.OrderBy(execution => execution.Operation).ThenBy(execution => execution.Device, StringComparer.Ordinal).ToArray();
             }
         }
     }
 
-    internal void Record(string device)
+    internal void Record(ComputeExecution execution)
     {
         lock (gate)
         {
-            devices.Add(device);
+            executions.Add(execution);
         }
-        parent?.Record(device);
+        parent?.Record(execution);
     }
 
     public void Dispose()

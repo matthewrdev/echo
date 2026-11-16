@@ -1,3 +1,4 @@
+using Echo.Compute;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.DenseCloud;
@@ -35,7 +36,7 @@ public sealed class DenseCloudStage : IPipelineStage
             alignment,
             cloudVersion = 4,
             settings.ComputeBackend,
-            context.ComputeImplementation,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Cloud),
             settings.CloudNeighbours,
             settings.CloudMinimumSupport,
             settings.CloudDepthTolerance,

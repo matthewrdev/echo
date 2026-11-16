@@ -48,7 +48,7 @@ internal static class SeamDiffusionCompute
             for (var pass = 0; pass < 32; pass++)
             {
                 cancellation.ThrowIfCancellationRequested();
-                session.Dispatch("seam_diffuse", local.Length, [pass % 2]);
+                session.Dispatch(ComputeKernel.SeamDiffuse, local.Length, [pass % 2]);
             }
             session.Read<float>(2, values.AsSpan(0, local.Length * 4));
             var result = new V3[local.Length];

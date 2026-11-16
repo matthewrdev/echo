@@ -11,6 +11,6 @@ public interface IComputeSession : IDisposable
     void Upload<T>(int slot, ReadOnlySpan<T> values) where T : unmanaged;
     void UploadRange<T>(int slot, int elementOffset, ReadOnlySpan<T> values) where T : unmanaged;
     void Allocate(int slot, int byteCount);
-    void Dispatch(string kernel, int count, ReadOnlySpan<int> parameters);
+    void Dispatch(ComputeKernel kernel, int count, ReadOnlySpan<int> parameters);
     void Read<T>(int slot, Span<T> destination) where T : unmanaged;
 }

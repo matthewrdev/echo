@@ -61,8 +61,8 @@ internal static class EpipolarCompute
         session.Allocate(2, checked(count * matches * sizeof(int)));
         session.Allocate(3, count * sizeof(int));
         Span<int> parameters = stackalloc int[] { matches, count, BitConverter.SingleToInt32Bits((float)threshold) };
-        session.Dispatch("epipolar_candidates", checked(count * matches), parameters);
-        session.Dispatch("epipolar_counts", count * 256, parameters);
+        session.Dispatch(ComputeKernel.EpipolarCandidates, checked(count * matches), parameters);
+        session.Dispatch(ComputeKernel.EpipolarCounts, count * 256, parameters);
         session.Read<int>(3, result[..count]);
     }
 }

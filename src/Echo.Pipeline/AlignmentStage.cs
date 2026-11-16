@@ -1,3 +1,4 @@
+using Echo.Compute;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -44,7 +45,7 @@ public sealed class AlignmentStage : IPipelineStage
         {
             algorithmVersion = 5,
             project.Settings.ComputeBackend,
-            context.ComputeImplementation,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
             pairUnits,
             cameras = context.Images,
             project.Settings.BundleIterations,
@@ -61,7 +62,7 @@ public sealed class AlignmentStage : IPipelineStage
         {
             algorithmVersion = 5,
             project.Settings.ComputeBackend,
-            context.ComputeImplementation,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
             initial,
             recoveryUnits,
             project.Settings.GuidedAlignmentPass,
@@ -136,7 +137,7 @@ public sealed class AlignmentStage : IPipelineStage
             {
                 algorithmVersion = 2,
                 settings.ComputeBackend,
-                context.ComputeImplementation,
+                computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
                 initialPair = pairUnits[index],
                 left = features[pair.A],
                 right = features[pair.B],

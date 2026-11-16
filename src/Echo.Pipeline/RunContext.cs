@@ -43,7 +43,6 @@ public sealed class RunContext : IDisposable
         ProcessingTelemetryTracker telemetry, IComputeService? compute = null)
     {
         this.compute = compute;
-        ComputeImplementation = run.Snapshot.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : compute?.Implementation ?? "cpu";
         Store = store;
         Run = run;
         Cancellation = cancellation;
@@ -72,10 +71,8 @@ public sealed class RunContext : IDisposable
         sequence = File.Exists(eventPath) ? File.ReadLines(eventPath).LongCount() : 0;
     }
 
-    public string ComputeImplementation
-    {
-        get;
-    }
+    public string ComputeImplementation(ComputeOperation operation) =>
+        Run.Snapshot.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : compute?.GetImplementation(operation) ?? "cpu";
 
     public IProjectStore Store
     {
@@ -231,9 +228,27 @@ public sealed class RunContext : IDisposable
             RequestedBackend = Run.Snapshot.Settings.ComputeBackend.ToString().ToLowerInvariant(),
             ActualBackend = accelerated ? "cpu+metal" : "cpu",
             Device = accelerated ? string.Join("; ", devices) : null,
-            Implementation = accelerated ? ComputeImplementation : "Echo managed processing",
-            Precision = accelerated ? "float32 compute; stage-defined CPU" : "stage-defined"
+            Implementation = accelerated ? string.Join("; ", scope!.Executions.Select(execution => execution.Implementation).Distinct(StringComparer.Ordinal)) : "Echo managed processing",
+            Precision = accelerated ? "see operation executions; stage-defined CPU" : "stage-defined"
         };
+    }
+
+    private List<ProcessingExecution> DescribeExecutions(string component, ComputeScope? scope)
+    {
+        var result = new List<ProcessingExecution> { DescribeCompute(component, scope) };
+        foreach (var execution in scope?.Executions ?? [])
+        {
+            result.Add(new ProcessingExecution
+            {
+                Component = component + "." + execution.Operation.ToString().ToLowerInvariant(),
+                RequestedBackend = Run.Snapshot.Settings.ComputeBackend.ToString().ToLowerInvariant(),
+                ActualBackend = execution.Backend.ToString().ToLowerInvariant(),
+                Device = execution.Device,
+                Implementation = execution.Implementation,
+                Precision = execution.Precision == ComputePrecision.IntegerExact ? "integer-exact" : "float32"
+            });
+        }
+        return result;
     }
 
     public string Build(string stage, object inputs, Action<string> action, Func<ProcessingMetadata>? metadata = null,
@@ -272,7 +287,7 @@ public sealed class RunContext : IDisposable
             metadata = () => new ProcessingMetadata
             {
                 SourceArtifacts = ProcessingArtifactReferences.Find(inputs, jsonCodec.Options),
-                Executions = [DescribeCompute(stage, computeScope)]
+                Executions = DescribeExecutions(stage, computeScope)
             };
         }
         else
@@ -283,7 +298,7 @@ public sealed class RunContext : IDisposable
                 var result = sourceMetadata();
                 if (computeScope?.Devices.Length > 0)
                 {
-                    result.Executions.Add(DescribeCompute(stage + ".compute", computeScope));
+                    result.Executions.AddRange(DescribeExecutions(stage + ".compute", computeScope));
                 }
                 return result;
             };

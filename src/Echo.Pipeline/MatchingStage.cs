@@ -93,7 +93,7 @@ public sealed class MatchingStage : IPipelineStage
             hints,
             matcherVersion = 6,
             project.Settings.ComputeBackend,
-            context.ComputeImplementation,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Matching),
             project.Settings.MatchRatioThreshold,
             project.Settings.MatchDistanceThreshold
         }, directory =>

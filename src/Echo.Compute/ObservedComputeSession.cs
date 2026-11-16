@@ -3,9 +3,9 @@ namespace Echo.Compute;
 internal sealed class ObservedComputeSession : IComputeSession
 {
     private readonly IComputeSession session;
-    private readonly Action record;
+    private readonly Action<ComputeKernel> record;
 
-    public ObservedComputeSession(IComputeSession session, Action record)
+    public ObservedComputeSession(IComputeSession session, Action<ComputeKernel> record)
     {
         this.session = session;
         this.record = record;
@@ -17,10 +17,10 @@ internal sealed class ObservedComputeSession : IComputeSession
     public void Allocate(int slot, int byteCount) => session.Allocate(slot, byteCount);
     public void Read<T>(int slot, Span<T> destination) where T : unmanaged => session.Read(slot, destination);
 
-    public void Dispatch(string kernel, int count, ReadOnlySpan<int> parameters)
+    public void Dispatch(ComputeKernel kernel, int count, ReadOnlySpan<int> parameters)
     {
         session.Dispatch(kernel, count, parameters);
-        record();
+        record(kernel);
     }
 
     public void Dispose() => session.Dispose();

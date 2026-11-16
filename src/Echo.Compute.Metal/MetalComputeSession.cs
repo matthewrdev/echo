@@ -47,12 +47,12 @@ internal sealed unsafe class MetalComputeSession : IComputeSession
         Verify(MetalComputeNative.Buffer(handle, slot, null, byteCount, error, error.Capacity));
     }
 
-    public void Dispatch(string kernel, int count, ReadOnlySpan<int> parameters)
+    public void Dispatch(ComputeKernel kernel, int count, ReadOnlySpan<int> parameters)
     {
         Check();
         fixed (int* pointer = parameters)
         {
-            Verify(MetalComputeNative.Dispatch(handle, kernel, count, pointer, parameters.Length, error, error.Capacity));
+            Verify(MetalComputeNative.Dispatch(handle, MetalComputeKernel.Name(kernel), count, pointer, parameters.Length, error, error.Capacity));
         }
     }
 

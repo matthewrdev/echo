@@ -117,7 +117,7 @@ internal sealed class TextureProjectionCompute
             session.Upload<int>(5, active.AsSpan(0, activeCount));
             if (activeCount > 0)
             {
-                session.Dispatch("texture_project", activeCount * 256, [size, width, height, swap ? 1 : 0]);
+                session.Dispatch(ComputeKernel.TextureProject, activeCount * 256, [size, width, height, swap ? 1 : 0]);
             }
             count = 0;
         }

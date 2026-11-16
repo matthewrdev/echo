@@ -59,7 +59,7 @@ public sealed class MeshStage : IPipelineStage
             alignment,
             completionVersion = 5,
             project.Settings.ComputeBackend,
-            context.ComputeImplementation,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Mesh),
             photographSelectionVersion = 2,
             vegetationVersion = 2,
             semanticsPath,

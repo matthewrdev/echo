@@ -2,9 +2,6 @@ namespace Echo.Compute;
 
 public interface IComputeDevice
 {
-    string Implementation
-    {
-        get;
-    }
+    string GetImplementation(ComputeOperation operation);
     IComputeSession? Open(CancellationToken cancellation, long memoryBudgetBytes);
 }

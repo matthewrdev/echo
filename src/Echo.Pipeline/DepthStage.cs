@@ -1,3 +1,4 @@
+using Echo.Compute;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
@@ -61,7 +62,7 @@ public sealed class DepthStage : IPipelineStage
                 alignment,
                 camera.ImageId,
                 project.Settings.ComputeBackend,
-                context.ComputeImplementation,
+                computeImplementation = context.ComputeImplementation(ComputeOperation.Depth),
                 project.Settings.DepthSuppressSky,
                 skySemantics = project.Settings.DepthSuppressSky ? context.Artifact("semantics") : null,
                 project.Settings.DepthWidth,

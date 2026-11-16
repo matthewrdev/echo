@@ -1,3 +1,4 @@
+using Echo.Compute;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -13,14 +14,16 @@ public sealed class ProcessingMetadataTests
     private readonly IRunContextFactory contexts;
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
+    private readonly IComputeService compute;
 
     [ImportingConstructor]
-    public ProcessingMetadataTests(IProjectStoreFactory stores, IRunContextFactory contexts, IJsonCodec json, IFileOperations files)
+    public ProcessingMetadataTests(IProjectStoreFactory stores, IRunContextFactory contexts, IJsonCodec json, IFileOperations files, IComputeService compute)
     {
         this.stores = stores;
         this.contexts = contexts;
         this.json = json;
         this.files = files;
+        this.compute = compute;
     }
 
     internal void Run(TestSuite tests)
@@ -78,6 +81,42 @@ public sealed class ProcessingMetadataTests
             catch (EchoException error) when (error.Message.StartsWith("Corrupt checkpoint", StringComparison.Ordinal))
             {
             }
+        }));
+        tests.Run("Packing-only Metal work is retained in nested checkpoint provenance", () => WithProject(store =>
+        {
+            using var context = Context(store, "cpu");
+            context.Start();
+            string? child = null;
+            var parent = context.Build("texture", new
+            {
+                fixture = "packing-metadata"
+            }, directory =>
+            {
+                child = context.Build("packing-fixture", new
+                {
+                    fixture = "integer"
+                }, childDirectory =>
+                {
+                    compute.RecordExecution(new ComputeExecution
+                    {
+                        Operation = ComputeOperation.TexturePacking,
+                        Backend = ComputeBackend.Metal,
+                        Precision = ComputePrecision.IntegerExact,
+                        Device = "Packing GPU",
+                        Implementation = "packing-test-version"
+                    });
+                    SaveData(childDirectory);
+                });
+                SaveData(directory);
+            });
+            foreach (var path in new[] { parent, child! })
+            {
+                var metadata = json.Read<ProcessingMetadata>(store.PathFor(path + "/processing.json"));
+                Check(metadata.Executions[0].ActualBackend == "cpu+metal", "Packing must prevent false CPU-only provenance");
+                var packing = metadata.Executions.Single(execution => execution.Component.EndsWith(".texturepacking", StringComparison.Ordinal));
+                Check(packing.Device == "Packing GPU" && packing.Implementation == "packing-test-version" && packing.Precision == "integer-exact", "Packing metadata was lost");
+            }
+            context.Complete();
         }));
         tests.Run("New CPU checkpoints always record provenance; older checkpoints remain explicitly unknown", () => WithProject(store =>
         {

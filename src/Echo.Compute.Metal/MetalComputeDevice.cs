@@ -1,5 +1,4 @@
 using System.ComponentModel.Composition;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace Echo.Compute.Metal;
@@ -8,7 +7,7 @@ namespace Echo.Compute.Metal;
 public sealed class MetalComputeDevice : IComputeDevice, IDisposable
 {
     private readonly SemaphoreSlim gate = new(1, 1);
-    private readonly string source;
+    private readonly MetalComputeLibrary library;
     private MetalComputeHandle? handle;
     private string device = "";
     private bool unavailable;
@@ -17,20 +16,17 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
     public MetalComputeDevice()
     {
         var assembly = typeof(MetalComputeDevice).Assembly;
-        source = string.Join("\n", assembly.GetManifestResourceNames().Where(name => name.EndsWith(".metal", StringComparison.Ordinal))
-            .Order(StringComparer.Ordinal).Select(name =>
+        var sources = assembly.GetManifestResourceNames().Where(name => name.EndsWith(".metal", StringComparison.Ordinal))
+            .ToDictionary(name => name[(name.LastIndexOf("Native.", StringComparison.Ordinal) + 7)..], name =>
             {
                 using var stream = assembly.GetManifestResourceStream(name)!;
                 using var reader = new StreamReader(stream);
                 return reader.ReadToEnd();
-            }));
-        Implementation = "echo-compute-metal-1;safe;" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
+            }, StringComparer.Ordinal);
+        library = new MetalComputeLibrary(sources);
     }
 
-    public string Implementation
-    {
-        get;
-    }
+    public string GetImplementation(ComputeOperation operation) => library.Implementation(operation);
 
     public IComputeSession? Open(CancellationToken cancellation, long memoryBudgetBytes)
     {
@@ -52,7 +48,7 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
                 IntPtr pointer;
                 try
                 {
-                    pointer = MetalComputeNative.Create(source, details, details.Capacity);
+                    pointer = MetalComputeNative.Create(library.Source, details, details.Capacity);
                 }
                 catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
                 {

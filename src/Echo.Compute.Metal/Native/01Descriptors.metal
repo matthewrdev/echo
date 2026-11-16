@@ -1,7 +1,3 @@
-#include <metal_stdlib>
-using namespace metal;
-#pragma clang fp contract(off)
-
 // Parameters: left count, right count, descriptor length, reverse, first left,
 // batch size. No distance matrix survives the current bounded row block.
 kernel void descriptor_pairs(device const float* left [[buffer(0)]], device const float* right [[buffer(1)]],

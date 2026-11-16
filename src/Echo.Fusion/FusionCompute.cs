@@ -25,7 +25,7 @@ internal static class FusionCompute
             session.Upload<float>(2, jobs.AsSpan(0, count * 4));
             session.Allocate(3, checked(count * 2 * sizeof(float)));
             session.Upload<float>(4, [(float)tolerance, (float)voxel]);
-            session.Dispatch("fusion_integrate", count, [viewCount]);
+            session.Dispatch(ComputeKernel.FusionIntegrate, count, [viewCount]);
             session.Read<float>(3, values.AsSpan(0, count * 2));
             var result = new List<VolumeSample>(count);
             for (var i = 0; i < count; i++)

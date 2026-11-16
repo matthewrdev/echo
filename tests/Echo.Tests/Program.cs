@@ -8,6 +8,7 @@ using var composition = new MefComposition(typeof(ReconstructionTests).Assembly,
 var scaleTests = new TestSuite();
 if (args.Contains("--compute", StringComparer.Ordinal))
 {
+    composition.Resolve<ComputeContractTests>().Run(scaleTests);
     composition.Resolve<ComputeTests>().Run(scaleTests, args.Contains("--require-metal", StringComparer.Ordinal));
     composition.Resolve<ComputePassTests>().Run(scaleTests);
     composition.Resolve<ComputeTextureTests>().Run(scaleTests);
@@ -95,6 +96,7 @@ composition.Resolve<FusionQualityTests>().Run(scaleTests);
 composition.Resolve<FusionSettingsTests>().Run(scaleTests);
 composition.Resolve<TextureParameterizationTests>().Run(scaleTests);
 composition.Resolve<TexturePackingTests>().Run(scaleTests);
+composition.Resolve<ComputeContractTests>().Run(scaleTests);
 composition.Resolve<ComputeTests>().Run(scaleTests, false);
 composition.Resolve<ComputePassTests>().Run(scaleTests);
 composition.Resolve<ComputeTextureTests>().Run(scaleTests);

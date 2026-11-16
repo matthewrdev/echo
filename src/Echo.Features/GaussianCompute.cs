@@ -23,8 +23,8 @@ internal static class GaussianCompute
         session.Allocate(1, checked(width * height * sizeof(float)));
         session.Allocate(2, checked(width * height * sizeof(float)));
         session.Upload<float>(3, weights);
-        session.Dispatch("gaussian_horizontal", width * height, [width, height, radius]);
-        session.Dispatch("gaussian_vertical", width * height, [width, height, radius]);
+        session.Dispatch(ComputeKernel.GaussianHorizontal, width * height, [width, height, radius]);
+        session.Dispatch(ComputeKernel.GaussianVertical, width * height, [width, height, radius]);
         session.Read<float>(2, destination);
     }
 }

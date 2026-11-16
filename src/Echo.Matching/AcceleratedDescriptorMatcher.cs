@@ -74,9 +74,9 @@ internal static class AcceleratedDescriptorMatcher
                 var count = Math.Min(rows, left.Length - first);
                 parameters[4] = first;
                 parameters[5] = count;
-                session.Dispatch("descriptor_pairs", checked(count * right.Length), parameters);
-                session.Dispatch("descriptor_left", count, parameters);
-                session.Dispatch("descriptor_right", right.Length, parameters);
+                session.Dispatch(ComputeKernel.DescriptorPairs, checked(count * right.Length), parameters);
+                session.Dispatch(ComputeKernel.DescriptorLeft, count, parameters);
+                session.Dispatch(ComputeKernel.DescriptorRight, right.Length, parameters);
             }
             var leftBest = minima.AsSpan(0, left.Length * 4);
             var rightBest = minima.AsSpan(leftBest.Length, right.Length * 2);

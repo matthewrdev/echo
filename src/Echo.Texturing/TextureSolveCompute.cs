@@ -47,7 +47,7 @@ internal static class TextureSolveCompute
             session.Upload<float>(3, state.AsSpan(0, initial.Length * 4));
             session.Upload<float>(4, constraints.AsSpan(0, initial.Length * 2));
             session.Allocate(5, initial.Length * sizeof(float));
-            session.Dispatch("uv_warm_start", 256, [initial.Length]);
+            session.Dispatch(ComputeKernel.UvWarmStart, 256, [initial.Length]);
             session.Read<float>(3, state.AsSpan(0, initial.Length * 4));
             var result = new double[initial.Length];
             for (var i = 0; i < result.Length; i++)

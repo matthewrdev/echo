@@ -27,7 +27,7 @@ internal static class TexturePaddingCompute
             }
             session.Upload<SKColor>(0, pixels);
             session.Allocate(1, checked(pixels.Length * sizeof(uint)));
-            session.Dispatch("texture_padding", pixels.Length, [size, gutter]);
+            session.Dispatch(ComputeKernel.TexturePadding, pixels.Length, [size, gutter]);
             session.Read<SKColor>(1, pixels);
             return true;
         }

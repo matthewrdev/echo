@@ -15,7 +15,7 @@ public sealed class ComputeService : IComputeService
         this.devices = devices.ToArray();
     }
 
-    public string Implementation => string.Join(";", devices.Select(device => device.Implementation));
+    public string GetImplementation(ComputeOperation operation) => string.Join(";", devices.Select(device => device.GetImplementation(operation)));
 
     public long MemoryBudgetBytes => scope.Value?.MemoryBudgetBytes ?? 512L * 1024 * 1024;
 
@@ -35,6 +35,8 @@ public sealed class ComputeService : IComputeService
         }
         return false;
     }
+
+    public void RecordExecution(ComputeExecution execution) => scope.Value?.Record(execution);
 
     public ComputeScope BeginScope(long memoryBudgetBytes)
     {
@@ -62,7 +64,24 @@ public sealed class ComputeService : IComputeService
                 var session = device.Open(cancellation, MemoryBudgetBytes);
                 if (session != null)
                 {
-                    return new ObservedComputeSession(session, () => scope.Value?.Record(session.Device));
+                    var executions = new Dictionary<ComputeOperation, ComputeExecution>();
+                    return new ObservedComputeSession(session, kernel =>
+                    {
+                        var operation = ComputeKernelOperation.For(kernel);
+                        if (!executions.TryGetValue(operation, out var execution))
+                        {
+                            execution = new ComputeExecution
+                            {
+                                Operation = operation,
+                                Backend = ComputeBackend.Metal,
+                                Precision = ComputePrecision.Float32,
+                                Device = session.Device,
+                                Implementation = device.GetImplementation(operation)
+                            };
+                            executions.Add(operation, execution);
+                        }
+                        RecordExecution(execution);
+                    });
                 }
             }
             catch (ComputeException) when (backend == ComputeBackend.Auto)

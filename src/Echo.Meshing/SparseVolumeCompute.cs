@@ -86,7 +86,7 @@ internal static class SparseVolumeCompute
             }
             session.Upload<int>(2, jobs.AsSpan(0, keys.Length * 4));
             session.Allocate(3, values.Length * sizeof(float));
-            session.Dispatch("volume_corners", keys.Length, [mask]);
+            session.Dispatch(ComputeKernel.VolumeCorners, keys.Length, [mask]);
             session.Read<float>(3, values);
         }
         finally

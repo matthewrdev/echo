@@ -20,7 +20,7 @@ internal static class CloudSupportCompute
             session.Upload<float>(2, [(float)settings.CloudDepthTolerance, (float)settings.CloudReprojectionTolerancePixels, (float)(sine * sine)]);
             var support = new int[reference.Map.SampleCount];
             session.Allocate(3, checked(support.Length * sizeof(int)));
-            session.Dispatch("cloud_support", support.Length, [neighbours.Length + 1]);
+            session.Dispatch(ComputeKernel.CloudSupport, support.Length, [neighbours.Length + 1]);
             session.Read<int>(3, support);
             return support;
         }

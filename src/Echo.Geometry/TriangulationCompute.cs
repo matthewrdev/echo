@@ -43,7 +43,7 @@ public static class TriangulationCompute
             session.Upload<float>(0, views);
             session.Upload<float>(1, packed.AsSpan(0, matches.Count * 4));
             session.Allocate(2, checked(matches.Count * 4 * sizeof(float)));
-            session.Dispatch("triangulate_pairs", matches.Count, [matches.Count]);
+            session.Dispatch(ComputeKernel.TriangulatePairs, matches.Count, [matches.Count]);
             session.Read<float>(2, values.AsSpan(0, matches.Count * 4));
             var result = new Triangulated?[matches.Count];
             for (var i = 0; i < matches.Count; i++)

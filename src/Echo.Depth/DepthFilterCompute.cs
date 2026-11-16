@@ -32,7 +32,7 @@ internal static class DepthFilterCompute
             session.Upload<float>(1, map.Depth);
             session.Upload<float>(2, map.Confidence);
             session.Allocate(3, checked(count * sizeof(int)));
-            session.Dispatch("depth_filter", count, [map.Width, map.Height]);
+            session.Dispatch(ComputeKernel.DepthFilter, count, [map.Width, map.Height]);
             session.Read<float>(1, depth.AsSpan(0, count));
             session.Read<float>(2, confidence.AsSpan(0, count));
             session.Read<int>(3, retained.AsSpan(0, count));
