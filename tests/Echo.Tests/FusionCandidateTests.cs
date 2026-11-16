@@ -34,7 +34,7 @@ public sealed class FusionCandidateTests
                 foreach (var workers in new[] { 1, 4 })
                 {
                     using var session = new BulkDataSession(65536, 0);
-                    using var work = new WorkBuffers(session, Path.Combine(directory, $"{axis}-{workers}"), 65536, 0);
+                    var work = new WorkBuffers(session, Path.Combine(directory, $"{axis}-{workers}"));
                     var actual = FusionCandidatePlanner.Build(fixture.Cloud, fixture.Views.ToArray(), .01, .125, 1000000,
                         new FusionGridPlanningOptions(workers, 47, axis), default, work, new FusionPlanningProgress(null));
                     Check(actual != null && actual.Count == expected.Length && actual.ToHashSet().SetEquals(expected),
@@ -42,7 +42,7 @@ public sealed class FusionCandidateTests
                     var ordered = actual!.ToArray();
                     Check(previous == null || previous.SequenceEqual(ordered), "Worker scheduling must not change output ordering");
                     previous = ordered;
-                    Check(work.IndexDiskBytes == 0, "Fusion planning must not open a shared database");
+                    Check(!Directory.EnumerateFiles(directory, "*.sqlite", SearchOption.AllDirectories).Any(), "Fusion planning must not open a shared database");
                     Check(!Directory.EnumerateFiles(directory, "run-*.bin", SearchOption.AllDirectories).Any(), "Merged scratch runs must be removed");
                 }
             }
@@ -53,7 +53,7 @@ public sealed class FusionCandidateTests
             foreach (var diskLimit in new long[] { 0, 1024 })
             {
                 using var session = new BulkDataSession(65536, diskLimit);
-                using var work = new WorkBuffers(session, Path.Combine(directory, "budget-" + diskLimit), 65536, 0);
+                var work = new WorkBuffers(session, Path.Combine(directory, "budget-" + diskLimit));
                 using var cancellation = new CancellationTokenSource();
                 var status = new FusionPlanningProgress(update =>
                 {
@@ -84,7 +84,7 @@ public sealed class FusionCandidateTests
             var fixture = RandomCloud();
             fixture.Cloud.Samples[0] = new DenseSample(float.NaN, 0, 0, 0, 0, 0, 0, 1);
             using var session = new BulkDataSession(65536, 0);
-            using var work = new WorkBuffers(session, directory, 65536, 0);
+            var work = new WorkBuffers(session, directory);
             try
             {
                 FusionCandidatePlanner.Build(fixture.Cloud, fixture.Views.ToArray(), .01, .125, 1000000,

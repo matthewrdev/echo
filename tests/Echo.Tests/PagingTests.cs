@@ -58,6 +58,65 @@ public sealed class PagingTests
             Check(GC.GetAllocatedBytesForCurrentThread() - before < 1024 && sum > 0,
                 "Numeric vertex reads allocated managed objects");
         });
+        tests.Run("Binary surface edge indexes survive collisions and eviction without a database", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            var work = new WorkBuffers(session, directory);
+            var edges = new BinaryHashIndex<SurfaceEdge, BoundaryEdge>(512, new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec(), work, default);
+            var expected = new Dictionary<SurfaceEdge, BoundaryEdge>();
+            for (var index = 0; index < 4000; index++)
+            {
+                var key = new SurfaceEdge(index % 17, index + 100);
+                var value = new BoundaryEdge(key.A, key.B, new V3(.1, .2, .3), 1);
+                edges.Add(key, value);
+                expected.Add(key, value);
+            }
+            foreach (var key in expected.Keys.ToArray())
+            {
+                var value = expected[key] with
+                {
+                    Count = 2
+                };
+                edges[key] = value;
+                expected[key] = value;
+            }
+            foreach (var entry in expected)
+            {
+                Check(edges.TryGetValue(entry.Key, out var value) && value == entry.Value, "Hash collisions lost or changed an edge");
+            }
+            Check(!edges.ContainsKey(new SurfaceEdge(100, 100)) && edges.Count == expected.Count, "Missing edge or count is incorrect");
+            Check(session.Statistics.Evictions > 0 && session.Statistics.PeakResidentBytes <= 65536, "Edge index exceeded its page budget");
+            Check(!Directory.EnumerateFiles(directory, "*.sqlite", SearchOption.AllDirectories).Any(), "Surface edges still created a database");
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            try
+            {
+                _ = new BinaryHashIndex<SurfaceEdge, int>(100, new SurfaceEdgeRecordCodec(), new IntRecordCodec(), work, cancelled.Token);
+                throw new InvalidOperationException("Cancelled edge indexing continued");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }));
+        tests.Run("Mesh compaction uses direct vertex remaps and retains photo assignments", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            var work = new WorkBuffers(session, directory);
+            var source = new Surface
+            {
+                Vertices = [[100, 100, 100], [1, 0, 0], [0, 1, 0], [0, 0, 0]],
+                Faces = [[3, 1, 2], [2, 1, 3]],
+                SourceImages = ["first", "second"]
+            };
+            var visible = SurfaceVisibilityFilter.Filter(source, Array.Empty<DepthView>(), .01, default, work);
+            Check(visible.Vertices.Count == 3 && visible.Vertices[0].SequenceEqual(source.Vertices[3]), "Unused vertex compaction changed encounter order");
+            Check(visible.Faces[0].SequenceEqual([0, 1, 2]) && visible.Faces[1].SequenceEqual([2, 1, 0]), "Compaction changed face winding or shared vertices");
+            Check(visible.SourceImages.SequenceEqual(source.SourceImages), "Visibility compaction lost photograph assignments");
+            var supported = SurfaceSupportFilter.Filter(source, source, .1, default, work);
+            var fragments = SurfaceFragments.RemoveSmall(source, .1, default, work);
+            Check(supported.Faces.Count == 2 && fragments.Faces.Count == 2, "Compaction removed supported faces");
+            Check(!Directory.EnumerateFiles(directory, "*.sqlite", SearchOption.AllDirectories).Any(), "Dense vertex IDs were remapped through a database");
+        }));
         tests.Run("Resident geometry reservations share the page budget and preserve dirty data", () => InDirectory(directory =>
         {
             const int capacity = 8 * 65536;
@@ -84,7 +143,7 @@ public sealed class PagingTests
         tests.Run("Paged triangle queries match memory without per-query page reads", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(8 * 65536, 0);
-            using var work = new WorkBuffers(session, directory, 1024, 0);
+            var work = new WorkBuffers(session, directory);
             var paged = work.Surface();
             var memory = new Surface();
             for (var index = 0; index < 250; index++)
@@ -144,7 +203,7 @@ public sealed class PagingTests
         tests.Run("Triangle queries retain a paged fallback when a snapshot will not fit", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);
-            using var work = new WorkBuffers(session, directory, 1024, 0);
+            var work = new WorkBuffers(session, directory);
             var surface = work.Surface();
             surface.Vertices.Add([0, 0, 0]);
             surface.Vertices.Add([1, 0, 0]);
@@ -157,7 +216,7 @@ public sealed class PagingTests
         tests.Run("Initial edge indexing preserves first encounter order without a database", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);
-            using var work = new WorkBuffers(session, directory, 1024, 0);
+            var work = new WorkBuffers(session, directory);
             var paged = new InitialEdgeIndex(2048, work, default);
             var memory = new InitialEdgeIndex(2048, null, default);
             var expected = new HashSet<Edge>();
@@ -173,12 +232,12 @@ public sealed class PagingTests
             }
             Check(paged.Count == expected.Count && paged.Edges().SequenceEqual(expected), "Paged edge membership or order changed");
             Check(memory.Edges().SequenceEqual(expected), "In-memory edge membership or order changed");
-            Check(work.IndexDiskBytes == 0, "Initial edge indexing still created a database");
+            Check(!Directory.EnumerateFiles(directory, "*.sqlite", SearchOption.AllDirectories).Any(), "Initial edge indexing still created a database");
         }));
         tests.Run("Paged vertex adjacency preserves membership and slot order without a global index", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);
-            using var work = new WorkBuffers(session, directory, 1024, 0);
+            var work = new WorkBuffers(session, directory);
             var store = new VertexFacesStore(16, work);
             var expected = Enumerable.Range(0, 16).Select(_ => new HashSet<int>()).ToArray();
             var random = new Random(721);
@@ -205,7 +264,7 @@ public sealed class PagingTests
                 expected[0].Add(face);
             }
             Check(store.Faces(0).SequenceEqual(expected[0]) && store.Contains(0, 1999), "High-valence vertices lost faces");
-            Check(work.IndexDiskBytes == 0, "Vertex adjacency still created a global database index");
+            Check(!Directory.EnumerateFiles(directory, "*.sqlite", SearchOption.AllDirectories).Any(), "Vertex adjacency still created a global database index");
         }));
         tests.Run("Paged records preserve bytes across dirty eviction and reopen", () => InDirectory(directory =>
         {
@@ -227,10 +286,11 @@ public sealed class PagingTests
             using var reopened = artifacts.OpenSession(65536, 0);
             Check(reopened.Open(path, new VectorRecordCodec())[19999][2] == Math.PI, "Reopened binary changed precision");
         }));
-        tests.Run("Disk dictionaries preserve insertion order, updates and signed key sorting", () => InDirectory(directory =>
+        tests.Run("Binary indexes preserve insertion order, duplicate semantics and signed keys", () => InDirectory(directory =>
         {
-            using var collections = new DiskCollections(Path.Combine(directory, "index.sqlite"), 1024 * 1024, 0);
-            var records = collections.Create(new Echo.Fusion.GridRecordCodec(), new IntRecordCodec());
+            using var session = artifacts.OpenSession(65536, 0);
+            var work = new WorkBuffers(session, directory);
+            var records = new BinaryHashIndex<Echo.Fusion.Grid, int>(16, new Echo.Fusion.GridRecordCodec(), new IntRecordCodec(), work);
             var coordinates = new[] { 8, -2, int.MinValue, 0, int.MaxValue };
             foreach (var x in coordinates)
             {
@@ -239,7 +299,40 @@ public sealed class PagingTests
             records[new Echo.Fusion.Grid(-2, 0, 0)] = 42;
             Check(records.Select(pair => pair.Key.X).SequenceEqual(coordinates), "Dictionary insertion order changed");
             Check(records[new Echo.Fusion.Grid(-2, 0, 0)] == 42, "Dictionary update failed");
-            Check(records.OrderedKeys().Select(key => key.X).SequenceEqual(coordinates.Order()), "Signed sorting changed");
+            Check(records.Keys.Select(key => key.X).SequenceEqual(coordinates), "Key iteration changed insertion order");
+            Check(!records.TryAdd(new Echo.Fusion.Grid(-2, 0, 0), 7) && records.Count == coordinates.Length, "A duplicate was appended");
+            Check(records.Values.SequenceEqual([8, 42, int.MinValue, 0, int.MaxValue]), "Value iteration differs from entry order");
+        }));
+        tests.Run("Binary position indexes retain signed zero and NaN equality", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            var work = new WorkBuffers(session, directory);
+            var positions = new BinaryHashIndex<V3, int>(16, new PositionKeyCodec(), new IntRecordCodec(), work);
+            positions.Add(new V3(0, -0d, 1), 12);
+            Check(!positions.TryAdd(new V3(-0d, 0, 1), 13), "Signed zero changed vertex welding");
+            positions.Add(new V3(double.NaN, 2, 3), 14);
+            var anotherNaN = BitConverter.Int64BitsToDouble(0x7ff8000000000001);
+            Check(!positions.TryAdd(new V3(anotherNaN, 2, 3), 15), "NaN encodings changed key equality");
+            Check(positions[new V3(-0d, 0, 1)] == 12 && positions[new V3(anotherNaN, 2, 3)] == 14,
+                "A canonical position lost its original value");
+        }));
+        tests.Run("Binary indexes enforce the shared scratch disk budget", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 2 * 65536);
+            var work = new WorkBuffers(session, directory);
+            var records = new BinaryHashIndex<int, int>(4096, new IntRecordCodec(), new IntRecordCodec(), work);
+            try
+            {
+                for (var index = 0; index < 100000; index++)
+                {
+                    records.Add(index, index);
+                }
+                throw new InvalidOperationException("Binary indexing ignored the scratch limit");
+            }
+            catch (EchoException)
+            {
+                Check(session.Statistics.ScratchBytes <= 2 * 65536, "Scratch budget was exceeded before rejection");
+            }
         }));
         tests.Run("Candidate heap compaction removes obsolete entries and remains ordered", () => InDirectory(directory =>
         {
@@ -302,7 +395,7 @@ public sealed class PagingTests
             };
             var baseline = SurfaceIslandTrimmer.Trim(source, IslandTrimMode.Main, .1, default);
             using var session = artifacts.OpenSession(65536, 0);
-            using var work = new WorkBuffers(session, directory, 1024, 0);
+            var work = new WorkBuffers(session, directory);
             var result = SurfaceIslandTrimmer.Trim(source, IslandTrimMode.Main, .1, default, work);
             Check(result.RemovedFaces == 1 && result.RemovedFaces == baseline.RemovedFaces, "Paged welding changed component membership");
             Check(result.Surface.SourceImages.SequenceEqual(baseline.Surface.SourceImages), "Island trimming changed photographic assignments");
@@ -318,7 +411,7 @@ public sealed class PagingTests
             var baseline = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default);
             var baselineMesh = meshes.Extract(baseline, default);
             using var session = artifacts.OpenSession(65536, 0);
-            using var work = new WorkBuffers(session, directory, 1024 * 1024, 0);
+            var work = new WorkBuffers(session, directory);
             var result = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default, work: work);
             Check(result.VoxelSize == baseline.VoxelSize && result.Samples.Count == baseline.Samples.Count, "Fusion count or spacing changed");
             for (var index = 0; index < baseline.Samples.Count; index++)

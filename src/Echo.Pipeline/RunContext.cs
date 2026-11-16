@@ -98,11 +98,10 @@ public sealed class RunContext : IDisposable
     {
         get;
     }
-    public long WorkingMemoryBytes => Resources.MemoryBytes - Resources.HeadroomBytes - Resources.CacheBytes - Math.Min(64 * 1024 * 1024, Resources.CacheBytes / 4);
+    public long WorkingMemoryBytes => Resources.MemoryBytes - Resources.HeadroomBytes - Resources.CacheBytes;
     public bool Paged => Resources.Mode == ProcessingMemoryMode.Paged;
-    public BulkDataSession Data => data ??= bulk.OpenSession(Resources.CacheBytes, Resources.DiskBytes == 0 ? 0 : Resources.DiskBytes - Resources.DiskBytes / 4);
-    public WorkBuffers? Work => Paged ? work ??= new WorkBuffers(Data, ScratchDirectory,
-        Math.Min(64 * 1024 * 1024, Resources.CacheBytes / 4), Resources.DiskBytes / 4) : null;
+    public BulkDataSession Data => data ??= bulk.OpenSession(Resources.CacheBytes, Resources.DiskBytes);
+    public WorkBuffers? Work => Paged ? work ??= new WorkBuffers(Data, ScratchDirectory) : null;
 
     public string ScratchDirectory
     {
@@ -137,7 +136,6 @@ public sealed class RunContext : IDisposable
 
     private void ReleaseBuffers()
     {
-        work?.Dispose();
         work = null;
         if (data != null)
         {
@@ -181,7 +179,7 @@ public sealed class RunContext : IDisposable
             DiskReadBytes = diskReadBytes + (paging?.ReadBytes ?? 0),
             DiskWrittenBytes = diskWrittenBytes + (paging?.WrittenBytes ?? 0),
             PageEvictions = pageEvictions + (paging?.Evictions ?? 0),
-            ScratchBytes = (paging?.ScratchBytes ?? 0) + (work?.IndexDiskBytes ?? 0)
+            ScratchBytes = paging?.ScratchBytes ?? 0
         };
     }
     public void ReportResources()

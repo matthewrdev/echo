@@ -52,7 +52,7 @@ public static class SurfaceSupportFilter
             progress?.Invoke(new("Surface support", "Checking completion against the observed surface.", end, reconstruction.Vertices.Count, "vertices"));
         }
         var result = work?.Surface() ?? new Surface();
-        var lookup = work?.Map(new IntRecordCodec(), new IntRecordCodec()) ?? new Dictionary<int, int>();
+        IList<int> lookup = work?.Filled(reconstruction.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, reconstruction.Vertices.Count).ToArray();
         foreach (var face in reconstruction.Faces)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -68,11 +68,12 @@ public static class SurfaceSupportFilter
             for (var corner = 0; corner < 3; corner++)
             {
                 var vertex = face[corner];
-                if (!lookup.TryGetValue(vertex, out var mapped))
+                var mapped = lookup[vertex];
+                if (mapped < 0)
                 {
                     mapped = result.Vertices.Count;
                     result.Vertices.Add(reconstruction.Vertices[vertex]);
-                    lookup.Add(vertex, mapped);
+                    lookup[vertex] = mapped;
                 }
                 output[corner] = mapped;
             }

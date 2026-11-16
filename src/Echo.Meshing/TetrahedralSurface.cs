@@ -7,7 +7,7 @@ namespace Echo.Meshing;
 
 internal static class TetrahedralSurface
 {
-    public static Surface Extract(IDictionary<Grid, float> samples, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
+    public static Surface Extract(IReadOnlyDictionary<Grid, float> samples, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         ReadOnlySpan<Grid> offsets = [new(0, 0, 0), new(1, 0, 0), new(1, 1, 0), new(0, 1, 0),
             new(0, 0, 1), new(1, 0, 1), new(1, 1, 1), new(0, 1, 1)];
@@ -16,7 +16,7 @@ internal static class TetrahedralSurface
         ReadOnlySpan<int> tetrahedra = [0, 5, 1, 6, 0, 1, 2, 6, 0, 2, 3, 6,
             0, 3, 7, 6, 0, 7, 4, 6, 0, 4, 5, 6];
         var mesh = work?.Surface() ?? new Surface();
-        var vertices = work?.Map(new VolumeEdgeRecordCodec(), new IntRecordCodec()) ?? new Dictionary<VolumeEdge, int>();
+        var vertices = new BinaryHashIndex<VolumeEdge, int>(samples.Count, new VolumeEdgeRecordCodec(), new IntRecordCodec(), work, cancellation);
         Span<Grid> corners = stackalloc Grid[8];
         Span<float> values = stackalloc float[8];
         operationProgress?.Invoke(new OperationProgress("Surface extraction", "Extracting the zero crossing surface…", 0, samples.Count, "lattice cells"));
@@ -106,7 +106,7 @@ internal static class TetrahedralSurface
         return mesh;
     }
 
-    private static void Append(Surface mesh, IDictionary<VolumeEdge, int> vertices,
+    private static void Append(Surface mesh, BinaryHashIndex<VolumeEdge, int> vertices,
         ReadOnlySpan<Grid> corners, ReadOnlySpan<float> values, ReadOnlySpan<int> tetrahedron, double voxelSize)
     {
         Span<int> negative = stackalloc int[4];
@@ -156,7 +156,7 @@ internal static class TetrahedralSurface
         AddTriangle(mesh, polygon[0], polygon[2], polygon[3], direction, voxelSize);
     }
 
-    private static int Vertex(Surface mesh, IDictionary<VolumeEdge, int> vertices,
+    private static int Vertex(Surface mesh, BinaryHashIndex<VolumeEdge, int> vertices,
         Grid a, Grid b, float valueA, float valueB, double voxelSize)
     {
         // Zero crossings at grid vertices must weld across all incident edges.

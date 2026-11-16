@@ -25,7 +25,7 @@ public static class FusionIslandTrimmer
             return new FusionIslandTrimResult { Volume = volume, InputRegions = 0 };
         }
 
-        IDictionary<Grid, int> lookup = work?.Map(new GridRecordCodec(), new IntRecordCodec()) ?? new Dictionary<Grid, int>(volume.Samples.Count);
+        var lookup = new BinaryHashIndex<Grid, int>(volume.Samples.Count, new GridRecordCodec(), new IntRecordCodec(), work, cancellation);
         for (var index = 0; index < volume.Samples.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();

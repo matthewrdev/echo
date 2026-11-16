@@ -7,7 +7,7 @@ namespace Echo.Meshing;
 
 internal static class SparseVolumeCompute
 {
-    public static IComputeSession? Open(IComputeService? compute, ComputeBackend backend, IDictionary<Grid, float> samples,
+    public static IComputeSession? Open(IComputeService? compute, ComputeBackend backend, IReadOnlyDictionary<Grid, float> samples,
         CancellationToken cancellation, out int mask)
     {
         mask = 0;

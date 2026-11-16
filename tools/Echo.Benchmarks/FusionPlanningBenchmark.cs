@@ -43,7 +43,7 @@ public sealed class FusionPlanningBenchmark
         }
         Directory.CreateDirectory(directory);
         using var session = new BulkDataSession(64 * 1024 * 1024, 0);
-        using var work = new WorkBuffers(session, directory, 64 * 1024 * 1024, 0);
+        var work = new WorkBuffers(session, directory);
         var scene = session.Read<ReconstructionScene>(store.PathFor(run.Artifacts["alignment"] + "/scene.json"));
         var units = json.Read<List<string>>(store.PathFor(run.Artifacts["depth"] + "/units.json"));
         var photos = run.Snapshot.Images.ToDictionary(photo => photo.Id, StringComparer.Ordinal);
@@ -88,7 +88,7 @@ public sealed class FusionPlanningBenchmark
         process.Refresh();
         var measurement = new FusionPlanningMeasurement(cloud.Samples.Count, options.Workers, options.BatchCapacity,
             options.Axis, voxel, keys.Count, seconds, (process.TotalProcessorTime - cpu).TotalSeconds,
-            GC.GetTotalAllocatedBytes(false) - allocated, process.WorkingSet64, session.Statistics, work.IndexDiskBytes);
+            GC.GetTotalAllocatedBytes(false) - allocated, process.WorkingSet64, session.Statistics);
         Console.WriteLine(JsonSerializer.Serialize(measurement, FusionPlanningBenchmarkJsonContext.Default.FusionPlanningMeasurement));
         return 0;
     }

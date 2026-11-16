@@ -86,7 +86,7 @@ public static class SurfaceIslandTrimmer
     {
         // Weld only exact positions for connectivity. Keep the original vertices
         // and photograph seams in the output; never bridge a physical gap.
-        var positions = work?.Map(new PositionKeyCodec(), new IntRecordCodec()) ?? new Dictionary<V3, int>();
+        var positions = new BinaryHashIndex<V3, int>(source.Vertices.Count, new PositionKeyCodec(), new IntRecordCodec(), work, cancellation);
         IList<int> welded = work?.Filled(source.Vertices.Count, 0, new IntRecordCodec()) ?? new int[source.Vertices.Count];
         for (var index = 0; index < welded.Count; index++)
         {
@@ -106,7 +106,7 @@ public static class SurfaceIslandTrimmer
             parents.Add(index);
         }
         IList<int> sizes = work?.Filled(parents.Count, 1, new IntRecordCodec()) ?? Enumerable.Repeat(1, parents.Count).ToArray();
-        var edges = work?.Map(new SurfaceEdgeRecordCodec(), new IntRecordCodec()) ?? new Dictionary<SurfaceEdge, int>();
+        var edges = new BinaryHashIndex<SurfaceEdge, int>(source.Faces.Count, new SurfaceEdgeRecordCodec(), new IntRecordCodec(), work, cancellation);
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -155,7 +155,7 @@ public static class SurfaceIslandTrimmer
     private static Surface CopyRetainedFaces(Surface source, IList<int> parents, IList<bool> remove, CancellationToken cancellation, WorkBuffers? work)
     {
         var result = work?.Surface() ?? new Surface();
-        var remap = work?.Map(new IntRecordCodec(), new IntRecordCodec()) ?? new Dictionary<int, int>();
+        IList<int> remap = work?.Filled(source.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, source.Vertices.Count).ToArray();
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -168,10 +168,11 @@ public static class SurfaceIslandTrimmer
             for (var corner = 0; corner < 3; corner++)
             {
                 var vertex = face[corner];
-                if (!remap.TryGetValue(vertex, out var mapped))
+                var mapped = remap[vertex];
+                if (mapped < 0)
                 {
                     mapped = result.Vertices.Count;
-                    remap.Add(vertex, mapped);
+                    remap[vertex] = mapped;
                     result.Vertices.Add(source.Vertices[vertex]);
                 }
                 output[corner] = mapped;

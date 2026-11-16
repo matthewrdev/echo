@@ -41,7 +41,7 @@ internal static class SurfaceFragments
         }
 
         var result = work?.Surface() ?? new Surface();
-        IDictionary<int, int> remap = work?.Map(new IntRecordCodec(), new IntRecordCodec()) ?? new Dictionary<int, int>();
+        IList<int> remap = work?.Filled(source.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, source.Vertices.Count).ToArray();
         foreach (var face in source.Faces)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -56,10 +56,11 @@ internal static class SurfaceFragments
             for (var corner = 0; corner < 3; corner++)
             {
                 var vertex = face[corner];
-                if (!remap.TryGetValue(vertex, out var index))
+                var index = remap[vertex];
+                if (index < 0)
                 {
                     index = result.Vertices.Count;
-                    remap.Add(vertex, index);
+                    remap[vertex] = index;
                     result.Vertices.Add(source.Vertices[vertex]);
                 }
                 output[corner] = index;

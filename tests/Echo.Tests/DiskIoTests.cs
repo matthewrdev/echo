@@ -133,7 +133,7 @@ public sealed class DiskIoTests
             var resources = new FusionResourcePlan(25600000, 100000);
             var expected = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, resources, default);
             using var session = artifacts.OpenSession(65536, 0);
-            using var work = new WorkBuffers(session, directory, 32768, 0);
+            var work = new WorkBuffers(session, directory);
             var updates = new List<OperationProgress>();
             var actual = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, resources, default,
                 work: work, operationProgress: updates.Add);

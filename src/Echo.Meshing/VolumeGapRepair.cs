@@ -5,16 +5,16 @@ namespace Echo.Meshing;
 
 internal static class VolumeGapRepair
 {
-    public static IDictionary<Grid, float> Complete(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null)
+    public static IReadOnlyDictionary<Grid, float> Complete(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null)
     {
-        var samples = work?.Map(new GridRecordCodec(), new FloatRecordCodec()) ?? new Dictionary<Grid, float>();
+        var samples = new BinaryHashIndex<Grid, float>(volume.Samples.Count, new GridRecordCodec(), new FloatRecordCodec(), work, cancellation);
         foreach (var sample in volume.Samples)
         {
             cancellation.ThrowIfCancellationRequested();
             samples.Add(new Grid(sample.X, sample.Y, sample.Z), sample.Distance);
         }
         progress?.Invoke($"Indexed {samples.Count:N0} volume samples; finding bounded gaps…");
-        var candidates = work?.Map(new GridRecordCodec(), new IntRecordCodec()) ?? new Dictionary<Grid, int>();
+        var candidates = new BinaryHashIndex<Grid, int>(volume.Samples.Count, new GridRecordCodec(), new IntRecordCodec(), work, cancellation);
         foreach (var key in samples.Keys)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -46,7 +46,7 @@ internal static class VolumeGapRepair
         // the original field, so completion cannot recursively expand a scan.
         // Agreement between the two interpolants rejects discontinuities while
         // allowing a locally planar ground surface to span sparse observations.
-        var repaired = work?.Map(new GridRecordCodec(), new FloatRecordCodec()) ?? new Dictionary<Grid, float>();
+        var repaired = new BinaryHashIndex<Grid, float>(volume.Samples.Count, new GridRecordCodec(), new FloatRecordCodec(), work, cancellation);
         foreach (var key in candidates.Keys)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -98,7 +98,7 @@ internal static class VolumeGapRepair
         return samples;
     }
 
-    private static int Bracket(IDictionary<Grid, float> samples, Grid key, int x, int y, int z, out float value)
+    private static int Bracket(IReadOnlyDictionary<Grid, float> samples, Grid key, int x, int y, int z, out float value)
     {
         for (var step = 1; step < 8; step++)
         {

@@ -122,9 +122,9 @@ internal static class SurfaceHoleRepair
         return true;
     }
 
-    private static IDictionary<SurfaceEdge, BoundaryEdge> CollectEdges(Surface mesh, CancellationToken cancellation, WorkBuffers? work, Action<OperationProgress>? progress)
+    private static BinaryHashIndex<SurfaceEdge, BoundaryEdge> CollectEdges(Surface mesh, CancellationToken cancellation, WorkBuffers? work, Action<OperationProgress>? progress)
     {
-        IDictionary<SurfaceEdge, BoundaryEdge> edges = work?.Map(new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec()) ?? new Dictionary<SurfaceEdge, BoundaryEdge>();
+        var edges = new BinaryHashIndex<SurfaceEdge, BoundaryEdge>(mesh.Faces.Count, new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec(), work, cancellation);
         var completed = 0;
         foreach (var face in mesh.Faces)
         {
@@ -226,7 +226,7 @@ internal static class SurfaceHoleRepair
     }
 
     private static List<int[]>? Triangulate(List<int> boundary, ReadOnlySpan<V3> points, V3 normal,
-        IDictionary<SurfaceEdge, BoundaryEdge> edges, CancellationToken cancellation)
+        BinaryHashIndex<SurfaceEdge, BoundaryEdge> edges, CancellationToken cancellation)
     {
         if (CrossesItself(points, normal))
         {

@@ -1,11 +1,12 @@
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 
 internal static class CurvedHoleTriangulation
 {
-    public static List<int[]>? Fill(Surface mesh, List<int> loop, IDictionary<SurfaceEdge, BoundaryEdge> edges,
+    public static List<int[]>? Fill(Surface mesh, List<int> loop, BinaryHashIndex<SurfaceEdge, BoundaryEdge> edges,
         SurfaceTriangleIndex surface, CancellationToken cancellation)
     {
         var count = loop.Count;

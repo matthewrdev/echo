@@ -56,7 +56,7 @@ public static class SurfaceVisibilityFilter
         }
 
         var result = work?.Surface() ?? new Surface();
-        var vertices = work?.Map(new IntRecordCodec(), new IntRecordCodec()) ?? new Dictionary<int, int>();
+        IList<int> vertices = work?.Filled(surface.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, surface.Vertices.Count).ToArray();
         var assigned = surface.SourceImages.Count == surface.Faces.Count;
         for (var index = 0; index < surface.Faces.Count; index++)
         {
@@ -71,11 +71,12 @@ public static class SurfaceVisibilityFilter
             for (var corner = 0; corner < 3; corner++)
             {
                 var vertex = face[corner];
-                if (!vertices.TryGetValue(vertex, out var mapped))
+                var mapped = vertices[vertex];
+                if (mapped < 0)
                 {
                     mapped = result.Vertices.Count;
                     result.Vertices.Add(surface.Vertices[vertex]);
-                    vertices.Add(vertex, mapped);
+                    vertices[vertex] = mapped;
                 }
                 output[corner] = mapped;
             }

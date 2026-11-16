@@ -10,7 +10,7 @@ internal static class SurfaceBoundaryLoops
     {
         var faceCount = mesh.Faces.Count;
         IList<int> twins = work?.Filled(checked(faceCount * 3), -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, checked(faceCount * 3)).ToArray();
-        IDictionary<SurfaceEdge, int> edges = work?.Map(new SurfaceEdgeRecordCodec(), new IntRecordCodec()) ?? new Dictionary<SurfaceEdge, int>();
+        var edges = new BinaryHashIndex<SurfaceEdge, int>(faceCount, new SurfaceEdgeRecordCodec(), new IntRecordCodec(), work, cancellation);
         IList<V3> normals = work?.Filled(faceCount, default(V3), new V3RecordCodec()) ?? new V3[faceCount];
         for (var index = 0; index < mesh.Faces.Count; index++)
         {

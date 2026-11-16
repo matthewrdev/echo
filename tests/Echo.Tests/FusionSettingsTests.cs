@@ -100,7 +100,7 @@ public sealed class FusionSettingsTests
             try
             {
                 using var data = new Echo.Storage.BulkDataSession(65536, 0);
-                using var work = new Echo.Storage.WorkBuffers(data, directory, 65536, 0);
+                var work = new Echo.Storage.WorkBuffers(data, directory);
                 var grid = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings,
                     new FusionResourcePlan(256000, 1000), default, work: work);
                 Check(grid.Keys.Count <= 1000 && grid.VoxelSize > grid.RequestedVoxelSize, "Paged storage bypassed the automatic voxel budget");
