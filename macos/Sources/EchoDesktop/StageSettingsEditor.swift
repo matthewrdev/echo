@@ -9,6 +9,15 @@ struct StageSettingsEditor: View {
         Form {
             switch stage {
             case .features:
+                Picker("Processing acceleration", selection: $settings.computeBackend) {
+                    Text("Automatic (prefer Metal)").tag(ComputeBackend.auto)
+                    Text("CPU").tag(ComputeBackend.cpu)
+                    Text("Metal").tag(ComputeBackend.metal)
+                }
+                Text(
+                    "Applies across feature, matching, cloud, fusion, mesh and texture processing. Stereo depth has its own backend setting."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 Toggle("Scale and rotation invariance", isOn: $settings.scaleInvariantFeatures)
                 Text(
                     "Connects photos taken at different distances and angles. For cross-pass recovery, try at least 2000 px and 4000 features; this budget also limits the second alignment pass."

@@ -23,6 +23,29 @@ public sealed class JsonDecodingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Compute backend enums preserve wire names and reject unknown or numeric values", () =>
+        {
+            Check(Read<Settings>("{}").ComputeBackend == ComputeBackend.Auto, "Older projects default to automatic selection");
+            foreach (var backend in Enum.GetValues<ComputeBackend>())
+            {
+                var wire = backend.ToString().ToLowerInvariant();
+                var settings = Read<Settings>($$"""{"computeBackend":"{{wire}}"}""");
+                Check(settings.ComputeBackend == backend && json.Clone(settings).ComputeBackend == backend, "Typed backend round trip");
+                using var document = JsonDocument.Parse(json.Encode(settings));
+                Check(document.RootElement.GetProperty("computeBackend").GetString() == wire, "Lowercase JSON remains compatible");
+            }
+            foreach (var value in new[] { "42", "0", "\"unknown\"" })
+            {
+                try
+                {
+                    Read<Settings>("{\"computeBackend\":" + value + "}");
+                    throw new InvalidOperationException("Invalid backend accepted");
+                }
+                catch (JsonException)
+                {
+                }
+            }
+        });
         tests.Run("Inspection summary is a standalone CLI flag", () =>
         {
             var parsed = arguments.Parse(["--project", "saved.echo", "inspect", "--summary", "--run", "saved-run"]);

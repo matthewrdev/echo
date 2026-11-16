@@ -3,7 +3,8 @@ import Foundation
 struct ProcessingImpact {
     func firstChangedStage(from old: ProcessingSettings, to new: ProcessingSettings) -> PipelineStage? {
         let features =
-            old.scaleInvariantFeatures != new.scaleInvariantFeatures || old.featureWidth != new.featureWidth
+            old.computeBackend != new.computeBackend || old.scaleInvariantFeatures != new.scaleInvariantFeatures
+            || old.featureWidth != new.featureWidth
             || old.featureLimit != new.featureLimit
             || old.detectLines != new.detectLines || old.lineLimit != new.lineLimit
             || old.lineMinimumLength != new.lineMinimumLength

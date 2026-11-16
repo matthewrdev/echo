@@ -3,6 +3,27 @@ import XCTest
 @testable import EchoDesktop
 
 final class ProcessingSettingsTests: XCTestCase {
+    func testComputeBackendUsesTypedWireNamesAndInvalidatesFeatures() throws {
+        let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
+        XCTAssertEqual(original.computeBackend, .auto)
+        for backend in ComputeBackend.allCases {
+            var settings = original
+            settings.computeBackend = backend
+            let data = try JSONEncoder().encode(settings)
+            let restored = try JSONDecoder().decode(ProcessingSettings.self, from: data)
+            XCTAssertEqual(restored.computeBackend, backend)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            XCTAssertEqual(json["computeBackend"] as? String, backend.rawValue)
+            if backend != .auto {
+                XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: settings), .features)
+            }
+        }
+        for value in ["0", "42", "\"unknown\""] {
+            let data = Data(("{\"computeBackend\":" + value + "}").utf8)
+            XCTAssertThrowsError(try JSONDecoder().decode(ProcessingSettings.self, from: data))
+        }
+    }
+
     func testSkyDepthSettingDefaultsOnAndInvalidatesDepth() throws {
         let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
         XCTAssertTrue(original.depthSuppressSky)

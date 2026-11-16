@@ -51,6 +51,7 @@ public sealed class Settings
     public int TextureGutter { get; set; } = 4;
     public bool ExportValidate { get; set; } = true;
     public int DepthConcurrency { get; set; } = 2;
+    public ComputeBackend ComputeBackend { get; set; } = ComputeBackend.Auto;
     public string DepthBackend { get; set; } = "auto";
     public int DepthWorkerThreads { get; set; } = 0;
     public int DepthMemoryBudgetMb { get; set; } = 0;
@@ -105,6 +106,7 @@ public sealed class Settings
         var invalidDepthExecution = DepthConcurrency is < 1 or > 16
             || DepthWorkerThreads is < 0 or > 256
             || invalidDepthMemory
+            || !Enum.IsDefined(ComputeBackend)
             || DepthBackend is not ("auto" or "cpu" or "metal" or "metal-validated");
         var invalidDepthResolution = DepthWidth is < 32 or > 8192
             || DepthPlanes is < 8 or > 2048

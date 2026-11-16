@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Echo.Compute/Echo.Compute.csproj" />
+    <Project Path="src/Echo.Compute.Metal/Echo.Compute.Metal.csproj" />
     <Project Path="src/Echo.Telemetry/Echo.Telemetry.csproj" />
     <Project Path="src/Echo.Storage/Echo.Storage.csproj" />
     <Project Path="src/Echo.SceneSemantics/Echo.SceneSemantics.csproj" />

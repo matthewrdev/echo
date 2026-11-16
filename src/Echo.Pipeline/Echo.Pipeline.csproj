@@ -20,4 +20,5 @@
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../Echo.Storage/Echo.Storage.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../Echo.Compute.Metal/Echo.Compute.Metal.csproj" /></ItemGroup>
 </Project>

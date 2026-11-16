@@ -1,3 +1,4 @@
+using Echo.Compute;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -30,6 +31,7 @@ public sealed class RunContext : IDisposable
     private long pageEvictions;
     private long cachePeakBytes;
     private readonly ProcessingTelemetryTracker telemetry;
+    private readonly IComputeService? compute;
 
     public RunContext(IProjectStore store,
         RunData run,
@@ -38,8 +40,10 @@ public sealed class RunContext : IDisposable
         ICheckpointStore checkpoints,
         IJsonCodec jsonCodec,
         IFileOperations fileOperations, IBulkArtifactStore bulk, ProcessingResourcePlan resources, ProcessingMemoryTracker memory,
-        ProcessingTelemetryTracker telemetry)
+        ProcessingTelemetryTracker telemetry, IComputeService? compute = null)
     {
+        this.compute = compute;
+        ComputeImplementation = run.Snapshot.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : compute?.Implementation ?? "cpu";
         Store = store;
         Run = run;
         Cancellation = cancellation;
@@ -66,6 +70,11 @@ public sealed class RunContext : IDisposable
             : new RunProcessingMetadata { RunId = run.Id, RequestedDepthBackend = run.Snapshot.Settings.DepthBackend };
         var eventPath = store.PathFor($"runs/{run.Id}/events.ndjson");
         sequence = File.Exists(eventPath) ? File.ReadLines(eventPath).LongCount() : 0;
+    }
+
+    public string ComputeImplementation
+    {
+        get;
     }
 
     public IProjectStore Store
@@ -212,6 +221,21 @@ public sealed class RunContext : IDisposable
 
     public List<DepthMap> DepthMaps() => DepthUnits().Select(path => ReadData<DepthMap>(Store.PathFor(path + "/depth.json"))).ToList();
 
+    private ProcessingExecution DescribeCompute(string component, ComputeScope? scope)
+    {
+        var devices = scope?.Devices ?? [];
+        var accelerated = devices.Length > 0;
+        return new ProcessingExecution
+        {
+            Component = component,
+            RequestedBackend = Run.Snapshot.Settings.ComputeBackend.ToString().ToLowerInvariant(),
+            ActualBackend = accelerated ? "cpu+metal" : "cpu",
+            Device = accelerated ? string.Join("; ", devices) : null,
+            Implementation = accelerated ? ComputeImplementation : "Echo managed processing",
+            Precision = accelerated ? "float32 compute; stage-defined CPU" : "stage-defined"
+        };
+    }
+
     public string Build(string stage, object inputs, Action<string> action, Func<ProcessingMetadata>? metadata = null,
         string? algorithmVersion = null)
     {
@@ -241,13 +265,27 @@ public sealed class RunContext : IDisposable
             };
         }
 
+        using var computeScope = compute?.BeginScope(Math.Max(4, WorkingMemoryBytes / 4));
         var reused = true;
         if (metadata == null)
         {
             metadata = () => new ProcessingMetadata
             {
                 SourceArtifacts = ProcessingArtifactReferences.Find(inputs, jsonCodec.Options),
-                Executions = [new ProcessingExecution { Component = stage }]
+                Executions = [DescribeCompute(stage, computeScope)]
+            };
+        }
+        else
+        {
+            var sourceMetadata = metadata;
+            metadata = () =>
+            {
+                var result = sourceMetadata();
+                if (computeScope?.Devices.Length > 0)
+                {
+                    result.Executions.Add(DescribeCompute(stage + ".compute", computeScope));
+                }
+                return result;
             };
         }
         var artifact = checkpoints.Build(Store, stage, inputs, directory =>

@@ -21,6 +21,7 @@ public sealed class CoreJsonReadMetadata : IJsonReadMetadata
             PropertyNameCaseInsensitive = true,
             Converters =
             {
+                new JsonStringEnumConverter<ComputeBackend>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<IslandTrimMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<ProcessingMemoryMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false)
             }
