@@ -75,5 +75,10 @@ final class SceneInteractionTests: XCTestCase {
         view.highlight(nil)
         XCTAssertNil(scene.rootNode.childNode(withName: "sparse-selection", recursively: false))
         XCTAssertNil(view.pick(at: NSPoint(x: 0, y: 0), inspection: data))
+        let hidden = SparseInspectionData(
+            root: URL(fileURLWithPath: "/tmp"), scene: reconstruction, photos: [], featureFiles: [:], visiblePoints: [])
+        let screen = view.projectPoint(SCNVector3(2, -1, 0))
+        let location = NSPoint(x: screen.x, y: view.isFlipped ? view.bounds.height - screen.y : screen.y)
+        XCTAssertNil(view.pick(at: location, inspection: hidden), "Filtered-out points must not receive clicks")
     }
 }

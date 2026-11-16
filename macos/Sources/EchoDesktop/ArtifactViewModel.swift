@@ -20,6 +20,10 @@ final class ArtifactViewModel: ObservableObject {
     @Published var automaticPointDetail = true
     @Published var pointPercentage = 25.0
     @Published var depthAgreementPercentage = 0.0
+    @Published var sparsePointDetail = SparsePointDetail.automatic
+    @Published var sparsePointPercentage = 100.0
+    @Published var allSparseErrors = true
+    @Published var maximumSparseError = 2.0
     @Published var loading = false
     @Published var presentation: ArtifactPresentation?
     @Published var error: String?
@@ -144,10 +148,13 @@ final class ArtifactViewModel: ObservableObject {
         let slice = self.slice
         let cloudDetail: CloudDisplayDetail = automaticPointDetail ? .automatic : .pointLimit(pointLimit)
         let cloudMinimumSupport = depthAgreementPercentage / 100
+        let sparseOptions = SparseDisplayOptions(
+            detail: sparsePointDetail.displayDetail(percentage: sparsePointPercentage),
+            maximumReprojectionError: allSparseErrors ? nil : maximumSparseError)
         let task = Task {
             try await reader.load(
                 root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice,
-                cloudDetail: cloudDetail, cloudMinimumSupport: cloudMinimumSupport)
+                cloudDetail: cloudDetail, cloudMinimumSupport: cloudMinimumSupport, sparseOptions: sparseOptions)
         }
         loadTask = task
         do {

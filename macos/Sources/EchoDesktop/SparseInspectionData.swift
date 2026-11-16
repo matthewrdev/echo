@@ -8,12 +8,13 @@ struct SparseInspectionData {
     let cameraOrder: [String]
     let frustums: [String: CameraFrustum]
     let tracks: [SparseTrack]
+    let visibleTrackIndices: Set<Int>
     let cameraTracks: [String: [Int]]
     let featureFiles: [String: String]
 
     init(
         root: URL, scene: ReconstructionScene, photos: [Photo], featureFiles: [String: String],
-        json: ArtifactJSONReader = ArtifactJSONReader()
+        json: ArtifactJSONReader = ArtifactJSONReader(), visiblePoints: [CloudPoint]? = nil
     ) {
         self.json = json
         self.root = root
@@ -51,8 +52,17 @@ struct SparseInspectionData {
             }
         }
         self.tracks = tracks
+        if let visiblePoints {
+            visibleTrackIndices = Set(
+                visiblePoints.compactMap { point in
+                    guard let image = point.imageA, let pixel = point.pixelA else { return nil }
+                    return lookup[SparseTrackKey(position: point.position, anchorImage: image, anchorPixel: pixel)]
+                })
+        } else {
+            visibleTrackIndices = Set(tracks.indices)
+        }
         var cameraTracks: [String: [Int]] = [:]
-        for (index, track) in tracks.enumerated() {
+        for (index, track) in tracks.enumerated() where visibleTrackIndices.contains(index) {
             for observation in track.observations {
                 cameraTracks[observation.imageID, default: []].append(index)
             }

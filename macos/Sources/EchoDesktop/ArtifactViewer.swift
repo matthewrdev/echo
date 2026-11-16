@@ -63,6 +63,9 @@ struct ArtifactViewer: View {
                 CloudDisplayControls(
                     model: model, hasSavedCloud: workspace.displayedRun?.artifacts["cloud"] != nil)
             }
+            if workspace.selectedStage == .alignment {
+                SparseDisplayControls(model: model)
+            }
             if workspace.selectedStage == .fusion, let info = model.presentation?.fusion {
                 FusionLegendView(info: info)
             }

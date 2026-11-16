@@ -84,21 +84,22 @@ final class SavedArtifactReader: ArtifactReader {
 
     func load(
         root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double,
-        cloudDetail: CloudDisplayDetail, cloudMinimumSupport: Double = 0
+        cloudDetail: CloudDisplayDetail = .automatic, cloudMinimumSupport: Double = 0,
+        sparseOptions: SparseDisplayOptions = SparseDisplayOptions()
     )
         async throws -> ArtifactPresentation
     {
         let task = Task.detached(priority: .userInitiated) {
             try await self.loadSaved(
                 root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice,
-                cloudDetail: cloudDetail, cloudMinimumSupport: cloudMinimumSupport)
+                cloudDetail: cloudDetail, cloudMinimumSupport: cloudMinimumSupport, sparseOptions: sparseOptions)
         }
         return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
     }
 
     private func loadSaved(
         root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double,
-        cloudDetail: CloudDisplayDetail, cloudMinimumSupport: Double
+        cloudDetail: CloudDisplayDetail, cloudMinimumSupport: Double, sparseOptions: SparseDisplayOptions
     ) async throws -> ArtifactPresentation {
         guard let path = run.artifacts[stage.rawValue] ?? run.artifacts[stage.rawValue + "Preview"] else {
             throw CLIError(message: "This stage has no saved artifact yet.")
@@ -187,11 +188,13 @@ final class SavedArtifactReader: ArtifactReader {
                 scene: scene, sceneIdentity: run.id + stage.rawValue, metricScale: metricScale())
         case .alignment, .cloud, .mesh:
             let alignmentPath = run.artifacts["alignment"] ?? run.artifacts["alignmentPreview"]
+            var totalSparsePoints: Int?
             let reconstruction: ReconstructionScene? = try alignmentPath.map {
                 let directory = root.appendingPathComponent($0)
                 let previewFile = directory.appendingPathComponent("preview.json")
                 if FileManager.default.fileExists(atPath: previewFile.path) {
                     let preview: AlignmentPreview = try read(previewFile)
+                    totalSparsePoints = preview.totalPoints
                     return preview.scene
                 }
                 let file = directory.appendingPathComponent("scene.json")
@@ -203,9 +206,22 @@ final class SavedArtifactReader: ArtifactReader {
             }
             var points = reconstruction?.points ?? []
             var detail = "\(points.count.formatted()) sparse points · \(reconstruction?.cameras.count ?? 0) cameras"
-            if stage == .alignment, run.artifacts["alignment"] == nil {
-                let label = run.status == "running" ? "LIVE PREVIEW" : "PARTIAL PREVIEW"
-                detail = "\(label) · \(detail) · provisional sampled points"
+            if stage == .alignment {
+                let available = points.count
+                let preview = SparsePointPreview(points: points, options: sparseOptions)
+                points = preview.points
+                let partial = run.artifacts["alignment"] == nil
+                let label = partial ? (run.status == "running" ? "LIVE PREVIEW" : "PARTIAL PREVIEW") : "Sparse cloud"
+                let source = partial ? "preview" : "saved"
+                detail =
+                    "\(label) · displaying \(points.count.formatted()) of \(available.formatted()) \(source) points"
+                if partial {
+                    detail += " · \((totalSparsePoints ?? available).formatted()) reconstructed · provisional sample"
+                }
+                if sparseOptions.maximumReprojectionError != nil {
+                    detail += " · \(preview.eligibleCount.formatted()) pass error filter"
+                }
+                detail += " · \(reconstruction?.cameras.count ?? 0) cameras"
             }
             var cloudGeometry: SCNGeometry?
             var surface: Surface?
@@ -260,7 +276,8 @@ final class SavedArtifactReader: ArtifactReader {
                         try read(root.appendingPathComponent($0).appendingPathComponent("units.json"))
                     } ?? [:]
                 inspection = SparseInspectionData(
-                    root: root, scene: reconstruction, photos: photos, featureFiles: featureFiles, json: json)
+                    root: root, scene: reconstruction, photos: photos, featureFiles: featureFiles, json: json,
+                    visiblePoints: points)
             }
             return ArtifactPresentation(
                 title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue,

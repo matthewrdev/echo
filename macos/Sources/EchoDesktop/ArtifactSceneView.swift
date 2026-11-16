@@ -79,10 +79,14 @@ final class ArtifactSceneView: SCNView {
     }
 
     func pick(at location: NSPoint, inspection: SparseInspectionData) -> SparseSelection? {
-        pick(at: location, cameras: inspection.cameras, tracks: inspection.tracks)
+        pick(
+            at: location, cameras: inspection.cameras, tracks: inspection.tracks,
+            visibleTrackIndices: inspection.visibleTrackIndices)
     }
 
-    func pick(at location: NSPoint, cameras: [String: CameraPose], tracks: [SparseTrack]) -> SparseSelection? {
+    func pick(
+        at location: NSPoint, cameras: [String: CameraPose], tracks: [SparseTrack], visibleTrackIndices: Set<Int>? = nil
+    ) -> SparseSelection? {
         var nearest: SparseSelection?
         var distance = 12.0
         var nearestDepth = Double.infinity
@@ -98,7 +102,7 @@ final class ArtifactSceneView: SCNView {
                 nearestDepth = projected.z
             }
         }
-        for (index, track) in tracks.enumerated() {
+        for (index, track) in tracks.enumerated() where visibleTrackIndices?.contains(index) ?? true {
             let p = track.position
             let projected = projectPoint(SCNVector3(p[0], p[1], p[2]))
             guard projected.z >= 0, projected.z <= 1 else { continue }
