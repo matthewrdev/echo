@@ -61,122 +61,25 @@ public sealed class DepthFusion : IDepthFusion
             }
         };
         operationProgress?.Invoke(new OperationProgress("Volume integration", "Integrating observed depths…", 0, keys.Count, "grid samples"));
-        var origin = views.Length == 0 ? default : views[0].Centre;
-        using var acceleration = DepthCompute.Open(compute, project.Settings.ComputeBackend, views, origin, cancellation);
-        var accelerationFailed = false;
+        var plan = FusionIntegrationPlanning.Resolve(resources.MemoryBudgetBytes, compute?.MemoryBudgetBytes ?? long.MaxValue,
+            keys.Count, views.Sum(view => (long)view.Map.SampleCount));
+        using var integrator = new FusionBatchIntegrator(views, voxel, project.Settings.CloudDepthTolerance, plan,
+            compute, plan.SelectBackend(project.Settings.ComputeBackend), cancellation, progress);
         var previewSamples = preview == null ? null : new FusionPreviewSampler();
+        var appender = new FusionVolumeAppender(result.Samples, previewSamples);
         long lastPreview = 0;
-        const int chunkSize = 16384;
-        using var cells = keys.GetEnumerator();
-        var batch = new Grid[chunkSize];
-        for (long first = 0; first < keys.Count; first += chunkSize)
+        var cells = keys.OpenReader();
+        for (long first = 0; first < keys.Count; first += integrator.Capacity)
         {
             cancellation.ThrowIfCancellationRequested();
-            var count = (int)Math.Min(chunkSize, keys.Count - first);
-            for (var index = 0; index < count; index++)
+            var count = (int)Math.Min(integrator.Capacity, keys.Count - first);
+            if (cells.Read(integrator.Cells.AsSpan(0, count)) != count)
             {
-                if (!cells.MoveNext())
-                {
-                    throw new InvalidDataException("Fusion grid ranges ended before their declared cell count.");
-                }
-                batch[index] = cells.Current;
+                throw new InvalidDataException("Fusion grid ranges ended before their declared cell count.");
             }
-            IList<VolumeSample> Integrate()
-            {
-                if (acceleration != null && !accelerationFailed)
-                {
-                    try
-                    {
-                        return FusionCompute.Integrate(acceleration, batch, 0, count, voxel, origin, views.Length, project.Settings.CloudDepthTolerance, cancellation);
-                    }
-                    catch (ComputeException) when (project.Settings.ComputeBackend == ComputeBackend.Auto)
-                    {
-                        accelerationFailed = true;
-                    }
-                }
-                var samples = new VolumeSample?[count];
-                Parallel.For(0, count, new ParallelOptions
-                {
-                    CancellationToken = cancellation,
-                    MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
-                }, index =>
-                {
-                    var key = batch[index];
-                    var world = new V3(key.X * voxel, key.Y * voxel, key.Z * voxel);
-                    double sum = 0;
-                    double weight = 0;
-                    var support = 0;
-                    foreach (var view in views)
-                    {
-                        var observation = view.Observe(world, project.Settings.CloudDepthTolerance);
-                        if (!observation.IsValid)
-                        {
-                            continue;
-                        }
-
-                        var distance = observation.Distance;
-                        // Spatial sampling and depth uncertainty are different.
-                        // Refining the grid must not reject depths that passed the
-                        // cloud's relative-depth / two-pixel agreement tolerance.
-                        var uncertainty = FusionDepthUncertainty.Radius(observation.CameraDepth, view.Focal, project.Settings.CloudDepthTolerance);
-                        var truncation = Math.Max(voxel * 3, uncertainty * 2);
-                        // Equal relative error means larger world-space
-                        // uncertainty at longer range. Integrate by precision,
-                        // so a distant flight pass cannot overwhelm close detail.
-                        var precision = 1 / (uncertainty * uncertainty);
-                        if (distance < -truncation)
-                        {
-                            // A surface in front of this voxel occludes it.
-                            continue;
-                        }
-
-                        if (distance > truncation)
-                        {
-                            if (observation.HasFullCoverage)
-                            {
-                                // The observed surface lies farther along this
-                                // ray: integrate positive, truncated free space
-                                // rather than silently accepting a ghost layer.
-                                sum += truncation * .5 * precision;
-                                weight += .5 * precision;
-                            }
-                            continue;
-                        }
-
-                        var w = (1 - .5 * Math.Abs(distance) / truncation) * precision;
-                        sum += distance * w;
-                        weight += w;
-                        support++;
-                    }
-
-                    if (support >= 2)
-                    {
-                        samples[index] = new VolumeSample
-                        {
-                            X = key.X,
-                            Y = key.Y,
-                            Z = key.Z,
-                            Distance = (float)(sum / weight),
-                            Views = support
-                        };
-                    }
-                });
-                var retainedChunk = new List<VolumeSample>();
-                foreach (var sample in samples)
-                {
-                    if (sample != null)
-                    {
-                        retainedChunk.Add(sample);
-                    }
-                }
-                return retainedChunk;
-            }
+            IList<VolumeSample> Integrate() => integrator.Integrate(count);
             var completed = chunks?.ReadOrBuild(first, count, Integrate) ?? Integrate();
-            foreach (var sample in completed)
-            {
-                result.Samples.Add(sample);
-                previewSamples?.Add(sample);
-            }
+            appender.Append(completed);
             if (preview != null && Environment.TickCount64 - lastPreview >= 3000)
             {
                 preview(previewSamples!.Snapshot(result));

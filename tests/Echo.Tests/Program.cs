@@ -17,6 +17,7 @@ if (args.Contains("--compute", StringComparer.Ordinal))
     composition.Resolve<ComputeContractTests>().Run(scaleTests);
     composition.Resolve<ComputeTests>().Run(scaleTests, args.Contains("--require-metal", StringComparer.Ordinal));
     composition.Resolve<ComputePassTests>().Run(scaleTests);
+    composition.Resolve<FusionIntegrationTests>().RunMetal(scaleTests);
     composition.Resolve<ComputeTextureTests>().Run(scaleTests);
     if (args.Contains("--benchmark", StringComparer.Ordinal))
     {
@@ -32,6 +33,7 @@ if (args.Contains("--texture", StringComparer.Ordinal))
     return scaleTests.Finish();
 }
 composition.Resolve<FusionCandidateTests>().Run(scaleTests);
+composition.Resolve<FusionIntegrationTests>().Run(scaleTests);
 if (args.Contains("--fusion", StringComparer.Ordinal))
 {
     composition.Resolve<FusionQualityTests>().Run(scaleTests);

@@ -31,4 +31,6 @@ internal sealed class FusionCandidateGrid : IEnumerable<Grid>
     }
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public FusionGridReader OpenReader() => new(spans, axis);
 }

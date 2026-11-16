@@ -122,9 +122,11 @@ public sealed class MeshQualityTests
             foreach (var saddle in new[] { false, true })
             {
                 var volume = PlaneVolume();
-                foreach (var sample in volume.Samples)
+                for (var index = 0; index < volume.Samples.Count; index++)
                 {
+                    var sample = volume.Samples[index];
                     sample.Distance = saddle ? sample.Z + ((sample.X + sample.Y) % 2 == 0 ? .8f : -.8f) - .25f : sample.Z;
+                    volume.Samples[index] = sample;
                 }
                 var mesh = meshes.Extract(volume, default);
                 Check(EulerCharacteristic(mesh) == 1, "Ambiguous cell faces must not create non-manifold edges or holes");

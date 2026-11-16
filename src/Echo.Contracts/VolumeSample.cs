@@ -1,6 +1,6 @@
 namespace Echo.Contracts;
 
-public sealed class VolumeSample
+public record struct VolumeSample
 {
     public int X
     {

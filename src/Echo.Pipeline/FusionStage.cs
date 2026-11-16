@@ -46,7 +46,7 @@ public sealed class FusionStage : IPipelineStage
             depthUnits,
             alignment,
             maximumGridSamples = context.Paged ? 0 : resources.MaximumGridSamples,
-            fusionVersion = 9,
+            fusionVersion = 10,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Fusion),
             project.Settings.CloudDepthTolerance,
@@ -85,7 +85,7 @@ public sealed class FusionStage : IPipelineStage
                         InputSamples = volume.InputSamples,
                         ConsistentSamples = volume.ConsistentSamples,
                         Resolution = volume.Resolution,
-                        Samples = volume.Samples.Where((_, index) => index % Math.Max(1, volume.Samples.Count / 80000) == 0).ToList()
+                        Samples = FusionPreviewSelection.Sample(volume.Samples)
                     });
                     fileOperations.AtomicJson(Path.Combine(dir, "fusion.report.json"), new
                     {
