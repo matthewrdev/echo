@@ -26,6 +26,7 @@ if (args.Contains("--texture", StringComparer.Ordinal))
     return scaleTests.Finish();
 }
 composition.Resolve<ProcessingTelemetryTests>().Run(scaleTests);
+composition.Resolve<ProgressivePreviewTests>().Run(scaleTests);
 if (args.Contains("--telemetry", StringComparer.Ordinal))
 {
     return scaleTests.Finish();

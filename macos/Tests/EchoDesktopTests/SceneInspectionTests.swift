@@ -160,6 +160,18 @@ final class SceneInspectionTests: XCTestCase {
             try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
             try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
                 to: URL(fileURLWithPath: output).appendingPathComponent("sparse-grid.png"))
+            if let frustum = inspection.frustums.sorted(by: { $0.key < $1.key }).first?.value,
+                let artifact = scene.rootNode.childNode(withName: "artifact", recursively: false)
+            {
+                let highlight = CloudCameraHighlight()
+                highlight.show(frustum, on: artifact)
+                let focused = renderer.snapshot(atTime: 1, with: size, antialiasingMode: .multisampling4X)
+                let pixels = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(focused.tiffRepresentation)))
+                try XCTUnwrap(pixels.representation(using: .png, properties: [:])).write(
+                    to: URL(fileURLWithPath: output).appendingPathComponent("sparse-frustum.png"))
+                highlight.clear()
+            }
+
         }
     }
 }

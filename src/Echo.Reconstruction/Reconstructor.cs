@@ -133,11 +133,8 @@ public sealed class Reconstructor : IReconstructor
             }
         }
 
-        TriangulateAll(result, images, pairs, cancellation, project.Settings.ComputeBackend);
-        if (result.Cameras.Count == 2)
-        {
-            checkpoint?.Invoke(result);
-        }
+        TriangulateAll(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint);
+        checkpoint?.Invoke(result);
         var registered = new HashSet<string>(StringComparer.Ordinal);
         foreach (var camera in result.Cameras)
         {
@@ -170,7 +167,7 @@ public sealed class Reconstructor : IReconstructor
                 break;
             }
 
-            TriangulateAll(result, images, pairs, cancellation, project.Settings.ComputeBackend);
+            TriangulateAll(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint);
         }
 
         if (result.Cameras.Count >= 3)
@@ -200,7 +197,7 @@ public sealed class Reconstructor : IReconstructor
     private void TriangulateAll(ReconstructionScene scene,
         Dictionary<string, Photo> images,
         List<ImagePair> pairs,
-        CancellationToken cancellation, ComputeBackend backend)
+        CancellationToken cancellation, ComputeBackend backend, Action<ReconstructionScene>? checkpoint)
     {
         scene.Points.Clear();
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
@@ -235,6 +232,7 @@ public sealed class Reconstructor : IReconstructor
                     });
                 }
             }
+            checkpoint?.Invoke(scene);
         }
     }
 }

@@ -58,13 +58,15 @@ public sealed class FusionStage : IPipelineStage
         };
         var fusionPath = context.Build("fusion", inputs, dir =>
                 {
+                    var previews = new RunPreviewPublisher(context, fileOperations, RunPreviewStage.Fusion);
                     var maps = context.DepthMaps();
                     var cloud = cloudBuilder.Read(store.PathFor(cloudPath + "/cloud.ply"), jsonCodec.Read<DenseCloudReport>(store.PathFor(cloudPath + "/cloud.json")), context.Paged ? context.Data : null);
                     context.ReportProgress(Name, $"Processing RAM budget: {context.Resources.MemoryBytes / 1073741824.0:G4} GiB; shared page cache {context.Resources.CacheBytes / 1048576:N0} MiB. Storage mode: {context.Resources.Mode}.");
                     var volume = depthFusion.Fuse(project, scene, maps, cloud, resources, cancellation,
                         message => context.ReportProgress(Name, message), context.Work,
                         context.Paged ? new FusionChunkCheckpoints(context, inputs, fileOperations) : null,
-                        update => context.ReportOperation(Name, update));
+                        update => context.ReportOperation(Name, update),
+                        preview => previews.Publish(preview));
                     if (project.Settings.FusionIslandMode != IslandTrimMode.Off)
                     {
                         context.ReportProgress(Name, "Removing disconnected fusion regions before meshing…");

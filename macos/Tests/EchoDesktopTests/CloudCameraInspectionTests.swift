@@ -117,6 +117,35 @@ final class CloudCameraInspectionTests: XCTestCase {
         XCTAssertNil(view.scene?.rootNode.childNode(withName: "cloud-context", recursively: true))
     }
 
+    @MainActor
+    func testSparseCameraHighlightsGeometryEvenWithoutObservationTracks() throws {
+        let photo = try photograph()
+        let pose = camera(x: -1)
+        let reconstruction = ReconstructionScene(
+            frame: "local", origin: nil, cameras: [pose],
+            points: [CloudPoint(position: [-1, 0, 0], colour: nil, error: 0)], unplaced: [], warnings: [])
+        let inspection = SparseInspectionData(
+            root: URL(fileURLWithPath: "/tmp"), scene: reconstruction,
+            photos: [photo], featureFiles: [:])
+        XCTAssertTrue(inspection.tracks.isEmpty)
+        XCTAssertTrue(try XCTUnwrap(inspection.frustums[photo.id]).contains(SIMD3(-1, 0, 0)))
+        let view = ArtifactSceneView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        view.inspection = inspection
+        for _ in 0..<2 {
+            view.scene = NativeSceneFactory().make(
+                reconstruction: reconstruction, points: reconstruction.points,
+                photos: [photo], root: URL(fileURLWithPath: "/tmp"))
+            let artifact = try XCTUnwrap(view.scene?.rootNode.childNode(withName: "artifact", recursively: false))
+            let original = try XCTUnwrap(artifact.geometry)
+            view.highlight(.camera(photo.id))
+            XCTAssertNotNil(artifact.childNode(withName: "cloud-context", recursively: false))
+            XCTAssertTrue(artifact.geometry?.sources.first === original.sources.first)
+            XCTAssertEqual(artifact.opacity, 1)
+            view.highlight(nil)
+            XCTAssertTrue(artifact.geometry === original)
+        }
+    }
+
     private func photograph() throws -> Photo {
         try JSONDecoder().decode(
             Photo.self,

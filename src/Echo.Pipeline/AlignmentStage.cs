@@ -34,6 +34,14 @@ public sealed class AlignmentStage : IPipelineStage
 
     public void Execute(RunContext context)
     {
+        var previewPublisher = new RunPreviewPublisher(context, fileOperations, RunPreviewStage.Alignment);
+        void Preview(ReconstructionScene scene)
+        {
+            if (previewPublisher.IsDue && scene.Points.Count > 0)
+            {
+                previewPublisher.Publish(AlignmentPreviewSampler.Sample(scene));
+            }
+        }
         var project = context.Run.Snapshot;
         var pairUnits = context.ReadArtifact<List<string>>("matching", "units.json");
         var pairs = new List<ImagePair>(pairUnits.Count);
@@ -53,7 +61,7 @@ public sealed class AlignmentStage : IPipelineStage
         }, directory =>
         {
             context.ReportProgress(Name, "Initial alignment: verifying image geometry and refining camera poses.");
-            var scene = reconstructor.Align(project, pairs, context.Cancellation, preview => PublishPreview(context, preview));
+            var scene = reconstructor.Align(project, pairs, context.Cancellation, Preview);
             fileOperations.AtomicData(Path.Combine(directory, "scene.json"), scene);
         });
 
@@ -82,7 +90,7 @@ public sealed class AlignmentStage : IPipelineStage
                 var established = jsonCodec.Read<ReconstructionScene>(context.Store.PathFor(initial + "/scene.json"));
                 try
                 {
-                    bundleAdjuster.Refine(project, scene, validated, context.Cancellation);
+                    bundleAdjuster.Refine(project, scene, validated, context.Cancellation, Preview);
                     assessment = AlignmentRecoveryEvaluator.Evaluate(established, scene);
                 }
                 catch (EchoException error) when (error.ExitCode == 5)
@@ -98,7 +106,7 @@ public sealed class AlignmentStage : IPipelineStage
                     scene.Warnings.Add(assessment.Reason);
                 }
                 context.ReportProgress(Name, assessment.Reason);
-                PublishPreview(context, scene);
+                Preview(scene);
             }
             fileOperations.AtomicJson(Path.Combine(directory, "recovery.json"), new
             {
@@ -181,10 +189,4 @@ public sealed class AlignmentStage : IPipelineStage
         return count;
     }
 
-    private void PublishPreview(RunContext context, ReconstructionScene scene)
-    {
-        var preview = context.Build("alignment-preview", scene,
-            directory => fileOperations.AtomicData(Path.Combine(directory, "scene.json"), scene));
-        context.Publish("alignmentPreview", preview);
-    }
 }

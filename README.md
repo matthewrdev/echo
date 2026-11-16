@@ -43,6 +43,8 @@ Atlas packing preserves UV islands and searches the gaps between their padded sh
 
 The processing banner shows the current operation and progress. Toggle **Telemetry** to view the last ten minutes of memory, cache and CPU usage, plus individual thread CPU usage on macOS. Measurements include the processor and registered native workers. CPU capacity uses all logical cores; each thread's percentage uses one core. History is collected while the project is open, and older runs may have memory measurements only.
 
+Sparse alignment publishes sampled points during triangulation and refinement; Fusion publishes sampled integrated voxels during construction and switches to the final surface when complete. Live previews are provisional, bounded and throttled to about three seconds, with two atomic snapshots retained per stage. The viewer preserves its camera while updating. Selecting a sparse or dense camera emphasizes all points geometrically inside its viewing frustum; sparse point selection still shows observation rays.
+
 The activity panel retains the full history for each stage. Scroll back to pause following live messages, or enable **Follow latest** to return to the newest entry. **CLI commands** shows the actual executable and quoted arguments launched by the desktop, with distinct terminal styling. Commands are saved in the project's `logs/desktop-commands.ndjson`; enable **Background queries** to include automatic status checks.
 
 To build a standalone Release app:

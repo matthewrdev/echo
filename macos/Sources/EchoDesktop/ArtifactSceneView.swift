@@ -101,8 +101,8 @@ final class ArtifactSceneView: SCNView {
         highlightedScene = scene
         scene?.rootNode.childNode(withName: "sparse-selection", recursively: false)?.removeFromParentNode()
         scene?.rootNode.childNode(withName: "artifact", recursively: false)?.opacity = 1
-        if case .camera(let imageID) = selected, let cloudInspection,
-            let frustum = cloudInspection.frustums[imageID], let scene,
+        if case .camera(let imageID) = selected,
+            let frustum = cloudInspection?.frustums[imageID] ?? inspection?.frustums[imageID], let scene,
             let artifact = scene.rootNode.childNode(withName: "artifact", recursively: false)
         {
             cloudHighlight.show(frustum, on: artifact)

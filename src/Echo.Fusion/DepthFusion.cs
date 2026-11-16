@@ -22,7 +22,7 @@ public sealed class DepthFusion : IDepthFusion
         IReadOnlyList<DepthMap> maps,
         DenseCloudData cloud,
         FusionResourcePlan resources,
-        CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null, IFusionChunkStore? chunks = null, Action<OperationProgress>? operationProgress = null)
+        CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null, IFusionChunkStore? chunks = null, Action<OperationProgress>? operationProgress = null, Action<FusionPreview>? preview = null)
     {
         var photos = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
@@ -64,6 +64,8 @@ public sealed class DepthFusion : IDepthFusion
         var origin = views.Length == 0 ? default : views[0].Centre;
         using var acceleration = DepthCompute.Open(compute, project.Settings.ComputeBackend, views, origin, cancellation);
         var accelerationFailed = false;
+        var previewSamples = preview == null ? null : new FusionPreviewSampler();
+        long lastPreview = 0;
         const int chunkSize = 16384;
         for (var first = 0; first < keys.Count; first += chunkSize)
         {
@@ -163,6 +165,12 @@ public sealed class DepthFusion : IDepthFusion
             foreach (var sample in completed)
             {
                 result.Samples.Add(sample);
+                previewSamples?.Add(sample);
+            }
+            if (preview != null && Environment.TickCount64 - lastPreview >= 3000)
+            {
+                preview(previewSamples!.Snapshot(result));
+                lastPreview = Environment.TickCount64;
             }
             var message = $"Integrating volume: {first + count:N0}/{keys.Count:N0} samples; {result.Samples.Count:N0} retained.";
             progress?.Invoke(message);

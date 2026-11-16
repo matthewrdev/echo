@@ -155,7 +155,9 @@ final class SavedArtifactReader: ArtifactReader {
         case .depth:
             return try await depths.load(root: root, run: run, unit: unit, mode: mode)
         case .fusion:
-            return try await fusion.load(folder: folder, mode: mode, slice: slice, metricScale: metricScale())
+            return try await fusion.load(
+                folder: folder, mode: mode, slice: slice, metricScale: metricScale(),
+                sceneIdentity: run.id + stage.rawValue, running: run.status == "running")
         case .texture:
             guard let image = NSImage(contentsOf: folder.appendingPathComponent("atlas.jpg")) else {
                 throw CLIError(message: "Cannot open texture atlas.")
@@ -186,7 +188,13 @@ final class SavedArtifactReader: ArtifactReader {
         case .alignment, .cloud, .mesh:
             let alignmentPath = run.artifacts["alignment"] ?? run.artifacts["alignmentPreview"]
             let reconstruction: ReconstructionScene? = try alignmentPath.map {
-                let file = root.appendingPathComponent($0).appendingPathComponent("scene.json")
+                let directory = root.appendingPathComponent($0)
+                let previewFile = directory.appendingPathComponent("preview.json")
+                if FileManager.default.fileExists(atPath: previewFile.path) {
+                    let preview: AlignmentPreview = try read(previewFile)
+                    return preview.scene
+                }
+                let file = directory.appendingPathComponent("scene.json")
                 if stage == .alignment { return try read(file) }
                 let metadata: ReconstructionMetadata = try read(file)
                 return ReconstructionScene(
@@ -195,6 +203,10 @@ final class SavedArtifactReader: ArtifactReader {
             }
             var points = reconstruction?.points ?? []
             var detail = "\(points.count.formatted()) sparse points · \(reconstruction?.cameras.count ?? 0) cameras"
+            if stage == .alignment, run.artifacts["alignment"] == nil {
+                let label = run.status == "running" ? "LIVE PREVIEW" : "PARTIAL PREVIEW"
+                detail = "\(label) · \(detail) · provisional sampled points"
+            }
             var cloudGeometry: SCNGeometry?
             var surface: Surface?
             var uvs: [[Double]] = []

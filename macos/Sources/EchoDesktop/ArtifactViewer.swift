@@ -57,7 +57,9 @@ struct ArtifactViewer: View {
                     .labelStyle(.iconOnly).modifier(ViewerIconFrame()).accessibilityLabel("More stage actions")
                 }.labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).fixedSize()
             }
-            if !model.modes.isEmpty, workspace.selectedStage != .depth {
+            if !model.modes.isEmpty, workspace.selectedStage != .depth,
+                workspace.selectedStage != .fusion || workspace.inspection?.run?.artifacts["fusion"] != nil
+            {
                 Picker(
                     "View",
                     selection: Binding(get: { model.mode }, set: { model.selectMode($0) })
@@ -90,7 +92,9 @@ struct ArtifactViewer: View {
             if workspace.selectedStage == .fusion, let info = model.presentation?.fusion {
                 FusionLegendView(info: info)
             }
-            if workspace.selectedStage == .fusion, FusionViewMode(selection: model.mode).axis != nil {
+            if workspace.selectedStage == .fusion, workspace.inspection?.run?.artifacts["fusion"] != nil,
+                FusionViewMode(selection: model.mode).axis != nil
+            {
                 HStack {
                     Text("Slice position")
                     Slider(

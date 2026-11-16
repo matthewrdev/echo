@@ -38,8 +38,9 @@ public sealed class ProjectInspector : IProjectInspector
             var key = run.Artifacts.ContainsKey("alignment") ? "alignment" : "alignmentPreview";
             if (run.Artifacts.TryGetValue(key, out var alignment))
             {
+                var preview = store.PathFor(alignment + "/preview.json");
                 var file = store.PathFor(alignment + "/scene.json");
-                scene = ReadArtifact(() => summary
+                scene = ReadArtifact(() => File.Exists(preview) ? ReadPreview(preview, summary) : summary
                         ? jsonCodec.Read<ReconstructionOverview>(file).ToScene()
                         : jsonCodec.Read<ReconstructionScene>(file),
                     "alignment", summary, warnings);
@@ -77,6 +78,16 @@ public sealed class ProjectInspector : IProjectInspector
             Cloud = cloud,
             Warnings = warnings
         };
+    }
+
+    private ReconstructionScene ReadPreview(string file, bool summary)
+    {
+        var scene = jsonCodec.Read<AlignmentPreview>(file).Scene;
+        if (summary)
+        {
+            scene.Points = [];
+        }
+        return scene;
     }
 
     private T? ReadArtifact<T>(Func<T> read, string stage, bool summary, List<string> warnings) where T : class
