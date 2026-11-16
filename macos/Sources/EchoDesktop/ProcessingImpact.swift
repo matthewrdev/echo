@@ -73,6 +73,20 @@ struct ProcessingImpact {
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
+        let previous = Dictionary(uniqueKeysWithValues: old.images.filter(\.enabled).map { ($0.id, $0) })
+        for image in new.images where image.enabled {
+            guard let before = previous[image.id] else { continue }
+            let changedImage =
+                before.sourceHash != image.sourceHash || before.source != image.source
+                || before.width != image.width || before.height != image.height
+                || before.focalPixels != image.focalPixels
+            if changedImage { changes.append(.features) }
+            let changedPose =
+                (try? encoder.encode(before.gps)) != (try? encoder.encode(image.gps))
+                || (try? encoder.encode(before.attitude)) != (try? encoder.encode(image.attitude))
+                || before.capturedAt != image.capturedAt
+            if changedPose { changes.append(.matching) }
+        }
         for type in ["camera", "tie", "overlap"] {
             let before = old.hints.filter { $0.enabled && $0.type == type }.sorted { $0.id < $1.id }
             let after = new.hints.filter { $0.enabled && $0.type == type }.sorted { $0.id < $1.id }

@@ -42,7 +42,7 @@ public sealed class FeatureStage : IPipelineStage
         {
             var image = images[index];
             featureUnits[image.Id] = checkpoint.Artifact;
-            if (featureUnits.Count > previewCount)
+            if (!checkpoint.Reused && featureUnits.Count > previewCount)
             {
                 PublishPreview(context, featureUnits);
                 previewCount = featureUnits.Count;

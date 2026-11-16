@@ -120,7 +120,10 @@ public sealed class DepthStage : IPipelineStage
                 if (!previewUnits.TryGetValue(camera.ImageId, out var previous) || previous != depth)
                 {
                     previewUnits[camera.ImageId] = depth;
-                    PublishPreview(context, previewUnits);
+                    if (!reused)
+                    {
+                        PublishPreview(context, previewUnits);
+                    }
                 }
                 var action = reused ? "Reused" : "Found";
                 context.Report("imageCheckpoint", new

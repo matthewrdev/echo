@@ -43,7 +43,9 @@ struct GlobalProgressView: View {
                     }
                 }
             }
-            if workspace.isWorking, let fraction = workspace.workingRun?.progress?.fractionCompleted {
+            if workspace.isWorking, workspace.workingRun?.progress?.phase != "checking",
+                let fraction = workspace.workingRun?.progress?.fractionCompleted
+            {
                 ProgressView(value: fraction)
             }
             if workspace.showsTelemetry {

@@ -18,6 +18,7 @@ struct Photo: Decodable, Identifiable {
 
     var discarded: Bool? = nil
     var duplicateOf: String? = nil
+    var sourceHash: String? = nil
 
     var isDiscarded: Bool { discarded == true }
 

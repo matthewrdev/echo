@@ -11,6 +11,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private let eventFormatter: RunEventFormatter
     private let commandLog: CLICommandLog?
     private var refreshing = false
+    private var savedRunKey = ""
+    private var savedRuns: [RunData] = []
+    @Published private(set) var displayedRun: RunData?
+    @Published private(set) var retainedStages: Set<PipelineStage> = []
     let projectThumbnails: ProjectThumbnailLoader?
     let telemetry = TelemetryHistory()
     let performance: PerformanceTraceViewModel
@@ -137,6 +141,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     var progressDetail: String {
         if cancelRequested { return "Stopping… completed checkpoints are retained." }
+        if isWorking, workingRun?.progress?.phase == "checking" {
+            return
+                "Validating saved checkpoints. Existing results remain available; reconstruction is reused when compatible."
+        }
         if isWorking, let progress = workingRun?.progress, let counts = progress.countSummary {
             return counts
         }
@@ -149,6 +157,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     func stageStatus(_ stage: PipelineStage) -> String {
+        if retainedStages.contains(stage) { return "Saved · awaiting validation" }
         if let firstOutdatedStage, ProcessingImpact().stages(from: firstOutdatedStage).contains(stage),
             inspection?.run?.artifacts[stage.rawValue] != nil
         {
@@ -167,7 +176,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     func stageSymbol(_ stage: PipelineStage) -> String {
         switch stageStatus(stage) {
         case "Out of date": return "exclamationmark.triangle.fill"
-        case "Saved": return "checkmark.circle.fill"
+        case "Saved", "Saved · awaiting validation": return "checkmark.circle.fill"
         case "Live preview", "Processing": return "arrow.trianglehead.2.clockwise.rotate.90"
         case "Partial preview": return "circle.lefthalf.filled"
         default: return "circle"
@@ -177,7 +186,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     func stageColor(_ stage: PipelineStage) -> Color {
         switch stageStatus(stage) {
         case "Out of date": return .orange
-        case "Saved": return .green
+        case "Saved", "Saved · awaiting validation": return .green
         case "Live preview", "Processing": return .accentColor
         default: return .secondary
         }
@@ -254,6 +263,28 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             async let snapshot = client.inspect(root: requestedRoot, run: requestedRun)
             let result = try await (summaries, snapshot)
             guard requestedRoot == root, requestedRun == selectedRun else { return }
+            if let run = result.1.run, run.status == "running" {
+                let key = requestedRoot + "/" + run.id
+                if key != savedRunKey {
+                    var previous: [RunData] = []
+                    for summary in result.0.filter({ $0.id != run.id }).prefix(4) {
+                        if let saved = try? await client.run(root: requestedRoot, id: summary.id) {
+                            previous.append(saved)
+                        }
+                    }
+                    guard requestedRoot == root, requestedRun == selectedRun else { return }
+                    savedRuns = previous
+                    savedRunKey = key
+                }
+                let presentation = SavedArtifactPresentation(current: run, candidates: savedRuns)
+                displayedRun = presentation.run
+                retainedStages = presentation.retainedStages
+            } else {
+                displayedRun = result.1.run
+                retainedStages = []
+                savedRuns = []
+                savedRunKey = ""
+            }
             runs = result.0
             inspection = result.1
             openingProject = false
@@ -377,6 +408,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         telemetry.record(root: root, runID: nil, resources: nil)
         showsTelemetry = false
         inspection = nil
+        displayedRun = nil
+        retainedStages = []
+        savedRuns = []
+        savedRunKey = ""
         runs = []
         logs = []
         commands = []
@@ -396,6 +431,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         selectedRun = "latest"
         selectedPhotoID = nil
         inspection = nil
+        displayedRun = nil
+        retainedStages = []
+        savedRuns = []
+        savedRunKey = ""
         runs = []
         workingRun = nil
         telemetry.record(root: root, runID: nil, resources: nil)

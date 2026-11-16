@@ -8,4 +8,5 @@ struct RunData: Decodable, Identifiable {
     let artifacts: [String: String]
     let error: String?
     let progress: RunProgress?
+    var storageVersion: Int? = nil
 }

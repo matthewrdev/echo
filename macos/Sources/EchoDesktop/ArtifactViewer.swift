@@ -9,10 +9,20 @@ struct ArtifactViewer: View {
 
     private var artifactKey: String {
         let stage = workspace.selectedStage.rawValue
-        let matching = stage == "features" ? workspace.inspection?.run?.artifacts["matching"] ?? "" : ""
-        return matching + workspace.root + (workspace.inspection?.run?.id ?? "") + stage
-            + (workspace.inspection?.run?.artifacts[stage] ?? workspace.inspection?.run?.artifacts[stage + "Preview"]
-                ?? "")
+        let matching = stage == "features" ? workspace.displayedRun?.artifacts["matching"] ?? "" : ""
+        var previewVersion = ""
+        if [.alignment, .fusion].contains(workspace.selectedStage), let run = workspace.displayedRun,
+            run.artifacts[stage] == nil, let path = run.artifacts[stage + "Preview"]
+        {
+            // Preview slots are reused. Include their version even if polling missed a slot change.
+            let file = URL(fileURLWithPath: workspace.root).appendingPathComponent(path)
+                .appendingPathComponent("preview.json")
+            let version = ArtifactFileVersion(file: file)
+            previewVersion = "\(version.modified?.timeIntervalSince1970 ?? 0)/\(version.size ?? 0)/\(run.status)"
+        }
+        return matching + workspace.root + (workspace.displayedRun?.id ?? "") + stage
+            + (workspace.displayedRun?.artifacts[stage] ?? workspace.displayedRun?.artifacts[stage + "Preview"]
+                ?? "") + previewVersion
     }
 
     var body: some View {
@@ -23,7 +33,7 @@ struct ArtifactViewer: View {
                 HStack(spacing: 8) {
                     if [.alignment, .cloud, .mesh, .texture, .export].contains(workspace.selectedStage) {
                         Button("View on map", systemImage: "map") { workspace.sheet = .georeference }
-                            .disabled(workspace.inspection?.run?.artifacts["alignment"] == nil)
+                            .disabled(workspace.displayedRun?.artifacts["alignment"] == nil)
                             .help("View geographic placement and export for QGIS")
                     }
                     Button("Process to \(workspace.selectedStage.shortTitle)", systemImage: "play.fill") {
@@ -42,14 +52,14 @@ struct ArtifactViewer: View {
                             !workspace.canEdit)
                         Button("Resume this saved run") { workspace.resume() }
                             .disabled(
-                                !workspace.canEdit || workspace.inspection?.run == nil
-                                    || workspace.inspection?.run?.status == "completed")
+                                !workspace.canEdit || workspace.displayedRun == nil
+                                    || workspace.displayedRun?.status == "completed")
                         Button("Reset from this stage…") { workspace.reset(from: workspace.selectedStage) }
                             .disabled(!workspace.canEdit)
                         Button("Manage generated files…") { workspace.sheet = .storage }
                         Divider()
                         Button("Show artifact files") { workspace.revealArtifact(workspace.selectedStage) }
-                            .disabled(workspace.inspection?.run?.artifacts[workspace.selectedStage.rawValue] == nil)
+                            .disabled(workspace.displayedRun?.artifacts[workspace.selectedStage.rawValue] == nil)
                     } label: {
                         Label("More stage actions", systemImage: "ellipsis")
                     }
@@ -58,7 +68,7 @@ struct ArtifactViewer: View {
                 }.labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).fixedSize()
             }
             if !model.modes.isEmpty, workspace.selectedStage != .depth,
-                workspace.selectedStage != .fusion || workspace.inspection?.run?.artifacts["fusion"] != nil
+                workspace.selectedStage != .fusion || workspace.displayedRun?.artifacts["fusion"] != nil
             {
                 Picker(
                     "View",
@@ -75,6 +85,10 @@ struct ArtifactViewer: View {
                         "Colors show each triangle’s normal from its winding, in model coordinates. They stay fixed as you orbit."
                     )
             }
+            if workspace.retainedStages.contains(workspace.selectedStage) {
+                Label("Showing saved results while this run validates reusable work.", systemImage: "checkmark.circle")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
             if workspace.stageStatus(workspace.selectedStage) == "Out of date" {
                 Label(
                     "These results use earlier inputs. Process again to rebuild this stage and its dependencies.",
@@ -87,12 +101,12 @@ struct ArtifactViewer: View {
             }
             if workspace.selectedStage == .cloud {
                 CloudDisplayControls(
-                    model: model, hasSavedCloud: workspace.inspection?.run?.artifacts["cloud"] != nil)
+                    model: model, hasSavedCloud: workspace.displayedRun?.artifacts["cloud"] != nil)
             }
             if workspace.selectedStage == .fusion, let info = model.presentation?.fusion {
                 FusionLegendView(info: info)
             }
-            if workspace.selectedStage == .fusion, workspace.inspection?.run?.artifacts["fusion"] != nil,
+            if workspace.selectedStage == .fusion, workspace.displayedRun?.artifacts["fusion"] != nil,
                 FusionViewMode(selection: model.mode).axis != nil
             {
                 HStack {
@@ -139,7 +153,7 @@ struct ArtifactViewer: View {
         }
         .task(id: artifactKey) {
             await model.configure(
-                root: workspace.root, run: workspace.inspection?.run, stage: workspace.selectedStage,
+                root: workspace.root, run: workspace.displayedRun, stage: workspace.selectedStage,
                 preferredPhotoID: workspace.selectedPhotoID)
             guard !Task.isCancelled else { return }
             if openingSelection, [.features, .depth].contains(workspace.selectedStage),
@@ -153,7 +167,7 @@ struct ArtifactViewer: View {
     }
 
     private var imageReadiness: String? {
-        guard [.features, .depth].contains(workspace.selectedStage), let run = workspace.inspection?.run else {
+        guard [.features, .depth].contains(workspace.selectedStage), let run = workspace.displayedRun else {
             return nil
         }
         let stage = workspace.selectedStage.rawValue

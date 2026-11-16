@@ -28,7 +28,9 @@ struct ArtifactTreeView: View {
     }
 
     private func stageNode(_ stage: PipelineStage) -> some View {
-        let activity = workspace.workingRun?.progress.flatMap { $0.stage == stage.rawValue ? $0 : nil }
+        let activity = workspace.workingRun?.progress.flatMap {
+            $0.stage == stage.rawValue && $0.phase != "checking" ? $0 : nil
+        }
         let anotherRun = activity != nil && workspace.workingRun?.id != workspace.inspection?.run?.id
         let activityHelp =
             (anotherRun ? "Processing in the active run; the viewer shows a saved run.\n" : "")
