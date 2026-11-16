@@ -33,7 +33,7 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH config show
     echo-photo --project PATH config import FILE
     echo-photo --project PATH hints list|import FILE
-    echo-photo --project PATH hints camera IMAGE_ID [--lat N --lon N --alt N] [--yaw N --pitch N --roll N]
+    echo-photo --project PATH hints camera IMAGE_ID [--lat N --lon N --alt N --alt-datum TEXT] [--yaw N --pitch N --roll N]
     echo-photo --project PATH hints overlap IMAGE_ID OTHER_ID
     echo-photo --project PATH hints tie IMAGE_ID OTHER_ID --ax X --ay Y --bx X --by Y
     echo-photo --project PATH hints disable HINT_ID

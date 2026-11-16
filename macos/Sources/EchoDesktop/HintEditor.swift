@@ -5,6 +5,7 @@ struct HintEditor: View {
     @State private var latitude = ""
     @State private var longitude = ""
     @State private var altitude = ""
+    @State private var altitudeDatum = "unknown"
     @State private var yaw = ""
     @State private var pitch = ""
     @State private var roll = ""
@@ -26,6 +27,19 @@ struct HintEditor: View {
                         TextField("Longitude", text: $longitude)
                         TextField("Altitude (m)", text: $altitude)
                     }
+                    HStack {
+                        TextField("Altitude reference", text: $altitudeDatum)
+                        Menu("Choose reference") {
+                            Button("Unknown") { altitudeDatum = "unknown" }
+                            Button("WGS84 ellipsoid") { altitudeDatum = "WGS84 ellipsoid" }
+                            Button("Mean sea level (geoid unspecified)") {
+                                altitudeDatum = "mean sea level (geoid unspecified)"
+                            }
+                            Button("EGM96 geoid") { altitudeDatum = "EGM96 geoid" }
+                        }
+                    }
+                    Text("Selecting a reference labels the entered altitude; it does not convert the value.")
+                        .font(.caption).foregroundStyle(.secondary)
                     HStack {
                         TextField("Yaw (°)", text: $yaw)
                         TextField("Pitch (°)", text: $pitch)
@@ -83,6 +97,7 @@ struct HintEditor: View {
             latitude = photo?.gps.map { String($0.latitude) } ?? ""
             longitude = photo?.gps.map { String($0.longitude) } ?? ""
             altitude = photo?.gps?.altitude.map { String($0) } ?? ""
+            altitudeDatum = photo?.gps?.altitudeDatum ?? "unknown"
             yaw = photo?.attitude.map { String($0.yaw) } ?? ""
             pitch = photo?.attitude.map { String($0.pitch) } ?? ""
             roll = photo?.attitude.map { String($0.roll) } ?? ""
@@ -97,7 +112,7 @@ struct HintEditor: View {
                 return
             }
             hint.position = GeoPosition(
-                latitude: lat, longitude: lon, altitude: Double(altitude), altitudeDatum: "unknown",
+                latitude: lat, longitude: lon, altitude: Double(altitude), altitudeDatum: altitudeDatum,
                 uncertaintyMetres: 10)
         }
         if !yaw.isEmpty || !pitch.isEmpty {

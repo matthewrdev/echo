@@ -29,6 +29,9 @@ struct Photo: Decodable, Identifiable {
             if let value = metadata[key] { lines.append("\(key): \(value.description)") }
         }
         if let gps { lines.append("GPS: \(gps.latitude), \(gps.longitude)") }
+        if let altitude = gps?.altitude {
+            lines.append("Altitude: \(altitude) m · reference: \(gps?.altitudeDatum ?? "unknown")")
+        }
         if let attitude { lines.append("Yaw \(attitude.yaw)° · pitch \(attitude.pitch)°") }
         lines.append("Double click to open photograph and all metadata")
         return lines.joined(separator: "\n")

@@ -36,6 +36,7 @@ public sealed class ArgumentParser : IArgumentParser
             "lat",
             "lon",
             "alt",
+            "alt-datum",
             "yaw",
             "pitch",
             "roll",

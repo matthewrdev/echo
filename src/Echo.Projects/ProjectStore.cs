@@ -171,6 +171,7 @@ public sealed class ProjectStore : IProjectStore
                     Longitude = lon.Value,
                     Altitude = Number(metadata, "AbsoluteAltitude") ?? Number(metadata, "GPSAltitude")
                 };
+                image.Gps.AltitudeDatum = AltitudeReferenceResolver.Resolve(image.Gps, metadata).Datum;
             }
 
             var yaw = Number(metadata, "GimbalYawDegree");

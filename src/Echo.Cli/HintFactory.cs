@@ -27,6 +27,7 @@ public sealed class HintFactory : IHintFactory
                     Latitude = args.Number("lat"),
                     Longitude = args.Number("lon"),
                     Altitude = args.Options.ContainsKey("alt") ? args.Number("alt") : null,
+                    AltitudeDatum = args.Get("alt-datum", "unknown") ?? "unknown",
                     UncertaintyMetres = args.Options.ContainsKey("uncertainty") ? args.Number("uncertainty") : 10
                 };
             }

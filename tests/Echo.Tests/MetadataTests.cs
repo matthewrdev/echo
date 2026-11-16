@@ -20,6 +20,19 @@ public sealed class MetadataTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("GPS altitude sign supports modern below-sea-level references", () =>
+        {
+            var gps = new MetadataExtractor.Formats.Exif.GpsDirectory();
+            gps.Set(MetadataExtractor.Formats.Exif.GpsDirectory.TagAltitude, new MetadataExtractor.Rational(12, 1));
+            gps.Set(MetadataExtractor.Formats.Exif.GpsDirectory.TagAltitudeRef, 3);
+            var metadata = new PhotoMetadata();
+            MetadataFields.Add(gps, metadata);
+            Check(metadata.Fields["GPS:GPSAltitude"].GetDouble() == -12, "Reference 3 is negative");
+            var exif = new MetadataExtractor.Formats.Exif.ExifSubIfdDirectory();
+            exif.Set(MetadataExtractor.Formats.Exif.ExifDirectoryBase.TagExifVersion, "0300"u8.ToArray());
+            MetadataFields.Add(exif, metadata);
+            Check(metadata.Fields["ExifIFD:ExifVersion"].GetString() == "0300", "EXIF version remains available for reference inference");
+        });
         tests.Run("Managed TIFF metadata preserves camera priors in both byte orders", () =>
         {
             foreach (var little in new[] { true, false })

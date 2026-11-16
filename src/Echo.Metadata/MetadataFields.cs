@@ -39,7 +39,8 @@ public static class MetadataFields
             foreach (var tag in directory.Tags)
             {
                 var name = Name(directory, tag.Type, tag.Name);
-                result.Add(group, name, Value(directory.GetObject(tag.Type)));
+                var value = directory.GetObject(tag.Type);
+                result.Add(group, name, name == "ExifVersion" && value is byte[] version ? Encoding.ASCII.GetString(version) : Value(value));
             }
             if (directory is GpsDirectory gps)
             {
@@ -65,8 +66,8 @@ public static class MetadataFields
         }
         if (gps.GetObject(GpsDirectory.TagAltitude) is Rational rational && double.IsFinite(rational.ToDouble()))
         {
-            var belowSea = gps.TryGetInt32(GpsDirectory.TagAltitudeRef, out var reference) && reference == 1;
-            result.Add("GPS", "GPSAltitude", belowSea ? -rational.ToDouble() : rational.ToDouble());
+            var belowReference = gps.TryGetInt32(GpsDirectory.TagAltitudeRef, out var reference) && reference is 1 or 3;
+            result.Add("GPS", "GPSAltitude", belowReference ? -rational.ToDouble() : rational.ToDouble());
         }
     }
 
