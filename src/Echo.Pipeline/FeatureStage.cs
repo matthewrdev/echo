@@ -37,12 +37,14 @@ public sealed class FeatureStage : IPipelineStage
         var previewCount = context.Run.Artifacts.ContainsKey("featuresPreview")
             ? context.ReadArtifact<Dictionary<string, string>>("featuresPreview", "units.json").Count
             : 0;
+        var resumingPartialPreview = previewCount > 0 && !context.Run.Artifacts.ContainsKey("features");
         var plan = workPlanner.Features(project.Settings, images);
         workExecutor.Run(images.Count, plan.Workers, index => BuildImage(context, images[index]), (index, checkpoint) =>
         {
             var image = images[index];
             featureUnits[image.Id] = checkpoint.Artifact;
-            if (!checkpoint.Reused && featureUnits.Count > previewCount)
+            var extendsPreview = (!checkpoint.Reused || resumingPartialPreview) && featureUnits.Count > previewCount;
+            if (extendsPreview)
             {
                 PublishPreview(context, featureUnits);
                 previewCount = featureUnits.Count;

@@ -45,6 +45,7 @@ public sealed class DepthStage : IPipelineStage
         var previewUnits = context.Run.Artifacts.ContainsKey("depthPreview")
             ? context.ReadArtifact<Dictionary<string, string>>("depthPreview", "units.json")
             : new Dictionary<string, string>();
+        var resumingPartialPreview = previewUnits.Count > 0 && !context.Run.Artifacts.ContainsKey("depth");
         var completed = 0;
         var progressGate = new object();
         // Version the wider matching footprint and sky filtering. Direct Metal
@@ -120,7 +121,7 @@ public sealed class DepthStage : IPipelineStage
                 if (!previewUnits.TryGetValue(camera.ImageId, out var previous) || previous != depth)
                 {
                     previewUnits[camera.ImageId] = depth;
-                    if (!reused)
+                    if (!reused || resumingPartialPreview)
                     {
                         PublishPreview(context, previewUnits);
                     }
