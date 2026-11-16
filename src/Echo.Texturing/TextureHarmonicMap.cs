@@ -1,3 +1,6 @@
+using Echo.Contracts;
+using Echo.Compute;
+
 namespace Echo.Texturing;
 
 internal static class TextureHarmonicMap
@@ -5,7 +8,7 @@ internal static class TextureHarmonicMap
     // Tutte's positive-weight barycentric embedding on a convex boundary.
     // This fallback handles folds that defeat the free-boundary conformal map.
     // It is still rejected when stretch is excessive, even if it is injective.
-    public static double[]? Solve(TextureChartMesh chart, CancellationToken cancellation)
+    public static double[]? Solve(TextureChartMesh chart, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         if (chart.Boundary.Length < 3)
         {
@@ -50,8 +53,8 @@ internal static class TextureHarmonicMap
             v[chart.Boundary[index]] = Math.Sin(angle);
             distance += lengths[index];
         }
-        var x = system.Solve(u, cancellation);
-        var y = system.Solve(v, cancellation);
+        var x = system.Solve(u, cancellation, compute, backend);
+        var y = system.Solve(v, cancellation, compute, backend);
         if (x == null || y == null)
         {
             return null;

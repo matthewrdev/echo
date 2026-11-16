@@ -6,7 +6,7 @@ Echo is a native macOS photogrammetry workbench for reconstructing cliffs, terra
 
 ## See what your scan is doing
 
-- **Use your GPU.** Depth processing automatically prefers Metal on supported Macs, with CPU fallback.
+- **Use your GPU.** Eligible photogrammetry operations automatically use Metal on supported Macs, with CPU fallback.
 - **Watch results arrive.** Inspect detected features and depth maps as each photograph finishes processing.
 - **Understand the reconstruction.** Compare matches, overlay depth and confidence on the original photo, and inspect cameras and points in 3D.
 - **Use your capture data.** Explore photo metadata, DJI camera orientation and GPS positioning alongside the reconstruction.
@@ -36,6 +36,10 @@ For earlier cleanup, **Fusion → Trim islands before meshing** removes disconne
 **Depth maps → Exclude sky from depth** is enabled by default. The local scene classifier identifies clear and cloudy sky, and confident sky pixels are removed from saved depth and confidence maps before previews and cloud processing. Mixed skyline boundaries are preserved, and cliff recovery cannot refill masked sky. The classifier downloads once (228 MB); photographs stay local. Changing this setting rebuilds Depth and subsequent stages. Existing saved runs remain available; start a new run to produce filtered maps.
 
 **Texture → Reduce sky colour bleed** adds an optional skyline sampling margin (start at 8 source-photo pixels). It detects smooth sky-coloured regions connected to a photo's top edge and extends nearby foreground colour across a narrow band. It applies to baking, seam correction and inferred boundary colours without editing source photos. This heuristic can miss sky or misidentify pale objects; stronger margins can soften edges. It does not conceal large geometry/projection errors. Changing it rebuilds Texture and Export only.
+
+**Features → Processing acceleration** selects Auto, CPU, or Metal across feature pyramids, descriptor matching, alignment verification and triangulation, depth cleanup, cloud verification, fusion, mesh evidence and extraction, and texture processing. Depth's stereo search keeps its separate backend control. Small jobs and operations outside GPU eligibility continue on CPU. Auto also falls back when Metal is unavailable or a compute allocation exceeds its budget; explicit Metal reports failures for eligible work.
+
+Atlas packing preserves UV islands and searches the gaps between their padded shapes for smaller islands. On macOS, Metal tests positions and quarter-turn rotations in parallel. The processing backend setting applies: CPU disables Metal, Auto falls back to the deterministic CPU search when necessary, and Metal requires acceleration for eligible searches. The packer increases texture density only when the entire layout fits, retaining the previous skyline layout otherwise. Progress reports the backend and measured density gain. New Texture runs use this packing algorithm; saved atlases remain unchanged.
 
 The processing banner shows the current operation and progress. Toggle **Telemetry** to view the last ten minutes of memory, cache and CPU usage, plus individual thread CPU usage on macOS. Measurements include the processor and registered native workers. CPU capacity uses all logical cores; each thread's percentage uses one core. History is collected while the project is open, and older runs may have memory measurements only.
 
@@ -69,5 +73,28 @@ The desktop uses SwiftUI, AppKit and SceneKit/Metal. The CLI and processing subs
 ./scripts/build.sh         # Build and run C# and native tests
 ./scripts/check-format.sh  # Check formatting and code conventions
 ```
+
+The backend contract is `ComputeBackend` in C# and Swift; JSON names remain `auto`, `cpu`, and `metal`. General compute sessions are serialized per device, reuse bounded native buffers, and are capped at 512 MiB or one quarter of the run's working-memory allowance, whichever is smaller. Large depth-map sets retain the paged CPU path. Managed staging arrays are pooled. Algorithm fingerprints include the backend and kernel implementation, so changed GPU arithmetic does not reuse incompatible checkpoints. Metal float arithmetic can change numerical results; verification/refinement and mesh topology decisions retain CPU checks where applicable.
+
+GPU texture baking currently requires sky suppression to be off and atlases no larger than 8192 pixels. Padding accelerates gutters up to 32 pixels; Triangulation and UV warm starts are available with explicit Metal selection and retain double-precision verification/refinement. Auto keeps both on CPU because they did not consistently beat the reference in measured workloads. Automatic batched epipolar scoring and seam diffusion require at least 16,384 matches/nodes. Surface extraction accelerates sparse corner lookup while retaining CPU topology and welding. Bundle adjustment, graph cuts, mesh repair, and simplification remain CPU operations.
+
+Run actual hardware parity checks and optional transfer-inclusive microbenchmarks with:
+
+```bash
+dotnet tests/Echo.Tests/bin/Release/net10.0/Echo.Tests.dll --compute --require-metal
+dotnet tests/Echo.Tests/bin/Release/net10.0/Echo.Tests.dll --compute --require-metal --benchmark
+```
+
+Example Apple M5 Pro microbenchmarks (median of three warmed runs, staging/readback included, other packing/baking work paused):
+
+| Operation | CPU | Metal | Speedup |
+| --- | ---: | ---: | ---: |
+| 1024 × 1024 descriptor pairs, 128 components | 56.75 ms | 4.77 ms | 11.9× |
+| 2048² Gaussian image, sigma 1.6 | 54.13 ms | 5.48 ms | 9.9× |
+| 1024² depth cleanup | 18.74 ms | 5.67 ms | 3.3× |
+| 125,000-sample surface extraction | 43.61 ms | 22.62 ms | 1.9× |
+| 16,384-node seam diffusion, 32 passes | 2.83 ms | 1.19 ms | 2.4× |
+
+These are component timings, not an end-to-end reconstruction speedup. The small fusion fixture improved only about 1.1×; CPU grid construction still dominates it. Performance depends on scene size, GPU, available memory and CPU/GPU transfer costs.
 
 See [AGENTS.md](AGENTS.md) for code conventions, [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) for licensing.

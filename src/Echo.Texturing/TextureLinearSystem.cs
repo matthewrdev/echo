@@ -1,3 +1,7 @@
+using Echo.Contracts;
+using System.Runtime.InteropServices;
+using Echo.Compute;
+
 namespace Echo.Texturing;
 
 // Sparse symmetric system with explicit Dirichlet constraints. Used for chart
@@ -13,10 +17,11 @@ internal sealed class TextureLinearSystem
 
     public void Add(int row, int column, double value)
     {
-        rows[row][column] = rows[row].GetValueOrDefault(column) + value;
+        ref var coefficient = ref CollectionsMarshal.GetValueRefOrAddDefault(rows[row], column, out _);
+        coefficient += value;
     }
 
-    public double[]? Solve(IReadOnlyDictionary<int, double> constraints, CancellationToken cancellation)
+    public double[]? Solve(IReadOnlyDictionary<int, double> constraints, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         var count = rows.Length;
         var offsets = new int[count + 1];
@@ -66,6 +71,32 @@ internal sealed class TextureLinearSystem
             return null;
         }
         var tolerance = Math.Max(1e-28, energy * 1e-20);
+        var warm = TextureSolveCompute.TryWarmStart(compute, backend, offsets, indices, values, diagonal, fixedRows, solution, cancellation);
+        if (warm != null)
+        {
+            Multiply(offsets, indices, values, warm, product, fixedRows);
+            var warmEnergy = 0.0;
+            for (var row = 0; row < count; row++)
+            {
+                if (!fixedRows[row])
+                {
+                    warmEnergy += product[row] * product[row] / diagonal[row];
+                }
+            }
+            if (double.IsFinite(warmEnergy) && warmEnergy < energy * .5)
+            {
+                solution = warm;
+                energy = warmEnergy;
+                for (var row = 0; row < count; row++)
+                {
+                    if (!fixedRows[row])
+                    {
+                        residual[row] = -product[row];
+                        direction[row] = residual[row] / diagonal[row];
+                    }
+                }
+            }
+        }
         for (var iteration = 0; iteration < Math.Min(4000, count * 4 + 32); iteration++)
         {
             cancellation.ThrowIfCancellationRequested();

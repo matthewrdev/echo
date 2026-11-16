@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Storage;
 
 namespace Echo.Texturing;
@@ -8,11 +9,13 @@ namespace Echo.Texturing;
 public sealed class TexturePatchBuilder : ITexturePatchBuilder
 {
     private readonly ITextureChartOrienter orienter;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public TexturePatchBuilder(ITextureChartOrienter orienter)
+    public TexturePatchBuilder(ITextureChartOrienter orienter, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.orienter = orienter;
+        this.compute = compute;
     }
 
     public IReadOnlyList<TexturePatch> Build(ProjectData project, ReconstructionScene scene, Surface mesh,
@@ -34,7 +37,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         var completed = 0;
         foreach (var region in regions)
         {
-            Unwrap(geometry, region, patches, cancellation);
+            Unwrap(geometry, region, patches, cancellation, project.Settings.ComputeBackend);
             completed++;
             if (completed % 1000 == 0)
             {
@@ -42,7 +45,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
             }
         }
 
-        patches = TextureChartMerger.Merge(geometry, patches, project.Settings.TextureChartFaces, vegetationFaces, cancellation, progress);
+        patches = TextureChartMerger.Merge(geometry, patches, project.Settings.TextureChartFaces, vegetationFaces, cancellation, progress, compute, project.Settings.ComputeBackend);
         foreach (var patch in patches)
         {
             orienter.Orient(patch);
@@ -51,14 +54,14 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
     }
 
     private void Unwrap(TextureChartGeometry geometry, List<int> faces, List<TexturePatch> patches,
-        CancellationToken cancellation)
+        CancellationToken cancellation, ComputeBackend backend)
     {
         cancellation.ThrowIfCancellationRequested();
         var chart = new TextureChartMesh(geometry, faces);
-        var coordinates = TextureConformalMap.Solve(chart, cancellation);
+        var coordinates = TextureConformalMap.Solve(chart, cancellation, compute, backend);
         if (coordinates == null || !TextureChartValidation.Accept(chart, coordinates, cancellation))
         {
-            coordinates = TextureHarmonicMap.Solve(chart, cancellation);
+            coordinates = TextureHarmonicMap.Solve(chart, cancellation, compute, backend);
             if (coordinates == null || !TextureChartValidation.Accept(chart, coordinates, cancellation))
             {
                 if (faces.Count == 1)
@@ -68,7 +71,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
 
                 foreach (var part in TextureChartRegions.Split(geometry, faces, cancellation))
                 {
-                    Unwrap(geometry, part, patches, cancellation);
+                    Unwrap(geometry, part, patches, cancellation, backend);
                 }
                 return;
             }

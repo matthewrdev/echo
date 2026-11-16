@@ -1,3 +1,6 @@
+using Echo.Contracts;
+using Echo.Compute;
+
 namespace Echo.Texturing;
 
 internal static class TextureConformalMap
@@ -6,7 +9,7 @@ internal static class TextureConformalMap
     // Minimise the area-weighted Cauchy-Riemann residual, fixing two boundary
     // vertices to remove translation/rotation/scale. Validate the resulting map
     // separately: a least-squares solve alone is not an overlap guarantee.
-    public static double[]? Solve(TextureChartMesh chart, CancellationToken cancellation)
+    public static double[]? Solve(TextureChartMesh chart, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         if (chart.Boundary.Length < 3)
         {
@@ -65,6 +68,6 @@ internal static class TextureConformalMap
             [first * 2 + 1] = 0,
             [second * 2] = length,
             [second * 2 + 1] = 0
-        }, cancellation);
+        }, cancellation, compute, backend);
     }
 }

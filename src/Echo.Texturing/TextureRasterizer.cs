@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Storage;
 using Echo.Geometry;
 using Echo.Imaging;
@@ -13,15 +14,31 @@ namespace Echo.Texturing;
 public sealed class TextureRasterizer : ITextureRasterizer
 {
     private readonly IRasterImageService images;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public TextureRasterizer(IRasterImageService images)
+    public TextureRasterizer(IRasterImageService images, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.images = images;
+        this.compute = compute;
     }
 
     public double Paint(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
         TextureResult texture, IReadOnlyList<TexturePatch> patches, SKBitmap atlas, CancellationToken cancellation, Action<OperationProgress>? progress = null, WorkBuffers? work = null)
+    {
+        try
+        {
+            return PaintCore(store, project, scene, mesh, texture, patches, atlas, cancellation, progress, work, true);
+        }
+        catch (ComputeException) when (project.Settings.ComputeBackend == ComputeBackend.Auto)
+        {
+            return PaintCore(store, project, scene, mesh, texture, patches, atlas, cancellation, progress, work, false);
+        }
+    }
+
+    private double PaintCore(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
+        TextureResult texture, IReadOnlyList<TexturePatch> patches, SKBitmap atlas, CancellationToken cancellation,
+        Action<OperationProgress>? progress, WorkBuffers? work, bool useCompute)
     {
         var size = texture.Size;
         var byteColour = atlas.ColorType is SKColorType.Bgra8888 or SKColorType.Rgba8888;
@@ -38,6 +55,11 @@ public sealed class TextureRasterizer : ITextureRasterizer
         Span<SKColor> target = managedTarget != null
             ? managedTarget : MemoryMarshal.Cast<byte, SKColor>(atlas.GetPixelSpan());
         target.Clear();
+        // Sky-guard remapping retains the CPU sampler until its discrete lookup
+        // is represented in the device input contract.
+        var eligible = useCompute && !project.Settings.TextureSuppressSky && size <= 8192;
+        using var painting = eligible ? compute?.Open(project.Settings.ComputeBackend, cancellation) : null;
+        var projectionCompute = painting == null ? null : new TextureProjectionCompute(painting, size, target);
         var photos = project.Images.ToDictionary(p => p.Id);
         var cameras = scene.Cameras.ToDictionary(c => c.ImageId);
         var needsCompletion = mesh.SourceImages.Any(string.IsNullOrEmpty);
@@ -65,6 +87,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
             var skyGuard = project.Settings.TextureSuppressSky
                 ? TextureSkyGuardBuilder.Build(pixels, source.Width, source.Height, swapRedBlue, project.Settings.TextureSkyMarginPixels, cancellation)
                 : null;
+            projectionCompute?.Source(pixels, source.Width, source.Height, swapRedBlue);
             foreach (var index in group)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -91,10 +114,27 @@ public sealed class TextureRasterizer : ITextureRasterizer
                         colourWeights[vertex]++;
                     }
                 }
-                painted += PaintTriangle(target, size, pixels, source.Width, source.Height, uv, projected, corrections, swapRedBlue, skyGuard: skyGuard);
+                if (projectionCompute != null)
+                {
+                    projectionCompute.Add(uv, projected, corrections);
+                }
+                else
+                {
+                    painted += PaintTriangle(target, size, pixels, source.Width, source.Height, uv, projected, corrections, swapRedBlue, skyGuard: skyGuard);
+                }
             }
             GC.KeepAlive(source);
         }
+
+        if (projectionCompute != null)
+        {
+            projectionCompute.Read(target);
+            foreach (var pixel in target)
+            {
+                painted += pixel.Alpha == 0 ? 0 : 1;
+            }
+        }
+        painting?.Dispose();
 
         if (needsCompletion)
         {
@@ -128,7 +168,11 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 target[index] = target[index].WithAlpha(255);
             }
         }
-        TexturePadding.Extend(target, size, texture.GutterPixels > 0 ? texture.GutterPixels : project.Settings.TextureGutter, cancellation, progress);
+        var gutter = texture.GutterPixels > 0 ? texture.GutterPixels : project.Settings.TextureGutter;
+        if (!useCompute || !TexturePaddingCompute.TryExtend(compute, project.Settings.ComputeBackend, target, size, gutter, cancellation))
+        {
+            TexturePadding.Extend(target, size, gutter, cancellation, progress);
+        }
         TextureBackground.Fill(target, size, cancellation, progress);
 
         for (var i = 0; i < target.Length; i++)

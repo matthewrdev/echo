@@ -6,6 +6,17 @@ using Echo.Pipeline;
 using var composition = new MefComposition(typeof(ReconstructionTests).Assembly, typeof(Processor).Assembly, typeof(CommandApplication).Assembly,
     typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly, typeof(Echo.Texturing.Metal.MetalTexturePlacementAccelerator).Assembly);
 var scaleTests = new TestSuite();
+if (args.Contains("--compute", StringComparer.Ordinal))
+{
+    composition.Resolve<ComputeTests>().Run(scaleTests, args.Contains("--require-metal", StringComparer.Ordinal));
+    composition.Resolve<ComputePassTests>().Run(scaleTests);
+    composition.Resolve<ComputeTextureTests>().Run(scaleTests);
+    if (args.Contains("--benchmark", StringComparer.Ordinal))
+    {
+        composition.Resolve<ComputeBenchmarks>().Run();
+    }
+    return scaleTests.Finish();
+}
 if (args.Contains("--texture", StringComparer.Ordinal))
 {
     composition.Resolve<TexturePackingTests>().Run(scaleTests, args.Contains("--require-metal", StringComparer.Ordinal));
@@ -84,4 +95,7 @@ composition.Resolve<FusionQualityTests>().Run(scaleTests);
 composition.Resolve<FusionSettingsTests>().Run(scaleTests);
 composition.Resolve<TextureParameterizationTests>().Run(scaleTests);
 composition.Resolve<TexturePackingTests>().Run(scaleTests);
+composition.Resolve<ComputeTests>().Run(scaleTests, false);
+composition.Resolve<ComputePassTests>().Run(scaleTests);
+composition.Resolve<ComputeTextureTests>().Run(scaleTests);
 return Math.Max(scaleTests.Finish(), composition.Resolve<ReconstructionTests>().Run());

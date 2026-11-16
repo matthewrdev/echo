@@ -1,9 +1,12 @@
+using Echo.Contracts;
+using Echo.Compute;
+
 namespace Echo.Texturing;
 
 internal static class TextureChartMerger
 {
     public static List<TexturePatch> Merge(TextureChartGeometry geometry, List<TexturePatch> patches, int maximumFaces,
-        IReadOnlyList<bool>? materials, CancellationToken cancellation, Action<string>? progress)
+        IReadOnlyList<bool>? materials, CancellationToken cancellation, Action<string>? progress, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         var owner = new int[geometry.Surface.Faces.Count];
         for (var index = 0; index < patches.Count; index++)
@@ -61,7 +64,7 @@ internal static class TextureChartMerger
                     }
                     var faces = patch.Faces.Concat(active[other]!.Faces).ToList();
                     var chart = new TextureChartMesh(geometry, faces);
-                    var coordinates = TextureConformalMap.Solve(chart, cancellation);
+                    var coordinates = TextureConformalMap.Solve(chart, cancellation, compute, backend);
                     if (coordinates == null || !TextureChartValidation.Accept(chart, coordinates, cancellation))
                     {
                         continue;

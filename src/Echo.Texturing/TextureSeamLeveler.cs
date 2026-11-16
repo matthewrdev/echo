@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Storage;
 using Echo.Geometry;
 using Echo.Imaging;
@@ -12,11 +13,13 @@ namespace Echo.Texturing;
 public sealed class TextureSeamLeveler : ITextureSeamLeveler
 {
     private readonly IRasterImageService images;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public TextureSeamLeveler(IRasterImageService images)
+    public TextureSeamLeveler(IRasterImageService images, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.images = images;
+        this.compute = compute;
     }
 
     public TextureSeamCorrections Compute(IProjectStore store, ProjectData project, ReconstructionScene scene,
@@ -117,7 +120,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             }
         }
         var global = GlobalOffsets(nodes, links, imageIds.Length, cancellation, progress);
-        var local = LocalOffsets(nodes, global, cancellation, progress);
+        var local = LocalOffsets(nodes, global, cancellation, progress, project.Settings.ComputeBackend);
         var offsets = new V3[corners.Length];
         for (var corner = 0; corner < corners.Length; corner++)
         {
@@ -190,10 +193,16 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         var offsets = new V3[images];
         var sums = new V3[images];
         var weights = new int[images];
+        var constraints = new Dictionary<ExposurePair, ExposureConstraint>();
         foreach (var link in links)
         {
             weights[nodes[link.First].Image]++;
             weights[nodes[link.Second].Image]++;
+            var a = nodes[link.First];
+            var b = nodes[link.Second];
+            var key = new ExposurePair(a.Image, b.Image);
+            var current = constraints.GetValueOrDefault(key);
+            constraints[key] = new ExposureConstraint(current.Difference + b.Colour - a.Colour, current.Count + 1);
         }
         // Fit image exposure offsets to many samples along seams. Damping and
         // a small zero anchor fix the gauge and avoid bipartite oscillation.
@@ -202,12 +211,12 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             cancellation.ThrowIfCancellationRequested();
             progress?.Invoke(new OperationProgress("Exposure correction", "Solving photograph exposure offsets…", pass, 160, "iterations"));
             Array.Clear(sums);
-            foreach (var link in links)
+            foreach (var entry in constraints)
             {
-                var a = nodes[link.First];
-                var b = nodes[link.Second];
-                sums[a.Image] += offsets[b.Image] + b.Colour - a.Colour;
-                sums[b.Image] += offsets[a.Image] + a.Colour - b.Colour;
+                var pair = entry.Key;
+                var constraint = entry.Value;
+                sums[pair.First] += offsets[pair.Second] * constraint.Count + constraint.Difference;
+                sums[pair.Second] += offsets[pair.First] * constraint.Count - constraint.Difference;
             }
             for (var image = 0; image < images; image++)
             {
@@ -220,7 +229,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         return offsets;
     }
 
-    private V3[] LocalOffsets(List<TextureSeamNode> nodes, V3[] global, CancellationToken cancellation, Action<OperationProgress>? progress)
+    private V3[] LocalOffsets(List<TextureSeamNode> nodes, V3[] global, CancellationToken cancellation, Action<OperationProgress>? progress, ComputeBackend backend)
     {
         var local = new V3[nodes.Count];
         foreach (var group in Enumerable.Range(0, nodes.Count).Where(index => nodes[index].Weight > 0).GroupBy(index => nodes[index].Vertex))
@@ -237,6 +246,12 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             {
                 local[index] = Clamp(mean - nodes[index].Colour - global[nodes[index].Image], 32);
             }
+        }
+        var accelerated = SeamDiffusionCompute.TryDiffuse(compute, backend, nodes, local, cancellation);
+        if (accelerated != null)
+        {
+            progress?.Invoke(new OperationProgress("Local seam correction", "Diffused colour corrections with Metal.", 32, 32, "iterations"));
+            return accelerated;
         }
         var next = new V3[local.Length];
         for (var pass = 0; pass < 32; pass++)
