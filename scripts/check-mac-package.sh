@@ -10,7 +10,7 @@ trap 'rm -rf "$scratch"' EXIT
 
 # Relocation, spaces in the app path, and an empty tool search path must all work.
 ditto "$app" "$scratch/Echo relocated.app"
-cli="$scratch/Echo relocated.app/Contents/MacOS/cli/echo-photo"
+cli="$scratch/Echo relocated.app/Contents/MacOS/echo-photo"
 run_cli() {
     env -i PATH=/nonexistent HOME="$scratch" TMPDIR="$scratch/" "$cli" "$@"
 }

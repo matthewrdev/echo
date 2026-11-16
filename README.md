@@ -27,7 +27,16 @@ To build a standalone Release app:
 open dist/Echo.app
 ```
 
-The package includes the processing runtime. Apple Silicon is the default; pass `osx-x64` to build for Intel. Local builds are ad-hoc signed, not notarised.
+The package includes the processing runtime. Apple Silicon is the default; pass `osx-x64` to build for Intel. Packaging uses `Developer ID Application: alpha outdoors pty. ltd. (65MZ7WPY52)` for distribution outside the Mac App Store. Install that certificate and its private key in Keychain before packaging. Set `CODESIGN_IDENTITY` to another Developer ID Application certificate name or SHA-1, or `-` for an ad-hoc local build.
+
+To notarise and create a distribution ZIP, store credentials interactively in Keychain once, then use that profile when packaging:
+
+```bash
+xcrun notarytool store-credentials echo-notary
+NOTARYTOOL_PROFILE=echo-notary ./scripts/package-mac.sh
+```
+
+Use the signing certificate's team when creating the profile. Notarisation staples Apple's ticket to the app and creates `dist/Echo.zip`. Without `NOTARYTOOL_PROFILE`, the app is signed but not notarised. Run either packaging script with `--help` for details.
 
 ## Command line
 
