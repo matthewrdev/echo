@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Globalization;
 using System.Text;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Storage;
 using Echo.Geometry;
 using Echo.Imaging;
@@ -16,12 +17,14 @@ public sealed class CloudBuilder : ICloudBuilder
 {
     private readonly IRasterImageService rasterImageService;
     private readonly ICloudExecutionPlanner executionPlanner;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public CloudBuilder(IRasterImageService rasterImageService, ICloudExecutionPlanner executionPlanner)
+    public CloudBuilder(IRasterImageService rasterImageService, ICloudExecutionPlanner executionPlanner, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.rasterImageService = rasterImageService;
         this.executionPlanner = executionPlanner;
+        this.compute = compute;
     }
 
     public DenseCloudData Build(IProjectStore store,
@@ -85,7 +88,8 @@ public sealed class CloudBuilder : ICloudBuilder
                 {
                     throw new EchoException($"Depth-map dimensions do not match the source photograph: {photos[view.Map.ImageId].Name}.", 5);
                 }
-                ProcessImage(view, neighbours[index], index, colours.Pixels, project.Settings, plan, batches, cloud, status, options, previewSamples);
+                var support = CloudSupportCompute.TryCalculate(compute, view, neighbours[index], project.Settings, cancellation);
+                ProcessImage(view, neighbours[index], index, colours.Pixels, project.Settings, plan, batches, cloud, status, options, previewSamples, support);
             }
         }
         finally
@@ -139,7 +143,7 @@ public sealed class CloudBuilder : ICloudBuilder
 
     private void ProcessImage(DepthView view, DepthView[] neighbours, int imageIndex, SKColor[] colours,
         Settings settings, CloudExecutionPlan plan, CloudRowBatch[] batches, DenseCloudData cloud,
-        CloudBuildProgress status, ParallelOptions options, CloudPreviewSampler? previewSamples)
+        CloudBuildProgress status, ParallelOptions options, CloudPreviewSampler? previewSamples, int[]? support)
     {
         var waveRows = plan.Workers * plan.RowsPerBatch;
         for (var firstRow = 0; firstRow < view.Map.Height; firstRow += waveRows)
@@ -150,7 +154,7 @@ public sealed class CloudBuilder : ICloudBuilder
             {
                 var start = firstRow + slot * plan.RowsPerBatch;
                 var end = Math.Min(view.Map.Height, start + plan.RowsPerBatch);
-                ProcessRows(view, neighbours, imageIndex, colours, settings, start, end, batches[slot], options.CancellationToken);
+                ProcessRows(view, neighbours, imageIndex, colours, settings, start, end, batches[slot], options.CancellationToken, support);
             });
             options.CancellationToken.ThrowIfCancellationRequested();
             var completedRows = 0;
@@ -173,7 +177,7 @@ public sealed class CloudBuilder : ICloudBuilder
     }
 
     private void ProcessRows(DepthView view, DepthView[] neighbours, int imageIndex, SKColor[] colours,
-        Settings settings, int firstRow, int lastRow, CloudRowBatch batch, CancellationToken cancellation)
+        Settings settings, int firstRow, int lastRow, CloudRowBatch batch, CancellationToken cancellation, int[]? acceleratedSupport)
     {
         var accepted = 0;
         var input = 0;
@@ -196,8 +200,8 @@ public sealed class CloudBuilder : ICloudBuilder
                 var point = view.Point(x, y, depth);
                 var referenceRay = point - view.Centre;
                 var referenceLengthSquared = referenceRay.Dot(referenceRay);
-                var support = 0;
-                foreach (var other in neighbours)
+                var support = acceleratedSupport?[offset + x] ?? 0;
+                foreach (var other in acceleratedSupport == null ? neighbours : Array.Empty<DepthView>())
                 {
                     var otherRay = point - other.Centre;
                     var cross = referenceRay.Cross(otherRay);

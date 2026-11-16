@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Storage;
 using Echo.Geometry;
 
@@ -8,9 +9,12 @@ namespace Echo.Fusion;
 [Export(typeof(IDepthFusion)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class DepthFusion : IDepthFusion
 {
+    private readonly IComputeService? compute;
+
     [ImportingConstructor]
-    public DepthFusion()
+    public DepthFusion([Import(AllowDefault = true)] IComputeService? compute = null)
     {
+        this.compute = compute;
     }
 
     public FusedVolume Fuse(ProjectData project,
@@ -57,6 +61,9 @@ public sealed class DepthFusion : IDepthFusion
             }
         };
         operationProgress?.Invoke(new OperationProgress("Volume integration", "Integrating observed depths…", 0, keys.Count, "grid samples"));
+        var origin = views.Length == 0 ? default : views[0].Centre;
+        using var acceleration = DepthCompute.Open(compute, project.Settings.ComputeBackend, views, origin, cancellation);
+        var accelerationFailed = false;
         const int chunkSize = 16384;
         for (var first = 0; first < keys.Count; first += chunkSize)
         {
@@ -64,6 +71,17 @@ public sealed class DepthFusion : IDepthFusion
             var count = Math.Min(chunkSize, keys.Count - first);
             IList<VolumeSample> Integrate()
             {
+                if (acceleration != null && !accelerationFailed)
+                {
+                    try
+                    {
+                        return FusionCompute.Integrate(acceleration, keys, first, count, voxel, origin, views.Length, project.Settings.CloudDepthTolerance, cancellation);
+                    }
+                    catch (ComputeException) when (project.Settings.ComputeBackend == ComputeBackend.Auto)
+                    {
+                        accelerationFailed = true;
+                    }
+                }
                 var samples = new VolumeSample?[count];
                 Parallel.For(0, count, new ParallelOptions
                 {
