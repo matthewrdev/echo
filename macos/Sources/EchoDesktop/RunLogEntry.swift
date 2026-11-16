@@ -1,21 +1,20 @@
 import Foundation
 
-struct RunLogEntry: Identifiable {
+struct RunLogEntry: Identifiable, Equatable {
     let id: Int
     let timestamp: String
     let stage: String
     let message: String
-    var time: String {
-        let parser = ISO8601DateFormatter()
-        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        var date = parser.date(from: timestamp)
-        if date == nil {
-            parser.formatOptions = [.withInternetDateTime]
-            date = parser.date(from: timestamp)
-        }
-        guard let date else { return "" }
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("jmmssSSS")
-        return formatter.string(from: date)
+    let time: String
+
+    init(id: Int, timestamp: String, stage: String, message: String) {
+        self.id = id
+        self.timestamp = timestamp
+        self.stage = stage
+        self.message = message
+        let date =
+            (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(timestamp))
+            ?? (try? Date.ISO8601FormatStyle().parse(timestamp))
+        time = date?.formatted(.dateTime.hour().minute().second().secondFraction(.fractional(3))) ?? ""
     }
 }

@@ -73,10 +73,7 @@ struct StageLogView: View {
                                 .foregroundStyle(.secondary)
                             }
                             ForEach(entries) { entry in
-                                HStack(alignment: .top, spacing: 12) {
-                                    Text(entry.time).monospacedDigit().foregroundStyle(.secondary).fixedSize()
-                                    Text(entry.message).textSelection(.enabled)
-                                }.frame(maxWidth: .infinity, alignment: .leading).id("event-\(entry.id)")
+                                RunLogRow(entry: entry).equatable().id("event-\(entry.id)")
                             }
                         } else {
                             if commands.isEmpty {

@@ -23,6 +23,10 @@ final class RunLogReaderTests: XCTestCase {
         }
         let reopened = try await RunLogReader(formatter: RunEventFormatter()).read(root: root.path, runID: "test")
         XCTAssertEqual(reopened.count, 1200)
+        try Data((lines[0] + "\n").utf8).write(to: file)
+        let truncated = try await reader.read(root: root.path, runID: "test")
+        XCTAssertEqual(truncated.count, 1)
+        XCTAssertEqual(truncated[0].message, "Message 1")
     }
 
     func testFeatureCheckpointUsesPhotoAndCountsWhileOldEventsRemainReadable() throws {

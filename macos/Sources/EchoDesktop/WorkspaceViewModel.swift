@@ -11,6 +11,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private let eventFormatter: RunEventFormatter
     private let commandLog: CLICommandLog?
     private var refreshing = false
+    private var logIDs: Set<Int> = []
     private var savedRunKey = ""
     private var savedRuns: [RunData] = []
     private var savedArtifactSources: [PipelineStage: RunData] = [:]
@@ -37,7 +38,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var imagesViewMode = ImagesViewMode.tiles
     private var lastArtifactStage = PipelineStage.alignment
     @Published var sheet: WorkspaceSheet?
-    @Published var logs: [RunLogEntry] = []
+    @Published private(set) var logs: [RunLogEntry] = []
     @Published var commands: [CLICommandInvocation] = []
     @Published var commandLogError: String?
     @Published var workingRun: RunData?
@@ -333,9 +334,9 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             let measuredRun = workingRun ?? result.1.run
             telemetry.record(root: requestedRoot, runID: measuredRun?.id, resources: measuredRun?.progress?.resources)
             if let run = result.1.run {
-                logs = try await logReader.read(root: requestedRoot, runID: run.id)
+                replaceLogs(try await logReader.read(root: requestedRoot, runID: run.id))
             } else {
-                logs = []
+                replaceLogs([])
             }
             commands = await commandLog?.entries(root: requestedRoot) ?? []
             commandLogError = await commandLog?.persistenceError(root: requestedRoot)
@@ -442,7 +443,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         savedArtifactSources = [:]
         savedRunKey = ""
         runs = []
-        logs = []
+        replaceLogs([])
         commands = []
         commandLogError = nil
         selectedPhotoID = nil
@@ -469,7 +470,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         workingRun = nil
         telemetry.record(root: root, runID: nil, resources: nil)
         showsTelemetry = false
-        logs = []
+        replaceLogs([])
         commands = []
         commandLogError = nil
         openingProject = true
@@ -686,6 +687,12 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         }
     }
 
+    private func replaceLogs(_ entries: [RunLogEntry]) {
+        guard logs != entries else { return }
+        logIDs = Set(entries.map(\.id))
+        logs = entries
+    }
+
     private func receive(_ line: String) {
         guard let data = line.data(using: .utf8),
             let record = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -694,7 +701,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         if let entry = eventFormatter.entry(from: data) {
             status = entry.message
             if selectedRun == "latest" || selectedRun == inspection?.run?.id {
-                if !logs.contains(where: { $0.id == entry.id }) { logs.append(entry) }
+                if logIDs.insert(entry.id).inserted { logs.append(entry) }
             }
         }
     }

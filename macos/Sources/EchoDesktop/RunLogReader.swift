@@ -16,14 +16,16 @@ actor RunLogReader {
         if length < cursor.offset { cursor = RunLogCursor() }
         try file.seek(toOffset: cursor.offset)
         cursor.pending.append(try file.readToEnd() ?? Data())
-        cursor.offset = length
-        while let newline = cursor.pending.firstIndex(of: 10) {
-            let line = cursor.pending.prefix(upTo: newline)
+        cursor.offset = try file.offset()
+        var consumed = cursor.pending.startIndex
+        while let newline = cursor.pending[consumed...].firstIndex(of: 10) {
+            let line = cursor.pending[consumed..<newline]
             if let entry = formatter.entry(from: Data(line)) {
                 cursor.entries.append(entry)
             }
-            cursor.pending.removeSubrange(...newline)
+            consumed = cursor.pending.index(after: newline)
         }
+        cursor.pending.removeSubrange(..<consumed)
         cursors[path.path] = cursor
         return cursor.entries
     }
