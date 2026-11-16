@@ -32,6 +32,18 @@ final class DenseCloudPreviewTests: XCTestCase {
             try DenseCloudPreviewReader().read(file: file, expectedCount: 101, limit: 10, minimumSupport: 0))
     }
 
+    func testPercentageThresholdIncludesPointsAtTheFloatPrecisionBoundary() throws {
+        for threshold in [0.65, 0.7, 0.8] {
+            let file = try fixture(count: 3, confidence: Float(threshold))
+            defer { try? FileManager.default.removeItem(at: file) }
+            let reader = DenseCloudPreviewReader()
+            XCTAssertEqual(
+                try reader.read(file: file, expectedCount: 3, limit: 3, minimumSupport: threshold).count, 3)
+            XCTAssertEqual(
+                try reader.read(file: file, expectedCount: 3, limit: 3, minimumSupport: threshold + 0.01).count, 0)
+        }
+    }
+
     func testPackedPointGeometryActuallyRendersWithUnlitColor() throws {
         guard let device = MTLCreateSystemDefaultDevice() else { throw XCTSkip("Metal unavailable") }
         let file = try fixture(count: 3)
@@ -100,7 +112,7 @@ final class DenseCloudPreviewTests: XCTestCase {
         }
     }
 
-    private func fixture(count: Int) throws -> URL {
+    private func fixture(count: Int, confidence: Float? = nil) throws -> URL {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(
             "echo-preview-\(UUID().uuidString).ply")
         var data = Data(
@@ -114,8 +126,8 @@ final class DenseCloudPreviewTests: XCTestCase {
             data.append(contentsOf: [220, 40, 10])
             var view = Int32(index).littleEndian
             withUnsafeBytes(of: &view) { data.append(contentsOf: $0) }
-            var confidence = Float(index.isMultiple(of: 2) ? 1 : 0.3).bitPattern.littleEndian
-            withUnsafeBytes(of: &confidence) { data.append(contentsOf: $0) }
+            var support = (confidence ?? Float(index.isMultiple(of: 2) ? 1 : 0.3)).bitPattern.littleEndian
+            withUnsafeBytes(of: &support) { data.append(contentsOf: $0) }
         }
         try data.write(to: file)
         return file

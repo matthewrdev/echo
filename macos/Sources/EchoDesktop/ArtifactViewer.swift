@@ -53,15 +53,12 @@ struct ArtifactViewer: View {
             }
             if !model.modes.isEmpty, workspace.selectedStage != .depth {
                 Picker(
-                    workspace.selectedStage == .cloud ? "Depth agreement" : "View",
+                    "View",
                     selection: Binding(get: { model.mode }, set: { model.selectMode($0) })
                 ) {
                     ForEach(model.modes, id: \.self) { Text($0) }
                 }.pickerStyle(.segmented).fixedSize()
-                    .help(
-                        workspace.selectedStage == .cloud
-                            ? "Fraction of tested neighbouring depth maps that agree with each point. Filters the display only; not a probability of correctness."
-                            : "Saved artifact view")
+                    .help("Saved artifact view")
             }
             if [.mesh, .export].contains(workspace.selectedStage), model.mode == MeshViewMode.normals.rawValue {
                 Text("Face normals · RGB = X, Y, Z (−1…1)")
@@ -80,19 +77,9 @@ struct ArtifactViewer: View {
             if workspace.selectedStage == .features, let imageReadiness {
                 Text(imageReadiness).font(.caption).foregroundStyle(.secondary)
             }
-            if workspace.selectedStage == .cloud, workspace.inspection?.run?.artifacts["cloud"] != nil {
-                HStack {
-                    Text("Point detail")
-                    Slider(
-                        value: $model.pointPercentage, in: 1...100, step: 1,
-                        onEditingChanged: { editing in
-                            if !editing { Task { await model.load() } }
-                        }
-                    ).frame(maxWidth: 260).accessibilityLabel("Percentage of saved points")
-                    Text("\(Int(model.pointPercentage))%")
-                        .monospacedDigit().frame(width: 40, alignment: .trailing)
-
-                }.font(.caption)
+            if workspace.selectedStage == .cloud {
+                CloudDisplayControls(
+                    model: model, hasSavedCloud: workspace.inspection?.run?.artifacts["cloud"] != nil)
             }
             if workspace.selectedStage == .fusion, let info = model.presentation?.fusion {
                 FusionLegendView(info: info)

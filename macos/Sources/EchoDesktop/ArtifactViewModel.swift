@@ -17,6 +17,7 @@ final class ArtifactViewModel: ObservableObject {
     @Published var mode = "Cameras"
     @Published var slice = 0.5
     @Published var pointPercentage = 100.0
+    @Published var depthAgreementPercentage = 0.0
     @Published var loading = false
     @Published var presentation: ArtifactPresentation?
     @Published var error: String?
@@ -32,9 +33,8 @@ final class ArtifactViewModel: ObservableObject {
 
     var modes: [String] {
         switch stage {
-        case .alignment: return []
+        case .alignment, .cloud: return []
         case .depth: return ["Depth", "Confidence"]
-        case .cloud: return ["All points", "≥40%", "≥60%"]
         case .fusion: return FusionViewMode.allCases.map(\.rawValue)
         case .texture: return ["Textured model", "Atlas"]
         case .mesh, .export: return MeshViewMode.allCases.map(\.rawValue)
@@ -135,9 +135,11 @@ final class ArtifactViewModel: ObservableObject {
         let mode = self.mode
         let slice = self.slice
         let cloudDetail = CloudDisplayDetail.percentage(Int(pointPercentage.rounded()))
+        let cloudMinimumSupport = depthAgreementPercentage / 100
         let task = Task {
             try await reader.load(
-                root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice, cloudDetail: cloudDetail)
+                root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice,
+                cloudDetail: cloudDetail, cloudMinimumSupport: cloudMinimumSupport)
         }
         loadTask = task
         do {

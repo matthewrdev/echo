@@ -84,20 +84,21 @@ final class SavedArtifactReader: ArtifactReader {
 
     func load(
         root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double,
-        cloudDetail: CloudDisplayDetail
+        cloudDetail: CloudDisplayDetail, cloudMinimumSupport: Double = 0
     )
         async throws -> ArtifactPresentation
     {
         let task = Task.detached(priority: .userInitiated) {
             try await self.loadSaved(
-                root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice, cloudDetail: cloudDetail)
+                root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice,
+                cloudDetail: cloudDetail, cloudMinimumSupport: cloudMinimumSupport)
         }
         return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
     }
 
     private func loadSaved(
         root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double,
-        cloudDetail: CloudDisplayDetail
+        cloudDetail: CloudDisplayDetail, cloudMinimumSupport: Double
     ) async throws -> ArtifactPresentation {
         guard let path = run.artifacts[stage.rawValue] ?? run.artifacts[stage.rawValue + "Preview"] else {
             throw CLIError(message: "This stage has no saved artifact yet.")
@@ -200,15 +201,13 @@ final class SavedArtifactReader: ArtifactReader {
             var texture: NSImage?
             if stage == .cloud {
                 let report: DenseCloudReport = try read(folder.appendingPathComponent("cloud.json"))
-                let threshold =
-                    ["≥60%", "Support ≥60%"].contains(mode) ? 0.6 : ["≥40%", "Support ≥40%"].contains(mode) ? 0.4 : 0
-                points = report.preview.filter { 1 - $0.error >= threshold }
+                points = report.preview.filter { Float(1 - $0.error) >= Float(cloudMinimumSupport) }
                 let partial = run.artifacts["cloud"] == nil
                 var displayedCount = points.count
                 if !partial {
                     let preview = try DenseCloudPreviewReader().read(
                         file: folder.appendingPathComponent("cloud.ply"), expectedCount: report.retainedSamples,
-                        limit: cloudDetail.limit(for: report.retainedSamples), minimumSupport: threshold)
+                        limit: cloudDetail.limit(for: report.retainedSamples), minimumSupport: cloudMinimumSupport)
                     cloudGeometry = preview.geometry
                     displayedCount = preview.count
                     points = []

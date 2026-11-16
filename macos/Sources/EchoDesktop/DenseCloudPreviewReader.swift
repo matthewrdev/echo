@@ -28,7 +28,7 @@ final class DenseCloudPreviewReader {
                     let confidence = Float(
                         bitPattern: UInt32(
                             littleEndian: source.loadUnaligned(fromByteOffset: input + 19, as: UInt32.self)))
-                    guard confidence.isFinite, Double(confidence) >= minimumSupport else { continue }
+                    guard confidence.isFinite, confidence >= Float(minimumSupport) else { continue }
                     let x = Float(
                         bitPattern: UInt32(littleEndian: source.loadUnaligned(fromByteOffset: input, as: UInt32.self)))
                     let y = Float(

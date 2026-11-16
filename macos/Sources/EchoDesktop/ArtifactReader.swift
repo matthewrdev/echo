@@ -4,7 +4,7 @@ protocol ArtifactReader {
     func units(root: URL, run: RunData, stage: PipelineStage) async throws -> [ArtifactUnit]
     func load(
         root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double,
-        cloudDetail: CloudDisplayDetail
+        cloudDetail: CloudDisplayDetail, cloudMinimumSupport: Double
     )
         async throws -> ArtifactPresentation
 }
@@ -14,6 +14,7 @@ extension ArtifactReader {
         async throws -> ArtifactPresentation
     {
         try await load(
-            root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice, cloudDetail: .percentage(100))
+            root: root, run: run, stage: stage, unit: unit, mode: mode, slice: slice,
+            cloudDetail: .percentage(100), cloudMinimumSupport: 0)
     }
 }

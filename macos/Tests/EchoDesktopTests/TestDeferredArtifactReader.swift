@@ -10,7 +10,7 @@ actor TestDeferredArtifactReader: ArtifactReader {
 
     func load(
         root: URL, run: RunData, stage: PipelineStage, unit: ArtifactUnit?, mode: String, slice: Double,
-        cloudDetail: CloudDisplayDetail
+        cloudDetail: CloudDisplayDetail, cloudMinimumSupport: Double
     ) async throws -> ArtifactPresentation {
         try await withCheckedThrowingContinuation { continuation = $0 }
     }
