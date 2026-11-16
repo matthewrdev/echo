@@ -18,9 +18,41 @@ final class ArtifactJSONReader {
             return value
         }
         let data = try Data(contentsOf: file, options: .mappedIfSafe)
-        let value: T = try decode(data)
+        var value: T
+        if T.self == Surface.self || T.self == FusedVolume.self || T.self == DepthMap.self {
+            value = try BulkArtifactReader().read(file, metadata: data)
+        } else {
+            value = try decode(data)
+        }
+        if let texture = value as? TextureArtifact, let path = texture.uvsFile {
+            guard URL(fileURLWithPath: path).lastPathComponent == path, path != ".", path != ".." else {
+                throw CLIError(message: "Invalid texture coordinate path")
+            }
+            let coordinates = file.deletingLastPathComponent().appendingPathComponent(path)
+            let uvs: [[Double]] = try BulkArtifactReader().read(coordinates, metadata: Data(contentsOf: coordinates))
+            guard
+                let resolved = TextureArtifact(
+                    uvsFile: path, uvs: uvs, size: texture.size, meshFile: texture.meshFile,
+                    chartCount: texture.chartCount, coverageFraction: texture.coverageFraction) as? T
+            else {
+                throw CLIError(message: "Invalid texture artifact type")
+            }
+            value = resolved
+        }
         // Summaries retain no sample arrays. Reserve more than the input size for decoded nested arrays.
-        let cost = T.self == ImagePairSummary.self || T.self == ReconstructionMetadata.self ? 4096 : data.count * 2
+        let cost: Int
+        switch value {
+        case let surface as Surface:
+            cost = surface.vertices.count * 96 + surface.faces.count * 80 + surface.sourceImages.count * 32
+        case let volume as FusedVolume:
+            cost = volume.samples.count * 64
+        case let texture as TextureArtifact:
+            cost = texture.uvs.count * 80
+        case let map as DepthMap:
+            cost = map.depth.count * 8
+        default:
+            cost = T.self == ImagePairSummary.self || T.self == ReconstructionMetadata.self ? 4096 : data.count * 2
+        }
         cache.setObject(CachedJSONArtifact(version: version, value: value), forKey: key, cost: cost)
         return value
     }

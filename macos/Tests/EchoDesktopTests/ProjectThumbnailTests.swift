@@ -90,6 +90,6 @@ final class ProjectThumbnailTests: XCTestCase {
     private func write(root: URL, path: String, value: [String: Any]) throws {
         let file = root.appendingPathComponent(path)
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try JSONSerialization.data(withJSONObject: value).write(to: file)
+        try BinaryArtifactFixture.write(file, value: value)
     }
 }

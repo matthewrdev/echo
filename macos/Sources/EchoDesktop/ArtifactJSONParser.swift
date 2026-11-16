@@ -85,14 +85,14 @@ enum ArtifactJSONParser {
     }
 
     static func textureArtifact(_ reader: inout UTF8JSONReader) throws -> TextureArtifact {
-        var uvs: [[Double]]?
+        var uvsFile: String?
         var size: Int?
         var meshFile: String?
         var chartCount: Int?
         var coverageFraction: Double?
         try reader.object { key, reader in
             switch key {
-            case "uvs": uvs = try reader.array { reader in try reader.array { reader in try reader.double() } }
+            case "uvsFile": uvsFile = try reader.optional { reader in try reader.string() }
             case "size": size = try reader.integer()
             case "meshFile": meshFile = try reader.optional { reader in try reader.string() }
             case "chartCount": chartCount = try reader.optional { reader in try reader.integer() }
@@ -100,9 +100,10 @@ enum ArtifactJSONParser {
             default: try reader.skipValue()
             }
         }
-        guard let uvs, let size else { throw reader.invalid() }
+        guard uvsFile != nil, let size else { throw reader.invalid() }
         return TextureArtifact(
-            uvs: uvs, size: size, meshFile: meshFile, chartCount: chartCount, coverageFraction: coverageFraction)
+            uvsFile: uvsFile, uvs: [], size: size, meshFile: meshFile, chartCount: chartCount,
+            coverageFraction: coverageFraction)
     }
 
     static func featureSet(_ reader: inout UTF8JSONReader) throws -> FeatureSet {

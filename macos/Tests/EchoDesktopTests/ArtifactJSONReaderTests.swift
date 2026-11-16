@@ -12,8 +12,8 @@ final class ArtifactJSONReaderTests: XCTestCase {
         try compare(Surface.self, #"{"faces":[[0,1,2]],"vertices":[[0,0,0],[1,0,0],[0,1,0]],"sourceImages":["p"]}"#)
         try compare(
             TextureArtifact.self,
-            #"{"uvs":[[0.25,0.75]],"size":256,"meshFile":"mesh.json","chartCount":3,"coverageFraction":0.8}"#)
-        try compare(TextureArtifact.self, #"{"uvs":[],"size":256}"#)
+            #"{"uvsFile":"uvs.json","uvs":[],"size":256,"meshFile":"mesh.json","chartCount":3,"coverageFraction":0.8}"#)
+        try compare(TextureArtifact.self, #"{"uvsFile":"uvs.json","uvs":[],"size":256}"#)
         try compare(
             FeatureSet.self,
             #"{"imageId":"p","features":[{"x":1,"y":2,"descriptor":[0,0.125,1e-5],"kind":"corner"},{"x":3,"y":4,"descriptor":[]}],"lines":[{"start":[1,2],"end":[3,4],"descriptor":[0.5],"strength":1}],"future":{"items":[null,true,false,{"a":"\"\\"}]}}"#

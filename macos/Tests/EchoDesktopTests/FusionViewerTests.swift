@@ -82,7 +82,7 @@ final class FusionViewerTests: XCTestCase {
                 ["x": $0.x, "y": $0.y, "z": $0.z, "distance": $0.distance, "views": $0.views] as [String: Any]
             },
         ]
-        try JSONSerialization.data(withJSONObject: object).write(to: folder.appendingPathComponent("volume.json"))
+        try BinaryArtifactFixture.write(folder.appendingPathComponent("volume.json"), value: object)
         try Data("Unused sampled preview".utf8).write(to: folder.appendingPathComponent("volume.preview.json"))
         let reader = SavedFusionArtifactReader(json: ArtifactJSONReader(), scenes: NativeSceneFactory())
         let shaded = try await reader.load(folder: folder, mode: "Surface", slice: 0.5, metricScale: false)

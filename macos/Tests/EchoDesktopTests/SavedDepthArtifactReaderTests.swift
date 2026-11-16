@@ -79,7 +79,7 @@ final class SavedDepthArtifactReaderTests: XCTestCase {
                 "DEPTH OPEN \(unit.title): first \(opened.timeIntervalSince(start)) s, mode \(switched.timeIntervalSince(opened)) s, cached \(Date().timeIntervalSince(switched)) s"
             )
             let actual = try XCTUnwrap(first.depthImage)
-            let expected = try JSONDecoder().decode(DepthMap.self, from: Data(contentsOf: unit.file))
+            let expected: DepthMap = try BulkArtifactReader().read(unit.file, metadata: Data(contentsOf: unit.file))
             XCTAssertEqual(actual.map.depth.map(\.bitPattern), expected.depth.map(\.bitPattern))
             XCTAssertEqual(actual.map.confidence.map(\.bitPattern), expected.confidence.map(\.bitPattern))
             XCTAssertNotNil(actual.photograph)
@@ -89,9 +89,11 @@ final class SavedDepthArtifactReaderTests: XCTestCase {
     }
 
     private func writeDepth(_ file: URL, imageID: String, value: Float) throws {
-        try JSONSerialization.data(withJSONObject: [
-            "imageId": imageID, "width": 2, "height": 1, "depth": [value, 0], "confidence": [0.9, 0],
-        ]).write(to: file, options: .atomic)
+        try BinaryArtifactFixture.write(
+            file,
+            value: [
+                "imageId": imageID, "width": 2, "height": 1, "depth": [value, 0], "confidence": [0.9, 0],
+            ])
     }
 
     private func photo(_ id: String) -> Photo {
