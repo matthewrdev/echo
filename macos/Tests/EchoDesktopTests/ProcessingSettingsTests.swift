@@ -3,6 +3,18 @@ import XCTest
 @testable import EchoDesktop
 
 final class ProcessingSettingsTests: XCTestCase {
+    func testResourceDefaultsAreAutomaticAndRetainExplicitLimits() throws {
+        let automatic = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
+        XCTAssertEqual(automatic.depthMemoryBudgetMb, 0)
+        XCTAssertEqual(automatic.depthConcurrency, 0)
+        XCTAssertEqual(automatic.processingMemoryBudgetMb, 0)
+        let manual = try JSONDecoder().decode(
+            ProcessingSettings.self,
+            from: Data("{\"depthMemoryBudgetMb\":4096,\"depthConcurrency\":2}".utf8))
+        XCTAssertEqual(manual.depthMemoryBudgetMb, 4096)
+        XCTAssertEqual(manual.depthConcurrency, 2)
+    }
+
     func testComputeBackendUsesTypedWireNamesAndInvalidatesFeatures() throws {
         let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
         XCTAssertEqual(original.computeBackend, .auto)

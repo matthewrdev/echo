@@ -127,7 +127,7 @@ public sealed class RunRecoveryTests
             var project = new ProjectData
             {
                 Images = [new Photo { Width = 4032, Height = 2268 }],
-                Settings = new Settings { DepthWidth = 2048, DepthPlanes = 192, DepthNeighbours = 12, DepthWorkerThreads = 16, DepthMemoryBudgetMb = 1024 }
+                Settings = new Settings { DepthConcurrency = 2, DepthWidth = 2048, DepthPlanes = 192, DepthNeighbours = 12, DepthWorkerThreads = 16, DepthMemoryBudgetMb = 1024 }
             };
             try
             {
@@ -140,6 +140,11 @@ public sealed class RunRecoveryTests
             }
             var plan = depthPlanner.Plan(project, 190, 16L * 1024 * 1048576, 4096);
             Check(plan.ConcurrentImages == 2 && plan.MemoryBudgetBytes == 4096L * 1048576, "Updated depth budget was not used");
+            var automatic = depthPlanner.Plan(project, 190, 24L * 1024 * 1048576, 0);
+            Check(automatic.MemoryBudgetBytes == 24L * 1024 * 1048576 && automatic.ConcurrentImages == 2,
+                "Automatic depth must use the already-reserved job budget, not an obsolete per-stage cap");
+            Check(automatic.ConcurrentImages * automatic.EstimatedBytesPerImage <= automatic.MemoryBudgetBytes,
+                "The scheduled images must fit their resolved budget");
             Check(project.Settings.DepthMemoryBudgetMb == 1024 && project.Settings.DepthWidth == 2048, "Scheduling override mutated frozen reconstruction inputs");
             try
             {

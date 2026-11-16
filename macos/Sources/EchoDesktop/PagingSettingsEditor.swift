@@ -11,15 +11,14 @@ struct PagingSettingsEditor: View {
                 Text("In memory").tag(ProcessingMemoryMode.inMemory)
             }
             HStack {
-                Text("RAM budget (MiB)")
-                TextField("Automatic", value: $settings.processingMemoryBudgetMb, format: .number)
-                    .frame(width: 100)
+                MemoryBudgetPicker(
+                    title: "RAM budget", megabytes: $settings.processingMemoryBudgetMb, exponents: 8...18)
                 Text("Scratch disk budget (MiB)")
                 TextField("Available disk", value: $settings.processingDiskBudgetMb, format: .number)
                     .frame(width: 100)
             }
             Text(
-                "Zero selects automatic RAM or available disk. Paging preserves the requested reconstruction resolution."
+                "Automatic RAM leaves headroom for other applications. Zero selects available scratch disk. Paging preserves the requested reconstruction resolution."
             )
             .font(.caption).foregroundStyle(.secondary)
         }

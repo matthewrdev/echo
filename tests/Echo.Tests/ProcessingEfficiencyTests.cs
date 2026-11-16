@@ -129,6 +129,7 @@ public sealed class ProcessingEfficiencyTests
             }
 
             var project = new ProjectData { Images = [new Photo { Width = 4032, Height = 2268 }] };
+            project.Settings.DepthConcurrency = 2;
             project.Settings.DepthWidth = 2048;
             project.Settings.DepthNeighbours = 12;
             project.Settings.DepthWorkerThreads = 16;
@@ -157,8 +158,19 @@ public sealed class ProcessingEfficiencyTests
             project.Settings.DepthConcurrency = 8;
             project.Settings.DepthWorkerThreads = 12;
             project.Settings.DepthMemoryBudgetMb = 256;
+            var rejected = false;
+            try
+            {
+                planner.Plan(project, 48);
+            }
+            catch (EchoException)
+            {
+                rejected = true;
+            }
+            Check(rejected, "A manual limit below even one worker must not overcommit memory");
+            project.Settings.DepthMemoryBudgetMb = 512;
             var plan = planner.Plan(project, 48);
-            Check(plan.ConcurrentImages == 1 && plan.WorkersPerImage == 12, "Memory bounds concurrent image jobs");
+            Check(plan.ConcurrentImages == 1 && plan.WorkersPerImage <= 12, "Memory bounds concurrent image jobs");
             project.Settings.DepthMemoryBudgetMb = 4096;
             plan = planner.Plan(project, 48);
             Check(plan.ConcurrentImages > 1 && plan.ConcurrentImages * plan.WorkersPerImage <= 12, "Shared CPU budget");

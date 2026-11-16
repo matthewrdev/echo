@@ -26,7 +26,7 @@ struct ProcessingSettings: Codable {
     var pairSearchDistance: Double = 200
     var matchRatioThreshold: Double = 0.72
     var matchDistanceThreshold: Double = 0.65
-    var depthConcurrency: Int = 2
+    var depthConcurrency: Int = 0
     var computeBackend: ComputeBackend = .auto
     var depthBackend: String = "auto"
     var depthWorkerThreads: Int = 0
@@ -94,7 +94,7 @@ struct ProcessingSettings: Codable {
         pairSearchDistance = try values.decodeIfPresent(Double.self, forKey: .pairSearchDistance) ?? 200
         matchRatioThreshold = try values.decodeIfPresent(Double.self, forKey: .matchRatioThreshold) ?? 0.72
         matchDistanceThreshold = try values.decodeIfPresent(Double.self, forKey: .matchDistanceThreshold) ?? 0.65
-        depthConcurrency = try values.decodeIfPresent(Int.self, forKey: .depthConcurrency) ?? 2
+        depthConcurrency = try values.decodeIfPresent(Int.self, forKey: .depthConcurrency) ?? 0
         computeBackend = try values.decodeIfPresent(ComputeBackend.self, forKey: .computeBackend) ?? .auto
         depthBackend = try values.decodeIfPresent(String.self, forKey: .depthBackend) ?? "auto"
         depthWorkerThreads = try values.decodeIfPresent(Int.self, forKey: .depthWorkerThreads) ?? 0

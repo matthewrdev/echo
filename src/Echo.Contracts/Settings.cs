@@ -50,7 +50,7 @@ public sealed class Settings
     public double TextureChartAngle { get; set; } = 60;
     public int TextureGutter { get; set; } = 4;
     public bool ExportValidate { get; set; } = true;
-    public int DepthConcurrency { get; set; } = 2;
+    public int DepthConcurrency { get; set; } = 0;
     public ComputeBackend ComputeBackend { get; set; } = ComputeBackend.Auto;
     public string DepthBackend { get; set; } = "auto";
     public int DepthWorkerThreads { get; set; } = 0;
@@ -103,7 +103,7 @@ public sealed class Settings
             || !double.IsFinite(FusionIslandMinimumSizePercent)
             || FusionIslandMinimumSizePercent is < 0 or > 100;
         var invalidDepthMemory = DepthMemoryBudgetMb != 0 && DepthMemoryBudgetMb is < 256 or > 32768;
-        var invalidDepthExecution = DepthConcurrency is < 1 or > 16
+        var invalidDepthExecution = DepthConcurrency is < 0 or > 16
             || DepthWorkerThreads is < 0 or > 256
             || invalidDepthMemory
             || !Enum.IsDefined(ComputeBackend)

@@ -105,21 +105,13 @@ struct StageSettingsEditor: View {
                         "Checks every Metal search against the CPU and corrects any difference. This validation mode adds work; it is not a speed mode. Saved maps remain reusable; reset Depth to process them with Metal."
                     ).font(.caption).foregroundStyle(.secondary)
                 }
-                IntegerSettingSlider(title: "Concurrent photos", value: $settings.depthConcurrency, range: 1...16)
+                IntegerSettingSlider(
+                    title: "Concurrent photos (0 = automatic)", value: $settings.depthConcurrency, range: 0...16)
                 IntegerSettingSlider(
                     title: "Total CPU workers (0 = automatic)", value: $settings.depthWorkerThreads, range: 0...256)
-                Toggle(
-                    "Automatic memory budget",
-                    isOn: Binding(
-                        get: { settings.depthMemoryBudgetMb == 0 },
-                        set: { settings.depthMemoryBudgetMb = $0 ? 0 : 4096 }))
-                if settings.depthMemoryBudgetMb != 0 {
-                    IntegerSettingSlider(
-                        title: "Memory budget (MB)", value: $settings.depthMemoryBudgetMb,
-                        range: 256...32768)
-                }
+                MemoryBudgetPicker(title: "Depth memory", megabytes: $settings.depthMemoryBudgetMb, exponents: 8...15)
                 Text(
-                    "Automatic uses 25% of available memory, up to 32 GB, calculated at processing time and shown in the activity log."
+                    "Automatic uses the project’s working memory budget after reserving headroom and cache. Photo concurrency and CPU workers adapt to fit, without reducing image quality."
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 Text(
