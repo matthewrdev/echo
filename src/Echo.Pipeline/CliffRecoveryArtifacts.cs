@@ -56,7 +56,7 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
                     method = "Bounded missing-rock stereo search; two original depth confirmations and two photographic confirmations; no generative geometry"
                 });
             }, () => new ProcessingMetadata { SourceArtifacts = [.. originalUnits, context.Artifact("semantics"), context.Artifact("alignment")] },
-                algorithmVersion: "echo-cliff-recovery2-sky");
+                algorithmVersion: "echo-cliff-recovery3-overlap-sky");
             context.ReportProgress("depth", $"Cliff recovery checked · {photo.Name} · {index + 1}/{maps.Length}", index + 1, maps.Length);
         }
         return units;

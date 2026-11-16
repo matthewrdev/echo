@@ -38,7 +38,7 @@ public sealed class DepthDiagnosticBenchmark
         var photo = project.Images.Single(photo => photo.Name == args[2]);
         var camera = scene.Cameras.Single(camera => camera.ImageId == photo.Id);
         var range = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
-        var selected = DepthNeighbourSelector.Select(scene, camera, range.Median, project.Settings.DepthNeighbours, default);
+        var selected = DepthNeighbourSelector.Select(project, scene, camera, range, project.Settings.DepthNeighbours, default);
         var estimator = new DepthEstimator(images, []);
         var units = json.Read<Dictionary<string, string>>(store.PathFor(run.Artifacts["depthPreview"] + "/units.json"));
         var verification = selected.Select(other => new DepthView(project.Images.Single(item => item.Id == other.ImageId), other,

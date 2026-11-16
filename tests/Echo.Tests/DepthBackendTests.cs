@@ -159,7 +159,9 @@ public sealed class DepthBackendTests
                     var unit = context.DepthUnits()[0];
                     var actual = json.Read<DepthMap>(store.PathFor(unit + "/depth.json"));
                     var metadata = json.Read<ProcessingMetadata>(store.PathFor(unit + "/processing.json"));
-                    var execution = metadata.Executions;
+                    // Stage metadata also contains generic compute operations
+                    // such as depth filtering, which do not perform stereo searches.
+                    var execution = metadata.Executions.Where(item => item.Component == "stereo-depth-search").ToList();
                     Check(execution.All(item => item.AcceleratedSearches > 0), "GPU must execute at every level; fallback-only is not a GPU integration pass");
                     Check(execution.Count == 2 && metadata.MemoryBudgetBytes > 0, "Persist all levels and resolved scheduling resources");
                     var saved = json.Read<RunProcessingMetadata>(store.PathFor($"runs/{run.Id}/processing.json"));
@@ -172,8 +174,9 @@ public sealed class DepthBackendTests
                     var fastUnit = accelerated.DepthUnits()[0];
                     Check(fastUnit != unit, "Fast Metal cannot reuse CPU/validated depth checkpoints");
                     var fastMetadata = json.Read<ProcessingMetadata>(store.PathFor(fastUnit + "/processing.json"));
-                    Check(fastMetadata.AlgorithmVersion == "echo-depth-pyramid9-metal-sky1", "Version the direct Metal numerical contract");
-                    Check(fastMetadata.Executions.All(item => item.ActualBackend == "metal" && item.CpuSearches == 0), "Persist actual direct GPU execution without duplicate CPU work");
+                    Check(fastMetadata.AlgorithmVersion == "echo-depth-pyramid11-metal-overlap1-sky1", "Version the direct Metal numerical contract");
+                    var fastExecution = fastMetadata.Executions.Where(item => item.Component == "stereo-depth-search").ToList();
+                    Check(fastExecution.Count == 2 && fastExecution.All(item => item.ActualBackend == "metal" && item.CpuSearches == 0), "Persist actual direct GPU execution without duplicate CPU work");
                     var fastRunMetadata = json.Read<RunProcessingMetadata>(store.PathFor($"runs/{accelerated.Run.Id}/processing.json"));
                     Check(fastRunMetadata.Artifacts[fastUnit].MetadataPath == fastUnit + "/processing.json", "Run indexes fast Metal provenance");
                     var originalMetadata = File.ReadAllText(store.PathFor(fastUnit + "/processing.json"));

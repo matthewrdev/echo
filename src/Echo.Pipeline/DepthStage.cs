@@ -69,9 +69,9 @@ public sealed class DepthStage : IPipelineStage
         var resumingPartialPreview = previewUnits.Count > 0 && !context.Run.Artifacts.ContainsKey("depth");
         var completed = 0;
         var progressGate = new object();
-        // Version the wider matching footprint and sky filtering. Direct Metal
+        // Version adaptive overlap selection, fine-image prefiltering and sky filtering. Direct Metal
         // stays separate; CPU and fully validated Metal share a numerical contract.
-        var algorithmVersion = project.Settings.DepthBackend is "auto" or "metal" ? "echo-depth-pyramid9-metal-sky1" : "echo-depth-pyramid9-cpu-sky1";
+        var algorithmVersion = project.Settings.DepthBackend is "auto" or "metal" ? "echo-depth-pyramid11-metal-overlap1-sky1" : "echo-depth-pyramid11-cpu-overlap1-sky1";
         var budgetMode = context.Resources.DepthMemoryBudgetMb == 0 ? "automatic" : "manual";
         context.ReportProgress(Name, $"Depth: {plan.ConcurrentImages} images concurrently, {plan.WorkersPerImage} CPU workers per image; estimated {plan.EstimatedBytesPerImage / 1024 / 1024:N0} MB per job; {budgetMode} memory budget {plan.MemoryBudgetBytes / 1024 / 1024:N0} MB.", 0, scene.Cameras.Count);
         var options = new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = plan.ConcurrentImages };

@@ -140,7 +140,7 @@ public static class DepthRangeEstimator
         };
     }
 
-    private static bool HasReliableTriangulation(CloudPoint point, Dictionary<string, CameraPose> cameras)
+    internal static bool HasReliableTriangulation(CloudPoint point, Dictionary<string, CameraPose> cameras)
     {
         if (!cameras.TryGetValue(point.ImageA, out var first) || !cameras.TryGetValue(point.ImageB, out var second))
         {

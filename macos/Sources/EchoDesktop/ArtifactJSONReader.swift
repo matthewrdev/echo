@@ -20,6 +20,7 @@ final class ArtifactJSONReader {
         let data = try Data(contentsOf: file, options: .mappedIfSafe)
         var value: T
         if T.self == Surface.self || T.self == FusedVolume.self || T.self == DepthMap.self
+            || T.self == SkyProbabilityMap.self
             || T.self == ReconstructionScene.self || T.self == ReconstructionMetadata.self
         {
             value = try BulkArtifactReader().read(file, metadata: data)
@@ -54,6 +55,8 @@ final class ArtifactJSONReader {
             cost = texture.uvs.count * 80
         case let map as DepthMap:
             cost = map.depth.count * 8
+        case let sky as SkyProbabilityMap:
+            cost = sky.sky.count
         default:
             cost = T.self == ImagePairSummary.self || T.self == ReconstructionMetadata.self ? 4096 : data.count * 2
         }

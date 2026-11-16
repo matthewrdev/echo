@@ -123,7 +123,11 @@ struct StageSettingsEditor: View {
                     title: "Initial search samples", value: $settings.depthPlanes, range: 8...2048)
                 IntegerSettingSlider(
                     title: "Refinement samples per level", value: $settings.depthRefinementSamples, range: 3...128)
-                IntegerSettingSlider(title: "Stereo neighbours", value: $settings.depthNeighbours, range: 1...32)
+                IntegerSettingSlider(
+                    title: "Minimum stereo neighbours", value: $settings.depthNeighbours, range: 1...32)
+                Text(
+                    "Chooses viewpoints that cover different parts of each photo. Adds views where needed, up to 12 or this minimum if higher, and updates coverage as depth refines."
+                ).font(.caption).foregroundStyle(.secondary)
                 Toggle("Exclude sky from depth", isOn: $settings.depthSuppressSky)
                 Text(
                     "Removes confidently identified sky and clouds from depth maps, preserving uncertain skyline boundaries. Requires the optional 228 MB model from Hugging Face described below."

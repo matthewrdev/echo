@@ -216,7 +216,7 @@ struct ProcessingSettings: Codable {
         case .depth:
             let range = depthRangeAutomatic ? "Automatic scene range" : "\(depthNear)–\(depthFar) m range"
             return
-                "\(depthWidth) px · \(depthPlanes) initial samples · \(depthRefinementSamples) refinement samples · \(depthNeighbours) stereo views · \(range)"
+                "\(depthWidth) px · \(depthPlanes) initial samples · \(depthRefinementSamples) refinement samples · \(depthNeighbours)+ adaptive stereo views · \(range)"
         case .cloud:
             return
                 "\(cloudNeighbours) neighbours · \(cloudMinimumSupport) required supporting views · \((cloudDepthTolerance * 100).formatted())% relative depth tolerance"

@@ -27,7 +27,7 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
             var pixels = (long)Math.Ceiling(photo.Width * scale) * (long)Math.Ceiling(photo.Height * scale);
             largestMap = Math.Max(largestMap, pixels);
         }
-        var neighbours = Math.Min(settings.DepthNeighbours, Math.Max(0, cameraCount - 1));
+        var neighbours = DepthNeighbourSelector.MaximumNeighbours(settings.DepthNeighbours, cameraCount);
         // Decoded sources, transient decoder storage, pyramid levels and output arrays.
         // Pooled grayscale buffers can round up to twice the requested pixel count.
         // This is a scheduling estimate rather than a hard process-memory limit.

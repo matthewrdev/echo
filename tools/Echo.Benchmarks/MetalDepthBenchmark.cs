@@ -45,7 +45,7 @@ public sealed class MetalDepthBenchmark
         var directory = Path.GetFullPath(args[4]);
         var stride = Math.Max(1, int.Parse(args[5]));
         var range = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
-        var selected = DepthNeighbourSelector.Select(scene, camera, range.Median, project.Settings.DepthNeighbours, default);
+        var selected = DepthNeighbourSelector.Select(project, scene, camera, range, project.Settings.DepthNeighbours, default);
         var implementation = (DepthEstimator)estimator;
         using var sources = new DepthSourceImages(images, store, selected.Length + 1);
         var reference = sources.ReadLevel(photo, width);

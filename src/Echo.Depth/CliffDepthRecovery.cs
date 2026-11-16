@@ -41,7 +41,8 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
         {
             return new CliffRecoveryResult { Map = result };
         }
-        var selected = DepthNeighbourSelector.Select(scene, camera, valid[valid.Length / 2], Math.Max(6, project.Settings.DepthNeighbours), cancellation)
+        var range = new DepthSearchRange(valid[0], valid[^1], valid[valid.Length / 2], valid.Length, "accepted depth");
+        var selected = DepthNeighbourSelector.Select(project, scene, camera, range, Math.Max(6, project.Settings.DepthNeighbours), cancellation, source)
             .Where(other => maps.ContainsKey(other.ImageId)).ToArray();
         if (selected.Length < 2)
         {

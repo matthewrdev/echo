@@ -56,6 +56,15 @@ struct BulkArtifactReader {
                 imageId: header.imageId, width: header.width, height: header.height,
                 depth: (0..<depths.count).map { depths.float($0) },
                 confidence: (0..<confidence.count).map { confidence.float($0) })
+        case "semantics":
+            let sky = try buffer("sky", 1)
+            guard header.width > 0, header.height > 0,
+                header.width <= Int.max / header.height,
+                header.width * header.height == sky.count
+            else { throw CLIError(message: "Invalid binary sky-mask dimensions") }
+            result = SkyProbabilityMap(
+                imageId: header.imageId, width: header.width, height: header.height,
+                sky: (0..<sky.count).map { sky.byte($0, 0) })
         case "surface":
             let vertices = try buffer("vertices", 24)
             let faces = try buffer("faces", 12)

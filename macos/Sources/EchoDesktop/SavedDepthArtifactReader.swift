@@ -21,12 +21,21 @@ actor SavedDepthArtifactReader {
         let alignment = run.artifacts["alignment"].map {
             root.appendingPathComponent($0).appendingPathComponent("scene.json")
         }
-        let files = ([unit.file, photograph] + [alignment].compactMap { $0 }).map { ArtifactFileVersion(file: $0) }
+        let semanticIndex = run.artifacts["semantics"].map {
+            root.appendingPathComponent($0).appendingPathComponent("units.json")
+        }
+        let semanticUnits: [String: String]? = try readOptional(semanticIndex)
+        let skyFile = semanticUnits?[photoID].map {
+            root.appendingPathComponent($0).appendingPathComponent("semantics.json")
+        }
+        let files = ([unit.file, photograph] + [alignment, semanticIndex, skyFile].compactMap { $0 })
+            .map { ArtifactFileVersion(file: $0) }
         let artifact: CachedDepthArtifact
         if let index = cache.firstIndex(where: { $0.files == files }) {
             artifact = cache.remove(at: index)
         } else {
-            artifact = try read(file: unit.file, photograph: photograph, alignment: alignment, files: files)
+            artifact = try read(
+                file: unit.file, photograph: photograph, alignment: alignment, skyFile: skyFile, files: files)
         }
         guard artifact.depth.map.imageId == photoID else {
             throw CLIError(message: "Depth map does not match its photograph.")
@@ -37,32 +46,41 @@ actor SavedDepthArtifactReader {
         cache.insert(artifact, at: 0)
         if cache.count > 3 { cache.removeLast() }
         let depth = mode == "Confidence" ? artifact.confidence : artifact.depth
+        let coverage = depth.quality.surfaceCoverage ?? depth.quality.coverage
+        let coverageLabel = depth.quality.hasSkyMask ? "surface coverage" : "whole-image coverage"
         return ArtifactPresentation(
             title: photo.name,
             detail:
-                "\(depth.map.width) × \(depth.map.height) · \(depth.quality.coverage.formatted(.percent.precision(.fractionLength(2)))) accepted depth",
+                "\(depth.map.width) × \(depth.map.height) · \(coverage.formatted(.percent.precision(.fractionLength(2)))) \(coverageLabel)",
             depthImage: depth)
     }
 
-    private func read(file: URL, photograph: URL, alignment: URL?, files: [ArtifactFileVersion]) throws
+    private func read(file: URL, photograph: URL, alignment: URL?, skyFile: URL?, files: [ArtifactFileVersion]) throws
         -> CachedDepthArtifact
     {
         let map = try maps.read(file)
         let image = NSImage(contentsOf: photograph)
-        let metadata: ReconstructionMetadata? = alignment.flatMap { file in
-            do {
-                let value: ReconstructionMetadata = try json.read(file)
-                return value
-            } catch {
-                return nil
-            }
-        }
+        let metadata: ReconstructionMetadata? = try readOptional(alignment)
+        let sky: SkyProbabilityMap? = try readOptional(skyFile)
+        let quality = DepthQualitySummary(map: map, sky: sky)
         let depth = try DepthImagePresentation(
             identity: file.path, overlay: images.depth(map, confidence: false), photograph: image,
-            map: map, isMetric: metadata?.isMetric ?? false)
+            map: map, isMetric: metadata?.isMetric ?? false, quality: quality)
         let confidence = try DepthImagePresentation(
             identity: file.path, overlay: images.depth(map, confidence: true), photograph: image,
             map: map, isMetric: depth.isMetric, quality: depth.quality)
         return CachedDepthArtifact(files: files, depth: depth, confidence: confidence)
+    }
+
+    private func readOptional<T: Decodable>(_ file: URL?) throws -> T? {
+        guard let file else { return nil }
+        do {
+            let value: T = try json.read(file)
+            return value
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return nil
+        }
     }
 }

@@ -46,14 +46,9 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             progress?.Invoke($"Depth range excluded {range.RejectedObservations:N0} sparse points with missing cameras, invalid geometry or less than 0.5° triangulation parallax");
         }
-        var selected = DepthNeighbourSelector.Select(scene, camera, range.Median, project.Settings.DepthNeighbours, cancellation);
-        var neighbours = new DepthNeighbour[selected.Length];
-        for (var index = 0; index < selected.Length; index++)
-        {
-            var other = selected[index];
-            neighbours[index] = new DepthNeighbour(other, FindPhoto(project.Images, other.ImageId), CameraGeometry.Transpose(other.Rotation));
-        }
-        using var sources = new DepthSourceImages(rasterImageService, store, neighbours.Length + 1);
+        CameraPose[] selected = [];
+        var maximumNeighbours = DepthNeighbourSelector.MaximumNeighbours(project.Settings.DepthNeighbours, scene.Cameras.Count);
+        using var sources = new DepthSourceImages(rasterImageService, store, maximumNeighbours + 1);
         DepthMap? prior = null;
         var width = Math.Min(160, project.Settings.DepthWidth);
         var levelCount = 1;
@@ -66,6 +61,11 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             cancellation.ThrowIfCancellationRequested();
             var label = $"level {++level}/{levelCount}, {width}px";
+            selected = DepthNeighbourSelector.Select(project, scene, camera, range, project.Settings.DepthNeighbours,
+                cancellation, prior, selected);
+            var neighbours = selected.Select(other => new DepthNeighbour(other, FindPhoto(project.Images, other.ImageId),
+                CameraGeometry.Transpose(other.Rotation))).ToArray();
+            progress?.Invoke($"{label}: overlap-selected {selected.Length}/{maximumNeighbours} neighbours: {string.Join(", ", neighbours.Select(item => item.Photo.Name))}");
             progress?.Invoke($"{label}: loading reference and neighbouring images");
             try
             {
@@ -122,8 +122,12 @@ public sealed class DepthEstimator : IDepthEstimator
         trace?.Operation(new OperationProgress($"Depth preparation {levelWidth}px", "Preparing image pyramid"));
         var preparationStart = Stopwatch.GetTimestamp();
         var patchSpacing = Math.Min(photo.Width, levelWidth) >= 1280 ? 2 : 1;
+        // Fine image detail needs the subpixel prefilter even while the matching
+        // footprint remains small. Tying this to wide patches made 640–1024px
+        // refinement reject otherwise consistent surfaces through resampling noise.
+        var filterImages = Math.Min(photo.Width, levelWidth) >= 640;
         var margin = 2 * patchSpacing + 1;
-        var reference = sources.ReadLevel(photo, levelWidth, patchSpacing > 1, cancellation);
+        var reference = sources.ReadLevel(photo, levelWidth, filterImages, cancellation);
         var gray = reference.Pixels;
         var width = reference.Width;
         var height = reference.Height;
@@ -147,7 +151,7 @@ public sealed class DepthEstimator : IDepthEstimator
             cancellation.ThrowIfCancellationRequested();
             var other = neighbours[index].Camera;
             var otherPhoto = neighbours[index].Photo;
-            var resized = sources.ReadLevel(otherPhoto, levelWidth, patchSpacing > 1, cancellation);
+            var resized = sources.ReadLevel(otherPhoto, levelWidth, filterImages, cancellation);
             var inverse = neighbours[index].WorldToCamera;
             views[index] = new StereoView
             {

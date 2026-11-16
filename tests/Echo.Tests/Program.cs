@@ -49,11 +49,13 @@ if (args.Contains("--telemetry", StringComparer.Ordinal))
 }
 if (args.Contains("--depth", StringComparer.Ordinal))
 {
+    composition.Resolve<DepthNeighbourTests>().Run(scaleTests);
     composition.Resolve<SemanticQualityTests>().Run(scaleTests);
     composition.Resolve<DepthSkyFilterTests>().Run(scaleTests);
     composition.Resolve<StereoImageFilterTests>().Run(scaleTests);
     composition.Resolve<DepthBackendTests>().Run(scaleTests);
     composition.Resolve<DepthRecoveryTests>().Run(scaleTests);
+    composition.Resolve<DepthSamplingTests>().Run(scaleTests);
     return scaleTests.Finish();
 }
 if (args.Contains("--run-recovery", StringComparer.Ordinal))
@@ -104,6 +106,7 @@ composition.Resolve<DepthBackendTests>().Run(scaleTests);
 composition.Resolve<ProcessingMetadataTests>().Run(scaleTests);
 composition.Resolve<SemanticQualityTests>().Run(scaleTests);
 composition.Resolve<DepthRecoveryTests>().Run(scaleTests);
+composition.Resolve<DepthSamplingTests>().Run(scaleTests);
 composition.Resolve<DepthRangeTests>().Run(scaleTests);
 composition.Resolve<DepthNeighbourTests>().Run(scaleTests);
 composition.Resolve<StereoCostBatchTests>().Run(scaleTests);

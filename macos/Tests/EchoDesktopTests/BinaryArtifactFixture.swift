@@ -58,6 +58,9 @@ enum BinaryArtifactFixture {
             try save(
                 "confidence", size: 4, count: confidence.count,
                 bytes: encode(confidence.map { $0.floatValue.bitPattern }))
+        } else if let sky = object["sky"] as? [NSNumber] {
+            header["kind"] = "semantics"
+            try save("sky", size: 1, count: sky.count, bytes: Data(sky.map(\.uint8Value)))
         } else if let vertices = object["vertices"] as? [[NSNumber]], let faces = object["faces"] as? [[NSNumber]] {
             header["kind"] = "surface"
             let sources = object["sourceImages"] as? [String] ?? []
