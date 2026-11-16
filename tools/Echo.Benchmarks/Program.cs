@@ -7,6 +7,14 @@ if (args.FirstOrDefault() == "scene-storage")
 {
     return composition.Resolve<SceneStorageBenchmark>().Run(args[1..]);
 }
+if (args.FirstOrDefault() == "depth-diagnostic")
+{
+    return composition.Resolve<DepthDiagnosticBenchmark>().Run(args[1..]);
+}
+if (args.FirstOrDefault() == "depth-sky")
+{
+    return composition.Resolve<DepthSkyBenchmark>().Run(args[1..]);
+}
 if (args.FirstOrDefault() == "metal-depth")
 {
     return composition.Resolve<MetalDepthBenchmark>().Run(args[1..]);
