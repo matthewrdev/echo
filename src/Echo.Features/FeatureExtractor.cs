@@ -2,6 +2,7 @@ using System.Buffers;
 using System.ComponentModel.Composition;
 using System.Runtime.ExceptionServices;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Imaging;
 using Echo.Lines;
 using Echo.Projects;
@@ -14,12 +15,14 @@ public sealed class FeatureExtractor : IFeatureExtractor
 {
     private readonly IRasterImageService rasterImageService;
     private readonly ILineDetector lines;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public FeatureExtractor(IRasterImageService rasterImageService, ILineDetector lines)
+    public FeatureExtractor(IRasterImageService rasterImageService, ILineDetector lines, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.rasterImageService = rasterImageService;
         this.lines = lines;
+        this.compute = compute;
     }
 
     public FeatureSet Extract(IProjectStore store, Photo photo, Settings settings, CancellationToken cancellation)
@@ -87,7 +90,15 @@ public sealed class FeatureExtractor : IFeatureExtractor
     {
         if (settings.ScaleInvariantFeatures)
         {
-            candidates.ScaleFeatures = ScaleSpaceFeatures.Detect(gray, width, height, settings.FeatureLimit, cancellation);
+            try
+            {
+                using var acceleration = compute?.Open(settings.ComputeBackend, cancellation);
+                candidates.ScaleFeatures = ScaleSpaceFeatures.Detect(gray, width, height, settings.FeatureLimit, cancellation, acceleration);
+            }
+            catch (ComputeException) when (settings.ComputeBackend == ComputeBackend.Auto)
+            {
+                candidates.ScaleFeatures = ScaleSpaceFeatures.Detect(gray, width, height, settings.FeatureLimit, cancellation);
+            }
         }
         else
         {

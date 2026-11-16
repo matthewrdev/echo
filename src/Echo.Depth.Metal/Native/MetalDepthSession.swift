@@ -8,6 +8,9 @@ final class MetalDepthSession {
     let views: MTLBuffer
     let gray: MTLBuffer
     let viewCount: Int
+    private var jobs: MTLBuffer?
+    private var depths: MTLBuffer?
+    private var costs: MTLBuffer?
 
     init(source: String, views: UnsafePointer<Float>, viewCount: Int, gray: UnsafePointer<Float>, grayCount: Int)
         throws
@@ -45,11 +48,12 @@ final class MetalDepthSession {
         output: UnsafeMutablePointer<Float>
     ) throws {
         let costCount = sampleCount * planeCount
-        guard
-            let jobBuffer = device.makeBuffer(bytes: jobs, length: sampleCount * 32 * 4, options: .storageModeShared),
-            let depthBuffer = device.makeBuffer(bytes: depths, length: costCount * 4, options: .storageModeShared),
-            let costBuffer = device.makeBuffer(length: costCount * 4, options: .storageModeShared),
-            let command = queue.makeCommandBuffer(), let encoder = command.makeComputeCommandEncoder()
+        let jobBuffer = try reusable(&self.jobs, bytes: sampleCount * 32 * 4)
+        let depthBuffer = try reusable(&self.depths, bytes: costCount * 4)
+        let costBuffer = try reusable(&self.costs, bytes: costCount * 4)
+        memcpy(jobBuffer.contents(), jobs, sampleCount * 32 * 4)
+        memcpy(depthBuffer.contents(), depths, costCount * 4)
+        guard let command = queue.makeCommandBuffer(), let encoder = command.makeComputeCommandEncoder()
         else {
             throw Self.failure("Could not allocate Metal batch buffers or command")
         }
@@ -72,6 +76,15 @@ final class MetalDepthSession {
             throw command.error ?? Self.failure("Metal command did not complete")
         }
         output.update(from: costBuffer.contents().assumingMemoryBound(to: Float.self), count: costCount)
+    }
+
+    private func reusable(_ buffer: inout MTLBuffer?, bytes: Int) throws -> MTLBuffer {
+        if let buffer, buffer.length >= bytes { return buffer }
+        guard let replacement = device.makeBuffer(length: bytes, options: .storageModeShared) else {
+            throw Self.failure("Could not allocate Metal batch storage")
+        }
+        buffer = replacement
+        return replacement
     }
 
     static func failure(_ message: String) -> NSError {

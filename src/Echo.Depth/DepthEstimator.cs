@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.Intrinsics;
 using Echo.Contracts;
+using Echo.Compute;
 using Echo.Geometry;
 using Echo.Imaging;
 using Echo.Projects;
@@ -14,12 +15,14 @@ public sealed class DepthEstimator : IDepthEstimator
 {
     private readonly IRasterImageService rasterImageService;
     private readonly IDepthCostAccelerator[] accelerators;
+    private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public DepthEstimator(IRasterImageService rasterImageService, [ImportMany] IEnumerable<IDepthCostAccelerator> accelerators)
+    public DepthEstimator(IRasterImageService rasterImageService, [ImportMany] IEnumerable<IDepthCostAccelerator> accelerators, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.rasterImageService = rasterImageService;
         this.accelerators = accelerators.ToArray();
+        this.compute = compute;
     }
 
     public DepthMap Estimate(IProjectStore store,
@@ -253,7 +256,7 @@ public sealed class DepthEstimator : IDepthEstimator
         });
         var filterStart = Stopwatch.GetTimestamp();
         progress?.Invoke($"{levelLabel}: filtering unsupported depth samples");
-        var retainedSamples = FilterUnsupportedSamples(result, cancellation);
+        var retainedSamples = DepthFilterCompute.TryFilter(compute, project.Settings.ComputeBackend, result, cancellation) ?? FilterUnsupportedSamples(result, cancellation);
         var actualBackend = acceleratedSearches == 0 ? "cpu" : cpuSearches > 0 ? "metal+cpu" : "metal";
         var precision = acceleratedSearches == 0 ? "float64 with float32 samples/output"
             : validate ? "Metal float32 candidates; CPU float64 reference with float32 samples/output"
@@ -720,7 +723,7 @@ public sealed class DepthEstimator : IDepthEstimator
         return selectedDepth;
     }
 
-    private int FilterUnsupportedSamples(DepthMap result, CancellationToken cancellation)
+    internal int FilterUnsupportedSamples(DepthMap result, CancellationToken cancellation)
     {
         var width = result.Width;
         var height = result.Height;

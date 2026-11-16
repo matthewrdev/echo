@@ -1,11 +1,17 @@
 using System.Buffers;
+using Echo.Compute;
 
 namespace Echo.Features;
 
 public static class GaussianBlur
 {
-    public static void Apply(ReadOnlySpan<float> source, Span<float> destination, int width, int height, double sigma, CancellationToken cancellation)
+    public static void Apply(ReadOnlySpan<float> source, Span<float> destination, int width, int height, double sigma, CancellationToken cancellation, IComputeSession? acceleration = null)
     {
+        if (acceleration != null && source.Length >= 16384)
+        {
+            GaussianCompute.Apply(acceleration, source, destination, width, height, sigma, cancellation);
+            return;
+        }
         var radius = (int)Math.Ceiling(4 * sigma);
         Span<double> kernel = stackalloc double[2 * radius + 1];
         double total = 0;

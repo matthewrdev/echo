@@ -60,6 +60,8 @@ public sealed class DepthStage : IPipelineStage
             {
                 alignment,
                 camera.ImageId,
+                project.Settings.ComputeBackend,
+                context.ComputeImplementation,
                 project.Settings.DepthSuppressSky,
                 skySemantics = project.Settings.DepthSuppressSky ? context.Artifact("semantics") : null,
                 project.Settings.DepthWidth,

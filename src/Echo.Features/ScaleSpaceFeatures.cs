@@ -1,11 +1,12 @@
 using System.Buffers;
 using Echo.Contracts;
+using Echo.Compute;
 
 namespace Echo.Features;
 
 public static class ScaleSpaceFeatures
 {
-    public static List<Feature> Detect(ReadOnlySpan<float> pixels, int width, int height, int limit, CancellationToken cancellation)
+    public static List<Feature> Detect(ReadOnlySpan<float> pixels, int width, int height, int limit, CancellationToken cancellation, IComputeSession? acceleration = null)
     {
         var invalid = width < 1 || height < 1 || pixels.Length != checked(width * height) || limit < 1;
         if (invalid)
@@ -17,11 +18,11 @@ public static class ScaleSpaceFeatures
         var basis = ArrayPool<float>.Shared.Rent(width * height);
         try
         {
-            GaussianBlur.Apply(pixels, basis.AsSpan(0, width * height), width, height, Math.Sqrt(1.6 * 1.6 - .5 * .5), cancellation);
+            GaussianBlur.Apply(pixels, basis.AsSpan(0, width * height), width, height, Math.Sqrt(1.6 * 1.6 - .5 * .5), cancellation, acceleration);
             var octaveScale = 1.0;
             while (Math.Min(width, height) >= 32)
             {
-                var next = ProcessOctave(basis, width, height, octaveScale, limit, candidates, cancellation);
+                var next = ProcessOctave(basis, width, height, octaveScale, limit, candidates, cancellation, acceleration);
                 ArrayPool<float>.Shared.Return(basis);
                 basis = next;
                 width /= 2;
@@ -54,7 +55,7 @@ public static class ScaleSpaceFeatures
     }
 
     private static float[] ProcessOctave(float[] basis, int width, int height, double octaveScale, int limit,
-        PriorityQueue<ScaleFeatureCandidate, double> candidates, CancellationToken cancellation)
+        PriorityQueue<ScaleFeatureCandidate, double> candidates, CancellationToken cancellation, IComputeSession? acceleration)
     {
         var length = width * height;
         var gaussian = new float[6][];
@@ -68,7 +69,7 @@ public static class ScaleSpaceFeatures
                 var nextSigma = 1.6 * Math.Pow(2, layer / 3.0);
                 gaussian[layer] = ArrayPool<float>.Shared.Rent(length);
                 GaussianBlur.Apply(gaussian[layer - 1].AsSpan(0, length), gaussian[layer].AsSpan(0, length), width, height,
-                    Math.Sqrt(nextSigma * nextSigma - previousSigma * previousSigma), cancellation);
+                    Math.Sqrt(nextSigma * nextSigma - previousSigma * previousSigma), cancellation, acceleration);
                 differences[layer - 1] = ArrayPool<float>.Shared.Rent(length);
                 for (var pixel = 0; pixel < length; pixel++)
                 {

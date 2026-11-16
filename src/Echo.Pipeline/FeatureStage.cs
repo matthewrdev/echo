@@ -75,7 +75,9 @@ public sealed class FeatureStage : IPipelineStage
         {
             image.Id,
             image.SourceHash,
-            detectorVersion = 6,
+            detectorVersion = 7,
+            settings.ComputeBackend,
+            context.ComputeImplementation,
             settings.ScaleInvariantFeatures,
             settings.DetectLines,
             settings.LineLimit,
