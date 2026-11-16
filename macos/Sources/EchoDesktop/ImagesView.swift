@@ -3,6 +3,9 @@ import SwiftUI
 struct ImagesView: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @State private var collapsed: Set<String> = []
+    @State private var gridColumnCount = 1
+    @State private var selectedTile: PhotoTileIdentifier?
+    @FocusState private var gridFocused: Bool
     @AppStorage("images.tileWidth") private var tileWidth = 190.0
 
     private var photos: [Photo] { workspace.inspection?.project.images ?? [] }
@@ -57,34 +60,86 @@ struct ImagesView: View {
                     }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 20) {
-                        ForEach(workspace.photoGroups) { group in
-                            DisclosureGroup(
-                                isExpanded: Binding(
-                                    get: { !collapsed.contains(group.name) },
-                                    set: { expanded in
-                                        if expanded {
-                                            collapsed.remove(group.name)
-                                        } else {
-                                            collapsed.insert(group.name)
-                                        }
-                                    })
-                            ) {
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: tileWidth), spacing: 14)], spacing: 14)
-                                {
-                                    ForEach(group.photos) { PhotoTile(photo: $0, workspace: workspace) }
-                                }.padding(.top, 8)
-                            } label: {
-                                Text("\(group.name) · \(group.photos.count.formatted())")
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
-                    }.padding(2)
-                }
+                photoGrid
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var photoGrid: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    ForEach(workspace.photoGroups) { group in
+                        DisclosureGroup(
+                            isExpanded: Binding(
+                                get: { !collapsed.contains(group.name) },
+                                set: { expanded in
+                                    if expanded {
+                                        collapsed.remove(group.name)
+                                    } else {
+                                        collapsed.insert(group.name)
+                                    }
+                                })
+                        ) {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: tileWidth), spacing: 14)], spacing: 14) {
+                                ForEach(group.photos) { photo in
+                                    let id = PhotoTileIdentifier(group: group.name, photoID: photo.id)
+                                    PhotoTile(photo: photo, workspace: workspace) { selectTile(id) }
+                                        .id(id)
+                                }
+                            }
+                            .background {
+                                GeometryReader { geometry in
+                                    let columns = max(1, Int((geometry.size.width + 14) / (tileWidth + 14)))
+                                    Color.clear.onChange(of: columns, initial: true) { _, count in
+                                        gridColumnCount = count
+                                    }
+                                }
+                            }
+                            .padding(.top, 8)
+                        } label: {
+                            Text("\(group.name) · \(group.photos.count.formatted())")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                    }
+                }.padding(2)
+            }
+            .focusable()
+            .focused($gridFocused)
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow]) { press in
+                guard press.modifiers.intersection([.command, .control, .option, .shift]).isEmpty else {
+                    return .ignored
+                }
+                let rows = navigationRows
+                let current =
+                    rows.joined().first {
+                        $0 == selectedTile && $0.photoID == workspace.selectedPhotoID
+                    } ?? rows.joined().first { $0.photoID == workspace.selectedPhotoID }
+                guard let next = SelectionNavigation().destination(in: rows, from: current, key: press.key) else {
+                    return .ignored
+                }
+                selectTile(next)
+                proxy.scrollTo(next)
+                return .handled
+            }
+        }
+    }
+
+    private var navigationRows: [[PhotoTileIdentifier]] {
+        workspace.photoGroups.filter { !collapsed.contains($0.name) }.flatMap { group in
+            return stride(from: 0, to: group.photos.count, by: gridColumnCount).map { start in
+                group.photos[start..<min(start + gridColumnCount, group.photos.count)].map {
+                    PhotoTileIdentifier(group: group.name, photoID: $0.id)
+                }
+            }
+        }
+    }
+
+    private func selectTile(_ id: PhotoTileIdentifier) {
+        gridFocused = true
+        selectedTile = id
+        workspace.selectedPhotoID = id.photoID
     }
 
     private var header: some View {

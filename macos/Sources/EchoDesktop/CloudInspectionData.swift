@@ -4,6 +4,7 @@ struct CloudInspectionData {
     let root: URL
     let photos: [String: Photo]
     let cameras: [String: CameraPose]
+    let cameraOrder: [String]
     let frustums: [String: CameraFrustum]
 
     init(root: URL, cameras: [CameraPose], photos: [Photo]) {
@@ -18,6 +19,7 @@ struct CloudInspectionData {
             frustums[camera.imageId] = frustum
         }
         self.cameras = validCameras
+        cameraOrder = photos.map(\.id).filter { validCameras[$0] != nil }
         self.frustums = frustums
     }
 }

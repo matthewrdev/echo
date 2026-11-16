@@ -3,6 +3,7 @@ import SwiftUI
 struct PhotoTile: View {
     let photo: Photo
     @ObservedObject var workspace: WorkspaceViewModel
+    let selection: () -> Void
     @State private var thumbnail: NSImage?
 
     private var selected: Bool { workspace.selectedPhotoID == photo.id }
@@ -43,14 +44,14 @@ struct PhotoTile: View {
         }
         .contentShape(Rectangle())
         .onTapGesture(count: 2, perform: openPhoto)
-        .onTapGesture { workspace.selectedPhotoID = photo.id }
+        .onTapGesture(perform: selection)
         .help(photo.hoverSummary)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "\(photo.name), \(photo.camera), \(photo.isDiscarded ? "Discarded" : photo.enabled ? "Enabled" : "Excluded")"
         )
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityAction { workspace.selectedPhotoID = photo.id }
+        .accessibilityAction { selection() }
         .accessibilityAction(named: "Open photograph & metadata", openPhoto)
         .contextMenu {
             Button("Open photograph & metadata", action: openPhoto)
@@ -72,7 +73,7 @@ struct PhotoTile: View {
     }
 
     private func openPhoto() {
-        workspace.selectedPhotoID = photo.id
+        selection()
         workspace.sheet = .photo
     }
 }

@@ -55,9 +55,27 @@ final class ArtifactSceneView: SCNView {
         if event.keyCode == 53, highlighted != nil {
             selection?(nil)
             highlight(nil)
+        } else if moveCamera(with: event) {
+            return
         } else {
             super.keyDown(with: event)
         }
+    }
+
+    func moveCamera(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+            event.keyCode == 123 || event.keyCode == 124,
+            case .camera(let imageID) = highlighted, let selection
+        else { return false }
+        let cameras = cloudInspection?.cameraOrder ?? inspection?.cameraOrder ?? []
+        guard let index = cameras.firstIndex(of: imageID) else { return false }
+        let nextIndex = min(max(0, index + (event.keyCode == 123 ? -1 : 1)), cameras.count - 1)
+        if nextIndex != index {
+            let next = SparseSelection.camera(cameras[nextIndex])
+            selection(next)
+            highlight(next)
+        }
+        return true
     }
 
     func pick(at location: NSPoint, inspection: SparseInspectionData) -> SparseSelection? {

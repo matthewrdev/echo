@@ -5,6 +5,7 @@ struct SparseInspectionData {
     let root: URL
     let photos: [String: Photo]
     let cameras: [String: CameraPose]
+    let cameraOrder: [String]
     let frustums: [String: CameraFrustum]
     let tracks: [SparseTrack]
     let cameraTracks: [String: [Int]]
@@ -18,6 +19,10 @@ struct SparseInspectionData {
         self.root = root
         self.photos = Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) })
         cameras = Dictionary(uniqueKeysWithValues: scene.cameras.map { ($0.imageId, $0) })
+        let cameraIDs = Set(scene.cameras.map(\.imageId))
+        cameraOrder =
+            photos.map(\.id).filter { cameraIDs.contains($0) }
+            + cameraIDs.subtracting(photos.map(\.id)).sorted()
         frustums = CloudInspectionData(root: root, cameras: scene.cameras, photos: photos).frustums
         self.featureFiles = featureFiles
         var tracks: [SparseTrack] = []
