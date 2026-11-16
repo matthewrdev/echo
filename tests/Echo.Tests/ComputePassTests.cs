@@ -233,6 +233,25 @@ public sealed class ComputePassTests
         project.Settings.ComputeBackend = ComputeBackend.Metal;
         var gpu = SurfaceVisibilityFilter.Filter(surface, project, scene, maps, default, compute: compute);
         Check(cpu.Faces.Count == 1 && gpu.Faces.Count == 1, "Free space rejection differs");
+        var batched = new Surface { Vertices = surface.Vertices };
+        for (var face = 0; face < 5003; face++)
+        {
+            batched.Faces.Add(surface.Faces[face % 2]);
+            batched.SourceImages.Add("face-" + face);
+        }
+        project.Settings.ComputeBackend = ComputeBackend.Cpu;
+        var expectedBatch = SurfaceVisibilityFilter.Filter(batched, project, scene, maps, default);
+        project.Settings.ComputeBackend = ComputeBackend.Metal;
+        var actualBatch = SurfaceVisibilityFilter.Filter(batched, project, scene, maps, default, compute: compute);
+        project.Settings.ComputeBackend = ComputeBackend.Auto;
+        var fallback = SurfaceVisibilityFilter.Filter(batched, project, scene, maps, default, compute: new FailingFusionComputeService(compute));
+        foreach (var result in new[] { actualBatch, fallback })
+        {
+            Check(result.SourceImages.SequenceEqual(expectedBatch.SourceImages), "Visibility batch tail or fallback lost face assignments");
+            Check(result.Faces.SelectMany(face => face).SequenceEqual(expectedBatch.Faces.SelectMany(face => face))
+                && result.Vertices.SelectMany(point => point).SequenceEqual(expectedBatch.Vertices.SelectMany(point => point)),
+                "Visibility batch tail or fallback changed geometry");
+        }
         // Exercise full batches followed by a short tail while reusing readback storage.
         for (var vertex = 0; vertex < 2050; vertex++)
         {

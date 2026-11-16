@@ -59,6 +59,49 @@ public sealed class PagingTests
             }
             Check(session.Statistics.Evictions > 0, "Fill test did not exercise paging");
         }));
+        tests.Run("Mesh filters handle multiple paged batches and release private scratch", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory);
+            var surface = work.Surface();
+            var fixture = new FusionFixture();
+            fixture.Views.Add(new DepthView(new Photo { Id = "third", Width = 64, Height = 64, FocalPixels = 64 },
+                new CameraPose { ImageId = "third", Centre = [.5, 0, 0] },
+                new DepthMap { ImageId = "third", Width = 64, Height = 64, Depth = Enumerable.Repeat(10f, 4096).ToArray() }));
+            // 5003 faces and 15009 vertices exercise full batches and short tails.
+            for (var index = 0; index < 5003; index++)
+            {
+                var start = surface.Vertices.Count;
+                var z = index % 5 == 0 ? 8d : 10d;
+                surface.Vertices.Add([-.1, -.1, z]);
+                surface.Vertices.Add([.1, -.1, z]);
+                surface.Vertices.Add([0, .1, z]);
+                surface.Faces.Add([start, start + 1, start + 2]);
+                surface.SourceImages.Add("photo-" + index % 3);
+            }
+            var expected = surface.Faces.Count - (surface.Faces.Count + 4) / 5;
+            var visible = SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, default, work);
+            Check(visible.Faces.Count == expected && visible.Vertices.All(point => point[2] == 10), "Visibility batch tail reused stale flags");
+            Check(visible.SourceImages.SequenceEqual(Enumerable.Range(0, 5003).Where(index => index % 5 != 0).Select(index => "photo-" + index % 3)), "Photographs lost encounter order");
+            var observed = new Surface { Vertices = [[-10, -10, 10], [10, -10, 10], [0, 10, 10]], Faces = [[0, 1, 2]] };
+            var supported = SurfaceSupportFilter.Filter(surface, observed, .2, default, work);
+            Check(supported.Faces.Count == expected && supported.Vertices.All(point => point[2] == 10), "Support batching changed retained geometry");
+            var fragments = SurfaceFragments.RemoveSmall(observed, .1, default, work);
+            var trimmed = SurfaceIslandTrimmer.Trim(observed, IslandTrimMode.Main, 0, default, work);
+            Check(fragments.Faces.Count == 1 && ReferenceEquals(trimmed.Surface, observed), "Scope disposal released output geometry");
+            Check(!Directory.EnumerateFiles(directory, "*.bin", SearchOption.AllDirectories).Any(path => Path.GetDirectoryName(path) != directory), "Mesh filters retained private scratch files");
+            using var cancelled = new CancellationTokenSource();
+            try
+            {
+                SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, cancelled.Token, work, _ => cancelled.Cancel());
+                throw new InvalidOperationException("Visibility filtering ignored cancellation between batches");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            Check(!Directory.EnumerateFiles(directory, "*.bin", SearchOption.AllDirectories).Any(path => Path.GetDirectoryName(path) != directory), "Cancellation retained private scratch files");
+            Check(surface.Faces.Count == 5003 && surface.Vertices[0][2] == 8, "Filtering mutated its source");
+        }));
         tests.Run("Indexed collapse queue updates and removes edges without accumulating obsolete candidates", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);

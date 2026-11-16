@@ -1,15 +1,15 @@
 using System.Buffers;
 using Echo.Compute;
-using Echo.Contracts;
 using Echo.Geometry;
 
 namespace Echo.Meshing;
 
 internal static class SurfaceEvidenceCompute
 {
-    public static void Evaluate(IComputeSession session, Surface surface, int start, int count,
-        V3 origin, int views, double tolerance, IList<bool> rejected, CancellationToken cancellation)
+    public static void Evaluate(IComputeSession session, ReadOnlySpan<SurfaceTriangle> geometry,
+        V3 origin, int views, double tolerance, Span<bool> rejected, CancellationToken cancellation)
     {
+        var count = geometry.Length;
         var triangles = ArrayPool<float>.Shared.Rent(count * 12);
         var values = ArrayPool<int>.Shared.Rent(count);
         try
@@ -17,14 +17,14 @@ internal static class SurfaceEvidenceCompute
             for (var i = 0; i < count; i++)
             {
                 cancellation.ThrowIfCancellationRequested();
-                var face = surface.Faces[start + i];
+                var triangle = geometry[i];
                 for (var corner = 0; corner < 3; corner++)
                 {
-                    var vertex = surface.Vertices[face[corner]];
+                    var vertex = corner == 0 ? triangle.A : corner == 1 ? triangle.B : triangle.C;
                     var slot = i * 12 + corner * 4;
-                    triangles[slot] = (float)(vertex[0] - origin.X);
-                    triangles[slot + 1] = (float)(vertex[1] - origin.Y);
-                    triangles[slot + 2] = (float)(vertex[2] - origin.Z);
+                    triangles[slot] = (float)(vertex.X - origin.X);
+                    triangles[slot + 1] = (float)(vertex.Y - origin.Y);
+                    triangles[slot + 2] = (float)(vertex.Z - origin.Z);
                     triangles[slot + 3] = 0;
                 }
             }
@@ -35,7 +35,7 @@ internal static class SurfaceEvidenceCompute
             session.Read<int>(3, values.AsSpan(0, count));
             for (var i = 0; i < count; i++)
             {
-                rejected[start + i] = values[i] != 0;
+                rejected[i] = values[i] != 0;
             }
         }
         finally

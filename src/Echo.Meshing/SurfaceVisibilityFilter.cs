@@ -25,67 +25,75 @@ public static class SurfaceVisibilityFilter
         var origin = views.Count == 0 ? default : views[0].Centre;
         using var acceleration = DepthCompute.Open(compute, backend, views, origin, cancellation);
         var accelerationFailed = false;
-        IList<bool> rejected = scratch?.Filled(surface.Faces.Count, false, new BoolRecordCodec()) ?? new bool[surface.Faces.Count];
-        for (var start = 0; start < surface.Faces.Count; start += 4096)
+        var reader = new SurfaceGeometryReader(surface);
+        var faces = new SurfaceTriangleVertices[4096];
+        var triangles = new SurfaceTriangle[4096];
+        var rejected = new bool[4096];
+        var options = new ParallelOptions
         {
-            var end = Math.Min(surface.Faces.Count, start + 4096);
-            if (acceleration != null && !accelerationFailed)
+            CancellationToken = cancellation,
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
+        };
+        var result = work?.Surface() ?? new Surface();
+        IList<int> vertices = scratch?.Filled(surface.Vertices.Count, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, surface.Vertices.Count).ToArray();
+        var assigned = surface.SourceImages.Count == surface.Faces.Count;
+        for (var start = 0; start < surface.Faces.Count; start += faces.Length)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var count = Math.Min(faces.Length, surface.Faces.Count - start);
+            reader.ReadFaces(start, faces.AsSpan(0, count));
+            for (var index = 0; index < count; index++)
+            {
+                triangles[index] = reader.Triangle(faces[index]);
+            }
+            var accelerated = acceleration != null && !accelerationFailed;
+            if (accelerated)
             {
                 try
                 {
-                    SurfaceEvidenceCompute.Evaluate(acceleration, surface, start, end - start, origin, views.Count, relativeTolerance, rejected, cancellation);
-                    progress?.Invoke(new("Visibility filtering", "Checking triangles with Metal.", end, surface.Faces.Count, "triangles"));
-                    continue;
+                    SurfaceEvidenceCompute.Evaluate(acceleration!, triangles.AsSpan(0, count), origin, views.Count,
+                        relativeTolerance, rejected.AsSpan(0, count), cancellation);
                 }
                 catch (ComputeException) when (backend == ComputeBackend.Auto)
                 {
                     accelerationFailed = true;
+                    accelerated = false;
                 }
             }
-            Parallel.For(start, end, new ParallelOptions
+            if (!accelerated)
             {
-                CancellationToken = cancellation,
-                MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
-            }, index =>
-            {
-                var face = surface.Faces[index];
-                var triangle = new SurfaceTriangle(new V3(surface.Vertices[face[0]]),
-                    new V3(surface.Vertices[face[1]]), new V3(surface.Vertices[face[2]]));
-                rejected[index] = SurfaceVisibilityEvidence.Contradicts(triangle, views, relativeTolerance);
-            });
-            progress?.Invoke(new("Visibility filtering", "Checking triangles against observed empty space.", end, surface.Faces.Count, "triangles"));
-        }
-
-        var result = work?.Surface() ?? new Surface();
-        IList<int> vertices = scratch?.Filled(surface.Vertices.Count, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, surface.Vertices.Count).ToArray();
-        var assigned = surface.SourceImages.Count == surface.Faces.Count;
-        for (var index = 0; index < surface.Faces.Count; index++)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            if (rejected[index])
-            {
-                continue;
+                Parallel.For(0, count, options, index =>
+                    rejected[index] = SurfaceVisibilityEvidence.Contradicts(triangles[index], views, relativeTolerance));
             }
-
-            var face = surface.Faces[index];
-            var output = new int[3];
-            for (var corner = 0; corner < 3; corner++)
+            for (var index = 0; index < count; index++)
             {
-                var vertex = face[corner];
-                var mapped = vertices[vertex];
-                if (mapped < 0)
+                if (rejected[index])
                 {
-                    mapped = result.Vertices.Count;
-                    result.Vertices.Add(surface.Vertices[vertex]);
-                    vertices[vertex] = mapped;
+                    continue;
                 }
-                output[corner] = mapped;
+                var face = faces[index];
+                var output = new int[3];
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var vertex = corner == 0 ? face.A : corner == 1 ? face.B : face.C;
+                    var mapped = vertices[vertex];
+                    if (mapped < 0)
+                    {
+                        mapped = result.Vertices.Count;
+                        var triangle = triangles[index];
+                        result.Vertices.Add((corner == 0 ? triangle.A : corner == 1 ? triangle.B : triangle.C).Array);
+                        vertices[vertex] = mapped;
+                    }
+                    output[corner] = mapped;
+                }
+                result.Faces.Add(output);
+                if (assigned)
+                {
+                    result.SourceImages.Add(surface.SourceImages[start + index]);
+                }
             }
-            result.Faces.Add(output);
-            if (assigned)
-            {
-                result.SourceImages.Add(surface.SourceImages[index]);
-            }
+            var message = accelerated ? "Checking triangles with Metal." : "Checking triangles against observed empty space.";
+            progress?.Invoke(new("Visibility filtering", message, start + count, surface.Faces.Count, "triangles"));
         }
         return result;
     }
