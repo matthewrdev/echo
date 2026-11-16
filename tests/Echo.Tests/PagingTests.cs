@@ -28,6 +28,46 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Indexed collapse queue updates and removes edges without accumulating obsolete candidates", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory);
+            var queue = new CollapseCandidateQueue(16, work, default);
+            var expected = new Dictionary<Edge, IndexedCandidate>();
+            var random = new Random(7641);
+            var peak = 0;
+            for (var step = 0; step < 20000; step++)
+            {
+                var a = random.Next(80);
+                var b = a + 1 + random.Next(80);
+                var key = new Edge(a, b);
+                if (step % 7 == 0 && expected.Count > 0)
+                {
+                    var minimum = expected.Values.MinBy(entry => entry.Priority);
+                    Check(queue.TryDequeue(out var candidate) && candidate == minimum.Value, "Updating a candidate broke minimum ordering");
+                    expected.Remove(new Edge(candidate.A, candidate.B));
+                }
+                else if (step % 3 == 0)
+                {
+                    Check(queue.Remove(b, a) == expected.Remove(key), "Removing an edge lost its index chain");
+                }
+                else
+                {
+                    var candidate = new Candidate(a, b, step, step, new V3(a, b, step), step);
+                    var priority = random.NextDouble() * 10000 + step * 1e-9;
+                    queue.Offer(candidate, priority);
+                    expected[key] = new IndexedCandidate(candidate, priority, 0);
+                    peak = Math.Max(peak, expected.Count);
+                }
+                Check(queue.Count == expected.Count && queue.AllocatedHandles <= peak,
+                    "Repeated offers grew the queue or failed to reuse removed handles");
+            }
+            foreach (var entry in expected.Values.OrderBy(entry => entry.Priority))
+            {
+                Check(queue.TryDequeue(out var candidate) && candidate == entry.Value, "The final queue order or revision differs");
+            }
+            Check(!queue.TryDequeue(out _) && session.Statistics.Evictions > 0, "The paged queue did not exercise eviction");
+        }));
         tests.Run("Temporary scopes discard dirty pages and return scratch space without flushing", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(4 * 65536, 2 * 65536);

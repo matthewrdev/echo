@@ -28,21 +28,6 @@ internal sealed class SimplificationProgress
         Report();
     }
 
-    public void Prune(long completed, long total)
-    {
-        var report = completed == 0 || completed == total || clock.ElapsedMilliseconds >= 125;
-        if (publish == null || !report)
-        {
-            return;
-        }
-        publish(new OperationProgress("Discard stale candidates", $"Compacting candidate queue: {completed:N0} / {total:N0} records checked or skipped.", completed, total, "records")
-        {
-            Steps = steps,
-            StepIndex = (int)SimplificationPhase.Collapse
-        });
-        clock.Restart();
-    }
-
     public void Advance(long completed, int? remainingFaces = null, int? queued = null)
     {
         this.completed = completed;

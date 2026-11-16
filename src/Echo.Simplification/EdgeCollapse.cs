@@ -26,6 +26,9 @@ public sealed class EdgeCollapse : IEdgeCollapse
         {
             throw new ArgumentException("Expected a finite nonnegative tolerance per source vertex.", nameof(vertexTolerances));
         }
+        var outputWork = work;
+        using var scratch = work?.CreateScope();
+        work = scratch;
         IList<double>? tolerances = null;
         if (vertexTolerances != null)
         {
@@ -106,8 +109,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
         }
 
         updates.Complete();
-        IList<HeapEntry<Candidate>> candidates = work?.List(new HeapEntryCodec<Candidate>(new CandidateRecordCodec())) ?? new List<HeapEntry<Candidate>>();
-        var queue = new PagedMinHeap<Candidate>(candidates);
+        var queue = new CollapseCandidateQueue(faces.Count, work, cancellation);
         var edgeCounts = new Dictionary<int, int>();
         void Neighbours(int vertex, HashSet<int> result)
         {
@@ -227,12 +229,13 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
 
             var priority = best + (va.Position - vb.Position).Length * 1e-8;
-            queue.Enqueue(new Candidate(a, b, va.Revision, vb.Revision, bestPoint, best), priority);
+            queue.Offer(new Candidate(a, b, va.Revision, vb.Revision, bestPoint, best), priority);
         }
 
         updates.Start(SimplificationPhase.Edges, faces.Count, "triangles");
         var indexedFaces = 0;
-        var edges = new InitialEdgeIndex(faces.Count, work, cancellation);
+        using var edgeScratch = work?.CreateScope();
+        var edges = new InitialEdgeIndex(faces.Count, edgeScratch, cancellation);
         foreach (var f in faces)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -306,6 +309,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             updates.Advance(++rankedEdges);
         }
         updates.Complete();
+        edgeScratch?.Dispose();
         updates.Start(SimplificationPhase.Collapse, null, "candidates");
 
         var commonFaces = new List<int>(3);
@@ -326,23 +330,16 @@ public sealed class EdgeCollapse : IEdgeCollapse
         var maximumDetailError = detailTolerance * detailTolerance;
         var evaluated = 0L;
         var targetOnly = detailTolerance == 0 && tolerances == null;
-        var queueLimit = Math.Max(16384L, faces.Count * 3L);
         bool Current(Candidate candidate)
         {
-            // Most queued entries are obsolete. Read only their compact revision
-            // stamps instead of decoding two full vertices and adjacency handles.
+            // Check compact revision stamps before decoding full vertices.
+            // Candidates rejected by Offer still need this topology guard.
             return revisions[candidate.A] == candidate.RevisionA && revisions[candidate.B] == candidate.RevisionB;
         }
-        while ((!targetOnly || remaining > targetFaceCount) && queue.TryDequeue(out var edge, out _))
+        while ((!targetOnly || remaining > targetFaceCount) && queue.TryDequeue(out var edge))
         {
             cancellation.ThrowIfCancellationRequested();
             updates.Advance(++evaluated, remaining, queue.Count);
-            if (queue.Count > queueLimit)
-            {
-                queue.Retain(Current, cancellation, updates.Prune);
-                queueLimit = Math.Max(16384L, Math.Max(queue.Count * 2L, remaining * 3L));
-                updates.Start(SimplificationPhase.Collapse, null, "candidates", evaluated);
-            }
             if (!Current(edge))
             {
                 continue;
@@ -495,6 +492,21 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 boundaries[vi] = BoundaryState.Unknown;
             }
 
+            // Edges incident to the removed vertex no longer exist. Also drop
+            // surviving-endpoint edges whose last face was removed by this cut.
+            foreach (var neighbour in neighboursB)
+            {
+                queue.Remove(edge.B, neighbour);
+            }
+            Neighbours(edge.A, updatedNeighbours);
+            foreach (var neighbour in neighboursA)
+            {
+                if (!updatedNeighbours.Contains(neighbour))
+                {
+                    queue.Remove(edge.A, neighbour);
+                }
+            }
+
             foreach (var vi in touched)
             {
                 if (vertices[vi].Removed)
@@ -514,7 +526,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
 
         updates.Complete(remaining);
         updates.Start(SimplificationPhase.Output, faces.Count, "triangles");
-        var result = work?.Surface() ?? new Surface();
+        var result = outputWork?.Surface() ?? new Surface();
         IList<int> remap = work?.Filled(vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, vertices.Count).ToArray();
         for (var i = 0; i < faces.Count; i++)
         {

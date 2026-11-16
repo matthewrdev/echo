@@ -58,7 +58,7 @@ public sealed class MeshStage : IPipelineStage
             depthUnits,
             alignment,
             completionVersion = 5,
-            simplificationVersion = 2,
+            simplificationVersion = 3,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Mesh),
             photographSelectionVersion = 2,
