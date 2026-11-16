@@ -41,6 +41,7 @@ struct ArtifactTreeView: View {
             statusSymbol: activity == nil ? workspace.stageSymbol(stage) : "arrow.trianglehead.2.clockwise.rotate.90",
             statusColor: activity == nil ? workspace.stageColor(stage) : .accentColor,
             statusHelp: activity == nil ? workspace.stageStatus(stage) : activityHelp,
+            isProcessing: activity != nil,
             activity: activity, activityHelp: activityHelp,
             select: { workspace.showArtifact(stage) }
         ) {

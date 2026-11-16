@@ -7,6 +7,7 @@ struct ArtifactTreeNode<Summary: View>: View {
     var statusSymbol: String? = nil
     var statusColor: Color = .secondary
     var statusHelp = ""
+    var isProcessing = false
     var activity: RunProgress? = nil
     var activityHelp = ""
     let select: () -> Void
@@ -33,9 +34,8 @@ struct ArtifactTreeNode<Summary: View>: View {
                         Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
                         Spacer(minLength: 4)
                         if let statusSymbol {
-                            Image(systemName: statusSymbol).font(.caption).foregroundStyle(statusColor)
+                            ArtifactStatusIcon(symbol: statusSymbol, color: statusColor, isProcessing: isProcessing)
                                 .help(statusHelp)
-                                .accessibilityHidden(true)
                         }
                     }
                     .padding(.trailing, 10).frame(height: 32).contentShape(Rectangle())
