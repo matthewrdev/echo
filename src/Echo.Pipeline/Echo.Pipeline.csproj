@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><InternalsVisibleTo Include="Echo.Tests" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Echo.Telemetry/Echo.Telemetry.csproj" />
     <ProjectReference Include="../Echo.SceneSemantics/Echo.SceneSemantics.csproj" />

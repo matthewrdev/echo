@@ -32,6 +32,51 @@ public sealed class RunRecoveryTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Progress reports percentage changes at up to eight updates per second", () =>
+        {
+            var filter = new OperationProgressFilter();
+            var accepted = new List<int>();
+            for (var count = 0; count <= 10000; count++)
+            {
+                if (filter.Accept("mesh", new OperationProgress("Edges", "Indexing", count, 10000), TimeSpan.FromMilliseconds(count)))
+                {
+                    accepted.Add(count);
+                }
+            }
+            Check(accepted.First() == 0 && accepted.Last() == 10000, "Start and final completion must always be published");
+            Check(accepted.Count <= 82, "Progress exceeded eight updates per second plus start/completion");
+            for (var index = 1; index < accepted.Count - 1; index++)
+            {
+                Check(accepted[index] / 100 > accepted[index - 1] / 100, "Repeated the same whole percentage");
+                Check(accepted[index] - accepted[index - 1] >= 125, "Progress exceeded the rate limit");
+            }
+        });
+        tests.Run("Unknown totals are rate limited while operation changes and counter resets remain immediate", () =>
+        {
+            var filter = new OperationProgressFilter();
+            var published = 0;
+            for (var count = 0; count < 10000; count++)
+            {
+                if (filter.Accept("mesh", new OperationProgress("Holes", $"Boundary {count}", count), TimeSpan.FromMilliseconds(count)))
+                {
+                    published++;
+                }
+            }
+            Check(published == 80, "Unknown totals must publish at most eight updates per second");
+            var now = TimeSpan.FromSeconds(10);
+            Check(filter.Accept("mesh", new OperationProgress("Compact", "Compacting", 0, 100), now), "Operation change was lost");
+            Check(filter.Accept("mesh", new OperationProgress("Compact", "Complete", 100, 100), now), "Completion was delayed");
+            Check(!filter.Accept("mesh", new OperationProgress("Compact", "Complete", 100, 100), now), "Duplicate completion was emitted");
+            Check(filter.Accept("mesh", new OperationProgress("Compact", "Restarted", 0, 100), now), "Repeated pass did not reset");
+        });
+        tests.Run("A slow counted operation provides a heartbeat without repeating unchanged progress", () =>
+        {
+            var filter = new OperationProgressFilter();
+            filter.Accept("mesh", new OperationProgress("Edges", "Indexing", 0, 1000000), TimeSpan.Zero);
+            Check(!filter.Accept("mesh", new OperationProgress("Edges", "Indexing", 1, 1000000), TimeSpan.FromSeconds(1)), "Sub-percent work was spammed");
+            Check(filter.Accept("mesh", new OperationProgress("Edges", "Indexing", 2, 1000000), TimeSpan.FromSeconds(5)), "Slow work needs a heartbeat");
+            Check(!filter.Accept("mesh", new OperationProgress("Edges", "Indexing", 2, 1000000), TimeSpan.FromSeconds(10)), "Unchanged work was reported again");
+        });
         tests.Run("Reused prerequisites are reported as checking, not processing again", () =>
         {
             WithProject(store =>
@@ -102,6 +147,10 @@ public sealed class RunRecoveryTests
             Check(context.Run.Progress?.Completed == 4000000000 && context.Run.Progress.Unit == "cells", "Large work counters were truncated");
             context.BeginOperation("mesh", "Hole repair");
             Check(context.Run.Progress?.Completed == null && context.Run.Progress?.Total == null, "Previous percentage leaked into a different operation");
+            context.BeginStep("mesh", ["Prepare", "Collapse"], 1, 100);
+            context.BeginOperation("mesh", "Saving mesh");
+            Check(context.Run.Progress!.Steps.Length == 0 && context.Run.Progress.StepIndex == null,
+                "Finished simplification steps leaked into the next operation");
             var updated = context.Run.Progress!.Updated;
             context.ReportResources();
             Check(context.Run.Progress.Updated == updated && context.Run.Progress.Resources != null, "Resource sampling falsely reported computational progress");

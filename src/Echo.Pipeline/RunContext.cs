@@ -17,6 +17,8 @@ public sealed class RunContext : IDisposable
     private readonly Action<object>? output;
     private readonly JsonSerializerOptions eventOptions;
     private readonly object reportGate = new();
+    private readonly OperationProgressFilter progressFilter = new();
+    private readonly Stopwatch progressClock = Stopwatch.StartNew();
     private readonly HashSet<string> processingStages = new(StringComparer.Ordinal);
     private readonly RunProcessingMetadata processing;
     private bool processingDirty = true;
@@ -377,44 +379,54 @@ public sealed class RunContext : IDisposable
 
     public void ReportOperation(string stage, OperationProgress progress)
     {
-        Trace.Operation(progress);
-        Report("stageProgress", new
+        lock (reportGate)
         {
-            stage,
-            operation = progress.Operation,
-            steps = progress.Steps,
-            stepIndex = progress.StepIndex,
-            message = progress.Message,
-            completed = progress.Completed,
-            total = progress.Total,
-            unit = progress.Unit
-        });
+            if (!progressFilter.Accept(stage, progress, progressClock.Elapsed))
+            {
+                return;
+            }
+            Trace.Operation(progress);
+            Report("stageProgress", new
+            {
+                stage,
+                operation = progress.Operation,
+                steps = progress.Steps,
+                stepIndex = progress.StepIndex,
+                message = progress.Message,
+                completed = progress.Completed,
+                total = progress.Total,
+                unit = progress.Unit
+            });
+        }
     }
 
     public void ReportProgress(string stage, string message, int? completed = null, int? total = null)
     {
-        Report("stageProgress", new
+        lock (reportGate)
         {
-            stage,
-            message,
-            completed,
-            total,
-            unit = stage == "matching" ? "image pairs" : stage is "features" or "depth" ? "images" : "items"
-        });
+            if (completed.HasValue && !progressFilter.Accept(stage, new OperationProgress("", message, completed, total), progressClock.Elapsed))
+            {
+                return;
+            }
+            Report("stageProgress", new
+            {
+                stage,
+                message,
+                completed,
+                total,
+                unit = stage == "matching" ? "image pairs" : stage is "features" or "depth" ? "images" : "items"
+            });
+        }
     }
 
     public void BeginStep(string stage, string[] steps, int stepIndex, int? total = null)
     {
-        Report("stageProgress", new
+        ReportOperation(stage, new OperationProgress(steps[stepIndex],
+            $"{steps[stepIndex]} · step {stepIndex + 1} of {steps.Length}", 0, total,
+            stepIndex == steps.Length - 1 ? "results" : "images")
         {
-            stage,
-            steps,
-            stepIndex,
-            operation = steps[stepIndex],
-            message = $"{steps[stepIndex]} · step {stepIndex + 1} of {steps.Length}",
-            completed = 0,
-            total,
-            unit = stepIndex == steps.Length - 1 ? "results" : "images"
+            Steps = steps,
+            StepIndex = stepIndex
         });
     }
 
@@ -537,10 +549,12 @@ public sealed class RunContext : IDisposable
             var unit = data.TryGetProperty("unit", out var workUnit) ? workUnit.GetString() ?? "items"
                 : stage == "matching" ? "image pairs" : "images";
             var operation = data.TryGetProperty("operation", out var activity) ? activity.GetString() ?? "" : previous?.Operation ?? "";
+            var operationChanged = operation != previous?.Operation;
             var steps = data.TryGetProperty("steps", out var stepNames) && stepNames.ValueKind == JsonValueKind.Array
                 ? stepNames.EnumerateArray().Select(value => value.GetString() ?? "").ToArray()
-                : previous?.Steps ?? [];
-            var stepIndex = data.TryGetProperty("stepIndex", out var index) && index.ValueKind == JsonValueKind.Number ? index.GetInt32() : previous?.StepIndex;
+                : operationChanged ? [] : previous?.Steps ?? [];
+            var stepIndex = data.TryGetProperty("stepIndex", out var index) && index.ValueKind == JsonValueKind.Number
+                ? index.GetInt32() : operationChanged ? null : previous?.StepIndex;
             var continuesStep = steps.Length > 0 && !(data.TryGetProperty("stepIndex", out var step) && step.ValueKind == JsonValueKind.Number);
             if (continuesStep)
             {
