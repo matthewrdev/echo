@@ -36,14 +36,15 @@ final class ProcessingSettingsTests: XCTestCase {
         }
     }
 
-    func testSkyDepthSettingDefaultsOnAndInvalidatesDepth() throws {
+    func testSkyDepthSettingIsOptInAndInvalidatesDepth() throws {
         let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
-        XCTAssertTrue(original.depthSuppressSky)
+        XCTAssertFalse(original.depthSuppressSky)
+        XCTAssertFalse(ProcessingSettings().depthSuppressSky)
         var changed = original
-        changed.depthSuppressSky = false
+        changed.depthSuppressSky = true
         XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .depth)
         let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(changed))
-        XCTAssertFalse(restored.depthSuppressSky)
+        XCTAssertTrue(restored.depthSuppressSky)
     }
 
     func testFusionMemoryAndResolutionRoundTripAndInvalidateFusion() throws {

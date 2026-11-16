@@ -7,6 +7,7 @@ struct EchoApplication: App {
     @StateObject private var artifacts: ArtifactViewModel
     @StateObject private var runtimeInfo: RuntimeInfoViewModel
     @State private var showsRuntimeInfo = false
+    @State private var showsAttribution = false
 
     init() {
         let options = LaunchOptions(arguments: CommandLine.arguments, bundle: .main)
@@ -40,11 +41,13 @@ struct EchoApplication: App {
             WorkspaceView(workspace: workspace, artifacts: artifacts, showRuntimeInfo: { showsRuntimeInfo = true })
                 .disclosureGroupStyle(ClickableDisclosureStyle())
                 .sheet(isPresented: $showsRuntimeInfo) { RuntimeInfoView(model: runtimeInfo) }
+                .sheet(isPresented: $showsAttribution) { AttributionView() }
         }
         .defaultSize(width: 1500, height: 960)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About Echo…") { showsRuntimeInfo = true }
+                Button("Dependencies & Attribution…") { showsAttribution = true }
             }
             CommandGroup(replacing: .newItem) {
                 Button("New Project…") { workspace.createProject() }.keyboardShortcut("n")

@@ -3,6 +3,7 @@ import SwiftUI
 struct RuntimeInfoView: View {
     @ObservedObject var model: RuntimeInfoViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showsAttribution = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,6 +43,7 @@ struct RuntimeInfoView: View {
             }
             Divider()
             HStack {
+                Button("Attribution…") { showsAttribution = true }
                 Button(model.copied ? "Copied" : "Copy report", systemImage: model.copied ? "checkmark" : "doc.on.doc")
                 { model.copy() }
                 .disabled(model.sections.isEmpty || model.isLoading)
@@ -52,6 +54,7 @@ struct RuntimeInfoView: View {
             }.padding(16)
         }
         .frame(width: 720, height: 640)
+        .sheet(isPresented: $showsAttribution) { AttributionView() }
         .task { await model.refresh() }
     }
 }

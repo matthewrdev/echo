@@ -165,7 +165,7 @@ public sealed class SemanticQualityTests
         store.Init();
         try
         {
-            var project = new ProjectData();
+            var project = new ProjectData { Settings = new Settings { DepthSuppressSky = true } };
             var scene = new ReconstructionScene();
             var maps = new List<DepthMap>();
             using var texture = new SKBitmap(320, 192);

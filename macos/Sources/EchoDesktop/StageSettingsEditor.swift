@@ -126,13 +126,14 @@ struct StageSettingsEditor: View {
                 IntegerSettingSlider(title: "Stereo neighbours", value: $settings.depthNeighbours, range: 1...32)
                 Toggle("Exclude sky from depth", isOn: $settings.depthSuppressSky)
                 Text(
-                    "Removes confidently classified sky, including clouds, from saved depth maps. Uncertain skyline boundaries are preserved. Uses the local scene classifier, downloaded once (228 MB); photographs stay on this computer."
+                    "Removes confidently identified sky and clouds from depth maps, preserving uncertain skyline boundaries. Requires the optional 228 MB model from Hugging Face described below."
                 ).font(.caption).foregroundStyle(.secondary)
                 Toggle("Recover missing cliff detail", isOn: $settings.recoverCliffDepth)
                 Text(
-                    "Searches small rock gaps using finer source photographs and additional views. Requires two independent depth confirmations; existing samples stay fixed. The first semantic pass downloads a 228 MB model, then runs locally."
+                    "Searches small rock gaps using finer photographs and additional views. Requires two independent depth confirmations; existing samples stay fixed. Uses the same optional Hugging Face model as sky exclusion."
                 )
                 .font(.caption).foregroundStyle(.secondary)
+                ModelDependencyNotice()
                 Toggle("Automatic depth range", isOn: $settings.depthRangeAutomatic)
                 if settings.depthRangeAutomatic {
                     Text(
@@ -196,12 +197,17 @@ struct StageSettingsEditor: View {
                 ).font(.caption).foregroundStyle(.secondary)
             case .mesh:
                 Toggle("Optimise vegetation", isOn: $settings.optimiseVegetation)
+                Text(
+                    "Uses the optional Hugging Face model to identify vegetation before simplifying it. Requires the 228 MB download described below."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                ModelDependencyNotice()
                 if settings.optimiseVegetation {
                     DecimalSettingSlider(
                         title: "Vegetation mesh tolerance multiplier",
                         value: $settings.vegetationMeshToleranceMultiplier, range: 1...4, step: 0.25)
                     Text(
-                        "Simplifies vegetation confirmed by multiple views. Rock, uncertain regions and vegetation boundaries keep their detail. Also enables a separate vegetation texture budget. The first pass downloads a 228 MB model; photographs stay local."
+                        "Simplifies vegetation confirmed by multiple views. Rock, uncertain regions and vegetation boundaries keep their detail. Also enables a separate vegetation texture budget."
                     )
                     .font(.caption).foregroundStyle(.secondary)
                 }

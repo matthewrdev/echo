@@ -8,7 +8,7 @@ struct ProcessingSettings: Codable {
     var vegetationMeshToleranceMultiplier: Double = 2.5
     var vegetationTextureScale: Double = 0.65
     var recoverCliffDepth: Bool = false
-    var depthSuppressSky: Bool = true
+    var depthSuppressSky: Bool = false
     var scaleInvariantFeatures: Bool = true
     var guidedAlignmentPass: Bool = true
     var detectLines: Bool = true
@@ -76,7 +76,7 @@ struct ProcessingSettings: Codable {
             try values.decodeIfPresent(Double.self, forKey: .vegetationMeshToleranceMultiplier) ?? 2.5
         vegetationTextureScale = try values.decodeIfPresent(Double.self, forKey: .vegetationTextureScale) ?? 0.65
         recoverCliffDepth = try values.decodeIfPresent(Bool.self, forKey: .recoverCliffDepth) ?? false
-        depthSuppressSky = try values.decodeIfPresent(Bool.self, forKey: .depthSuppressSky) ?? true
+        depthSuppressSky = try values.decodeIfPresent(Bool.self, forKey: .depthSuppressSky) ?? false
         scaleInvariantFeatures = try values.decodeIfPresent(Bool.self, forKey: .scaleInvariantFeatures) ?? true
         guidedAlignmentPass = try values.decodeIfPresent(Bool.self, forKey: .guidedAlignmentPass) ?? true
         detectLines = try values.decodeIfPresent(Bool.self, forKey: .detectLines) ?? true

@@ -76,6 +76,8 @@ public sealed class JsonDecodingTests
             Check(settings.MeshIslandMode == IslandTrimMode.Off && settings.MeshIslandMinimumAreaPercent == .1, "Missing fields retain compatible defaults");
             Check(settings.FusionIslandMode == IslandTrimMode.Off && settings.FusionIslandMinimumSizePercent == .1, "Early trimming remains opt-in");
             Check(!settings.OptimiseVegetation && !settings.RecoverCliffDepth, "Semantic passes remain opt-in for old projects");
+            Check(!settings.DepthSuppressSky, "Missing sky exclusion setting must not trigger a model download");
+            Check(Read<Settings>("{\"depthSuppressSky\":true}").DepthSuppressSky, "Preserve explicit opt-in in existing projects");
             Check(!settings.TextureSuppressSky && settings.TextureSkyMarginPixels == 8, "Sky suppression remains opt-in");
             foreach (var mode in Enum.GetValues<IslandTrimMode>())
             {
