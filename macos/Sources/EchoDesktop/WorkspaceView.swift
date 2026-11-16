@@ -13,6 +13,7 @@ struct WorkspaceView: View {
                 projectWorkspace
             }
         }
+        .navigationTitle(workspace.inspection?.project.name ?? "Projects")
         .disabled(workspace.sheet == .georeference)
         .accessibilityHidden(workspace.sheet == .georeference)
         .frame(minWidth: 1100, minHeight: 760)
@@ -88,19 +89,7 @@ struct WorkspaceView: View {
             .frame(minWidth: 740, maxWidth: .infinity, maxHeight: .infinity)
         }
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button("Projects", systemImage: "folder") { workspace.showProjects() }
-                    .disabled(!workspace.canEdit)
-            }
-            ToolbarItem(placement: .principal) {
-                Text(workspace.destination.title).font(.headline)
-            }
-            ToolbarItemGroup {
-                Button("Runtime information", systemImage: "info.circle", action: showRuntimeInfo)
-                    .help("About Echo and runtime information")
-                Button("Open project", systemImage: "folder.badge.plus") { workspace.openProject() }
-                    .disabled(!workspace.canEdit)
-            }
+            WorkspaceToolbar(workspace: workspace, showRuntimeInfo: showRuntimeInfo)
         }
     }
 }

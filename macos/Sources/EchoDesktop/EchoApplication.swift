@@ -37,7 +37,7 @@ struct EchoApplication: App {
     }
 
     var body: some Scene {
-        Window("Echo · Photogrammetry", id: "echo") {
+        Window("Projects", id: "echo") {
             WorkspaceView(workspace: workspace, artifacts: artifacts, showRuntimeInfo: { showsRuntimeInfo = true })
                 .disclosureGroupStyle(ClickableDisclosureStyle())
                 .sheet(isPresented: $showsRuntimeInfo) { RuntimeInfoView(model: runtimeInfo) }

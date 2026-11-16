@@ -12,7 +12,6 @@ struct ImagesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            header
             filters
             if workspace.imagesViewMode == .map {
                 PhotoMapView(workspace: workspace)
@@ -140,39 +139,6 @@ struct ImagesView: View {
         gridFocused = true
         selectedTile = id
         workspace.selectedPhotoID = id.photoID
-    }
-
-    private var header: some View {
-        HStack {
-            Text("Images").font(.title2.bold())
-            HStack(spacing: 4) {
-                ForEach(ImagesViewMode.allCases) { mode in
-                    Button(mode.rawValue, systemImage: mode.symbol) { workspace.imagesViewMode = mode }
-                        .labelStyle(ViewerIconLabelStyle(selected: workspace.imagesViewMode == mode))
-                        .accessibilityAddTraits(workspace.imagesViewMode == mode ? .isSelected : [])
-                        .help(mode.help)
-                }
-            }.padding(.leading, 12)
-            Spacer()
-            if workspace.imagesViewMode == .map {
-                Button("Model + geographic export", systemImage: "globe") { workspace.sheet = .georeference }
-                    .labelStyle(ViewerIconLabelStyle()).help("Model + geographic export")
-            }
-            Menu {
-                Button("Trim similar photos", systemImage: "square.on.square") { workspace.trimSimilarPhotos() }
-                    .disabled(!workspace.canEdit)
-                    .help("Keep the sharpest of similar photos and discard extras. Originals can be restored.")
-            } label: {
-                Label("Image actions", systemImage: "ellipsis")
-            }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            .labelStyle(.iconOnly).modifier(ViewerIconFrame())
-            .accessibilityLabel("Image actions").help("Image actions")
-            Button("Import photos", systemImage: "plus") { workspace.importPhotos() }
-                .labelStyle(ViewerIconLabelStyle())
-                .disabled(!workspace.canEdit)
-                .help("Import photos")
-        }.buttonStyle(.plain)
     }
 
     private var filters: some View {
