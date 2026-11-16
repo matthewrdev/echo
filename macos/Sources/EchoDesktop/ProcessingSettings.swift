@@ -231,7 +231,9 @@ struct ProcessingSettings: Codable {
             let memory =
                 fusionMemoryBudgetMb == 0
                 ? "Automatic memory" : "\((Double(fusionMemoryBudgetMb) / 1024).formatted()) GiB budget"
-            let fallback = fusionAllowCoarserResolution ? "coarsening allowed" : "preserve resolution"
+            let fallback =
+                fusionVoxelSize == 0
+                ? "adaptive voxel budget" : fusionAllowCoarserResolution ? "coarsening allowed" : "preserve resolution"
             return "\(resolution) · \(memory) · \(fallback) · \(trimming)"
         case .mesh:
             let islands =

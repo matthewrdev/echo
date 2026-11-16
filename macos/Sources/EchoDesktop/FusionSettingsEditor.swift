@@ -4,24 +4,25 @@ struct FusionSettingsEditor: View {
     @Binding var settings: ProcessingSettings
 
     var body: some View {
-        MemoryBudgetPicker(title: "Fusion memory", megabytes: $settings.fusionMemoryBudgetMb, exponents: 6...18)
-        Text(
-            "Automatic uses 25% of available memory. A custom budget can exceed 32 GiB. This estimates fusion working memory; depth maps, the point cloud and other applications need additional memory."
-        ).font(.caption).foregroundStyle(.secondary)
-        Toggle(
-            "Automatic voxel size",
-            isOn: Binding(
-                get: { settings.fusionVoxelSize == 0 },
-                set: { settings.fusionVoxelSize = $0 ? 0 : 0.1 }))
+        Picker(
+            "Target voxel size",
+            selection: Binding(
+                get: { FusionVoxelPreset(metres: settings.fusionVoxelSize) },
+                set: { settings.fusionVoxelSize = $0.metres ?? 0.25 })
+        ) {
+            ForEach(FusionVoxelPreset.allCases) { preset in
+                Text(preset.title).tag(preset)
+            }
+        }
         if settings.fusionVoxelSize == 0 {
             DecimalSettingSlider(
                 title: "Fusion detail multiplier", value: $settings.fusionDetailMultiplier, range: 0.25...16,
                 step: 0.25)
         } else {
             HStack {
-                Text("Voxel size (cm)")
+                Text("Target voxel size (cm)")
                 TextField(
-                    "Voxel size (cm)",
+                    "Target voxel size (cm)",
                     value: Binding(
                         get: { settings.fusionVoxelSize * 100 },
                         set: { settings.fusionVoxelSize = $0 / 100 }),
@@ -29,11 +30,23 @@ struct FusionSettingsEditor: View {
                 ).textFieldStyle(.roundedBorder).frame(width: 120)
             }
         }
-        Toggle("Allow coarser voxels if the budget is exceeded", isOn: $settings.fusionAllowCoarserResolution)
+        if settings.fusionVoxelSize == 0 {
+            Text(
+                "Auto balances image detail against the fusion voxel budget. The selected spacing is reported before integration."
+            )
+            .font(.caption).foregroundStyle(.secondary)
+        } else {
+            Toggle("Allow coarser voxels if the budget is exceeded", isOn: $settings.fusionAllowCoarserResolution)
+            Text(
+                settings.fusionAllowCoarserResolution
+                    ? "Fusion may use larger voxels to fit the budget. Requested and actual sizes are reported."
+                    : "Uses the exact target size. Smaller voxels capture more detail and require more processing and storage."
+            ).font(.caption).foregroundStyle(.secondary)
+        }
+        MemoryBudgetPicker(title: "Fusion memory", megabytes: $settings.fusionMemoryBudgetMb, exponents: 6...18)
         Text(
-            settings.fusionAllowCoarserResolution
-                ? "Fusion may reduce detail to fit the budget. Every reduction is logged with the requested and actual voxel sizes."
-                : "Preserves the requested resolution. If it cannot fit, processing stops with an explanation so you can raise the budget or change voxel size."
-        ).font(.caption).foregroundStyle(.secondary)
+            "Automatic uses 25% of available memory. Depth maps, the point cloud and other applications also need memory."
+        )
+        .font(.caption).foregroundStyle(.secondary)
     }
 }

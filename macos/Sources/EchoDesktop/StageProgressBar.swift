@@ -23,9 +23,10 @@ struct StageProgressBar: View {
                     }
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Depth progress across all steps")
+                .accessibilityLabel("Processing steps")
                 .accessibilityValue(
-                    "\(Int((progress.overallFractionCompleted ?? 0) * 100)) percent. \(progress.stepSummary ?? "")")
+                    "\(progress.stepSummary ?? ""). \(Int((progress.fractionCompleted ?? 0) * 100)) percent of this step."
+                )
                 if showsLegend {
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 14) {
@@ -33,7 +34,10 @@ struct StageProgressBar: View {
                                 legend(steps[index], index: index, active: active)
                             }
                         }
-                        VStack(alignment: .leading, spacing: 5) {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 150), alignment: .leading)],
+                            alignment: .leading, spacing: 5
+                        ) {
                             ForEach(steps.indices, id: \.self) { index in
                                 legend(steps[index], index: index, active: active)
                             }

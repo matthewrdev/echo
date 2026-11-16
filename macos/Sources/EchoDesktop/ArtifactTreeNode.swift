@@ -68,8 +68,10 @@ struct ArtifactTreeNode<Summary: View>: View {
                         )
                         .lineLimit(1)
                         Spacer()
-                        if let fraction = activity.overallFractionCompleted {
+                        if let fraction = activity.fractionCompleted {
                             Text(fraction, format: .percent.precision(.fractionLength(0))).monospacedDigit()
+                                .help(
+                                    activity.activeStepIndex == nil ? "Stage progress" : "Progress of the current step")
                         }
                     }.font(.caption2).foregroundStyle(Color.accentColor)
                     if activity.activeStepIndex != nil {

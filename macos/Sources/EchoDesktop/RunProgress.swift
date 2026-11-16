@@ -29,6 +29,12 @@ struct RunProgress: Decodable {
         return "\(steps[index]) · step \(index + 1) of \(steps.count)"
     }
 
+    var stepActivityTitle: String? {
+        guard let stepSummary else { return nil }
+        let title = PipelineStage(rawValue: stage)?.title ?? stage.capitalized
+        return "\(title) · \(stepSummary)"
+    }
+
     var overallFractionCompleted: Double? {
         guard let steps, let index = activeStepIndex else { return fractionCompleted }
         return (Double(index) + (fractionCompleted ?? 0)) / Double(steps.count)
