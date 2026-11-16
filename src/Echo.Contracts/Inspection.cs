@@ -24,4 +24,5 @@ public sealed class Inspection
     {
         get; set;
     }
+    public List<string> Warnings { get; set; } = [];
 }

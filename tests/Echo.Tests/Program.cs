@@ -82,6 +82,7 @@ composition.Resolve<StereoCostBatchTests>().Run(scaleTests);
 composition.Resolve<GrayscaleSamplerTests>().Run(scaleTests);
 composition.Resolve<ArtifactStorageTests>().Run(scaleTests);
 composition.Resolve<ProjectManagementTests>().Run(scaleTests);
+composition.Resolve<ProjectInspectionTests>().Run(scaleTests);
 composition.Resolve<GaussianBlurTests>().Run(scaleTests);
 composition.Resolve<FeatureSetCacheTests>().Run(scaleTests);
 composition.Resolve<OrderedWorkTests>().Run(scaleTests);

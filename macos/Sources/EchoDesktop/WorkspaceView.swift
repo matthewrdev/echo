@@ -53,6 +53,17 @@ struct WorkspaceView: View {
             ProjectSidebar(workspace: workspace)
                 .frame(minWidth: 250, idealWidth: 310, maxWidth: 500, maxHeight: .infinity)
             VStack(spacing: 0) {
+                if let warnings = workspace.inspection?.warnings, !warnings.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(warnings, id: \.self) { warning in
+                            Label(warning, systemImage: "exclamationmark.triangle")
+                        }
+                    }
+                    .font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                    .background(Color.orange.opacity(0.1))
+                    Divider()
+                }
                 GeometryReader { bounds in
                     Group {
                         switch workspace.destination {

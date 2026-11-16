@@ -6,4 +6,5 @@ struct Inspection: Decodable {
     let run: RunData?
     let reconstruction: ReconstructionScene?
     let cloud: DenseCloudReport?
+    var warnings: [String]? = nil
 }

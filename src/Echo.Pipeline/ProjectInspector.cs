@@ -1,4 +1,5 @@
 using System.ComponentModel.Composition;
+using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
@@ -18,6 +19,8 @@ public sealed class ProjectInspector : IProjectInspector
 
     public Inspection Inspect(IProjectStore store, string runId = "latest", bool summary = false)
     {
+        var project = store.Load();
+        var warnings = new List<string>();
         RunData? run = null;
         ReconstructionScene? scene = null;
         Surface? surface = null;
@@ -36,9 +39,10 @@ public sealed class ProjectInspector : IProjectInspector
             if (run.Artifacts.TryGetValue(key, out var alignment))
             {
                 var file = store.PathFor(alignment + "/scene.json");
-                scene = summary
-                    ? jsonCodec.Read<ReconstructionOverview>(file).ToScene()
-                    : jsonCodec.Read<ReconstructionScene>(file);
+                scene = ReadArtifact(() => summary
+                        ? jsonCodec.Read<ReconstructionOverview>(file).ToScene()
+                        : jsonCodec.Read<ReconstructionScene>(file),
+                    "alignment", summary, warnings);
             }
 
             if (!summary && run.Artifacts.TryGetValue("mesh", out var mesh))
@@ -55,9 +59,10 @@ public sealed class ProjectInspector : IProjectInspector
             if (run.Artifacts.TryGetValue("cloud", out var dense))
             {
                 var file = store.PathFor(dense + "/cloud.json");
-                cloud = summary
-                    ? jsonCodec.Read<DenseCloudOverview>(file).ToReport()
-                    : jsonCodec.Read<DenseCloudReport>(file);
+                cloud = ReadArtifact(() => summary
+                        ? jsonCodec.Read<DenseCloudOverview>(file).ToReport()
+                        : jsonCodec.Read<DenseCloudReport>(file),
+                    "cloud", summary, warnings);
             }
         }
 
@@ -65,11 +70,25 @@ public sealed class ProjectInspector : IProjectInspector
         {
             SchemaVersion = 1,
             ProjectRoot = store.Root,
-            Project = store.Load(),
+            Project = project,
             Run = run,
             Reconstruction = scene,
             Surface = surface,
-            Cloud = cloud
+            Cloud = cloud,
+            Warnings = warnings
         };
+    }
+
+    private T? ReadArtifact<T>(Func<T> read, string stage, bool summary, List<string> warnings) where T : class
+    {
+        try
+        {
+            return read();
+        }
+        catch (Exception error) when (summary && error is IOException or InvalidDataException or JsonException or UnauthorizedAccessException)
+        {
+            warnings.Add($"Saved {stage} could not be read: {error.Message}");
+            return null;
+        }
     }
 }
