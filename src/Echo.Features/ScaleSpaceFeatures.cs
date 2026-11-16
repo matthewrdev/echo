@@ -6,7 +6,7 @@ namespace Echo.Features;
 
 public static class ScaleSpaceFeatures
 {
-    public static List<Feature> Detect(ReadOnlySpan<float> pixels, int width, int height, int limit, CancellationToken cancellation, IComputeSession? acceleration = null)
+    public static List<Feature> Detect(ReadOnlySpan<float> pixels, int width, int height, int limit, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         var invalid = width < 1 || height < 1 || pixels.Length != checked(width * height) || limit < 1;
         if (invalid)
@@ -18,11 +18,11 @@ public static class ScaleSpaceFeatures
         var basis = ArrayPool<float>.Shared.Rent(width * height);
         try
         {
-            GaussianBlur.Apply(pixels, basis.AsSpan(0, width * height), width, height, Math.Sqrt(1.6 * 1.6 - .5 * .5), cancellation, acceleration);
+            Blur(pixels, basis.AsSpan(0, width * height), width, height, Math.Sqrt(1.6 * 1.6 - .5 * .5), cancellation, compute, backend);
             var octaveScale = 1.0;
             while (Math.Min(width, height) >= 32)
             {
-                var next = ProcessOctave(basis, width, height, octaveScale, limit, candidates, cancellation, acceleration);
+                var next = ProcessOctave(basis, width, height, octaveScale, limit, candidates, cancellation, compute, backend);
                 ArrayPool<float>.Shared.Return(basis);
                 basis = next;
                 width /= 2;
@@ -48,6 +48,15 @@ public static class ScaleSpaceFeatures
         return result;
     }
 
+    private static void Blur(ReadOnlySpan<float> source, Span<float> destination, int width, int height, double sigma,
+        CancellationToken cancellation, IComputeService? compute, ComputeBackend backend)
+    {
+        // Release the device before CPU differences, extrema and descriptors. Other
+        // image workers can build their pyramids while this image describes points.
+        using var acceleration = source.Length >= 16384 ? compute?.Open(backend, cancellation) : null;
+        GaussianBlur.Apply(source, destination, width, height, sigma, cancellation, acceleration);
+    }
+
     private static int Compare(ScaleFeatureCandidate left, ScaleFeatureCandidate right)
     {
         var response = right.Response.CompareTo(left.Response);
@@ -55,7 +64,7 @@ public static class ScaleSpaceFeatures
     }
 
     private static float[] ProcessOctave(float[] basis, int width, int height, double octaveScale, int limit,
-        PriorityQueue<ScaleFeatureCandidate, double> candidates, CancellationToken cancellation, IComputeSession? acceleration)
+        PriorityQueue<ScaleFeatureCandidate, double> candidates, CancellationToken cancellation, IComputeService? compute, ComputeBackend backend)
     {
         var length = width * height;
         var gaussian = new float[6][];
@@ -68,8 +77,8 @@ public static class ScaleSpaceFeatures
                 var previousSigma = 1.6 * Math.Pow(2, (layer - 1) / 3.0);
                 var nextSigma = 1.6 * Math.Pow(2, layer / 3.0);
                 gaussian[layer] = ArrayPool<float>.Shared.Rent(length);
-                GaussianBlur.Apply(gaussian[layer - 1].AsSpan(0, length), gaussian[layer].AsSpan(0, length), width, height,
-                    Math.Sqrt(nextSigma * nextSigma - previousSigma * previousSigma), cancellation, acceleration);
+                Blur(gaussian[layer - 1].AsSpan(0, length), gaussian[layer].AsSpan(0, length), width, height,
+                    Math.Sqrt(nextSigma * nextSigma - previousSigma * previousSigma), cancellation, compute, backend);
                 differences[layer - 1] = ArrayPool<float>.Shared.Rent(length);
                 for (var pixel = 0; pixel < length; pixel++)
                 {

@@ -92,8 +92,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
         {
             try
             {
-                using var acceleration = compute?.Open(settings.ComputeBackend, cancellation);
-                candidates.ScaleFeatures = ScaleSpaceFeatures.Detect(gray, width, height, settings.FeatureLimit, cancellation, acceleration);
+                candidates.ScaleFeatures = ScaleSpaceFeatures.Detect(gray, width, height, settings.FeatureLimit, cancellation, compute, settings.ComputeBackend);
             }
             catch (ComputeException) when (settings.ComputeBackend == ComputeBackend.Auto)
             {

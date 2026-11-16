@@ -37,6 +37,7 @@ public sealed class ComputePassTests
             }
         }
         tests.Run("Metal Gaussian matches the scalar filter including borders and aliased planes", Gaussian);
+        tests.Run("Concurrent Metal feature pyramids retain deterministic descriptors", ConcurrentFeatures);
         tests.Run("Metal depth filtering preserves missing, isolated and boundary samples", DepthFilter);
         tests.Run("Metal cloud support preserves discontinuity and reprojection decisions", CloudSupport);
         tests.Run("Metal fusion preserves the observed field and sample ordering", Fusion);
@@ -62,6 +63,25 @@ public sealed class ComputePassTests
             GaussianBlur.Apply(gpu, gpu, 129, 128, sigma, default, session);
             Check(cpu.Zip(gpu).All(pair => Math.Abs(pair.First - pair.Second) < 2e-6), "Gaussian error exceeds 2e-6");
         }
+    }
+
+    private void ConcurrentFeatures()
+    {
+        const int width = 256;
+        var random = new Random(912);
+        var source = Enumerable.Range(0, width * width).Select(_ => (float)random.NextDouble()).ToArray();
+        var expected = ScaleSpaceFeatures.Detect(source, width, width, 128, default, compute, ComputeBackend.Metal);
+        Check(expected.Count > 0, "Feature fixture must produce descriptors");
+        Parallel.For(0, 3, _ =>
+        {
+            var actual = ScaleSpaceFeatures.Detect(source, width, width, 128, default, compute, ComputeBackend.Metal);
+            Check(actual.Count == expected.Count, "Concurrent pyramid changed the candidate count");
+            for (var i = 0; i < actual.Count; i++)
+            {
+                Check(actual[i].X == expected[i].X && actual[i].Y == expected[i].Y && actual[i].Descriptor.SequenceEqual(expected[i].Descriptor),
+                    "Releasing the device between blurs changed a descriptor");
+            }
+        });
     }
 
     private void DepthFilter()
