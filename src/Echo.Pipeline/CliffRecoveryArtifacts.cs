@@ -24,7 +24,7 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
     {
         // All confirmations use the original maps. New estimates cannot provide
         // circular support for one another, regardless of image processing order.
-        var maps = originalUnits.Select(unit => json.Read<DepthMap>(context.Store.PathFor(unit + "/depth.json"))).ToArray();
+        var maps = originalUnits.Select(unit => context.ReadData<DepthMap>(context.Store.PathFor(unit + "/depth.json"))).ToArray();
         var units = new string[maps.Length];
         var photos = context.Images.ToDictionary(photo => photo.Id);
         for (var index = 0; index < maps.Length; index++)
@@ -43,7 +43,7 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
             {
                 var result = recovery.Recover(context.Store, context.Run.Snapshot, scene, map, maps, semantics[map.ImageId], context.Cancellation,
                     message => context.ReportProgress("depth", $"{photo.Name} · {message}", index, maps.Length));
-                files.AtomicJson(Path.Combine(directory, "depth.json"), result.Map);
+                files.AtomicData(Path.Combine(directory, "depth.json"), result.Map, context.Cancellation);
                 files.AtomicJson(Path.Combine(directory, "recovery.report.json"), new
                 {
                     map.ImageId,
@@ -51,7 +51,7 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
                     result.RecoveredSamples,
                     result.SourceImageWidth,
                     result.Neighbours,
-                    preservedSamples = map.Depth.Count(value => float.IsFinite(value) && value > 0),
+                    preservedSamples = Enumerable.Range(0, map.SampleCount).Count(index => float.IsFinite(map.DepthAt(index)) && map.DepthAt(index) > 0),
                     method = "Bounded missing-rock stereo search; two original depth confirmations and two photographic confirmations; no generative geometry"
                 });
             }, () => new ProcessingMetadata { SourceArtifacts = [.. originalUnits, context.Artifact("semantics"), context.Artifact("alignment")] },

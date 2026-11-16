@@ -47,10 +47,10 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
                         session = segmenter.Open(model);
                     }
                     var map = session.Segment(context.Store.PathFor(photo.Source), photo.Id, context.Cancellation);
-                    files.AtomicJson(Path.Combine(directory, "semantics.json"), map);
+                    files.AtomicData(Path.Combine(directory, "semantics.json"), map, context.Cancellation);
                 }, algorithmVersion: "echo-semantic-upernet1");
                 units.Add(photo.Id, unit);
-                maps.Add(photo.Id, json.Read<SemanticMap>(context.Store.PathFor(unit + "/semantics.json")));
+                maps.Add(photo.Id, context.ReadData<SemanticMap>(context.Store.PathFor(unit + "/semantics.json")));
                 context.ReportProgress("depth", $"Classified vegetation and rock · {photo.Name} · {maps.Count}/{context.Images.Count}", maps.Count, context.Images.Count);
             }
         }

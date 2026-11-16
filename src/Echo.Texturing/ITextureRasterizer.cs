@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Projects;
 using SkiaSharp;
 
@@ -7,5 +8,5 @@ namespace Echo.Texturing;
 public interface ITextureRasterizer
 {
     double Paint(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
-        TextureResult texture, IReadOnlyList<TexturePatch> patches, SKBitmap atlas, CancellationToken cancellation);
+        TextureResult texture, IReadOnlyList<TexturePatch> patches, SKBitmap atlas, CancellationToken cancellation, Action<OperationProgress>? progress = null, WorkBuffers? work = null);
 }

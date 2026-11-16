@@ -11,7 +11,7 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
     {
     }
 
-    public DepthExecutionPlan Plan(ProjectData project, int cameraCount)
+    public DepthExecutionPlan Plan(ProjectData project, int cameraCount, long jobBudgetBytes = 0)
     {
         var settings = project.Settings;
         long largestSource = 1;
@@ -39,6 +39,14 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
         }
         var memoryBudgetMb = DepthMemoryBudget.ResolveMegabytes(settings.DepthMemoryBudgetMb, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes);
         var memoryBudgetBytes = memoryBudgetMb * 1024L * 1024;
+        if (jobBudgetBytes > 0)
+        {
+            memoryBudgetBytes = Math.Min(memoryBudgetBytes, jobBudgetBytes);
+            if (bytesPerImage > memoryBudgetBytes)
+            {
+                throw new EchoException($"Depth needs an estimated {bytesPerImage / 1048576:N0} MiB for one image at the requested quality, but the job has {memoryBudgetBytes / 1048576:N0} MiB available. Increase the processing memory budget; image resolution was not reduced.", 5);
+            }
+        }
         var memorySlots = Math.Max(1, memoryBudgetBytes / Math.Max(1, bytesPerImage));
         var images = (int)Math.Max(1, Math.Min(Math.Min(settings.DepthConcurrency, cameraCount), Math.Min(workers, memorySlots)));
         return new DepthExecutionPlan(images, Math.Max(1, workers / images), bytesPerImage, memoryBudgetBytes);

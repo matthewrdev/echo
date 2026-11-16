@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="../Echo.Storage/Echo.Storage.csproj" />
     <ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" />
     <NativeSource Include="Native/**/*.h;Native/**/*.inl;Native/EchoPoisson.cpp" />
     <Content Include="obj/$(Configuration)/native/echo-poisson" Link="echo-poisson" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />

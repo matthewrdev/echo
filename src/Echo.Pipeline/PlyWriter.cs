@@ -10,13 +10,13 @@ public sealed class PlyWriter : IPlyWriter
     {
     }
 
-    public void Write(string path, double[][] points, int[][]? faces = null)
+    public void Write(string path, IList<double[]> points, IList<int[]>? faces = null)
     {
         using var writer = new StreamWriter(path);
-        writer.WriteLine($"ply\nformat ascii 1.0\nelement vertex {points.Length}\nproperty float x\nproperty float y\nproperty float z");
+        writer.WriteLine($"ply\nformat ascii 1.0\nelement vertex {points.Count}\nproperty float x\nproperty float y\nproperty float z");
         if (faces != null)
         {
-            writer.WriteLine($"element face {faces.Length}\nproperty list uchar int vertex_indices");
+            writer.WriteLine($"element face {faces.Count}\nproperty list uchar int vertex_indices");
         }
 
         writer.WriteLine("end_header");

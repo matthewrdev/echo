@@ -54,7 +54,7 @@ public sealed class FusionSettingsTests
             fixture.Project.Settings.FusionAllowCoarserResolution = true;
             var messages = new List<string>();
             var grid = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, resources, default, messages.Add);
-            Check(grid.VoxelSize > grid.RequestedVoxelSize && grid.Keys.Length <= resources.MaximumGridSamples,
+            Check(grid.VoxelSize > grid.RequestedVoxelSize && grid.Keys.Count <= resources.MaximumGridSamples,
                 "The explicit fallback retains complete coverage within the budget");
             Check(messages.Any(message => message.Contains("Coarser resolution is enabled")), "Every fallback is visible in progress logs");
         });

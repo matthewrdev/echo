@@ -1,10 +1,11 @@
 using SkiaSharp;
+using Echo.Contracts;
 
 namespace Echo.Texturing;
 
 internal static class TextureBackground
 {
-    public static void Fill(Span<SKColor> pixels, int size, CancellationToken cancellation)
+    public static void Fill(Span<SKColor> pixels, int size, CancellationToken cancellation, Action<OperationProgress>? progress = null)
     {
         if (size == 1)
         {
@@ -15,6 +16,7 @@ internal static class TextureBackground
             return;
         }
 
+        progress?.Invoke(new OperationProgress("Atlas background", $"Building colour continuation at {size:N0} × {size:N0}…"));
         var coarseSize = (size + 1) / 2;
         var coarse = new SKColor[coarseSize * coarseSize];
         for (var y = 0; y < coarseSize; y++)
@@ -51,9 +53,13 @@ internal static class TextureBackground
         // Push observed colours into a pyramid, then pull a smooth continuation
         // back into unused atlas space. Photographic texels and their exact
         // nearest-colour gutters are never blurred or overwritten.
-        Fill(coarse, coarseSize, cancellation);
+        Fill(coarse, coarseSize, cancellation, progress);
         for (var y = 0; y < size; y++)
         {
+            if (y % 128 == 0)
+            {
+                progress?.Invoke(new OperationProgress("Atlas background", $"Completing colour continuation at {size:N0} × {size:N0}…", y, size, "rows"));
+            }
             cancellation.ThrowIfCancellationRequested();
             for (var x = 0; x < size; x++)
             {

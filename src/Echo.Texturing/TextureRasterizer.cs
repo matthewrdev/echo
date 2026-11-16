@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Geometry;
 using Echo.Imaging;
 using Echo.Projects;
@@ -20,7 +21,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
     }
 
     public double Paint(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
-        TextureResult texture, IReadOnlyList<TexturePatch> patches, SKBitmap atlas, CancellationToken cancellation)
+        TextureResult texture, IReadOnlyList<TexturePatch> patches, SKBitmap atlas, CancellationToken cancellation, Action<OperationProgress>? progress = null, WorkBuffers? work = null)
     {
         var size = texture.Size;
         var byteColour = atlas.ColorType is SKColorType.Bgra8888 or SKColorType.Rgba8888;
@@ -40,11 +41,12 @@ public sealed class TextureRasterizer : ITextureRasterizer
         var photos = project.Images.ToDictionary(p => p.Id);
         var cameras = scene.Cameras.ToDictionary(c => c.ImageId);
         var needsCompletion = mesh.SourceImages.Any(string.IsNullOrEmpty);
-        var welded = needsCompletion ? SurfaceTopologyBuilder.Build(mesh, cancellation).WeldedVertices : [];
-        var vertexCount = welded.Length > 0 ? welded.Max() + 1 : 0;
+        var welded = needsCompletion ? SurfaceTopologyBuilder.Build(mesh, cancellation, work).WeldedVertices : [];
+        var vertexCount = welded.Count > 0 ? welded.Max() + 1 : 0;
         var colourSums = new V3[vertexCount];
         var colourWeights = new int[vertexCount];
         long painted = 0;
+        var completedFaces = 0;
         Span<V3> projected = stackalloc V3[3];
         Span<V3> corrections = stackalloc V3[3];
         Span<TextureCoordinate> uv = stackalloc TextureCoordinate[3];
@@ -54,6 +56,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
             {
                 continue;
             }
+            progress?.Invoke(new OperationProgress("Texture projection", $"Projecting photograph {photos[group.Key].Name}…", completedFaces, mesh.Faces.Count, "triangles"));
             var photo = photos[group.Key];
             var camera = cameras[group.Key];
             var projection = new CameraProjector(photo, camera);
@@ -65,6 +68,10 @@ public sealed class TextureRasterizer : ITextureRasterizer
             foreach (var index in group)
             {
                 cancellation.ThrowIfCancellationRequested();
+                if (completedFaces++ % 10000 == 0)
+                {
+                    progress?.Invoke(new OperationProgress("Texture projection", "Projecting source pixels into the atlas…", completedFaces, mesh.Faces.Count, "triangles"));
+                }
                 var face = mesh.Faces[index];
                 for (var corner = 0; corner < 3; corner++)
                 {
@@ -91,6 +98,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
 
         if (needsCompletion)
         {
+            progress?.Invoke(new OperationProgress("Inferred texture completion", "Extending visible boundary colours onto unobserved surfaces…"));
             var colours = TextureColourCompletion.Extend(mesh, welded, colourSums, colourWeights, cancellation);
             Span<V3> fill = stackalloc V3[3];
             for (var index = 0; index < mesh.Faces.Count; index++)
@@ -120,8 +128,8 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 target[index] = target[index].WithAlpha(255);
             }
         }
-        TexturePadding.Extend(target, size, texture.GutterPixels > 0 ? texture.GutterPixels : project.Settings.TextureGutter, cancellation);
-        TextureBackground.Fill(target, size, cancellation);
+        TexturePadding.Extend(target, size, texture.GutterPixels > 0 ? texture.GutterPixels : project.Settings.TextureGutter, cancellation, progress);
+        TextureBackground.Fill(target, size, cancellation, progress);
 
         for (var i = 0; i < target.Length; i++)
         {

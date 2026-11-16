@@ -1,13 +1,18 @@
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Geometry;
 
 namespace Echo.Meshing;
 
 internal static class SurfaceFragments
 {
-    public static Surface RemoveSmall(Surface source, double voxelSize, CancellationToken cancellation)
+    public static Surface RemoveSmall(Surface source, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null)
     {
-        var parents = Enumerable.Range(0, source.Vertices.Count).ToArray();
+        IList<int> parents = work?.List(new IntRecordCodec()) ?? new List<int>(source.Vertices.Count);
+        for (var index = 0; index < source.Vertices.Count; index++)
+        {
+            parents.Add(index);
+        }
         foreach (var face in source.Faces)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -19,8 +24,8 @@ internal static class SurfaceFragments
             }
         }
 
-        var counts = new int[parents.Length];
-        var areas = new double[parents.Length];
+        IList<int> counts = work?.Filled(parents.Count, 0, new IntRecordCodec()) ?? new int[parents.Count];
+        IList<double> areas = work?.Filled(parents.Count, 0d, new DoubleRecordCodec()) ?? new double[parents.Count];
         var largest = 0;
         foreach (var face in source.Faces)
         {
@@ -35,8 +40,8 @@ internal static class SurfaceFragments
             }
         }
 
-        var result = new Surface();
-        var remap = new Dictionary<int, int>();
+        var result = work?.Surface() ?? new Surface();
+        IDictionary<int, int> remap = work?.Map(new IntRecordCodec(), new IntRecordCodec()) ?? new Dictionary<int, int>();
         foreach (var face in source.Faces)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -64,7 +69,7 @@ internal static class SurfaceFragments
         return result;
     }
 
-    private static int Root(int[] parents, int vertex)
+    private static int Root(IList<int> parents, int vertex)
     {
         while (parents[vertex] != vertex)
         {

@@ -1,12 +1,13 @@
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.Fusion;
 
 internal static class FusionGridBuilder
 {
     public static FusionGrid Build(IReadOnlyList<DepthView> views, DenseCloudData cloud,
-        Settings settings, FusionResourcePlan resources, CancellationToken cancellation, Action<string>? progress = null)
+        Settings settings, FusionResourcePlan resources, CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null)
     {
         cancellation.ThrowIfCancellationRequested();
         var detail = settings.FusionDetailMultiplier;
@@ -35,12 +36,29 @@ internal static class FusionGridBuilder
         for (var pass = 0; pass < 64; pass++)
         {
             cancellation.ThrowIfCancellationRequested();
-            progress?.Invoke($"Planning fusion at {voxel:G6} m voxels within {resources.MemoryBudgetBytes / 1073741824.0:G4} GiB ({resources.MaximumGridSamples:N0} grid samples)…");
-            var candidates = Candidates(cloud, sources, settings.CloudDepthTolerance, voxel, resources.MaximumGridSamples, cancellation);
+            progress?.Invoke(work == null
+                ? $"Planning fusion at {voxel:G6} m voxels within {resources.MemoryBudgetBytes / 1073741824.0:G4} GiB ({resources.MaximumGridSamples:N0} grid samples)…"
+                : $"Planning fusion at {voxel:G6} m voxels with a bounded cache and disk-backed grid…");
+            var candidates = Candidates(cloud, sources, settings.CloudDepthTolerance, voxel, work == null ? resources.MaximumGridSamples : int.MaxValue, cancellation, work);
             if (candidates != null)
             {
-                var keys = candidates.ToArray();
-                Array.Sort(keys, Compare);
+                IList<Grid> keys;
+                if (candidates is IOrderedRecordKeys<Grid> disk)
+                {
+                    var sorted = work!.List(new GridRecordCodec());
+                    foreach (var key in disk.OrderedKeys())
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        sorted.Add(key);
+                    }
+                    keys = sorted;
+                }
+                else
+                {
+                    var sorted = candidates.Keys.ToArray();
+                    Array.Sort(sorted, Compare);
+                    keys = sorted;
+                }
                 return new FusionGrid { PixelFootprint = footprint, RequestedVoxelSize = requested, VoxelSize = voxel, Keys = keys };
             }
             if (!settings.FusionAllowCoarserResolution)
@@ -55,10 +73,10 @@ internal static class FusionGridBuilder
         throw new EchoException("Cannot fit the observed fusion volume within the available memory budget.", 5);
     }
 
-    private static HashSet<Grid>? Candidates(DenseCloudData cloud, DepthView?[] sources, double relativeTolerance,
-        double voxel, int limit, CancellationToken cancellation)
+    private static IDictionary<Grid, int>? Candidates(DenseCloudData cloud, DepthView?[] sources, double relativeTolerance,
+        double voxel, int limit, CancellationToken cancellation, WorkBuffers? work)
     {
-        var occupied = new HashSet<Grid>();
+        var occupied = work?.Map(new GridRecordCodec(), new IntRecordCodec()) ?? new Dictionary<Grid, int>();
         for (var index = 0; index < cloud.Samples.Count; index++)
         {
             if (index % 4096 == 0)
@@ -106,15 +124,15 @@ internal static class FusionGridBuilder
                     cancellation.ThrowIfCancellationRequested();
                 }
                 var sample = world + step * offset;
-                occupied.Add(new Grid(Coordinate(sample.X, voxel), Coordinate(sample.Y, voxel), Coordinate(sample.Z, voxel)));
+                occupied.TryAdd(new Grid(Coordinate(sample.X, voxel), Coordinate(sample.Y, voxel), Coordinate(sample.Z, voxel)), 0);
                 if (occupied.Count > limit)
                 {
                     return null;
                 }
             }
         }
-        var candidates = new HashSet<Grid>();
-        foreach (var cell in occupied)
+        var candidates = work?.Map(new GridRecordCodec(), new IntRecordCodec()) ?? new Dictionary<Grid, int>();
+        foreach (var cell in occupied.Keys)
         {
             cancellation.ThrowIfCancellationRequested();
             for (var z = -1; z <= 2; z++)
@@ -123,7 +141,7 @@ internal static class FusionGridBuilder
                 {
                     for (var x = -1; x <= 2; x++)
                     {
-                        candidates.Add(new Grid(cell.X + x, cell.Y + y, cell.Z + z));
+                        candidates.TryAdd(new Grid(cell.X + x, cell.Y + y, cell.Z + z), 0);
                         if (candidates.Count > limit)
                         {
                             return null;

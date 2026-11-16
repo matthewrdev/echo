@@ -2,6 +2,9 @@ namespace Echo.Contracts;
 
 public sealed class Settings
 {
+    public ProcessingMemoryMode ProcessingMemoryMode { get; set; } = ProcessingMemoryMode.Paged;
+    public int ProcessingMemoryBudgetMb { get; set; } = 0;
+    public int ProcessingDiskBudgetMb { get; set; } = 0;
     public bool OptimiseVegetation { get; set; } = false;
     public double VegetationMeshToleranceMultiplier { get; set; } = 2.5;
     public double VegetationTextureScale { get; set; } = .65;
@@ -64,6 +67,9 @@ public sealed class Settings
 
     public void Validate()
     {
+        var invalidProcessing = !Enum.IsDefined(ProcessingMemoryMode)
+            || ProcessingMemoryBudgetMb != 0 && ProcessingMemoryBudgetMb is < 256 or > 524287
+            || ProcessingDiskBudgetMb < 0;
         var invalidLines = LineLimit is < 1 or > 5000 || LineMinimumLength is < 8 or > 1000;
         var invalidLineThreshold = !double.IsFinite(LineGradientThreshold) || LineGradientThreshold is < .001 or > .2;
         var invalidAlignmentSettings = BundleIterations is < 1 or > 500
@@ -123,7 +129,7 @@ public sealed class Settings
             || VegetationMeshToleranceMultiplier is < 1 or > 4
             || !double.IsFinite(VegetationTextureScale)
             || VegetationTextureScale is < .25 or > 1;
-        var invalidSettings = invalidSemanticSettings || invalidAlignmentSettings
+        var invalidSettings = invalidProcessing || invalidSemanticSettings || invalidAlignmentSettings
             || invalidLines
             || invalidLineThreshold
             || invalidMatchingSettings

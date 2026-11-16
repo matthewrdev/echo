@@ -1,20 +1,21 @@
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.SceneSemantics;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 
 public static class SurfaceVegetationClassifier
 {
-    public static bool[] Classify(Surface surface, ProjectData project, ReconstructionScene scene,
-        IReadOnlyList<DepthMap> maps, IReadOnlyDictionary<string, SemanticMap> semantics, CancellationToken cancellation)
+    public static IReadOnlyList<bool> Classify(Surface surface, ProjectData project, ReconstructionScene scene,
+        IReadOnlyList<DepthMap> maps, IReadOnlyDictionary<string, SemanticMap> semantics, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
     {
         var photos = project.Images.ToDictionary(photo => photo.Id);
         var cameras = scene.Cameras.ToDictionary(camera => camera.ImageId);
         var views = maps.Where(map => semantics.ContainsKey(map.ImageId))
             .Select(map => new DepthView(photos[map.ImageId], cameras[map.ImageId], map)).ToArray();
         var visibility = new SurfaceTriangleIndex(surface, cancellation);
-        var normals = new V3[surface.Vertices.Count];
+        IList<V3> normals = work?.Filled(surface.Vertices.Count, new V3(), new V3RecordCodec()) ?? new V3[surface.Vertices.Count];
         foreach (var face in surface.Faces)
         {
             var a = new V3(surface.Vertices[face[0]]);
@@ -26,8 +27,11 @@ public static class SurfaceVegetationClassifier
                 normals[vertex] += normal;
             }
         }
-        var result = new bool[surface.Vertices.Count];
-        Parallel.For(0, result.Length, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = Math.Min(8, Environment.ProcessorCount) }, index =>
+        IList<bool> result = work?.Filled(surface.Vertices.Count, false, new BoolRecordCodec()) ?? new bool[surface.Vertices.Count];
+        for (var start = 0; start < result.Count; start += 1024)
+        {
+            var end = Math.Min(result.Count, start + 1024);
+            Parallel.For(start, end, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = Math.Min(8, Environment.ProcessorCount) }, index =>
         {
             var point = new V3(surface.Vertices[index]);
             Span<VegetationViewVote> votes = stackalloc VegetationViewVote[8];
@@ -72,8 +76,8 @@ public static class SurfaceVegetationClassifier
                 // Completed vegetation may have no measured depth. Its existing
                 // mesh line of sight can establish semantic visibility; it never
                 // provides new geometry or overrides contradictory measured depth.
-                var vegetation = SemanticProbabilities.ConservativeSample(map, map.Vegetation, u, v);
-                var rock = SemanticProbabilities.ConservativeSample(map, map.Rock, u, v);
+                var vegetation = SemanticProbabilities.ConservativeSample(map, map.VegetationSamples, u, v);
+                var rock = SemanticProbabilities.ConservativeSample(map, map.RockSamples, u, v);
                 var slot = count < votes.Length ? count++ : weakest;
                 votes[slot] = new VegetationViewVote(weight, vegetation, rock);
             }
@@ -93,16 +97,23 @@ public static class SurfaceVegetationClassifier
             }
             result[index] = confirmed >= 2 && plant >= total * .65 && stone < total * .2;
         });
-        return result;
+            progress?.Invoke(new("Vegetation classification", "Combining vegetation evidence from visible photographs.", end, result.Count, "vertices"));
+        }
+        return (IReadOnlyList<bool>)result;
     }
 
-    public static double[] Tolerances(Surface surface, IReadOnlyList<bool> vegetation, double tolerance)
+    public static IReadOnlyList<double> Tolerances(Surface surface, IReadOnlyList<bool> vegetation, double tolerance, WorkBuffers? work = null, CancellationToken cancellation = default)
     {
         if (vegetation.Count != surface.Vertices.Count)
         {
             throw new ArgumentException("Expected one classification per vertex.", nameof(vegetation));
         }
-        var result = vegetation.Select(value => value ? tolerance : 0).ToArray();
+        IList<double> result = work?.List(new DoubleRecordCodec()) ?? new List<double>(vegetation.Count);
+        foreach (var value in vegetation)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            result.Add(value ? tolerance : 0);
+        }
         foreach (var face in surface.Faces)
         {
             if (face.Any(vertex => !vegetation[vertex]))
@@ -115,7 +126,7 @@ public static class SurfaceVegetationClassifier
                 }
             }
         }
-        var neighbours = SurfaceTopologyBuilder.Build(surface, default).Neighbours;
+        var neighbours = SurfaceTopologyBuilder.Build(surface, cancellation, work).Neighbours;
         for (var face = 0; face < surface.Faces.Count; face++)
         {
             for (var edge = 0; edge < 3; edge++)
@@ -127,6 +138,6 @@ public static class SurfaceVegetationClassifier
                 }
             }
         }
-        return result;
+        return (IReadOnlyList<double>)result;
     }
 }

@@ -44,7 +44,9 @@ public sealed class TextureResult
     {
         get; set;
     }
-    public List<double[]> Uvs { get; set; } = [];
+    public string UvsFile { get; set; } = "uvs.json";
+    [JsonIgnore]
+    public IList<double[]> Uvs { get; set; } = [];
     public double CoverageFraction
     {
         get; set;

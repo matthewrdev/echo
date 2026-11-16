@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Geometry;
 using Echo.Imaging;
 using Echo.Projects;
@@ -19,7 +20,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
     }
 
     public TextureSeamCorrections Compute(IProjectStore store, ProjectData project, ReconstructionScene scene,
-        Surface mesh, CancellationToken cancellation)
+        Surface mesh, CancellationToken cancellation, Action<OperationProgress>? progress = null, WorkBuffers? work = null)
     {
         cancellation.ThrowIfCancellationRequested();
         var imageIds = mesh.SourceImages.Distinct().Order(StringComparer.Ordinal).ToArray();
@@ -28,13 +29,17 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             return new TextureSeamCorrections();
         }
         var imageIndices = imageIds.Select((id, index) => new KeyValuePair<string, int>(id, index)).ToDictionary();
-        var topology = SurfaceTopologyBuilder.Build(mesh, cancellation);
+        var topology = SurfaceTopologyBuilder.Build(mesh, cancellation, work);
         var corners = new int[mesh.Faces.Count * 3];
         var lookup = new Dictionary<TextureSeamKey, int>();
         var nodes = new List<TextureSeamNode>();
         for (var face = 0; face < mesh.Faces.Count; face++)
         {
             cancellation.ThrowIfCancellationRequested();
+            if (face % 10000 == 0)
+            {
+                progress?.Invoke(new OperationProgress("Seam indexing", "Indexing photographic seam vertices…", face, mesh.Faces.Count, "triangles"));
+            }
             var image = imageIndices[mesh.SourceImages[face]];
             for (var corner = 0; corner < 3; corner++)
             {
@@ -98,7 +103,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         {
             return new TextureSeamCorrections();
         }
-        ReadColours(store, project, scene, imageIds, samples, nodes, cancellation);
+        ReadColours(store, project, scene, imageIds, samples, nodes, cancellation, progress);
         var links = new List<TextureSeamLink>();
         foreach (var group in Enumerable.Range(0, nodes.Count).Where(index => nodes[index].Weight > 0).GroupBy(index => nodes[index].Vertex))
         {
@@ -111,8 +116,8 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                 }
             }
         }
-        var global = GlobalOffsets(nodes, links, imageIds.Length, cancellation);
-        var local = LocalOffsets(nodes, global, cancellation);
+        var global = GlobalOffsets(nodes, links, imageIds.Length, cancellation, progress);
+        var local = LocalOffsets(nodes, global, cancellation, progress);
         var offsets = new V3[corners.Length];
         for (var corner = 0; corner < corners.Length; corner++)
         {
@@ -138,7 +143,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
     }
 
     private void ReadColours(IProjectStore store, ProjectData project, ReconstructionScene scene, string[] imageIds,
-        List<TextureSeamSample>[] samples, List<TextureSeamNode> nodes, CancellationToken cancellation)
+        List<TextureSeamSample>[] samples, List<TextureSeamNode> nodes, CancellationToken cancellation, Action<OperationProgress>? progress)
     {
         var photos = project.Images.ToDictionary(photo => photo.Id);
         var cameras = scene.Cameras.ToDictionary(camera => camera.ImageId);
@@ -149,6 +154,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             {
                 continue;
             }
+            progress?.Invoke(new OperationProgress("Seam sampling", $"Sampling seam colours from photograph {image + 1}/{imageIds.Length}…", image, imageIds.Length, "photographs"));
             var photo = photos[imageIds[image]];
             var projection = new CameraProjector(photo, cameras[photo.Id]);
             using var bitmap = SKBitmap.Decode(store.PathFor(photo.Source));
@@ -179,7 +185,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         }
     }
 
-    private V3[] GlobalOffsets(List<TextureSeamNode> nodes, List<TextureSeamLink> links, int images, CancellationToken cancellation)
+    private V3[] GlobalOffsets(List<TextureSeamNode> nodes, List<TextureSeamLink> links, int images, CancellationToken cancellation, Action<OperationProgress>? progress)
     {
         var offsets = new V3[images];
         var sums = new V3[images];
@@ -194,6 +200,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         for (var pass = 0; pass < 160; pass++)
         {
             cancellation.ThrowIfCancellationRequested();
+            progress?.Invoke(new OperationProgress("Exposure correction", "Solving photograph exposure offsets…", pass, 160, "iterations"));
             Array.Clear(sums);
             foreach (var link in links)
             {
@@ -213,7 +220,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         return offsets;
     }
 
-    private V3[] LocalOffsets(List<TextureSeamNode> nodes, V3[] global, CancellationToken cancellation)
+    private V3[] LocalOffsets(List<TextureSeamNode> nodes, V3[] global, CancellationToken cancellation, Action<OperationProgress>? progress)
     {
         var local = new V3[nodes.Count];
         foreach (var group in Enumerable.Range(0, nodes.Count).Where(index => nodes[index].Weight > 0).GroupBy(index => nodes[index].Vertex))
@@ -235,6 +242,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         for (var pass = 0; pass < 32; pass++)
         {
             cancellation.ThrowIfCancellationRequested();
+            progress?.Invoke(new OperationProgress("Local seam correction", "Diffusing colour corrections across chart interiors…", pass, 32, "iterations"));
             for (var index = 0; index < nodes.Count; index++)
             {
                 var node = nodes[index];

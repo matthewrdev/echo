@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Globalization;
 using Echo.Contracts;
+using Echo.Storage;
 
 namespace Echo.SurfaceCompletion;
 
@@ -17,7 +18,7 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
     }
 
     public Surface Reconstruct(Surface measured, ReconstructionScene scene, double voxelSize,
-        CancellationToken cancellation, Action<string>? progress = null)
+        CancellationToken cancellation, Action<string>? progress = null, ProcessingMemoryTracker? memory = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!(voxelSize > 0) || !double.IsFinite(voxelSize))
@@ -64,6 +65,7 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
                 }
             };
             process.Start();
+            using var registration = memory?.RegisterWorker(process.Id);
             process.BeginOutputReadLine();
             var error = process.StandardError.ReadToEndAsync(cancellation);
             try

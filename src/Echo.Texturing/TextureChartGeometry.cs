@@ -1,20 +1,25 @@
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.Texturing;
 
 internal sealed class TextureChartGeometry
 {
-    public TextureChartGeometry(Surface surface, CancellationToken cancellation)
+    public TextureChartGeometry(Surface surface, CancellationToken cancellation, WorkBuffers? work = null)
     {
         Surface = surface;
-        var topology = SurfaceTopologyBuilder.Build(surface, cancellation);
+        var topology = SurfaceTopologyBuilder.Build(surface, cancellation, work);
         WeldedVertices = topology.WeldedVertices;
         Neighbours = topology.Neighbours;
-        Points = surface.Vertices.Select(vertex => new V3(vertex)).ToArray();
-        Centres = new V3[surface.Faces.Count];
-        Normals = new V3[surface.Faces.Count];
-        Areas = new double[surface.Faces.Count];
+        Points = work?.List(new Vector3RecordCodec()) ?? new List<V3>(surface.Vertices.Count);
+        foreach (var vertex in surface.Vertices)
+        {
+            Points.Add(new V3(vertex));
+        }
+        Centres = work?.Filled(surface.Faces.Count, default(V3), new Vector3RecordCodec()) ?? new V3[surface.Faces.Count];
+        Normals = work?.Filled(surface.Faces.Count, default(V3), new Vector3RecordCodec()) ?? new V3[surface.Faces.Count];
+        Areas = work?.Filled(surface.Faces.Count, 0d, new DoubleRecordCodec()) ?? new double[surface.Faces.Count];
         for (var index = 0; index < surface.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -33,27 +38,27 @@ internal sealed class TextureChartGeometry
     {
         get;
     }
-    public int[] WeldedVertices
+    public IList<int> WeldedVertices
     {
         get;
     }
-    public int[] Neighbours
+    public IList<int> Neighbours
     {
         get;
     }
-    public V3[] Points
+    public IList<V3> Points
     {
         get;
     }
-    public V3[] Centres
+    public IList<V3> Centres
     {
         get;
     }
-    public V3[] Normals
+    public IList<V3> Normals
     {
         get;
     }
-    public double[] Areas
+    public IList<double> Areas
     {
         get;
     }

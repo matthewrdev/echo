@@ -3,7 +3,7 @@ using Echo.Contracts;
 
 namespace Echo.Infrastructure;
 
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true, UseStringEnumConverter = true, GenerationMode = JsonSourceGenerationMode.Metadata)]
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true, UseStringEnumConverter = true, GenerationMode = JsonSourceGenerationMode.Default)]
 [JsonSerializable(typeof(ProjectData))]
 [JsonSerializable(typeof(RunData))]
 [JsonSerializable(typeof(Artifact))]

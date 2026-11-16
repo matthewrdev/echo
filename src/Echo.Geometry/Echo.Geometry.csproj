@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
+    <ProjectReference Include="../Echo.Storage/Echo.Storage.csproj" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
   </ItemGroup>
 </Project>

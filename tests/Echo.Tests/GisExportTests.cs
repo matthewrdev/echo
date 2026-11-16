@@ -118,7 +118,7 @@ public sealed class GisExportTests
             try
             {
                 files.AtomicJson(store.PathFor("artifacts/alignment/test/scene.json"), Scene());
-                files.AtomicJson(store.PathFor("artifacts/mesh/test/mesh.json"), Surface());
+                files.AtomicData(store.PathFor("artifacts/mesh/test/mesh.json"), Surface());
                 files.AtomicJson(store.PathFor("runs/0123456789abcdef0123456789abcdef/run.json"), new RunData
                 {
                     Id = "0123456789abcdef0123456789abcdef",

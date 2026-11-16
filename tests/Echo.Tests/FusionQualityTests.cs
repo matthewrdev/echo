@@ -185,7 +185,7 @@ public sealed class FusionQualityTests
             var fixture = new FusionFixture();
             fixture.Project.Settings.FusionAllowCoarserResolution = true;
             var grid = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, new FusionResourcePlan(256000, 1000), default);
-            Check(grid.Keys.Length <= 1000 && grid.VoxelSize > grid.RequestedVoxelSize, "The actual candidate count obeys the limit");
+            Check(grid.Keys.Count <= 1000 && grid.VoxelSize > grid.RequestedVoxelSize, "The actual candidate count obeys the limit");
             var keys = grid.Keys.ToHashSet();
             foreach (var point in fixture.Cloud.Samples)
             {

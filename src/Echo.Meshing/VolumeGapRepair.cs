@@ -1,13 +1,20 @@
 using Echo.Contracts;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 
 internal static class VolumeGapRepair
 {
-    public static Dictionary<Grid, float> Complete(FusedVolume volume, CancellationToken cancellation)
+    public static IDictionary<Grid, float> Complete(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null)
     {
-        var samples = volume.Samples.ToDictionary(s => new Grid(s.X, s.Y, s.Z), s => s.Distance);
-        var candidates = new HashSet<Grid>();
+        var samples = work?.Map(new GridRecordCodec(), new FloatRecordCodec()) ?? new Dictionary<Grid, float>();
+        foreach (var sample in volume.Samples)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            samples.Add(new Grid(sample.X, sample.Y, sample.Z), sample.Distance);
+        }
+        progress?.Invoke($"Indexed {samples.Count:N0} volume samples; finding bounded gaps…");
+        var candidates = work?.Map(new GridRecordCodec(), new IntRecordCodec()) ?? new Dictionary<Grid, int>();
         foreach (var key in samples.Keys)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -28,7 +35,7 @@ internal static class VolumeGapRepair
                     }
                     for (var step = 1; step < span; step++)
                     {
-                        candidates.Add(key.Add(x * step, y * step, z * step));
+                        candidates.TryAdd(key.Add(x * step, y * step, z * step), 0);
                     }
                     break;
                 }
@@ -39,8 +46,8 @@ internal static class VolumeGapRepair
         // the original field, so completion cannot recursively expand a scan.
         // Agreement between the two interpolants rejects discontinuities while
         // allowing a locally planar ground surface to span sparse observations.
-        var repaired = new Dictionary<Grid, float>();
-        foreach (var key in candidates)
+        var repaired = work?.Map(new GridRecordCodec(), new FloatRecordCodec()) ?? new Dictionary<Grid, float>();
+        foreach (var key in candidates.Keys)
         {
             cancellation.ThrowIfCancellationRequested();
             var count = 0;
@@ -91,7 +98,7 @@ internal static class VolumeGapRepair
         return samples;
     }
 
-    private static int Bracket(Dictionary<Grid, float> samples, Grid key, int x, int y, int z, out float value)
+    private static int Bracket(IDictionary<Grid, float> samples, Grid key, int x, int y, int z, out float value)
     {
         for (var step = 1; step < 8; step++)
         {

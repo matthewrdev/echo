@@ -86,7 +86,7 @@ public sealed class SurfaceCompletionTests
                 Vertices = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [-1, 0, 0], [0, -1, 0]],
                 Faces = [[0, 1, 2], [0, 3, 4]]
             };
-            var loops = SurfaceBoundaryLoops.Find(surface, default);
+            var loops = SurfaceBoundaryLoops.Find(surface, default).ToList();
             Check(loops.Count == 2 && loops.All(loop => loop.Vertices.Distinct().Count() == 3),
                 "Both cycles survive a shared boundary vertex");
             SurfaceHoleRepair.Fill(surface, 1, default, _ => true);
@@ -124,7 +124,7 @@ public sealed class SurfaceCompletionTests
             var map = new DepthMap { ImageId = "a", Width = 100, Height = 100, Depth = new float[10000] };
             var surface = new Surface { Vertices = [[-1, -1, 10], [1, -1, 10], [0, 1, 10]], Faces = [[0, 1, 2]] };
             Check(meshes.AssignCameras(project, scene, [map], surface, default).Faces.Count == 1, "Missing depth alone does not delete a repaired patch");
-            surface.Vertices.AddRange([[-1, -1, 5], [1, -1, 5], [0, 1, 5]]);
+            surface.Vertices = [.. surface.Vertices, [-1, -1, 5], [1, -1, 5], [0, 1, 5]];
             surface.Faces.Add([3, 4, 5]);
             var assigned = meshes.AssignCameras(project, scene, [map], surface, default);
             Check(assigned.Faces.Count == 1 && assigned.Vertices.All(point => point[2] == 5), "The foreground patch is retained and the hidden background is rejected");

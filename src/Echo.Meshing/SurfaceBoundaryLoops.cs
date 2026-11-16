@@ -1,19 +1,24 @@
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Geometry;
 
 namespace Echo.Meshing;
 
 internal static class SurfaceBoundaryLoops
 {
-    public static List<SurfaceBoundaryLoop> Find(Surface mesh, CancellationToken cancellation)
+    public static IEnumerable<SurfaceBoundaryLoop> Find(Surface mesh, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
     {
-        var twins = new int[mesh.Faces.Count * 3];
-        Array.Fill(twins, -1);
-        var edges = new Dictionary<SurfaceEdge, int>();
-        var normals = new V3[mesh.Faces.Count];
+        var faceCount = mesh.Faces.Count;
+        IList<int> twins = work?.Filled(checked(faceCount * 3), -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, checked(faceCount * 3)).ToArray();
+        IDictionary<SurfaceEdge, int> edges = work?.Map(new SurfaceEdgeRecordCodec(), new IntRecordCodec()) ?? new Dictionary<SurfaceEdge, int>();
+        IList<V3> normals = work?.Filled(faceCount, default(V3), new V3RecordCodec()) ?? new V3[faceCount];
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
+            if (index % 10000 == 0)
+            {
+                progress?.Invoke(new OperationProgress("Boundary detection", "Finding open surface boundaries…", index, faceCount, "triangles"));
+            }
             var face = mesh.Faces[index];
             var a = new V3(mesh.Vertices[face[0]]);
             normals[index] = (new V3(mesh.Vertices[face[1]]) - a).Cross(new V3(mesh.Vertices[face[2]]) - a).Unit;
@@ -49,9 +54,8 @@ internal static class SurfaceBoundaryLoops
             }
         }
 
-        var result = new List<SurfaceBoundaryLoop>();
-        var visited = new bool[twins.Length];
-        for (var start = 0; start < twins.Length; start++)
+        IList<bool> visited = work?.Filled(twins.Count, false, new BoolRecordCodec()) ?? new bool[twins.Count];
+        for (var start = 0; start < twins.Count; start++)
         {
             cancellation.ThrowIfCancellationRequested();
             if (twins[start] != -1 || visited[start])
@@ -70,11 +74,11 @@ internal static class SurfaceBoundaryLoops
                 boundary.Add(current);
                 current = Next(current);
                 var steps = 0;
-                while (twins[current] >= 0 && steps++ < twins.Length)
+                while (twins[current] >= 0 && steps++ < twins.Count)
                 {
                     current = Next(twins[current]);
                 }
-                if (twins[current] != -1 || steps >= twins.Length)
+                if (twins[current] != -1 || steps >= twins.Count)
                 {
                     break;
                 }
@@ -102,11 +106,11 @@ internal static class SurfaceBoundaryLoops
                         {
                             normal += normals[edge / 3];
                         }
-                        result.Add(new SurfaceBoundaryLoop
+                        yield return new SurfaceBoundaryLoop
                         {
                             Vertices = cycle.Select(edge => mesh.Faces[edge / 3][edge % 3]).ToList(),
                             AdjacentNormal = normal.Unit
-                        });
+                        };
                     }
                     for (var index = first; index < path.Count; index++)
                     {
@@ -119,7 +123,7 @@ internal static class SurfaceBoundaryLoops
                 path.Add(halfedge);
             }
         }
-        return result;
+
     }
 
     private static int Next(int halfedge) => halfedge / 3 * 3 + (halfedge + 1) % 3;

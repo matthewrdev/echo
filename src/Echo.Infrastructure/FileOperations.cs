@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Echo.Storage;
 
 namespace Echo.Infrastructure;
 
@@ -8,11 +9,13 @@ namespace Echo.Infrastructure;
 public sealed class FileOperations : IFileOperations
 {
     private readonly IJsonCodec jsonCodec;
+    private readonly IBulkArtifactStore bulk;
 
     [ImportingConstructor]
-    public FileOperations(IJsonCodec jsonCodec)
+    public FileOperations(IJsonCodec jsonCodec, IBulkArtifactStore bulk)
     {
         this.jsonCodec = jsonCodec;
+        this.bulk = bulk;
     }
 
     public string HashFile(string file)
@@ -30,7 +33,20 @@ public sealed class FileOperations : IFileOperations
         return Convert.ToHexStringLower(hash.Hash!);
     }
 
-    public void AtomicJson<T>(string path, T value) => AtomicWrite(path, stream => JsonSerializer.Serialize(stream, value, jsonCodec.Options));
+    public void AtomicData<T>(string path, T value, CancellationToken cancellation = default)
+    {
+        if (bulk.CanStore(value))
+        {
+            bulk.Write(path, value, cancellation);
+        }
+        else
+        {
+            AtomicWrite(path, stream => jsonCodec.Write(stream, value));
+        }
+    }
+
+    public void AtomicJson<T>(string path, T value)
+        => AtomicWrite(path, stream => jsonCodec.Write(stream, value));
 
     public void AtomicBytes(string path, byte[] bytes) => AtomicWrite(path, stream => stream.Write(bytes));
 

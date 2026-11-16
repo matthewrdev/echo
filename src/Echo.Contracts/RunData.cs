@@ -2,6 +2,10 @@ namespace Echo.Contracts;
 
 public sealed class RunData
 {
+    public int StorageVersion
+    {
+        get; set;
+    }
     public string Id { get; set; } = "";
     public string Status { get; set; } = "running";
     public string Target { get; set; } = "alignment";

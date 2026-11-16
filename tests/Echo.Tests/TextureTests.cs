@@ -177,7 +177,8 @@ public sealed class TextureTests
                         var a = y * 9 + x;
                         mesh.Faces.Add([a, a + 1, a + 10]);
                         mesh.Faces.Add([a, a + 10, a + 9]);
-                        mesh.SourceImages.AddRange(["a", "b"]);
+                        mesh.SourceImages.Add("a");
+                        mesh.SourceImages.Add("b");
                     }
                 }
                 var result = baker.Bake(store, project, scene, mesh, store.PathFor("atlas.jpg"), default);

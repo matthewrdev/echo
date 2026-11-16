@@ -7,6 +7,12 @@ using var composition = new MefComposition(typeof(ReconstructionTests).Assembly,
 var scaleTests = new TestSuite();
 composition.Resolve<GisExportTests>().Run(scaleTests);
 composition.Resolve<GisCommandTests>().Run(scaleTests);
+composition.Resolve<PagingTests>().Run(scaleTests);
+composition.Resolve<PagingSerializationTests>().Run(scaleTests);
+if (args.Contains("--paging", StringComparer.Ordinal))
+{
+    return scaleTests.Finish();
+}
 composition.Resolve<MetadataTests>().Run(scaleTests);
 composition.Resolve<JsonDecodingTests>().Run(scaleTests);
 composition.Resolve<PhotoDeduplicationTests>().Run(scaleTests);

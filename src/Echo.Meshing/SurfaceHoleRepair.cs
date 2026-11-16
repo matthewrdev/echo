@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Geometry;
 
 namespace Echo.Meshing;
@@ -6,16 +7,18 @@ namespace Echo.Meshing;
 internal static class SurfaceHoleRepair
 {
     public static int Fill(Surface mesh, double voxelSize, CancellationToken cancellation,
-        Func<V3, bool>? supportsSurface = null, Func<SurfaceTriangle, bool>? acceptsTriangle = null)
+        Func<V3, bool>? supportsSurface = null, Func<SurfaceTriangle, bool>? acceptsTriangle = null, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
     {
         var maximumLoop = supportsSurface == null ? 256 : 8192;
-        var edges = CollectEdges(mesh, cancellation);
-        var loops = SurfaceBoundaryLoops.Find(mesh, cancellation);
+        var edges = CollectEdges(mesh, cancellation, work, progress);
+        var loops = SurfaceBoundaryLoops.Find(mesh, cancellation, work, progress);
         SurfaceTriangleIndex? index = null;
         var repaired = 0;
+        var examined = 0;
         foreach (var boundary in loops)
         {
             cancellation.ThrowIfCancellationRequested();
+            progress?.Invoke(new OperationProgress("Hole repair", $"Examined {++examined:N0} enclosed boundaries; closed {repaired:N0} holes.", examined, Unit: "boundaries"));
             var loop = boundary.Vertices;
             if (loop.Count > maximumLoop)
             {
@@ -56,7 +59,10 @@ internal static class SurfaceHoleRepair
             }
 
             repaired++;
-            mesh.Faces.AddRange(patch);
+            foreach (var face in patch)
+            {
+                mesh.Faces.Add(face);
+            }
             foreach (var face in patch)
             {
                 index?.Add(new SurfaceTriangle(new V3(mesh.Vertices[face[0]]), new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]])));
@@ -93,11 +99,16 @@ internal static class SurfaceHoleRepair
         return true;
     }
 
-    private static Dictionary<SurfaceEdge, BoundaryEdge> CollectEdges(Surface mesh, CancellationToken cancellation)
+    private static IDictionary<SurfaceEdge, BoundaryEdge> CollectEdges(Surface mesh, CancellationToken cancellation, WorkBuffers? work, Action<OperationProgress>? progress)
     {
-        var edges = new Dictionary<SurfaceEdge, BoundaryEdge>();
+        IDictionary<SurfaceEdge, BoundaryEdge> edges = work?.Map(new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec()) ?? new Dictionary<SurfaceEdge, BoundaryEdge>();
+        var completed = 0;
         foreach (var face in mesh.Faces)
         {
+            if (completed++ % 10000 == 0)
+            {
+                progress?.Invoke(new OperationProgress("Hole edge indexing", "Indexing surface edges…", completed, mesh.Faces.Count, "triangles"));
+            }
             cancellation.ThrowIfCancellationRequested();
             var a = new V3(mesh.Vertices[face[0]]);
             var normal = (new V3(mesh.Vertices[face[1]]) - a).Cross(new V3(mesh.Vertices[face[2]]) - a).Unit;
@@ -189,7 +200,7 @@ internal static class SurfaceHoleRepair
     }
 
     private static List<int[]>? Triangulate(Surface mesh, List<int> boundary, V3 normal,
-        Dictionary<SurfaceEdge, BoundaryEdge> edges, CancellationToken cancellation)
+        IDictionary<SurfaceEdge, BoundaryEdge> edges, CancellationToken cancellation)
     {
         if (CrossesItself(mesh, boundary, normal))
         {

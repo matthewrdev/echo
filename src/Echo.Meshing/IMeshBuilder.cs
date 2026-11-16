@@ -1,15 +1,16 @@
 using Echo.Contracts;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 
 public interface IMeshBuilder
 {
-    Surface Extract(FusedVolume volume, CancellationToken cancellation);
+    Surface Extract(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null);
     void FillHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
-        Surface geometry, double voxelSize, CancellationToken cancellation);
+        Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null);
 
     SurfaceHoleRepairResult RepairFinalHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
-        Surface geometry, double voxelSize, CancellationToken cancellation);
+        Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null);
     Surface AssignCameras(ProjectData project,
         ReconstructionScene scene,
         IReadOnlyList<DepthMap> maps,

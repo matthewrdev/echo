@@ -5,7 +5,7 @@ namespace Echo.Meshing;
 
 internal static class CurvedHoleTriangulation
 {
-    public static List<int[]>? Fill(Surface mesh, List<int> loop, Dictionary<SurfaceEdge, BoundaryEdge> edges,
+    public static List<int[]>? Fill(Surface mesh, List<int> loop, IDictionary<SurfaceEdge, BoundaryEdge> edges,
         SurfaceTriangleIndex surface, CancellationToken cancellation)
     {
         var count = loop.Count;

@@ -139,6 +139,12 @@ public sealed class RunCommand : ICliCommand
     private void WriteEvents(IProjectStore store, string id)
     {
         var run = store.GetRun(id);
-        Console.Write(File.ReadAllText(store.PathFor($"runs/{run.Id}/events.ndjson")));
+        using var log = File.OpenText(store.PathFor($"runs/{run.Id}/events.ndjson"));
+        var buffer = new char[16384];
+        int count;
+        while ((count = log.Read(buffer)) != 0)
+        {
+            Console.Out.Write(buffer, 0, count);
+        }
     }
 }

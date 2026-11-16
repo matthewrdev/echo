@@ -60,7 +60,7 @@ public sealed class SurfaceIslandTests
             };
             var result = SurfaceIslandTrimmer.Trim(source, IslandTrimMode.Small, 2, default);
             Check(result.RemovedComponents == 1 && result.Surface.Faces.Count == 4, "A whole closed floater is removed");
-            Check(SurfaceBoundaryLoops.Find(result.Surface, default).Count == 0, "No closed holes are reopened");
+            Check(SurfaceBoundaryLoops.Find(result.Surface, default).Count() == 0, "No closed holes are reopened");
             Check(result.Surface.SourceImages.Count == 0, "Unassigned geometry remains unassigned");
         });
         tests.Run("Island trimming retains attached geometry even across nonmanifold edges", () =>

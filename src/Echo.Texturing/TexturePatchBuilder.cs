@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Storage;
 
 namespace Echo.Texturing;
 
@@ -15,7 +16,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
     }
 
     public IReadOnlyList<TexturePatch> Build(ProjectData project, ReconstructionScene scene, Surface mesh,
-        CancellationToken cancellation, IReadOnlyList<bool>? vegetationFaces = null, Action<string>? progress = null)
+        CancellationToken cancellation, IReadOnlyList<bool>? vegetationFaces = null, Action<string>? progress = null, WorkBuffers? work = null)
     {
         if (vegetationFaces != null && vegetationFaces.Count != mesh.Faces.Count)
         {
@@ -25,7 +26,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         {
             throw new ArgumentOutOfRangeException(nameof(project), "A chart must allow at least one triangle.");
         }
-        var geometry = new TextureChartGeometry(mesh, cancellation);
+        var geometry = new TextureChartGeometry(mesh, cancellation, work);
         var regions = TextureChartRegions.Build(geometry, project.Settings.TextureChartFaces,
             project.Settings.TextureChartAngle, vegetationFaces, cancellation);
         var patches = new List<TexturePatch>();

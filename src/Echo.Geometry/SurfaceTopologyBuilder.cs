@@ -1,14 +1,15 @@
 using Echo.Contracts;
+using Echo.Storage;
 
 namespace Echo.Geometry;
 
 public static class SurfaceTopologyBuilder
 {
-    public static SurfaceTopology Build(Surface mesh, CancellationToken cancellation)
+    public static SurfaceTopology Build(Surface mesh, CancellationToken cancellation, WorkBuffers? work = null)
     {
-        var positions = new Dictionary<V3, int>();
-        var welded = new int[mesh.Vertices.Count];
-        for (var index = 0; index < welded.Length; index++)
+        var positions = work?.Map(new PositionKeyCodec(), new IntRecordCodec()) ?? new Dictionary<V3, int>();
+        IList<int> welded = work?.Filled(mesh.Vertices.Count, 0, new IntRecordCodec()) ?? new int[mesh.Vertices.Count];
+        for (var index = 0; index < welded.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             var point = new V3(mesh.Vertices[index]);
@@ -20,11 +21,10 @@ public static class SurfaceTopologyBuilder
             welded[index] = id;
         }
 
-        var neighbours = new int[mesh.Faces.Count * 3];
-        Array.Fill(neighbours, -1);
+        IList<int> neighbours = work?.Filled(checked(mesh.Faces.Count * 3), -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, checked(mesh.Faces.Count * 3)).ToArray();
         // Hash both endpoints independently. UInt64's XOR hash collapses packed
         // consecutive vertex IDs into a handful of buckets on regular meshes.
-        var edges = new Dictionary<SurfaceTopologyEdge, int>();
+        var edges = work?.Map(new SurfaceTopologyEdgeCodec(), new IntRecordCodec()) ?? new Dictionary<SurfaceTopologyEdge, int>();
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();

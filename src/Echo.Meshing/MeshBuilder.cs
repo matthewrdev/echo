@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Geometry;
 
 namespace Echo.Meshing;
@@ -12,16 +13,16 @@ public sealed class MeshBuilder : IMeshBuilder
     {
     }
 
-    public Surface Extract(FusedVolume volume, CancellationToken cancellation)
+    public Surface Extract(FusedVolume volume, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null, Action<OperationProgress>? operationProgress = null)
     {
-        var samples = VolumeGapRepair.Complete(volume, cancellation);
-        var result = TetrahedralSurface.Extract(samples, volume.VoxelSize, cancellation);
+        var samples = VolumeGapRepair.Complete(volume, cancellation, work, progress);
+        var result = TetrahedralSurface.Extract(samples, volume.VoxelSize, cancellation, work, progress, operationProgress);
         if (result.Faces.Count == 0)
         {
             throw new EchoException("No connected surface could be extracted from the fused cloud.", 5);
         }
-        SurfaceHoleRepair.Fill(result, volume.VoxelSize, cancellation);
-        return SurfaceFragments.RemoveSmall(result, volume.VoxelSize, cancellation);
+        SurfaceHoleRepair.Fill(result, volume.VoxelSize, cancellation, work: work, progress: operationProgress);
+        return SurfaceFragments.RemoveSmall(result, volume.VoxelSize, cancellation, work);
     }
 
     public Surface AssignCameras(ProjectData project,
@@ -74,7 +75,7 @@ public sealed class MeshBuilder : IMeshBuilder
     }
 
     public SurfaceHoleRepairResult RepairFinalHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
-        Surface geometry, double voxelSize, CancellationToken cancellation)
+        Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null)
     {
         ValidateRepair(geometry, voxelSize, cancellation);
         var views = MeshDepthViews.Build(project, scene, maps);
@@ -82,12 +83,12 @@ public sealed class MeshBuilder : IMeshBuilder
         // The final pass repairs only bounded, nearly planar internal loops.
         // It cannot connect fragments or extrapolate the scan perimeter.
         var repaired = SurfaceHoleRepair.Fill(geometry, voxelSize, cancellation,
-            acceptsTriangle: triangle => !SurfaceVisibilityEvidence.Contradicts(triangle, views, project.Settings.CloudDepthTolerance));
+            acceptsTriangle: triangle => !SurfaceVisibilityEvidence.Contradicts(triangle, views, project.Settings.CloudDepthTolerance), work: work, progress: operationProgress);
         return new SurfaceHoleRepairResult(repaired, geometry.Faces.Count - originalFaces);
     }
 
     public void FillHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
-        Surface geometry, double voxelSize, CancellationToken cancellation)
+        Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null)
     {
         ValidateRepair(geometry, voxelSize, cancellation);
         var views = MeshDepthViews.Build(project, scene, maps);
@@ -114,10 +115,10 @@ public sealed class MeshBuilder : IMeshBuilder
             return false;
         }
         GroundSurfaceCompletion.Fill(geometry, voxelSize, Observed, cancellation);
-        SurfaceHoleRepair.Fill(geometry, voxelSize, cancellation, Observed);
+        SurfaceHoleRepair.Fill(geometry, voxelSize, cancellation, Observed, work: work, progress: operationProgress);
     }
 
-    private void ValidateRepair(Surface geometry, double voxelSize, CancellationToken cancellation)
+    private void ValidateRepair(Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!(voxelSize > 0) || !double.IsFinite(voxelSize))

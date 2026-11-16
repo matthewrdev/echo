@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Storage;
 
 namespace Echo.Texturing;
 
@@ -17,7 +18,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
     }
 
     public TextureLayout Plan(ProjectData project, ReconstructionScene scene, Surface mesh,
-        CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null)
+        CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, WorkBuffers? work = null)
     {
         if (vegetationFaces != null && vegetationFaces.Count != mesh.Faces.Count)
         {
@@ -25,7 +26,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
         }
         progress?.Invoke("Unwrapping and packing connected surface charts…");
         var resolution = new TextureResolutionPlan(project.Settings.TextureSize, project.Settings.TextureGutter);
-        var patches = builder.Build(project, scene, mesh, cancellation, progress: progress);
+        var patches = builder.Build(project, scene, mesh, cancellation, progress: progress, work: work);
         var baseline = packer.Pack(patches, resolution.MinimumSize, resolution.MinimumGutter, cancellation);
         var best = new TextureLayout { Patches = patches, TexelsPerWorldUnit = baseline, BaselineTexelsPerWorldUnit = baseline };
         var optimise = vegetationFaces != null && vegetationFaces.Any(value => value) && project.Settings.VegetationTextureScale < 1;
@@ -41,7 +42,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
             progress?.Invoke(split == 0 ? "Comparing vegetation texture budgets on existing charts…"
                 : "Comparing separate vegetation charts, including their padding cost…");
             var candidate = split == 0 ? Copy(patches)
-                : builder.Build(project, scene, mesh, cancellation, vegetationFaces, progress);
+                : builder.Build(project, scene, mesh, cancellation, vegetationFaces, progress, work);
             var count = TextureVegetationBudget.Apply(candidate, vegetationFaces, project.Settings.VegetationTextureScale);
             if (count == 0)
             {

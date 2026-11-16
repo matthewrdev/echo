@@ -111,7 +111,7 @@ internal static class FaceViewSelection
         }
 
         var neighbours = SurfaceTopologyBuilder.Build(mesh, cancellation).Neighbours;
-        var penalties = new double[neighbours.Length];
+        var penalties = new double[neighbours.Count];
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
             for (var corner = 0; corner < 3; corner++)

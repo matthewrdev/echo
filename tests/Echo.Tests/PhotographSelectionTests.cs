@@ -79,7 +79,7 @@ public sealed class PhotographSelectionTests
             var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "photo" }] };
             var map = Map("photo", 100, 10);
             var mesh = Triangle();
-            mesh.Vertices.AddRange([[-.2, -.4, 5], [.2, -.4, 5], [0, 0, 5]]);
+            mesh.Vertices = [.. mesh.Vertices, [-.2, -.4, 5], [.2, -.4, 5], [0, 0, 5]];
             mesh.Faces.Add([3, 4, 5]);
             var views = MeshDepthViews.Build(project, scene, [map]);
             var before = FaceViewSelection.Select(mesh, views, project.Images.ToDictionary(photo => photo.Id), default);
@@ -92,9 +92,9 @@ public sealed class PhotographSelectionTests
         tests.Run("Photographic coverage reports surface area separately from triangle counts", () =>
         {
             var mesh = Triangle();
-            mesh.Vertices.AddRange([[-2, -2, 20], [2, -2, 20], [0, 2, 20]]);
+            mesh.Vertices = [.. mesh.Vertices, [-2, -2, 20], [2, -2, 20], [0, 2, 20]];
             mesh.Faces.Add([3, 4, 5]);
-            mesh.SourceImages.AddRange(["", "photo"]);
+            mesh.SourceImages = ["", "photo"];
             var coverage = SurfacePhotographCoverage.Measure(mesh, default);
             Check(coverage.InferredFaces == 1 && coverage.Faces == 2, "Half the triangles have inferred colour");
             Check(Math.Abs(coverage.InferredAreaPercent - 20) < 1e-10, "Only one fifth of the surface area has inferred colour");

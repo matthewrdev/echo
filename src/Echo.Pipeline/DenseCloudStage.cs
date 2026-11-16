@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.DenseCloud;
 using Echo.Infrastructure;
+using Echo.Storage;
 
 namespace Echo.Pipeline;
 
@@ -45,10 +46,11 @@ public sealed class DenseCloudStage : IPipelineStage
             var names = context.Run.Snapshot.Images.ToDictionary(image => image.Id, image => image.Name);
             var cloud = cloudBuilder.Build(
                 context.Store, context.Run.Snapshot, context.Scene(), maps, context.Cancellation,
-                progress => context.ReportProgress(Name,
-                    $"Checking {names[progress.ImageId]} · image {progress.ImageNumber:N0} of {progress.TotalImages:N0} · {progress.RetainedPoints:N0} points accepted",
-                    progress.CompletedRows, progress.TotalRows),
-                preview => PublishPreview(context, inputs, preview));
+                progress => context.ReportOperation(Name, new OperationProgress(
+                    $"Dense cloud validation · {names[progress.ImageId]}",
+                    $"Image {progress.ImageNumber:N0} of {progress.TotalImages:N0} · {progress.RetainedPoints:N0} points accepted",
+                    progress.CompletedRows, progress.TotalRows, "rows")),
+                preview => PublishPreview(context, inputs, preview), context.Work?.List(new DenseRecordCodec()));
 
             context.ReportProgress(Name, $"Saving {cloud.Samples.Count:N0} coloured points to the complete point cloud…");
             cloudBuilder.Write(Path.Combine(directory, "cloud.ply"), cloud);
@@ -65,7 +67,7 @@ public sealed class DenseCloudStage : IPipelineStage
         {
             context.Cancellation.ThrowIfCancellationRequested();
             context.ReportProgress(Name, $"Loading depth map {maps.Count + 1:N0} of {units.Count:N0}…", maps.Count, units.Count);
-            maps.Add(jsonCodec.Read<DepthMap>(context.Store.PathFor(unit + "/depth.json")));
+            maps.Add(context.ReadData<DepthMap>(context.Store.PathFor(unit + "/depth.json")));
         }
 
         return maps;

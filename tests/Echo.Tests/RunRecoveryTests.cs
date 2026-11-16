@@ -73,6 +73,31 @@ public sealed class RunRecoveryTests
                 Check(second.Run.Progress?.Phase == "processing", "A changed input must switch back to actual processing");
             });
         });
+        tests.Run("Substeps reset counters and resource heartbeats preserve last work time", () => WithProject(store =>
+        {
+            using var context = contexts.Create(store, SaveRun(store), default, null);
+            context.ReportOperation("mesh", new OperationProgress("Surface extraction", "Extracting", 4000000000, 5000000000, "cells"));
+            Check(context.Run.Progress?.Completed == 4000000000 && context.Run.Progress.Unit == "cells", "Large work counters were truncated");
+            context.BeginOperation("mesh", "Hole repair");
+            Check(context.Run.Progress?.Completed == null && context.Run.Progress?.Total == null, "Previous percentage leaked into a different operation");
+            var updated = context.Run.Progress!.Updated;
+            context.ReportResources();
+            Check(context.Run.Progress.Updated == updated && context.Run.Progress.Resources != null, "Resource sampling falsely reported computational progress");
+        }));
+        tests.Run("Resume can change operational budgets without changing reconstruction settings", () => WithProject(store =>
+        {
+            var run = SaveRun(store);
+            var width = run.Snapshot.Settings.DepthWidth;
+            store.Edit(project =>
+            {
+                project.Settings.ProcessingMemoryBudgetMb = 1024;
+                project.Settings.ProcessingDiskBudgetMb = 2048;
+                project.Settings.DepthWidth = width + 16;
+            });
+            using var context = contexts.Create(store, run, default, null);
+            Check(context.Resources.MemoryBytes == 1024L * 1048576 && context.Resources.DiskBytes == 2048L * 1048576, "Resume ignored updated operational limits");
+            Check(context.Run.Snapshot.Settings.DepthWidth == width, "Resource changes modified reconstruction inputs");
+        }));
         tests.Run("Stop reconciles an exited worker and retains completed checkpoints", () =>
         {
             WithProject(store =>

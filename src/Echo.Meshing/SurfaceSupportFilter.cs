@@ -1,19 +1,21 @@
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 
 public static class SurfaceSupportFilter
 {
-    public static bool HasGaps(Surface surface, CancellationToken cancellation)
+    public static bool HasGaps(Surface surface, CancellationToken cancellation, WorkBuffers? work = null)
     {
-        var loops = SurfaceBoundaryLoops.Find(surface, cancellation);
-        if (loops.Count > 1)
-        {
-            return true;
-        }
+        var loops = SurfaceBoundaryLoops.Find(surface, cancellation, work);
+        var count = 0;
         foreach (var loop in loops)
         {
+            if (++count > 1)
+            {
+                return true;
+            }
             var origin = new V3(surface.Vertices[loop.Vertices[0]]);
             var area = new V3();
             for (var index = 0; index < loop.Vertices.Count; index++)
@@ -30,7 +32,7 @@ public static class SurfaceSupportFilter
         return false;
     }
 
-    public static Surface Filter(Surface reconstruction, Surface observed, double maximumDistance, CancellationToken cancellation)
+    public static Surface Filter(Surface reconstruction, Surface observed, double maximumDistance, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!(maximumDistance > 0) || !double.IsFinite(maximumDistance))
@@ -38,21 +40,26 @@ public static class SurfaceSupportFilter
             throw new ArgumentOutOfRangeException(nameof(maximumDistance));
         }
         var index = new SurfaceTriangleIndex(observed, cancellation);
-        var nearest = new SurfaceClosestPoint[reconstruction.Vertices.Count];
-        var points = reconstruction.Vertices.Select(point => new V3(point)).ToArray();
-        Parallel.For(0, points.Length, new ParallelOptions
+        IList<bool> supported = work?.Filled(reconstruction.Vertices.Count, false, new BoolRecordCodec()) ?? new bool[reconstruction.Vertices.Count];
+        for (var start = 0; start < reconstruction.Vertices.Count; start += 4096)
         {
-            CancellationToken = cancellation,
-            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
-        }, vertex => nearest[vertex] = index.Nearest(points[vertex], maximumDistance));
-        var result = new Surface();
-        var lookup = new Dictionary<int, int>();
+            var end = Math.Min(reconstruction.Vertices.Count, start + 4096);
+            Parallel.For(start, end, new ParallelOptions
+            {
+                CancellationToken = cancellation,
+                MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
+            }, vertex => supported[vertex] = index.Nearest(new V3(reconstruction.Vertices[vertex]), maximumDistance).Normal.Length > .5);
+            progress?.Invoke(new("Surface support", "Checking completion against the observed surface.", end, reconstruction.Vertices.Count, "vertices"));
+        }
+        var result = work?.Surface() ?? new Surface();
+        var lookup = work?.Map(new IntRecordCodec(), new IntRecordCodec()) ?? new Dictionary<int, int>();
         foreach (var face in reconstruction.Faces)
         {
             cancellation.ThrowIfCancellationRequested();
-            var normal = (points[face[1]] - points[face[0]]).Cross(points[face[2]] - points[face[0]]).Unit;
+            var a = new V3(reconstruction.Vertices[face[0]]);
+            var normal = (new V3(reconstruction.Vertices[face[1]]) - a).Cross(new V3(reconstruction.Vertices[face[2]]) - a).Unit;
             var validNormal = normal.Length > .5;
-            var nearSurface = face.All(vertex => nearest[vertex].Normal.Length > .5);
+            var nearSurface = face.All(vertex => supported[vertex]);
             if (!validNormal || !nearSurface)
             {
                 continue;

@@ -24,7 +24,7 @@ public sealed class FinalHoleRepairTests
             var originalVertices = surface.Vertices.Select(point => point.ToArray()).ToArray();
             var result = meshes.RepairFinalHoles(new ProjectData(), new ReconstructionScene(), [], surface, .25, default);
             Check(result.RepairedHoles == 1 && result.AddedFaces == 2, "The enclosed square receives one complete patch");
-            Check(surface.Faces.Count == 10 && SurfaceBoundaryLoops.Find(surface, default).Count == 1,
+            Check(surface.Faces.Count == 10 && SurfaceBoundaryLoops.Find(surface, default).Count() == 1,
                 "Only the outer scan perimeter remains open");
             Check(surface.Vertices.Count == originalVertices.Length
                 && surface.Vertices.Select((point, index) => point.SequenceEqual(originalVertices[index])).All(equal => equal),
@@ -39,7 +39,7 @@ public sealed class FinalHoleRepairTests
             Check(meshes.RepairFinalHoles(new ProjectData(), new ReconstructionScene(), [], large, .01, default).AddedFaces == 0,
                 "An opening much larger than the fusion resolution stays open");
             var crossing = Ring();
-            crossing.Vertices.AddRange([[0, -.4, 9], [0, .4, 9], [0, 0, 11]]);
+            crossing.Vertices = [.. crossing.Vertices, [0, -.4, 9], [0, .4, 9], [0, 0, 11]];
             crossing.Faces.Add([8, 9, 10]);
             Check(meshes.RepairFinalHoles(new ProjectData(), new ReconstructionScene(), [], crossing, .25, default).AddedFaces == 0,
                 "The cap cannot intersect an existing folded surface");
@@ -100,7 +100,7 @@ public sealed class FinalHoleRepairTests
             Expect<OperationCanceledException>(() => meshes.RepairFinalHoles(project, scene, [], Ring(), .25, new CancellationToken(true)));
             Expect<ArgumentOutOfRangeException>(() => meshes.RepairFinalHoles(project, scene, [], Ring(), double.NaN, default));
             var textured = Ring();
-            textured.SourceImages.AddRange(Enumerable.Repeat("photo", textured.Faces.Count));
+            textured.SourceImages = Enumerable.Repeat("photo", textured.Faces.Count).ToList();
             Expect<EchoException>(() => meshes.RepairFinalHoles(project, scene, [], textured, .25, default));
         });
     }

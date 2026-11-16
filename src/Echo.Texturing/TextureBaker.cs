@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Imaging;
 using Echo.Projects;
 using SkiaSharp;
@@ -25,16 +26,17 @@ public sealed class TextureBaker : ITextureBaker
     }
 
     public TextureResult Bake(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
-        string output, CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null)
+        string output, CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null)
     {
-        var layout = layoutPlanner.Plan(project, scene, mesh, cancellation, progress, vegetationFaces);
+        var layout = layoutPlanner.Plan(project, scene, mesh, cancellation, progress, vegetationFaces, work);
         var patches = layout.Patches;
         var vegetationCharts = layout.VegetationChartCount;
         var size = project.Settings.TextureSize;
         var scale = layout.TexelsPerWorldUnit;
-        var surface = new Surface();
+        var surface = work?.Surface() ?? new Surface();
         var result = new TextureResult
         {
+            Uvs = work?.List(new UvRecordCodec()) ?? [],
             Size = size,
             MinimumAtlasSize = layout.MinimumAtlasSize,
             GutterPixels = layout.GutterPixels,
@@ -68,13 +70,13 @@ public sealed class TextureBaker : ITextureBaker
         }
 
         progress?.Invoke("Levelling exposure and colour differences along photographic seams…");
-        result.Corrections = seamLeveler.Compute(store, project, scene, surface, cancellation);
+        result.Corrections = seamLeveler.Compute(store, project, scene, surface, cancellation, operationProgress, work);
         result.SeamEdges = result.Corrections.SeamEdges;
         result.MeanSeamDifferenceBefore = result.Corrections.MeanDifferenceBefore;
         result.MeanSeamDifferenceAfter = result.Corrections.MeanDifferenceAfter;
         progress?.Invoke("Baking source photographs into the packed mesh UVs…");
         using var atlas = new SKBitmap(size, size);
-        result.CoverageFraction = rasterizer.Paint(store, project, scene, surface, result, patches, atlas, cancellation);
+        result.CoverageFraction = rasterizer.Paint(store, project, scene, surface, result, patches, atlas, cancellation, operationProgress, work);
         progress?.Invoke("Encoding the photographic texture atlas…");
         images.Save(atlas, output, SKEncodedImageFormat.Jpeg, project.Settings.TextureJpegQuality);
         SaveVariants(atlas, result, output, project.Settings.TextureJpegQuality, cancellation, progress);

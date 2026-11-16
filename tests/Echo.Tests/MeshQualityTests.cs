@@ -136,7 +136,7 @@ public sealed class MeshQualityTests
             foreach (var radius in new[] { 0, 1, 2 })
             {
                 var volume = PlaneVolume();
-                volume.Samples.RemoveAll(s => Math.Abs(s.X - 12) <= radius && Math.Abs(s.Y - 10) <= radius);
+                ((List<VolumeSample>)volume.Samples).RemoveAll(s => Math.Abs(s.X - 12) <= radius && Math.Abs(s.Y - 10) <= radius);
                 var originalCount = volume.Samples.Count;
                 var mesh = meshes.Extract(volume, default);
                 Check(volume.Samples.Count == originalCount, "Repair must not mutate the persisted fusion input");
@@ -149,13 +149,13 @@ public sealed class MeshQualityTests
         tests.Run("Meshing leaves large unsupported gaps and open scan edges intact", () =>
         {
             var volume = PlaneVolume();
-            volume.Samples.RemoveAll(s => s.X >= 10 && s.X <= 19 && s.Y >= 6 && s.Y <= 15);
+            ((List<VolumeSample>)volume.Samples).RemoveAll(s => s.X >= 10 && s.X <= 19 && s.Y >= 6 && s.Y <= 15);
             var mesh = meshes.Extract(volume, default);
             Check(EulerCharacteristic(mesh) == 0, "A large internal opening remains an opening");
             Check(Area(mesh) < 30 * 20 - 80, "Large missing areas are not fabricated");
 
             volume = PlaneVolume();
-            volume.Samples.RemoveAll(s => s.X <= 2 && Math.Abs(s.Y - 10) <= 1);
+            ((List<VolumeSample>)volume.Samples).RemoveAll(s => s.X <= 2 && Math.Abs(s.Y - 10) <= 1);
             mesh = meshes.Extract(volume, default);
             Check(Area(mesh) < 30 * 20 - 3, "A notch connected to the outer edge is not capped");
         });
@@ -191,7 +191,7 @@ public sealed class MeshQualityTests
             foreach (var supported in new[] { true, false })
             {
                 var volume = PlaneVolume();
-                volume.Samples.RemoveAll(s => s.X >= 10 && s.X <= 19 && s.Y >= 6 && s.Y <= 15);
+                ((List<VolumeSample>)volume.Samples).RemoveAll(s => s.X >= 10 && s.X <= 19 && s.Y >= 6 && s.Y <= 15);
                 var mesh = meshes.Extract(volume, default);
                 if (!supported)
                 {
@@ -276,7 +276,7 @@ public sealed class MeshQualityTests
             }
             var assigned = meshes.AssignCameras(project, scene, maps, surface, default);
             var topology = SurfaceTopologyBuilder.Build(assigned, default);
-            var seams = Enumerable.Range(0, topology.Neighbours.Length).Count(slot => topology.Neighbours[slot] >= 0
+            var seams = Enumerable.Range(0, topology.Neighbours.Count).Count(slot => topology.Neighbours[slot] >= 0
                 && assigned.SourceImages[slot / 3] != assigned.SourceImages[topology.Neighbours[slot]]);
             Console.WriteLine($"  Coherent source selection: {seams / 2} seams across {surface.Faces.Count} faces");
             Check(assigned.Faces.Count == surface.Faces.Count, "All visible faces retain a photograph");

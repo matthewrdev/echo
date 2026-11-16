@@ -150,7 +150,7 @@ public sealed class SemanticQualityTests
             };
             Check(SurfaceVegetationClassifier.Classify(surface, project, scene, maps, semantics, default).All(value => value),
                 "Two visible photographs can classify an already completed patch");
-            surface.Vertices.AddRange([[-5, -5, 5], [5, -5, 5], [0, 5, 5]]);
+            surface.Vertices = [.. surface.Vertices, [-5, -5, 5], [5, -5, 5], [0, 5, 5]];
             surface.Faces.Add([3, 4, 5]);
             Check(SurfaceVegetationClassifier.Classify(surface, project, scene, maps, semantics, default).Take(3).All(value => !value),
                 "Occluded vegetation labels cannot simplify the hidden surface");

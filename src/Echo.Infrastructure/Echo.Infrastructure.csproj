@@ -2,4 +2,5 @@
   <ItemGroup>
     <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../Echo.Storage/Echo.Storage.csproj" /></ItemGroup>
 </Project>

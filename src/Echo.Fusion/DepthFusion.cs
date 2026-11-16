@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Geometry;
 
 namespace Echo.Fusion;
@@ -17,7 +18,7 @@ public sealed class DepthFusion : IDepthFusion
         IReadOnlyList<DepthMap> maps,
         DenseCloudData cloud,
         FusionResourcePlan resources,
-        CancellationToken cancellation, Action<string>? progress = null)
+        CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null, IFusionChunkStore? chunks = null, Action<OperationProgress>? operationProgress = null)
     {
         var photos = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
@@ -35,12 +36,13 @@ public sealed class DepthFusion : IDepthFusion
             var map = maps[index];
             views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
         }
-        var grid = FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress);
-        progress?.Invoke($"Fusion resolution: requested {grid.RequestedVoxelSize:G6} m; using {grid.VoxelSize:G6} m across {grid.Keys.Length:N0} grid samples.");
+        var grid = FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress, work);
+        progress?.Invoke($"Fusion resolution: requested {grid.RequestedVoxelSize:G6} m; using {grid.VoxelSize:G6} m across {grid.Keys.Count:N0} grid samples.");
         var voxel = grid.VoxelSize;
         var keys = grid.Keys;
         var result = new FusedVolume
         {
+            Samples = work?.List(new VolumeRecordCodec()) ?? [],
             VoxelSize = voxel,
             InputSamples = cloud.InputSamples,
             ConsistentSamples = cloud.Samples.Count,
@@ -50,22 +52,30 @@ public sealed class DepthFusion : IDepthFusion
                 RequestedVoxelSize = grid.RequestedVoxelSize,
                 MemoryBudgetBytes = resources.MemoryBudgetBytes,
                 MaximumGridSamples = resources.MaximumGridSamples,
-                CandidateSamples = keys.Length,
+                CandidateSamples = keys.Count,
                 MemoryLimited = voxel > grid.RequestedVoxelSize * 1.001
             }
         };
-        var samples = new VolumeSample?[keys.Length];
-        Parallel.For(0, keys.Length, new ParallelOptions
+        operationProgress?.Invoke(new OperationProgress("Volume integration", "Integrating observed depths…", 0, keys.Count, "grid samples"));
+        const int chunkSize = 16384;
+        for (var first = 0; first < keys.Count; first += chunkSize)
         {
-            CancellationToken = cancellation,
-            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
-        }, index =>
+            cancellation.ThrowIfCancellationRequested();
+            var count = Math.Min(chunkSize, keys.Count - first);
+            IList<VolumeSample> Integrate()
+            {
+                var samples = new VolumeSample?[count];
+                Parallel.For(0, count, new ParallelOptions
                 {
-                    var key = keys[index];
+                    CancellationToken = cancellation,
+                    MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
+                }, index =>
+                {
+                    var key = keys[first + index];
                     var world = new V3(key.X * voxel, key.Y * voxel, key.Z * voxel);
                     double sum = 0;
                     double weight = 0;
-                    var count = 0;
+                    var support = 0;
                     foreach (var view in views)
                     {
                         var observation = view.Observe(world, project.Settings.CloudDepthTolerance);
@@ -106,10 +116,10 @@ public sealed class DepthFusion : IDepthFusion
                         var w = (1 - .5 * Math.Abs(distance) / truncation) * precision;
                         sum += distance * w;
                         weight += w;
-                        count++;
+                        support++;
                     }
 
-                    if (count >= 2)
+                    if (support >= 2)
                     {
                         samples[index] = new VolumeSample
                         {
@@ -117,25 +127,28 @@ public sealed class DepthFusion : IDepthFusion
                             Y = key.Y,
                             Z = key.Z,
                             Distance = (float)(sum / weight),
-                            Views = count
+                            Views = support
                         };
                     }
                 });
-        var retained = 0;
-        foreach (var sample in samples)
-        {
-            if (sample != null)
-            {
-                retained++;
+                var retainedChunk = new List<VolumeSample>();
+                foreach (var sample in samples)
+                {
+                    if (sample != null)
+                    {
+                        retainedChunk.Add(sample);
+                    }
+                }
+                return retainedChunk;
             }
-        }
-        result.Samples.EnsureCapacity(retained);
-        foreach (var sample in samples)
-        {
-            if (sample != null)
+            var completed = chunks?.ReadOrBuild(first, count, Integrate) ?? Integrate();
+            foreach (var sample in completed)
             {
                 result.Samples.Add(sample);
             }
+            var message = $"Integrating volume: {first + count:N0}/{keys.Count:N0} samples; {result.Samples.Count:N0} retained.";
+            progress?.Invoke(message);
+            operationProgress?.Invoke(new OperationProgress("Volume integration", message, first + count, keys.Count, "grid samples"));
         }
         if (result.Samples.Count < 100)
         {

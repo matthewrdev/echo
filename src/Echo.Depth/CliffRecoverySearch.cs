@@ -18,7 +18,7 @@ public static class CliffRecoverySearch
                 {
                     continue;
                 }
-                var depth = source.Depth[(y + dy) * source.Width + x + dx];
+                var depth = source.DepthAt((y + dy) * source.Width + x + dx);
                 if (float.IsFinite(depth) && depth > 0)
                 {
                     depths[count++] = depth;

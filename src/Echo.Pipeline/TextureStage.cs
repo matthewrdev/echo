@@ -31,7 +31,6 @@ public sealed class TextureStage : IPipelineStage
         var alignment = context.Artifact("alignment");
         var scene = context.Scene();
         var meshPath = context.Artifact("mesh");
-        var surface = jsonCodec.Read<Surface>(store.PathFor(meshPath + "/mesh.json"));
         var texture = context.Build("texture", new
         {
             meshPath,
@@ -47,10 +46,13 @@ public sealed class TextureStage : IPipelineStage
             project.Settings.TextureSkyMarginPixels
         }, dir =>
                 {
+                    var surface = context.ReadData<Surface>(store.PathFor(meshPath + "/mesh.json"));
                     var vegetation = project.Settings.OptimiseVegetation
                         ? jsonCodec.Read<bool[]>(store.PathFor(meshPath + "/vegetation.json")) : null;
-                    var result = textureBaker.Bake(store, project, scene, surface, Path.Combine(dir, "atlas.jpg"), cancellation, message => context.ReportProgress(Name, message), vegetation);
-                    fileOperations.AtomicJson(Path.Combine(dir, "mesh.json"), result.Surface!);
+                    var result = textureBaker.Bake(store, project, scene, surface, Path.Combine(dir, "atlas.jpg"), cancellation, message => context.ReportProgress(Name, message), vegetation, update => context.ReportOperation(Name, update), context.Work);
+                    fileOperations.AtomicData(Path.Combine(dir, "mesh.json"), result.Surface!, cancellation);
+                    result.UvsFile = "uvs.json";
+                    fileOperations.AtomicData(Path.Combine(dir, result.UvsFile), new TextureCoordinates { Values = result.Uvs }, cancellation);
                     fileOperations.AtomicJson(Path.Combine(dir, "texture.json"), result);
                 });
         context.Publish("texture", texture);

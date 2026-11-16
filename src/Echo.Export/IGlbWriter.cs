@@ -4,6 +4,6 @@ namespace Echo.Export;
 
 public interface IGlbWriter
 {
-    void Write(string output, Surface mesh, IReadOnlyList<double[]> uvs, byte[] texture);
+    void Write(string output, Surface mesh, IList<double[]> uvs, byte[] texture);
     object Inspect(string path);
 }

@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Projects;
 
 namespace Echo.Texturing;
@@ -10,5 +11,5 @@ public interface ITextureBaker
         ReconstructionScene scene,
         Surface mesh,
         string output,
-CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null);
+CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null);
 }

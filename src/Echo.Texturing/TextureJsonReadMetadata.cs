@@ -15,6 +15,7 @@ public sealed class TextureJsonReadMetadata : IJsonReadMetadata
     {
         context = new TextureJsonReadContext(new JsonSerializerOptions
         {
+            WriteIndented = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             PropertyNameCaseInsensitive = true
         });

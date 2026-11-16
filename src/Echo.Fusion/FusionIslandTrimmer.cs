@@ -1,10 +1,11 @@
 using Echo.Contracts;
+using Echo.Storage;
 
 namespace Echo.Fusion;
 
 public static class FusionIslandTrimmer
 {
-    public static FusionIslandTrimResult Trim(FusedVolume volume, IslandTrimMode mode, double minimumSizePercent, CancellationToken cancellation)
+    public static FusionIslandTrimResult Trim(FusedVolume volume, IslandTrimMode mode, double minimumSizePercent, CancellationToken cancellation, WorkBuffers? work = null, Action<string>? progress = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!Enum.IsDefined(mode))
@@ -24,18 +25,17 @@ public static class FusionIslandTrimmer
             return new FusionIslandTrimResult { Volume = volume, InputRegions = 0 };
         }
 
-        var lookup = new Dictionary<Grid, int>(volume.Samples.Count);
+        IDictionary<Grid, int> lookup = work?.Map(new GridRecordCodec(), new IntRecordCodec()) ?? new Dictionary<Grid, int>(volume.Samples.Count);
         for (var index = 0; index < volume.Samples.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             var sample = volume.Samples[index];
             lookup.Add(new Grid(sample.X, sample.Y, sample.Z), index);
         }
-        var labels = new int[volume.Samples.Count];
-        Array.Fill(labels, -1);
-        var sizes = new List<int>();
-        var pending = new Queue<int>();
-        for (var seed = 0; seed < labels.Length; seed++)
+        IList<int> labels = work?.Filled(volume.Samples.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, volume.Samples.Count).ToArray();
+        IList<int> sizes = work?.List(new IntRecordCodec()) ?? new List<int>();
+        IList<int> pending = work?.List(new IntRecordCodec()) ?? new List<int>();
+        for (var seed = 0; seed < labels.Count; seed++)
         {
             cancellation.ThrowIfCancellationRequested();
             if (labels[seed] >= 0)
@@ -45,11 +45,17 @@ public static class FusionIslandTrimmer
             var label = sizes.Count;
             var count = 0;
             labels[seed] = label;
-            pending.Enqueue(seed);
-            while (pending.TryDequeue(out var index))
+            pending.Clear();
+            pending.Add(seed);
+            for (var next = 0; next < pending.Count; next++)
             {
+                var index = pending[next];
                 cancellation.ThrowIfCancellationRequested();
                 count++;
+                if (count % 50000 == 0)
+                {
+                    progress?.Invoke($"Tracing fusion island {label + 1:N0}: {count:N0} samples");
+                }
                 var sample = volume.Samples[index];
                 // Corner neighbours belong to the same observed region too.
                 // Removing only whole 26-connected regions preserves every
@@ -64,7 +70,7 @@ public static class FusionIslandTrimmer
                             if (lookup.TryGetValue(key, out var other) && labels[other] < 0)
                             {
                                 labels[other] = label;
-                                pending.Enqueue(other);
+                                pending.Add(other);
                             }
                         }
                     }
@@ -82,22 +88,24 @@ public static class FusionIslandTrimmer
             }
         }
         var threshold = sizes[largest] * minimumSizePercent / 100;
-        var remove = sizes.Select((size, index) => index != largest && (mode == IslandTrimMode.Main || size < threshold)).ToArray();
-        if (!remove.Any(value => value))
+        bool Remove(int label) => label != largest && (mode == IslandTrimMode.Main || sizes[label] < threshold);
+        var removedRegions = Enumerable.Range(0, sizes.Count).Count(Remove);
+        if (removedRegions == 0)
         {
             return new FusionIslandTrimResult { Volume = volume, InputRegions = sizes.Count };
         }
         var result = new FusedVolume
         {
+            Samples = work?.List(new VolumeRecordCodec()) ?? new List<VolumeSample>(),
             VoxelSize = volume.VoxelSize,
             InputSamples = volume.InputSamples,
             ConsistentSamples = volume.ConsistentSamples,
             Resolution = volume.Resolution
         };
-        for (var index = 0; index < labels.Length; index++)
+        for (var index = 0; index < labels.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
-            if (!remove[labels[index]])
+            if (!Remove(labels[index]))
             {
                 result.Samples.Add(volume.Samples[index]);
             }
@@ -106,7 +114,7 @@ public static class FusionIslandTrimmer
         {
             Volume = result,
             InputRegions = sizes.Count,
-            RemovedRegions = remove.Count(value => value),
+            RemovedRegions = removedRegions,
             RemovedSamples = volume.Samples.Count - result.Samples.Count
         };
     }

@@ -8,7 +8,7 @@ public sealed class DepthView
     public DepthView(Photo photo, CameraPose camera, DepthMap map)
     {
         var validDimensions = map.Width > 0 && map.Height > 0;
-        if (!validDimensions || (long)map.Width * map.Height != map.Depth.Length)
+        if (!validDimensions || (long)map.Width * map.Height != map.SampleCount)
         {
             throw new EchoException($"Invalid depth-map dimensions or sample count for image {map.ImageId}.", 5);
         }
@@ -74,7 +74,7 @@ public sealed class DepthView
             for (var dx = 0; dx <= 1; dx++)
             {
                 var w = (dx == 0 ? 1 - (x - ix) : x - ix) * (dy == 0 ? 1 - (y - iy) : y - iy);
-                var depth = Map.Depth[(iy + dy) * Map.Width + ix + dx];
+                var depth = Map.DepthAt((iy + dy) * Map.Width + ix + dx);
                 if (w <= 0 || !(depth > 0))
                 {
                     continue;
@@ -139,7 +139,7 @@ public sealed class DepthView
         {
             for (var dx = 0; dx <= 1; dx++)
             {
-                var depth = Map.Depth[(iy + dy) * Map.Width + ix + dx];
+                var depth = Map.DepthAt((iy + dy) * Map.Width + ix + dx);
                 if (!(depth > 0) || !float.IsFinite(depth))
                 {
                     complete = false;
@@ -194,7 +194,7 @@ public sealed class DepthView
         {
             for (var dx = 0; dx <= 1; dx++)
             {
-                var depth = Map.Depth[(iy + dy) * Map.Width + ix + dx];
+                var depth = Map.DepthAt((iy + dy) * Map.Width + ix + dx);
                 if (depth <= 0)
                 {
                     continue;

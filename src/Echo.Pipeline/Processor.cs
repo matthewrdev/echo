@@ -40,6 +40,11 @@ public sealed class Processor : IProcessor
             throw new EchoException("Unknown target: " + run.Target, 2);
         }
 
+        if (run.StorageVersion != 2)
+        {
+            throw new EchoException("This run uses obsolete artifact storage. Start a new run to reprocess the source photographs.", 2);
+        }
+
         run.Snapshot.Settings.Validate();
         var cancelFile = store.PathFor($"runs/{run.Id}/cancel");
         if (File.Exists(cancelFile))
@@ -55,8 +60,9 @@ public sealed class Processor : IProcessor
                 cancellation.Cancel();
             }
         }, null, 0, 200);
-        var context = contextFactory.Create(store, run, cancellation.Token, output);
+        using var context = contextFactory.Create(store, run, cancellation.Token, output);
         context.Start();
+        using var resourceMonitor = new RunResourceMonitor(context, cancellation);
         try
         {
             context.ReportProgress(run.Target, "Checking source photographs and reusable saved work before processing.");
@@ -65,8 +71,14 @@ public sealed class Processor : IProcessor
             {
                 context.Cancellation.ThrowIfCancellationRequested();
                 stage.Execute(context);
+                context.ReleaseStageResources();
                 if (stage.Name == run.Target)
                 {
+                    resourceMonitor.Dispose();
+                    if (resourceMonitor.Failure is Exception resourceError)
+                    {
+                        throw resourceError;
+                    }
                     context.Complete();
                     return run;
                 }
@@ -76,11 +88,18 @@ public sealed class Processor : IProcessor
         }
         catch (OperationCanceledException)
         {
+            resourceMonitor.Dispose();
+            if (resourceMonitor.Failure is Exception resourceError)
+            {
+                context.Fail(resourceError);
+                throw resourceError;
+            }
             context.Cancel();
             throw;
         }
         catch (Exception error)
         {
+            resourceMonitor.Dispose();
             context.Fail(error);
             throw;
         }
@@ -90,6 +109,7 @@ public sealed class Processor : IProcessor
     {
         return new RunData
         {
+            StorageVersion = 2,
             Id = Guid.NewGuid().ToString("N"),
             Snapshot = store.Load(),
             Target = target

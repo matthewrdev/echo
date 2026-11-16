@@ -19,7 +19,7 @@ public sealed class GlbWriter : IGlbWriter
         this.jsonCodec = jsonCodec;
     }
 
-    public void Write(string output, Surface mesh, IReadOnlyList<double[]> uvs, byte[] texture)
+    public void Write(string output, Surface mesh, IList<double[]> uvs, byte[] texture)
     {
         if (mesh.Vertices.Count == 0 || mesh.Faces.Count == 0 || uvs.Count != mesh.Vertices.Count)
         {

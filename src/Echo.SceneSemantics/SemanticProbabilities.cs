@@ -46,7 +46,7 @@ public static class SemanticProbabilities
         return map;
     }
 
-    public static double ConservativeSample(SemanticMap map, byte[] probabilities, double u, double v)
+    public static double ConservativeSample(SemanticMap map, IReadOnlyList<byte> probabilities, double u, double v)
     {
         var x = (int)Math.Floor(u * map.Width - .5);
         var y = (int)Math.Floor(v * map.Height - .5);

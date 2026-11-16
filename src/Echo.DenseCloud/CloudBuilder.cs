@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Globalization;
 using System.Text;
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Geometry;
 using Echo.Imaging;
 using Echo.Projects;
@@ -29,7 +30,7 @@ public sealed class CloudBuilder : ICloudBuilder
         IReadOnlyList<DepthMap> maps,
         CancellationToken cancellation,
         Action<DenseCloudProgress>? progress = null,
-        Action<DenseCloudReport>? preview = null)
+        Action<DenseCloudReport>? preview = null, IList<DenseSample>? samples = null)
     {
         cancellation.ThrowIfCancellationRequested();
         var photos = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
@@ -43,7 +44,7 @@ public sealed class CloudBuilder : ICloudBuilder
             cameras.Add(camera.ImageId, camera);
         }
         var views = new DepthView[maps.Count];
-        var cloud = new DenseCloudData();
+        var cloud = new DenseCloudData { Samples = samples ?? [] };
         cloud.ImageIds.EnsureCapacity(maps.Count);
         var totalRows = 0;
         var maximumWidth = 1;
@@ -154,10 +155,10 @@ public sealed class CloudBuilder : ICloudBuilder
             for (var slot = 0; slot < activeBatches; slot++)
             {
                 var batch = batches[slot];
-                var offset = cloud.Samples.Count;
-                cloud.Samples.EnsureCapacity(offset + batch.Count);
-                CollectionsMarshal.SetCount(cloud.Samples, offset + batch.Count);
-                batch.Samples.AsSpan(0, batch.Count).CopyTo(CollectionsMarshal.AsSpan(cloud.Samples).Slice(offset));
+                for (var sample = 0; sample < batch.Count; sample++)
+                {
+                    cloud.Samples.Add(batch.Samples[sample]);
+                }
                 cloud.InputSamples += batch.InputSamples;
                 completedRows += batch.Rows;
             }
@@ -180,11 +181,10 @@ public sealed class CloudBuilder : ICloudBuilder
         {
             cancellation.ThrowIfCancellationRequested();
             var offset = y * view.Map.Width;
-            ReadOnlySpan<float> depths = view.Map.Depth.AsSpan(offset, view.Map.Width);
             ReadOnlySpan<SKColor> rowColours = colours.AsSpan(offset, view.Map.Width);
-            for (var x = 0; x < depths.Length; x++)
+            for (var x = 0; x < view.Map.Width; x++)
             {
-                var depth = depths[x];
+                var depth = view.Map.DepthAt(offset + x);
                 if (!(depth > 0) || !float.IsFinite(depth))
                 {
                     continue;
@@ -265,7 +265,7 @@ public sealed class CloudBuilder : ICloudBuilder
         }
     }
 
-    public DenseCloudData Read(string path, DenseCloudReport report)
+    public DenseCloudData Read(string path, DenseCloudReport report, BulkDataSession? session = null)
     {
         using var stream = File.OpenRead(path);
         using var reader = new BinaryReader(stream);
@@ -303,7 +303,15 @@ public sealed class CloudBuilder : ICloudBuilder
             ImageIds = report.ImageIds,
             InputSamples = report.InputSamples
         };
-        cloud.Samples.EnsureCapacity(count);
+        if (session != null)
+        {
+            cloud.Samples = session.Open(path, new DenseRecordCodec(), offset: stream.Position, count: count);
+            return cloud;
+        }
+        if (cloud.Samples is List<DenseSample> samples)
+        {
+            samples.EnsureCapacity(count);
+        }
         for (var i = 0; i < count; i++)
         {
             cloud.Samples.Add(new DenseSample(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadByte(), reader.ReadByte(), reader.ReadByte(), reader.ReadInt32(), reader.ReadSingle()));

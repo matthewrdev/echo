@@ -37,15 +37,14 @@ public sealed class FusionStage : IPipelineStage
         var alignment = context.Artifact("alignment");
         var scene = context.Scene();
         var depthUnits = context.DepthUnits();
-        var maps = context.DepthMaps();
         var cloudPath = context.Artifact("cloud");
         var resources = resourcePlanner.Plan(project.Settings);
-        var fusionPath = context.Build("fusion", new
+        var inputs = new
         {
             cloudPath,
             depthUnits,
             alignment,
-            resources.MaximumGridSamples,
+            maximumGridSamples = context.Paged ? 0 : resources.MaximumGridSamples,
             fusionVersion = 7,
             project.Settings.CloudDepthTolerance,
             project.Settings.FusionDetailMultiplier,
@@ -53,25 +52,29 @@ public sealed class FusionStage : IPipelineStage
             project.Settings.FusionAllowCoarserResolution,
             project.Settings.FusionIslandMode,
             project.Settings.FusionIslandMinimumSizePercent
-        }, dir =>
+        };
+        var fusionPath = context.Build("fusion", inputs, dir =>
                 {
-                    var cloud = cloudBuilder.Read(store.PathFor(cloudPath + "/cloud.ply"), jsonCodec.Read<DenseCloudReport>(store.PathFor(cloudPath + "/cloud.json")));
-                    context.ReportProgress(Name, $"Fusion working-memory budget: {resources.MemoryBudgetBytes / 1073741824.0:G4} GiB. Source images, depth maps and the dense cloud use additional memory.");
+                    var maps = context.DepthMaps();
+                    var cloud = cloudBuilder.Read(store.PathFor(cloudPath + "/cloud.ply"), jsonCodec.Read<DenseCloudReport>(store.PathFor(cloudPath + "/cloud.json")), context.Paged ? context.Data : null);
+                    context.ReportProgress(Name, $"Processing RAM budget: {context.Resources.MemoryBytes / 1073741824.0:G4} GiB; shared page cache {context.Resources.CacheBytes / 1048576:N0} MiB. Storage mode: {context.Resources.Mode}.");
                     var volume = depthFusion.Fuse(project, scene, maps, cloud, resources, cancellation,
-                        message => context.ReportProgress(Name, message));
+                        message => context.ReportProgress(Name, message), context.Work,
+                        context.Paged ? new FusionChunkCheckpoints(context, inputs, fileOperations) : null,
+                        update => context.ReportOperation(Name, update));
                     if (project.Settings.FusionIslandMode != IslandTrimMode.Off)
                     {
                         context.ReportProgress(Name, "Removing disconnected fusion regions before meshing…");
                     }
                     var trimming = FusionIslandTrimmer.Trim(volume, project.Settings.FusionIslandMode,
-                        project.Settings.FusionIslandMinimumSizePercent, cancellation);
+                        project.Settings.FusionIslandMinimumSizePercent, cancellation, context.Work, message => context.ReportProgress(Name, message));
                     volume = trimming.Volume;
                     if (trimming.InputRegions.HasValue)
                     {
                         context.ReportProgress(Name, $"Removed {trimming.RemovedRegions:N0} fusion regions ({trimming.RemovedSamples:N0} volume samples) before meshing.");
                     }
-                    fileOperations.AtomicJson(Path.Combine(dir, "volume.json"), volume);
-                    fileOperations.AtomicJson(Path.Combine(dir, "volume.preview.json"), new FusedVolume
+                    fileOperations.AtomicData(Path.Combine(dir, "volume.json"), volume, cancellation);
+                    fileOperations.AtomicData(Path.Combine(dir, "volume.preview.json"), new FusedVolume
                     {
                         VoxelSize = volume.VoxelSize,
                         InputSamples = volume.InputSamples,

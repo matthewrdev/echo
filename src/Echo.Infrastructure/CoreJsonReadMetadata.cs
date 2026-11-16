@@ -16,11 +16,13 @@ public sealed class CoreJsonReadMetadata : IJsonReadMetadata
     {
         context = new CoreJsonReadContext(new JsonSerializerOptions
         {
+            WriteIndented = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             PropertyNameCaseInsensitive = true,
             Converters =
             {
-                new JsonStringEnumConverter<IslandTrimMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false)
+                new JsonStringEnumConverter<IslandTrimMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
+                new JsonStringEnumConverter<ProcessingMemoryMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false)
             }
         });
     }

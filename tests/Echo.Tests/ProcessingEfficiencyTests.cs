@@ -163,17 +163,17 @@ public sealed class ProcessingEfficiencyTests
             plan = planner.Plan(project, 48);
             Check(plan.ConcurrentImages > 1 && plan.ConcurrentImages * plan.WorkersPerImage <= 12, "Shared CPU budget");
         });
-        tests.Run("Streamed JSON keeps checkpoint hashes and bytes compatible and writes atomically", () =>
+        tests.Run("Streamed metadata JSON writes atomically", () =>
         {
             var path = Path.Combine(Path.GetTempPath(), "echo-stream-" + Guid.NewGuid().ToString("N") + ".json");
             try
             {
-                var value = new DepthMap { ImageId = "é-photo", Width = 2, Height = 1, Depth = [1.25f, 0], Confidence = [.9f, 0] };
+                var value = new Photo { Id = "é-photo", Width = 2, Height = 1 };
                 var expected = Encoding.UTF8.GetBytes(json.Encode(value));
                 Check(files.Hash(value) == Convert.ToHexStringLower(SHA256.HashData(expected)), "Stable fingerprint");
                 files.AtomicJson(path, value);
                 Check(File.ReadAllBytes(path).SequenceEqual(expected), "Stable JSON bytes");
-                Check(json.Read<DepthMap>(path).Depth.SequenceEqual(value.Depth), "Stream reader");
+                Check(json.Read<Photo>(path).Id == value.Id, "Stream reader");
                 try
                 {
                     files.AtomicWrite(path, stream => { stream.WriteByte(1); throw new IOException("injected failure"); });

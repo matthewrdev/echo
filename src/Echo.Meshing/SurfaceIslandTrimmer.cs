@@ -1,11 +1,12 @@
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 
 public static class SurfaceIslandTrimmer
 {
-    public static SurfaceIslandTrimResult Trim(Surface source, IslandTrimMode mode, double minimumAreaPercent, CancellationToken cancellation)
+    public static SurfaceIslandTrimResult Trim(Surface source, IslandTrimMode mode, double minimumAreaPercent, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!Enum.IsDefined(mode))
@@ -29,8 +30,8 @@ public static class SurfaceIslandTrimmer
             return new SurfaceIslandTrimResult { Surface = source, InputComponents = 0 };
         }
 
-        var parents = BuildComponents(source, cancellation);
-        var areas = new double[source.Faces.Count];
+        var parents = BuildComponents(source, cancellation, work, progress);
+        IList<double> areas = work?.Filled(source.Faces.Count, 0d, new DoubleRecordCodec()) ?? new double[source.Faces.Count];
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -42,7 +43,7 @@ public static class SurfaceIslandTrimmer
         }
 
         var largest = parents[0];
-        for (var index = 0; index < areas.Length; index++)
+        for (var index = 0; index < areas.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             if (areas[index] > areas[largest])
@@ -51,11 +52,11 @@ public static class SurfaceIslandTrimmer
             }
         }
         var threshold = areas[largest] * minimumAreaPercent / 100;
-        var remove = new bool[areas.Length];
+        IList<bool> remove = work?.Filled(areas.Count, false, new BoolRecordCodec()) ?? new bool[areas.Count];
         var componentCount = 0;
         var removedCount = 0;
         var removedArea = 0d;
-        for (var index = 0; index < areas.Length; index++)
+        for (var index = 0; index < areas.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             if (parents[index] != index)
@@ -70,7 +71,7 @@ public static class SurfaceIslandTrimmer
                 removedArea += areas[index];
             }
         }
-        var result = removedCount == 0 ? source : CopyRetainedFaces(source, parents, remove, cancellation);
+        var result = removedCount == 0 ? source : CopyRetainedFaces(source, parents, remove, cancellation, work);
         return new SurfaceIslandTrimResult
         {
             Surface = result,
@@ -81,13 +82,13 @@ public static class SurfaceIslandTrimmer
         };
     }
 
-    private static int[] BuildComponents(Surface source, CancellationToken cancellation)
+    private static IList<int> BuildComponents(Surface source, CancellationToken cancellation, WorkBuffers? work, Action<OperationProgress>? progress)
     {
         // Weld only exact positions for connectivity. Keep the original vertices
         // and photograph seams in the output; never bridge a physical gap.
-        var positions = new Dictionary<V3, int>();
-        var welded = new int[source.Vertices.Count];
-        for (var index = 0; index < welded.Length; index++)
+        var positions = work?.Map(new PositionKeyCodec(), new IntRecordCodec()) ?? new Dictionary<V3, int>();
+        IList<int> welded = work?.Filled(source.Vertices.Count, 0, new IntRecordCodec()) ?? new int[source.Vertices.Count];
+        for (var index = 0; index < welded.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             var point = new V3(source.Vertices[index]);
@@ -99,12 +100,20 @@ public static class SurfaceIslandTrimmer
             welded[index] = id;
         }
 
-        var parents = Enumerable.Range(0, source.Faces.Count).ToArray();
-        var sizes = Enumerable.Repeat(1, parents.Length).ToArray();
-        var edges = new Dictionary<SurfaceEdge, int>();
+        IList<int> parents = work?.List(new IntRecordCodec()) ?? new List<int>(source.Faces.Count);
+        for (var index = 0; index < source.Faces.Count; index++)
+        {
+            parents.Add(index);
+        }
+        IList<int> sizes = work?.Filled(parents.Count, 1, new IntRecordCodec()) ?? Enumerable.Repeat(1, parents.Count).ToArray();
+        var edges = work?.Map(new SurfaceEdgeRecordCodec(), new IntRecordCodec()) ?? new Dictionary<SurfaceEdge, int>();
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
+            if (index % 10000 == 0)
+            {
+                progress?.Invoke(new OperationProgress("Island connectivity", "Connecting triangles across shared edges…", index, source.Faces.Count, "triangles"));
+            }
             var face = source.Faces[index];
             for (var corner = 0; corner < 3; corner++)
             {
@@ -143,10 +152,10 @@ public static class SurfaceIslandTrimmer
         return parents;
     }
 
-    private static Surface CopyRetainedFaces(Surface source, int[] parents, bool[] remove, CancellationToken cancellation)
+    private static Surface CopyRetainedFaces(Surface source, IList<int> parents, IList<bool> remove, CancellationToken cancellation, WorkBuffers? work)
     {
-        var result = new Surface();
-        var remap = new Dictionary<int, int>();
+        var result = work?.Surface() ?? new Surface();
+        var remap = work?.Map(new IntRecordCodec(), new IntRecordCodec()) ?? new Dictionary<int, int>();
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -176,7 +185,7 @@ public static class SurfaceIslandTrimmer
         return result;
     }
 
-    private static int Root(int[] parents, int face)
+    private static int Root(IList<int> parents, int face)
     {
         while (parents[face] != face)
         {

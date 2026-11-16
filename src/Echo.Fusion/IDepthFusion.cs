@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using Echo.Storage;
 
 namespace Echo.Fusion;
 
@@ -9,5 +10,5 @@ public interface IDepthFusion
         IReadOnlyList<DepthMap> maps,
         DenseCloudData cloud,
         FusionResourcePlan resources,
-        CancellationToken cancellation, Action<string>? progress = null);
+        CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null, IFusionChunkStore? chunks = null, Action<OperationProgress>? operationProgress = null);
 }

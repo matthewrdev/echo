@@ -33,10 +33,10 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
             ImageId = source.ImageId,
             Width = source.Width,
             Height = source.Height,
-            Depth = (float[])source.Depth.Clone(),
-            Confidence = (float[])source.Confidence.Clone()
+            Depth = Enumerable.Range(0, source.SampleCount).Select(source.DepthAt).ToArray(),
+            Confidence = Enumerable.Range(0, source.SampleCount).Select(source.ConfidenceAt).ToArray()
         };
-        var valid = source.Depth.Where(value => float.IsFinite(value) && value > 0).Order().ToArray();
+        var valid = result.Depth.Where(value => float.IsFinite(value) && value > 0).Order().ToArray();
         if (valid.Length == 0)
         {
             return new CliffRecoveryResult { Map = result };
@@ -87,8 +87,8 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
             {
                 cancellation.ThrowIfCancellationRequested();
                 var offset = y * source.Width + x;
-                var missing = !float.IsFinite(source.Depth[offset]) || source.Depth[offset] <= 0;
-                if (!missing || SemanticProbabilities.ConservativeSample(semantics, semantics.Rock,
+                var missing = !float.IsFinite(source.DepthAt(offset)) || source.DepthAt(offset) <= 0;
+                if (!missing || SemanticProbabilities.ConservativeSample(semantics, semantics.RockSamples,
                     (double)x / source.Width, (double)y / source.Height) < .6)
                 {
                     continue;

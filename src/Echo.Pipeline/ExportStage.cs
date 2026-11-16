@@ -33,7 +33,6 @@ public sealed class ExportStage : IPipelineStage
         var alignment = context.Artifact("alignment");
         var scene = context.Scene();
         var meshPath = context.Artifact("mesh");
-        var surface = context.ReadArtifact<Surface>("mesh", "mesh.json");
         var texture = context.Artifact("texture");
         var cloudPath = context.Artifact("cloud");
         var fusionPath = context.Artifact("fusion");
@@ -46,12 +45,11 @@ public sealed class ExportStage : IPipelineStage
         }, dir =>
                 {
                     var tex = jsonCodec.Read<TextureResult>(store.PathFor(texture + "/texture.json"));
-                    if (tex.MeshFile != null)
-                    {
-                        surface = jsonCodec.Read<Surface>(store.PathFor(texture + "/" + tex.MeshFile));
-                    }
+                    var surface = context.ReadData<Surface>(store.PathFor(tex.MeshFile == null
+                        ? meshPath + "/mesh.json" : texture + "/" + tex.MeshFile));
+                    var uvs = context.ReadData<TextureCoordinates>(store.PathFor(texture + "/" + tex.UvsFile)).Values;
 
-                    glbWriter.Write(Path.Combine(dir, "cliff.glb"), surface, tex.Uvs, File.ReadAllBytes(store.PathFor(texture + "/atlas.jpg")));
+                    glbWriter.Write(Path.Combine(dir, "cliff.glb"), surface, uvs, File.ReadAllBytes(store.PathFor(texture + "/atlas.jpg")));
                     fileOperations.AtomicJson(Path.Combine(dir, "cliff.geo.json"), new
                     {
                         schemaVersion = 1,

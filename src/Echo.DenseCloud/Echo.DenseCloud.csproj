@@ -5,4 +5,5 @@
     <ProjectReference Include="../Echo.Imaging/Echo.Imaging.csproj" />
     <ProjectReference Include="../Echo.Projects/Echo.Projects.csproj" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../Echo.Storage/Echo.Storage.csproj" /></ItemGroup>
 </Project>

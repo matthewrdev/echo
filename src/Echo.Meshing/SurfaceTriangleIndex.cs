@@ -5,20 +5,25 @@ namespace Echo.Meshing;
 
 internal sealed class SurfaceTriangleIndex
 {
-    private readonly SurfaceTriangle[] triangles;
+    private readonly Surface mesh;
     private readonly int[] order;
     private readonly List<SurfaceSearchNode> nodes = [];
     private readonly List<SurfaceTriangle> additions = [];
 
     public SurfaceTriangleIndex(Surface mesh, CancellationToken cancellation)
     {
-        triangles = mesh.Faces.Select(face => new SurfaceTriangle(new V3(mesh.Vertices[face[0]]),
-            new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]]))).ToArray();
-        order = Enumerable.Range(0, triangles.Length).ToArray();
+        this.mesh = mesh;
+        order = Enumerable.Range(0, mesh.Faces.Count).ToArray();
         if (order.Length > 0)
         {
             Build(0, order.Length, cancellation);
         }
+    }
+
+    private SurfaceTriangle Triangle(int index)
+    {
+        var face = mesh.Faces[index];
+        return new SurfaceTriangle(new V3(mesh.Vertices[face[0]]), new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]]));
     }
 
     public void Add(SurfaceTriangle triangle) => additions.Add(triangle);
@@ -63,7 +68,7 @@ internal sealed class SurfaceTriangleIndex
         }
         for (var offset = node.Start; offset < node.Start + node.Count; offset++)
         {
-            if (SurfaceTriangleIntersection.Crosses(start, end, triangles[order[offset]]))
+            if (SurfaceTriangleIntersection.Crosses(start, end, Triangle(order[offset])))
             {
                 return true;
             }
@@ -99,7 +104,7 @@ internal sealed class SurfaceTriangleIndex
         }
         for (var offset = node.Start; offset < node.Start + node.Count; offset++)
         {
-            var triangle = triangles[order[offset]];
+            var triangle = Triangle(order[offset]);
             var position = SurfaceTriangleIntersection.Closest(point, triangle);
             var delta = point - position;
             var distance = delta.Dot(delta);
@@ -146,7 +151,7 @@ internal sealed class SurfaceTriangleIndex
         }
         for (var offset = node.Start; offset < node.Start + node.Count; offset++)
         {
-            if (SurfaceTriangleIntersection.Intersects(triangle, triangles[order[offset]]))
+            if (SurfaceTriangleIntersection.Intersects(triangle, Triangle(order[offset])))
             {
                 return true;
             }
@@ -161,8 +166,8 @@ internal sealed class SurfaceTriangleIndex
         var maximum = minimum * -1;
         for (var index = start; index < start + count; index++)
         {
-            var low = triangles[order[index]].Minimum;
-            var high = triangles[order[index]].Maximum;
+            var low = Triangle(order[index]).Minimum;
+            var high = Triangle(order[index]).Maximum;
             minimum = new V3(Math.Min(minimum.X, low.X), Math.Min(minimum.Y, low.Y), Math.Min(minimum.Z, low.Z));
             maximum = new V3(Math.Max(maximum.X, high.X), Math.Max(maximum.Y, high.Y), Math.Max(maximum.Z, high.Z));
         }
@@ -176,7 +181,7 @@ internal sealed class SurfaceTriangleIndex
             var axis = extent.X >= extent.Y && extent.X >= extent.Z ? 0 : extent.Y >= extent.Z ? 1 : 2;
             double Centre(int triangle)
             {
-                var value = triangles[triangle];
+                var value = Triangle(triangle);
                 var centre = value.A + value.B + value.C;
                 return axis == 0 ? centre.X : axis == 1 ? centre.Y : centre.Z;
             }

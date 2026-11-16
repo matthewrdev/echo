@@ -5,7 +5,7 @@ namespace Echo.Texturing;
 
 internal static class TextureColourCompletion
 {
-    public static V3[] Extend(Surface mesh, int[] welded, V3[] sums, int[] weights, CancellationToken cancellation)
+    public static V3[] Extend(Surface mesh, IList<int> welded, V3[] sums, int[] weights, CancellationToken cancellation)
     {
         var colours = new V3[sums.Length];
         var neighbours = new List<int>?[sums.Length];

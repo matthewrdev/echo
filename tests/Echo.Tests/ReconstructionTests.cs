@@ -555,11 +555,14 @@ public sealed class ReconstructionTests
                 Check(thresholdChanged.Artifacts["fusion"] == previous.Artifacts["fusion"], "Area threshold retains fusion");
                 Check(thresholdChanged.Artifacts["mesh"] != previous.Artifacts["mesh"], "Area threshold changes the mesh checkpoint");
             });
-            tests.Run("Fusion memory, fixed spacing and fallback policy invalidate fusion while reusing depth and cloud", () =>
+            tests.Run("Paged RAM changes preserve outputs; spacing and fallback edits rebuild fusion", () =>
             {
+                var original = store.GetRun();
+                store.Edit(project => project.Settings.FusionMemoryBudgetMb = project.Settings.FusionMemoryBudgetMb == 128 ? 256 : 128);
+                var budgetChanged = processor.Execute(store, "export", default);
+                Check(budgetChanged.Artifacts["export"] == original.Artifacts["export"], "Paged memory limits must not change output or invalidate checkpoints");
                 var edits = new Action<Settings>[]
                 {
-                    settings => settings.FusionMemoryBudgetMb = settings.FusionMemoryBudgetMb == 128 ? 256 : 128,
                     settings => settings.FusionVoxelSize = jsonCodec.Read<FusedVolume>(store.PathFor(store.GetRun().Artifacts["fusion"] + "/volume.json")).VoxelSize,
                     settings => settings.FusionAllowCoarserResolution = true
                 };

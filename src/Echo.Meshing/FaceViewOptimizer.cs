@@ -2,7 +2,7 @@ namespace Echo.Meshing;
 
 internal static class FaceViewOptimizer
 {
-    public static void Optimize(FaceViewCandidate[][] candidates, int[] selected, int[] neighbours,
+    public static void Optimize(FaceViewCandidate[][] candidates, int[] selected, IList<int> neighbours,
         double[] penalties, int viewCount, CancellationToken cancellation, Action<string>? progress = null)
     {
         var available = Enumerable.Range(0, viewCount).Select(_ => new List<int>()).ToArray();

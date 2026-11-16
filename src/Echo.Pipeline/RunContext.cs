@@ -2,10 +2,12 @@ using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
+using Echo.Storage;
+using System.Diagnostics;
 
 namespace Echo.Pipeline;
 
-public sealed class RunContext
+public sealed class RunContext : IDisposable
 {
     private readonly ICheckpointStore checkpoints;
     private readonly IJsonCodec jsonCodec;
@@ -17,6 +19,15 @@ public sealed class RunContext
     private readonly RunProcessingMetadata processing;
     private bool processingDirty = true;
     private long sequence;
+    private readonly IBulkArtifactStore bulk;
+    private BulkDataSession? data;
+    private string? scratchDirectory;
+    private long lastResourceReport;
+    private WorkBuffers? work;
+    private long diskReadBytes;
+    private long diskWrittenBytes;
+    private long pageEvictions;
+    private long cachePeakBytes;
 
     public RunContext(IProjectStore store,
         RunData run,
@@ -24,7 +35,7 @@ public sealed class RunContext
         Action<object>? output,
         ICheckpointStore checkpoints,
         IJsonCodec jsonCodec,
-        IFileOperations fileOperations)
+        IFileOperations fileOperations, IBulkArtifactStore bulk, ProcessingResourcePlan resources, ProcessingMemoryTracker memory)
     {
         Store = store;
         Run = run;
@@ -33,6 +44,9 @@ public sealed class RunContext
         this.checkpoints = checkpoints;
         this.jsonCodec = jsonCodec;
         this.fileOperations = fileOperations;
+        this.bulk = bulk;
+        Resources = resources;
+        Memory = memory;
         eventOptions = new JsonSerializerOptions(jsonCodec.Options)
         {
             WriteIndented = false
@@ -54,6 +68,122 @@ public sealed class RunContext
     {
         get;
     }
+
+    public ProcessingMemoryTracker Memory
+    {
+        get;
+    }
+    public ProcessingResourcePlan Resources
+    {
+        get;
+    }
+    public long WorkingMemoryBytes => Resources.MemoryBytes - Resources.HeadroomBytes - Resources.CacheBytes - Math.Min(64 * 1024 * 1024, Resources.CacheBytes / 4);
+    public bool Paged => Resources.Mode == ProcessingMemoryMode.Paged;
+    public BulkDataSession Data => data ??= bulk.OpenSession(Resources.CacheBytes, Resources.DiskBytes == 0 ? 0 : Resources.DiskBytes - Resources.DiskBytes / 4);
+    public WorkBuffers? Work => Paged ? work ??= new WorkBuffers(Data, ScratchDirectory,
+        Math.Min(64 * 1024 * 1024, Resources.CacheBytes / 4), Resources.DiskBytes / 4) : null;
+
+    public string ScratchDirectory
+    {
+        get
+        {
+            if (scratchDirectory == null)
+            {
+                scratchDirectory = Store.PathFor($"work/paging-{Run.Id}-{Guid.NewGuid():N}");
+                Directory.CreateDirectory(scratchDirectory);
+            }
+            return scratchDirectory;
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (reportGate)
+        {
+            ReleaseStageResources();
+            Memory.Dispose();
+        }
+    }
+
+    public void ReleaseStageResources()
+    {
+        lock (reportGate)
+        {
+            ReleaseBuffers();
+        }
+    }
+
+    private void ReleaseBuffers()
+    {
+        work?.Dispose();
+        work = null;
+        if (data != null)
+        {
+            data.Dispose();
+            var final = data.Statistics;
+            diskReadBytes += final.ReadBytes;
+            diskWrittenBytes += final.WrittenBytes;
+            pageEvictions += final.Evictions;
+            cachePeakBytes = Math.Max(cachePeakBytes, final.PeakResidentBytes);
+            data = null;
+        }
+        if (scratchDirectory != null)
+        {
+            Directory.Delete(scratchDirectory, true);
+            scratchDirectory = null;
+        }
+    }
+
+    public T ReadData<T>(string path)
+    {
+        Cancellation.ThrowIfCancellationRequested();
+        return Paged && bulk.Supports(typeof(T)) ? Data.Read<T>(path) : jsonCodec.Read<T>(path);
+    }
+
+    public IEnumerable<VolumeSample> ReadArtifactChunk(string artifact)
+        => jsonCodec.Read<FusedVolume>(Store.PathFor(artifact + "/volume.json")).Samples;
+
+    public ResourceProgress MeasureResources()
+    {
+        var usage = Memory.Sample();
+        var paging = data?.Statistics;
+        return new ResourceProgress
+        {
+            WorkingSetBytes = usage.ResidentBytes,
+            PeakWorkingSetBytes = usage.PeakBytes,
+            ManagedBytes = usage.ManagedBytes,
+            MemoryBudgetBytes = Resources.MemoryBytes,
+            CacheResidentBytes = paging?.ResidentBytes ?? 0,
+            CachePeakBytes = Math.Max(cachePeakBytes, paging?.PeakResidentBytes ?? 0),
+            DiskReadBytes = diskReadBytes + (paging?.ReadBytes ?? 0),
+            DiskWrittenBytes = diskWrittenBytes + (paging?.WrittenBytes ?? 0),
+            PageEvictions = pageEvictions + (paging?.Evictions ?? 0),
+            ScratchBytes = (paging?.ScratchBytes ?? 0) + (work?.IndexDiskBytes ?? 0)
+        };
+    }
+    public void ReportResources()
+    {
+        lock (reportGate)
+        {
+            var usage = MeasureResources();
+            if (usage.WorkingSetBytes > Resources.MemoryBytes)
+            {
+                throw new EchoException($"Processing exceeded its {Resources.MemoryBytes / 1048576:N0} MiB RAM budget (observed {usage.WorkingSetBytes / 1048576:N0} MiB, including registered native workers). Completed checkpoints are retained. Increase ProcessingMemoryBudgetMb and resume; resolution was not changed.", 5);
+            }
+            if (Run.Progress != null && Environment.TickCount64 - lastResourceReport >= 5000)
+            {
+                lastResourceReport = Environment.TickCount64;
+                Run.Progress.Resources = usage;
+                SaveRun();
+                Report("resourceProgress", new
+                {
+                    stage = Run.Progress.Stage,
+                    resources = usage
+                });
+            }
+        }
+    }
+
     public RunData Run
     {
         get;
@@ -75,7 +205,7 @@ public sealed class RunContext
 
     public List<string> DepthUnits() => ReadArtifact<List<string>>("depth", "units.json");
 
-    public List<DepthMap> DepthMaps() => DepthUnits().Select(path => jsonCodec.Read<DepthMap>(Store.PathFor(path + "/depth.json"))).ToList();
+    public List<DepthMap> DepthMaps() => DepthUnits().Select(path => ReadData<DepthMap>(Store.PathFor(path + "/depth.json"))).ToList();
 
     public string Build(string stage, object inputs, Action<string> action, Func<ProcessingMetadata>? metadata = null,
         string? algorithmVersion = null)
@@ -94,6 +224,7 @@ public sealed class RunContext
             "alignment-initial" => "alignment",
             "alignment-guided-pair" => "alignment",
             "cloud-preview" => "cloud",
+            "fusion-chunk" => "fusion",
             _ => stage
         };
         if (Run.Snapshot.StageRevisions.TryGetValue(owner, out var resetRevision))
@@ -156,6 +287,22 @@ public sealed class RunContext
         }
     }
 
+    public void BeginOperation(string stage, string operation)
+        => ReportOperation(stage, new OperationProgress(operation, operation + "…"));
+
+    public void ReportOperation(string stage, OperationProgress progress)
+    {
+        Report("stageProgress", new
+        {
+            stage,
+            operation = progress.Operation,
+            message = progress.Message,
+            completed = progress.Completed,
+            total = progress.Total,
+            unit = progress.Unit
+        });
+    }
+
     public void ReportProgress(string stage, string message, int? completed = null, int? total = null)
     {
         Report("stageProgress", new
@@ -163,7 +310,8 @@ public sealed class RunContext
             stage,
             message,
             completed,
-            total
+            total,
+            unit = stage == "matching" ? "image pairs" : stage is "features" or "depth" ? "images" : "items"
         });
     }
 
@@ -251,6 +399,7 @@ public sealed class RunContext
                 "semantic-image" => "depth",
                 "semantics" => "depth",
                 "cliff-depth-image" => "depth",
+                "fusion-chunk" => "fusion",
                 "depth-image" => "depth",
                 _ => stage
             };
@@ -261,14 +410,21 @@ public sealed class RunContext
             var checking = !processingStages.Contains(stage);
             var previous = Run.Progress?.Stage == stage ? Run.Progress : null;
             var completed = data.TryGetProperty("completed", out var done) && done.ValueKind == JsonValueKind.Number
-                ? done.GetInt32()
-                : previous?.Completed;
+                ? (long?)done.GetInt64()
+                : null;
             var total = data.TryGetProperty("total", out var count) && count.ValueKind == JsonValueKind.Number
-                ? count.GetInt32()
-                : previous?.Total;
-            var unit = stage == "matching" ? "image pairs" : "images";
+                ? (long?)count.GetInt64()
+                : null;
+            var unit = data.TryGetProperty("unit", out var workUnit) ? workUnit.GetString() ?? "items"
+                : stage == "matching" ? "image pairs" : "images";
+            var operation = data.TryGetProperty("operation", out var activity) ? activity.GetString() ?? "" : previous?.Operation ?? "";
+            var started = operation == previous?.Operation ? previous.OperationStarted : DateTimeOffset.UtcNow;
             Run.Progress = new RunProgress
             {
+                Resources = MeasureResources(),
+                Operation = operation,
+                OperationStarted = started,
+                Unit = unit,
                 Stage = stage,
                 Phase = checking ? "checking" : "processing",
                 Completed = completed,

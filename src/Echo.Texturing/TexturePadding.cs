@@ -1,10 +1,11 @@
 using SkiaSharp;
+using Echo.Contracts;
 
 namespace Echo.Texturing;
 
 internal static class TexturePadding
 {
-    public static void Extend(Span<SKColor> pixels, int size, int gutter, CancellationToken cancellation)
+    public static void Extend(Span<SKColor> pixels, int size, int gutter, CancellationToken cancellation, Action<OperationProgress>? progress = null)
     {
         if (gutter == 0)
         {
@@ -15,6 +16,10 @@ internal static class TexturePadding
         for (var y = 0; y < size; y++)
         {
             cancellation.ThrowIfCancellationRequested();
+            if (y % 32 == 0)
+            {
+                progress?.Invoke(new OperationProgress("Atlas gutters", "Extending nearest source texels around chart edges…", y, size, "rows"));
+            }
             for (var x = 0; x < size; x++)
             {
                 var source = y * size + x;

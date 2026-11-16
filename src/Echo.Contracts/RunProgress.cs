@@ -2,14 +2,21 @@ namespace Echo.Contracts;
 
 public sealed class RunProgress
 {
-    public string Phase { get; set; } = "processing";
-    public string Stage { get; set; } = "";
-    public string Message { get; set; } = "";
-    public int? Completed
+    public ResourceProgress? Resources
     {
         get; set;
     }
-    public int? Total
+    public string Operation { get; set; } = "";
+    public string Unit { get; set; } = "items";
+    public DateTimeOffset OperationStarted { get; set; } = DateTimeOffset.UtcNow;
+    public string Phase { get; set; } = "processing";
+    public string Stage { get; set; } = "";
+    public string Message { get; set; } = "";
+    public long? Completed
+    {
+        get; set;
+    }
+    public long? Total
     {
         get; set;
     }

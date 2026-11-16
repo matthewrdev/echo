@@ -14,7 +14,7 @@ public sealed class FusedVolume
     {
         get; set;
     }
-    public List<VolumeSample> Samples { get; set; } = [];
+    public IList<VolumeSample> Samples { get; set; } = [];
     public FusionResolutionReport? Resolution
     {
         get; set;
