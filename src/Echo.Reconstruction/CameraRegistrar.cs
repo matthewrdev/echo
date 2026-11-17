@@ -6,17 +6,19 @@ namespace Echo.Reconstruction;
 
 public static class CameraRegistrar
 {
-    public static CameraPose? Register(Photo photo, List<ImagePair> pairs, IEnumerable<CloudPoint> points)
+    public static CameraPose? Register(Photo photo, List<ImagePair> pairs, IEnumerable<CloudPoint> points,
+        Random random, CancellationToken cancellation = default)
     {
-        return Register(photo, CollectObservations(photo.Id, pairs, points));
+        return Register(photo, CollectObservations(photo.Id, pairs, points, cancellation), random, cancellation);
     }
 
-    private static List<Observation> CollectObservations(string imageId, List<ImagePair> pairs, IEnumerable<CloudPoint> points)
+    private static List<Observation> CollectObservations(string imageId, List<ImagePair> pairs, IEnumerable<CloudPoint> points, CancellationToken cancellation)
     {
         var lookup = new Dictionary<string, double[]>();
         string Key(string image, double[] pixel) => $"{image}:{Math.Round(pixel[0], 1)}:{Math.Round(pixel[1], 1)}";
         foreach (var point in points)
         {
+            cancellation.ThrowIfCancellationRequested();
             lookup.TryAdd(Key(point.ImageA, point.PixelA), point.Position);
             lookup.TryAdd(Key(point.ImageB, point.PixelB), point.Position);
         }
@@ -24,6 +26,7 @@ public static class CameraRegistrar
         var result = new Dictionary<string, Observation>();
         foreach (var pair in pairs)
         {
+            cancellation.ThrowIfCancellationRequested();
             if (pair.A != imageId && pair.B != imageId)
             {
                 continue;
@@ -52,47 +55,68 @@ public static class CameraRegistrar
         return observations;
     }
 
-    private static CameraPose? Register(Photo photo, List<Observation> observations)
+    private static CameraPose? Register(Photo photo, List<Observation> observations, Random random, CancellationToken cancellation)
     {
-        if (observations.Count < 8)
+        if (observations.Count < 30)
         {
             return null;
         }
 
-        var random = new Random(93);
         CameraPose? best = null;
         var bestInliers = new List<Observation>();
         var inliers = new List<Observation>(observations.Count);
-        var sample = new Observation[8];
-        for (var iteration = 0; iteration < 100; iteration++)
+        var sample = new Observation[6];
+        var indices = Enumerable.Range(0, observations.Count).ToArray();
+        var maximumIterations = 8192;
+        for (var iteration = 0; iteration < maximumIterations; iteration++)
         {
-            RandomSampleSelector.Select<Observation>(observations, random, sample);
-            var pose = FitPose(photo, sample);
-            if (pose == null)
+            cancellation.ThrowIfCancellationRequested();
+            for (var slot = 0; slot < sample.Length; slot++)
             {
-                continue;
+                var selected = random.Next(slot, indices.Length);
+                var previous = indices[slot];
+                indices[slot] = indices[selected];
+                indices[selected] = previous;
+                sample[slot] = observations[indices[slot]];
             }
-
-            var projection = new CameraProjector(photo, pose);
-            inliers.Clear();
-            foreach (var observation in observations)
+            foreach (var pose in new[] { FitPose(photo, sample), PlanarPoseEstimator.Fit(photo, sample) })
             {
-                var p = projection.Project(new V3(observation.Point));
-                if (p.HasValue && Math.Sqrt(CameraGeometry.Square(p.Value.X - observation.Pixel[0]) + CameraGeometry.Square(p.Value.Y - observation.Pixel[1])) < 10)
+                if (pose == null)
                 {
-                    inliers.Add(observation);
+                    continue;
                 }
-            }
-            if (inliers.Count > bestInliers.Count)
-            {
-                best = pose;
-                var previous = bestInliers;
-                bestInliers = inliers;
-                inliers = previous;
+
+                var projection = new CameraProjector(photo, pose);
+                inliers.Clear();
+                foreach (var observation in observations)
+                {
+                    var p = projection.Project(new V3(observation.Point));
+                    if (p.HasValue && Math.Sqrt(CameraGeometry.Square(p.Value.X - observation.Pixel[0]) + CameraGeometry.Square(p.Value.Y - observation.Pixel[1])) < 10)
+                    {
+                        inliers.Add(observation);
+                    }
+                }
+                if (inliers.Count > bestInliers.Count)
+                {
+                    best = pose;
+                    var previous = bestInliers;
+                    bestInliers = inliers;
+                    inliers = previous;
+                    var ratio = (double)bestInliers.Count / observations.Count;
+                    var miss = Math.Clamp(1 - Math.Pow(ratio, sample.Length), 1e-12, 1 - 1e-12);
+                    var required = (int)Math.Min(8192, Math.Ceiling(Math.Log(.001) / Math.Log(miss)));
+                    maximumIterations = Math.Min(maximumIterations, Math.Max(128, required));
+                }
             }
         }
 
-        return bestInliers.Count >= 8 ? FitPose(photo, bestInliers) ?? best : null;
+        if (bestInliers.Count < 30 || bestInliers.Count < observations.Count * .25)
+        {
+            return null;
+        }
+        return best?.Source == "visual planar registration"
+            ? PlanarPoseEstimator.Fit(photo, bestInliers) ?? best
+            : FitPose(photo, bestInliers) ?? best;
     }
 
     private static CameraPose? FitPose(Photo photo, IReadOnlyList<Observation> observations)

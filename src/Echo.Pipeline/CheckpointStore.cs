@@ -36,7 +36,7 @@ public sealed class CheckpointStore : ICheckpointStore
         cancellation.ThrowIfCancellationRequested();
         var version = algorithmVersion ?? stage switch
         {
-            "alignment" => "echo-0.1.0-bundle5",
+            "alignment" => "echo-0.1.0-bundle6",
             "fusion" => "echo-0.1.0-tsdf6-minimum",
             "fusion-chunk" => "echo-fusion-batch2",
             "mesh" => "echo-0.1.0-surface9",

@@ -27,9 +27,10 @@ public sealed class ReconstructionTests
     private readonly ResetCommandTests resetCommandTests;
     private readonly FeatureExtractionTests featureExtractionTests;
     private readonly CloudProcessingTests cloudProcessingTests;
+    private readonly VisualReconstructionTests visualReconstructionTests;
     private readonly Echo.Pipeline.IStageResetService resetService;
     [ImportingConstructor]
-    public ReconstructionTests(Echo.Imaging.IRasterImageService rasterImageService, Echo.Infrastructure.IJsonCodec jsonCodec, Echo.Infrastructure.IFileOperations fileOperations, Echo.Reconstruction.IReconstructor reconstructor, Echo.Optimization.IBundleAdjuster bundleAdjuster, Echo.Meshing.IMeshBuilder meshBuilder, Echo.Simplification.IEdgeCollapse edgeCollapse, Echo.Export.IGlbWriter glbWriter, Echo.Projects.IProjectStoreFactory storeFactory, Echo.Pipeline.IProcessor processor, ProcessingSettingsTests settingsTests, TextureTests textureTests, Echo.Pipeline.IStageResetService resetService, ProcessingEfficiencyTests efficiencyTests, LineFeatureTests lineTests, ResetCommandTests resetCommandTests, FeatureExtractionTests featureExtractionTests, CloudProcessingTests cloudProcessingTests)
+    public ReconstructionTests(Echo.Imaging.IRasterImageService rasterImageService, Echo.Infrastructure.IJsonCodec jsonCodec, Echo.Infrastructure.IFileOperations fileOperations, Echo.Reconstruction.IReconstructor reconstructor, Echo.Optimization.IBundleAdjuster bundleAdjuster, Echo.Meshing.IMeshBuilder meshBuilder, Echo.Simplification.IEdgeCollapse edgeCollapse, Echo.Export.IGlbWriter glbWriter, Echo.Projects.IProjectStoreFactory storeFactory, Echo.Pipeline.IProcessor processor, ProcessingSettingsTests settingsTests, TextureTests textureTests, Echo.Pipeline.IStageResetService resetService, ProcessingEfficiencyTests efficiencyTests, LineFeatureTests lineTests, ResetCommandTests resetCommandTests, FeatureExtractionTests featureExtractionTests, CloudProcessingTests cloudProcessingTests, VisualReconstructionTests visualReconstructionTests)
     {
         this.rasterImageService = rasterImageService;
         this.jsonCodec = jsonCodec;
@@ -48,6 +49,7 @@ public sealed class ReconstructionTests
         this.resetCommandTests = resetCommandTests;
         this.featureExtractionTests = featureExtractionTests;
         this.cloudProcessingTests = cloudProcessingTests;
+        this.visualReconstructionTests = visualReconstructionTests;
         this.resetService = resetService;
     }
 
@@ -62,6 +64,7 @@ public sealed class ReconstructionTests
         resetCommandTests.Run(tests);
         featureExtractionTests.Run(tests);
         cloudProcessingTests.Run(tests);
+        visualReconstructionTests.Run(tests);
         tests.Run("MEF composes all processing stages in dependency order", () =>
         {
             var expected = new[]

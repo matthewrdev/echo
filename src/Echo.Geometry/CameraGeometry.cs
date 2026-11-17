@@ -132,9 +132,9 @@ public static class CameraGeometry
 
     public static double Square(double x) => x * x;
 
-    public static RelativePose? EstimateRelative(Photo leftPhoto, Photo rightPhoto, List<Match> matches)
+    public static RelativePose? EstimateRelative(Photo leftPhoto, Photo rightPhoto, List<Match> matches, CancellationToken cancellation = default)
     {
-        var verified = FundamentalMatrixEstimator.Estimate(matches, Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000.0, default);
+        var verified = FundamentalMatrixEstimator.Estimate(matches, Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000.0, cancellation);
         if (verified == null)
         {
             return null;
@@ -185,6 +185,7 @@ public static class CameraGeometry
                 var count = 0;
                 foreach (var match in best)
                 {
+                    cancellation.ThrowIfCancellationRequested();
                     if (Triangulate(leftPhoto, rightPhoto, poseA, poseB, match, 20) != null)
                     {
                         count++;

@@ -59,7 +59,7 @@ public sealed class AlignmentStage : IPipelineStage
         }
         var initial = context.Build("alignment-initial", new
         {
-            algorithmVersion = 5,
+            algorithmVersion = 6,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
             pairUnits,
@@ -77,7 +77,7 @@ public sealed class AlignmentStage : IPipelineStage
         var recoveryUnits = project.Settings.GuidedAlignmentPass ? RecoverPairs(context, pairUnits, pairs) : [];
         var alignment = context.Build(Name, new
         {
-            algorithmVersion = 5,
+            algorithmVersion = 6,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
             initial,

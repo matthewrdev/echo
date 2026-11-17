@@ -11,13 +11,15 @@ namespace Echo.Reconstruction;
 public sealed class Reconstructor : IReconstructor
 {
     private readonly IBundleAdjuster bundleAdjuster;
+    private readonly IVisualReconstructor visualReconstructor;
     private readonly IComputeService? compute;
     private readonly IPerformanceTrace? trace;
 
     [ImportingConstructor]
-    public Reconstructor(IBundleAdjuster bundleAdjuster, [Import(AllowDefault = true)] IComputeService? compute = null, [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
+    public Reconstructor(IBundleAdjuster bundleAdjuster, IVisualReconstructor visualReconstructor, [Import(AllowDefault = true)] IComputeService? compute = null, [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
     {
         this.bundleAdjuster = bundleAdjuster;
+        this.visualReconstructor = visualReconstructor;
         this.compute = compute;
         this.trace = trace;
     }
@@ -27,43 +29,20 @@ public sealed class Reconstructor : IReconstructor
         CancellationToken cancellation,
         Action<ReconstructionScene>? checkpoint = null)
     {
-        var images = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
-        var priors = new Dictionary<string, CameraPrior>(project.Images.Count, StringComparer.Ordinal);
-        foreach (var image in project.Images)
-        {
-            if (!image.Enabled)
-            {
-                continue;
-            }
-            images.Add(image.Id, image);
-            priors.Add(image.Id, new CameraPrior(image));
-        }
-        foreach (var hint in project.Hints)
-        {
-            var cameraHint = hint.Enabled && hint.Type == "camera";
-            if (!cameraHint || !priors.TryGetValue(hint.ImageId, out var prior))
-            {
-                continue;
-            }
-            priors[hint.ImageId] = prior with
-            {
-                Position = hint.Position ?? prior.Position,
-                Attitude = hint.Attitude ?? prior.Attitude
-            };
-        }
+        var images = project.Images.Where(image => image.Enabled).ToDictionary(image => image.Id, StringComparer.Ordinal);
+        var priors = CameraPriorBuilder.Build(project);
 
         // Reject descriptor aliases before they can bias any camera or point estimate.
         // Recheck legacy artifacts too; serialized display flags are not solver authority.
         trace?.Operation(new OperationProgress("Verify image geometry", "Verifying matched pairs"));
-        var verifiedPairs = new List<ImagePair>(pairs.Count);
-        foreach (var pair in pairs)
+        pairs = ImagePairVerifier.VerifyAll(images, pairs, Math.Max(1, Environment.ProcessorCount - 2),
+            cancellation, compute, project.Settings.ComputeBackend);
+
+        var visual = visualReconstructor.TryAlignVerified(project, pairs, cancellation, checkpoint);
+        if (visual != null)
         {
-            if (images.TryGetValue(pair.A, out var left) && images.TryGetValue(pair.B, out var right))
-            {
-                verifiedPairs.Add(ImagePairVerifier.Verify(left, right, pair, cancellation, compute, project.Settings.ComputeBackend));
-            }
+            return visual;
         }
-        pairs = verifiedPairs;
 
         trace?.Operation(new OperationProgress("Initialize cameras", "Building initial poses"));
         var result = new ReconstructionScene();
@@ -139,7 +118,7 @@ public sealed class Reconstructor : IReconstructor
             }
         }
 
-        TriangulateAll(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint);
+        SparseTriangulator.Build(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint, compute, trace);
         checkpoint?.Invoke(result);
         var registered = new HashSet<string>(StringComparer.Ordinal);
         foreach (var camera in result.Cameras)
@@ -158,7 +137,7 @@ public sealed class Reconstructor : IReconstructor
                     continue;
                 }
                 cancellation.ThrowIfCancellationRequested();
-                var pose = CameraRegistrar.Register(image, pairs, result.Points);
+                var pose = CameraRegistrar.Register(image, pairs, result.Points, new Random(93), cancellation);
                 if (pose == null)
                 {
                     continue;
@@ -174,7 +153,7 @@ public sealed class Reconstructor : IReconstructor
                 break;
             }
 
-            TriangulateAll(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint);
+            SparseTriangulator.Build(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint, compute, trace);
         }
 
         if (result.Cameras.Count >= 3)
@@ -202,46 +181,4 @@ public sealed class Reconstructor : IReconstructor
         return result;
     }
 
-    private void TriangulateAll(ReconstructionScene scene,
-        Dictionary<string, Photo> images,
-        List<ImagePair> pairs,
-        CancellationToken cancellation, ComputeBackend backend, Action<ReconstructionScene>? checkpoint)
-    {
-        trace?.Operation(new OperationProgress("Triangulation", "Constructing sparse points"));
-        scene.Points.Clear();
-        var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
-        foreach (var camera in scene.Cameras)
-        {
-            cameras.Add(camera.ImageId, camera);
-        }
-        foreach (var pair in pairs)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            if (!cameras.TryGetValue(pair.A, out var a) || !cameras.TryGetValue(pair.B, out var b))
-            {
-                continue;
-            }
-
-            var tolerance = 18.0 * images[pair.A].Width / 1000;
-            var accelerated = TriangulationCompute.TryCalculate(compute, backend, images[pair.A], images[pair.B], a, b, pair.Matches, tolerance, cancellation);
-            for (var matchIndex = 0; matchIndex < pair.Matches.Count; matchIndex++)
-            {
-                var match = pair.Matches[matchIndex];
-                var triangulated = accelerated == null ? CameraGeometry.Triangulate(images[pair.A], images[pair.B], a, b, match, tolerance) : accelerated[matchIndex];
-                if (triangulated != null)
-                {
-                    scene.Points.Add(new CloudPoint
-                    {
-                        Position = triangulated.Point.Array,
-                        ImageA = pair.A,
-                        ImageB = pair.B,
-                        PixelA = match.A,
-                        PixelB = match.B,
-                        Error = triangulated.Error
-                    });
-                }
-            }
-            checkpoint?.Invoke(scene);
-        }
-    }
 }
