@@ -5,6 +5,8 @@ struct ArtifactViewer: View {
     @ObservedObject var model: ArtifactViewModel
     @StateObject private var sceneController = SceneViewportController()
     @State private var openingSelection = true
+    @State private var editingCrop = false
+    @State private var editingTexture = false
     @AppStorage("viewer.showGroundGrid") private var showGround = false
 
     private var artifactKey: String {
@@ -27,16 +29,27 @@ struct ArtifactViewer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if !model.modes.isEmpty, workspace.selectedStage != .depth,
-                workspace.selectedStage != .fusion || workspace.displayedRun?.artifacts["fusion"] != nil
-            {
-                Picker(
-                    "View",
-                    selection: Binding(get: { model.mode }, set: { model.selectMode($0) })
-                ) {
-                    ForEach(model.modes, id: \.self) { Text($0) }
-                }.pickerStyle(.segmented).fixedSize()
-                    .help("Saved artifact view")
+            if showsToolbar {
+                HStack {
+                    if workspace.selectedStage == .cloud {
+                        CloudDisplayControls(
+                            model: model, hasSavedCloud: workspace.displayedRun?.artifacts["cloud"] != nil)
+                    } else if workspace.selectedStage == .alignment {
+                        SparseDisplayControls(model: model)
+                    } else if showsViewPicker {
+                        Picker(
+                            "View",
+                            selection: Binding(get: { model.mode }, set: { model.selectMode($0) })
+                        ) {
+                            ForEach(model.modes, id: \.self) { Text($0) }
+                        }.pickerStyle(.segmented).fixedSize()
+                            .help("Saved artifact view")
+                    }
+                    Spacer(minLength: 12)
+                    if model.presentation?.scene != nil {
+                        editingTools
+                    }
+                }
             }
             if [.mesh, .export].contains(workspace.selectedStage), model.mode == MeshViewMode.normals.rawValue {
                 Text("Face normals · RGB = X, Y, Z (−1…1)")
@@ -58,13 +71,6 @@ struct ArtifactViewer: View {
             }
             if [.features, .matching].contains(workspace.selectedStage), let imageReadiness {
                 Text(imageReadiness).font(.caption).foregroundStyle(.secondary)
-            }
-            if workspace.selectedStage == .cloud {
-                CloudDisplayControls(
-                    model: model, hasSavedCloud: workspace.displayedRun?.artifacts["cloud"] != nil)
-            }
-            if workspace.selectedStage == .alignment {
-                SparseDisplayControls(model: model)
             }
             if workspace.selectedStage == .fusion, let info = model.presentation?.fusion {
                 FusionLegendView(info: info)
@@ -113,6 +119,18 @@ struct ArtifactViewer: View {
                 model.selectUnit(unit.id)
             }
         }
+        .onChange(of: workspace.selectedStage) { _, _ in
+            editingCrop = false
+            editingTexture = false
+        }
+        .onChange(of: workspace.displayedRun?.id) { _, _ in
+            editingCrop = false
+            editingTexture = false
+        }
+        .onChange(of: workspace.root) { _, _ in
+            editingCrop = false
+            editingTexture = false
+        }
         .task(id: artifactKey) {
             await model.configure(
                 root: workspace.root, run: workspace.displayedRun, stage: workspace.selectedStage,
@@ -126,6 +144,44 @@ struct ArtifactViewer: View {
             }
             openingSelection = false
         }
+    }
+
+    private var showsToolbar: Bool {
+        showsViewPicker || [.cloud, .alignment].contains(workspace.selectedStage) || model.presentation?.scene != nil
+    }
+
+    private var showsViewPicker: Bool {
+        !model.modes.isEmpty && workspace.selectedStage != .depth
+            && (workspace.selectedStage != .fusion || workspace.displayedRun?.artifacts["fusion"] != nil)
+    }
+
+    private var supportsPainting: Bool {
+        let geometry = model.presentation?.scene?.rootNode.childNode(withName: "artifact", recursively: false)?.geometry
+        return workspace.displayedRun?.artifacts["alignment"] != nil
+            && geometry?.elements.contains { $0.primitiveType == .point } == true
+    }
+
+    private var editingTools: some View {
+        HStack(spacing: 8) {
+            Button(editingCrop ? "Close crop editor" : "Crop regions", systemImage: "crop") {
+                editingCrop.toggle()
+                editingTexture = false
+            }
+            .labelStyle(ViewerIconLabelStyle(selected: editingCrop))
+            .help(editingCrop ? "Close crop editor" : "Crop regions")
+            if supportsPainting {
+                Button(
+                    editingTexture ? "Close texture brush" : "Texture priority", systemImage: "paintbrush.pointed"
+                ) {
+                    editingTexture.toggle()
+                    editingCrop = false
+                }
+                .labelStyle(ViewerIconLabelStyle(selected: editingTexture))
+                .help(editingTexture ? "Close texture brush" : "Texture priority")
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(workspace.inspection == nil)
     }
 
     private var imageReadiness: String? {
@@ -167,7 +223,8 @@ struct ArtifactViewer: View {
                         openFeatures: { photoID in
                             workspace.selectedPhotoID = photoID
                             workspace.selectedStage = .features
-                        }, controller: sceneController, showGround: $showGround)
+                        }, controller: sceneController, showGround: $showGround,
+                        editing: $editingCrop, editingTexture: $editingTexture)
                 } else if let depth = value.depthImage {
                     HStack(spacing: 12) {
                         Text(value.title).fontWeight(.semibold).lineLimit(1).truncationMode(.middle)

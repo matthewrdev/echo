@@ -8,14 +8,10 @@ struct ExclusionWorkspaceView: View {
     let openFeatures: (String) -> Void
     @ObservedObject var controller: SceneViewportController
     @Binding var showGround: Bool
-    @State private var editing = false
-    @State private var editingTexture = false
+    @Binding var editing: Bool
+    @Binding var editingTexture: Bool
 
     private var alignment: String { workspace.displayedRun?.artifacts["alignment"] ?? "" }
-    private var supportsPainting: Bool {
-        let geometry = presentation.scene?.rootNode.childNode(withName: "artifact", recursively: false)?.geometry
-        return !alignment.isEmpty && geometry?.elements.contains { $0.primitiveType == .point } == true
-    }
     @State private var regions: [ExclusionRegion] = []
     @State private var selectedID: String?
     @State private var placing = false
@@ -27,46 +23,24 @@ struct ExclusionWorkspaceView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Button(editing ? "Close crop editor" : "Crop regions", systemImage: "crop") {
-                    editing.toggle()
-                    editingTexture = false
-                }
-                .disabled(workspace.inspection == nil)
-                if supportsPainting {
-                    Button(
-                        editingTexture ? "Close texture brush" : "Texture priority", systemImage: "paintbrush.pointed"
-                    ) {
-                        editingTexture.toggle()
-                        editing = false
-                    }
-                    .disabled(workspace.inspection == nil)
-                }
-                if editing {
-                    Text("Green volumes include points; red volumes exclude them.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            HStack(alignment: .top, spacing: 12) {
-                Artifact3DViewer(
-                    presentation: presentation, openFeatures: openFeatures,
-                    controller: controller, showGround: $showGround,
-                    exclusionRegions: editing ? regions : [], selectedExclusionID: selectedID,
-                    placeExclusion: placing ? place : nil,
-                    changeExclusion: editing ? change : nil,
-                    texturePainting: editingTexture && !textureModel.incompatible ? textureModel.painting : nil,
-                    textureBrush: editingTexture && textureModel.paintingEnabled && !textureModel.incompatible
-                        ? textureModel.brush : nil,
-                    showTexturePriority: editingTexture && textureModel.showHeatmap,
-                    finishTextureStroke: textureModel.append)
-                if editing {
-                    Divider()
-                    editor.frame(width: 280)
-                } else if editingTexture {
-                    Divider()
-                    TexturePriorityEditor(workspace: workspace, model: textureModel).frame(width: 280)
-                }
+        HStack(alignment: .top, spacing: 12) {
+            Artifact3DViewer(
+                presentation: presentation, openFeatures: openFeatures,
+                controller: controller, showGround: $showGround,
+                exclusionRegions: editing ? regions : [], selectedExclusionID: selectedID,
+                placeExclusion: placing ? place : nil,
+                changeExclusion: editing ? change : nil,
+                texturePainting: editingTexture && !textureModel.incompatible ? textureModel.painting : nil,
+                textureBrush: editingTexture && textureModel.paintingEnabled && !textureModel.incompatible
+                    ? textureModel.brush : nil,
+                showTexturePriority: editingTexture && textureModel.showHeatmap,
+                finishTextureStroke: textureModel.append)
+            if editing {
+                Divider()
+                editor.frame(width: 280)
+            } else if editingTexture {
+                Divider()
+                TexturePriorityEditor(workspace: workspace, model: textureModel).frame(width: 280)
             }
         }
         .onChange(of: editing) { _, active in
