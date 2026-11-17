@@ -29,6 +29,41 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Mesh replacement releases old outputs while retaining no-op and failed inputs", () => InDirectory(directory =>
+        {
+            using var session = new BulkDataSession(65536 * 4, 0);
+            using var work = new WorkBuffers(session, directory);
+            using var buffers = new MeshGeometryBuffers(work);
+            var original = buffers.Replace(scope =>
+            {
+                var result = scope!.Surface();
+                result.Vertices.Add([1, 2, 3]);
+                return result;
+            });
+            Check(ReferenceEquals(original, buffers.Replace(_ => original)) && original.Vertices[0][0] == 1, "No-op replacement disposed its input");
+            var replacement = buffers.Replace(scope =>
+            {
+                var result = scope!.Surface();
+                result.Vertices.Add(original.Vertices[0]);
+                return result;
+            });
+            Check(replacement.Vertices[0][0] == 1, "Replacement lost data before copying completed");
+            Check(Directory.EnumerateFiles(directory, "*.bin", SearchOption.AllDirectories).Count() == 3, "Old geometry files remained live");
+            try
+            {
+                buffers.Replace(scope =>
+                {
+                    scope!.Surface().Vertices.Add([4, 5, 6]);
+                    throw new OperationCanceledException();
+                });
+                throw new InvalidOperationException("Expected replacement cancellation");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            Check(replacement.Vertices[0][0] == 1 && Directory.EnumerateFiles(directory, "*.bin", SearchOption.AllDirectories).Count() == 3,
+                "Failed replacement discarded its input or leaked output files");
+        }));
         tests.Run("Growing paged indexes retain insertion order and release superseded bucket files", () => InDirectory(directory =>
         {
             using var session = new BulkDataSession(65536 * 4, 0);
