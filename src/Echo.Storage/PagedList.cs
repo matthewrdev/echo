@@ -54,6 +54,8 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
     public bool IsReadOnly => !file.Writable;
     public RecordCodec<T> Codec => codec;
 
+    public WorkBuffers CreateScratchBuffers() => new(file.Cache);
+
     public PageMemoryReservation? TryReserveMemory(long bytes)
     {
         ObjectDisposedException.ThrowIf(disposed, this);

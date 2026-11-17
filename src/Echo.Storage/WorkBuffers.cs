@@ -11,6 +11,7 @@ public sealed class WorkBuffers : IDisposable
     private readonly List<IDisposable> resources = [];
     private bool disposed;
     private readonly bool preferResident;
+    private readonly bool ownsSession;
 
     public WorkBuffers(BulkDataSession session, string directory, bool preferResident = false)
     {
@@ -19,6 +20,14 @@ public sealed class WorkBuffers : IDisposable
         this.preferResident = preferResident;
         Directory.CreateDirectory(directory);
     }
+
+    internal WorkBuffers(PageCache cache)
+        : this(new BulkDataSession(cache), Path.Combine(Path.GetTempPath(), "echo-scratch-" + Guid.NewGuid().ToString("N")))
+    {
+        ownsSession = true;
+    }
+
+    public PageMemoryReservation? TryReserveMemory(long bytes) => session.TryReserveMemory(bytes);
 
     public IList<T> List<T>(RecordCodec<T> codec)
     {
@@ -62,6 +71,18 @@ public sealed class WorkBuffers : IDisposable
             }
         }
         resources.Clear();
+        if (ownsSession)
+        {
+            try
+            {
+                session.Dispose();
+                Directory.Delete(directory, true);
+            }
+            catch (Exception error)
+            {
+                (failures ??= []).Add(error);
+            }
+        }
         disposed = true;
         if (failures != null)
         {
@@ -69,8 +90,8 @@ public sealed class WorkBuffers : IDisposable
         }
     }
 
-    public TemporaryRecordSet<T> TemporaryRecords<T>(RecordCodec<T> codec)
-        => session.TemporaryRecords(directory, codec);
+    public TemporaryRecordSet<T> TemporaryRecords<T>(RecordCodec<T> codec, bool preferResident = false)
+        => session.TemporaryRecords(directory, codec, preferResident);
 
     public IList<T> Filled<T>(int count, T value, RecordCodec<T> codec, CancellationToken cancellation = default)
     {

@@ -27,6 +27,13 @@ public sealed class PageFile : IDisposable
         MaterializedLength = Length;
     }
 
+    internal PageCache Cache => cache;
+
+    internal bool RetainReleasedBuffers
+    {
+        get; init;
+    }
+
     public PageFileLifetime Lifetime
     {
         get;

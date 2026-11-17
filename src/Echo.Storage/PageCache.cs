@@ -10,6 +10,7 @@ public sealed class PageCache : IDisposable
     private readonly object gate = new();
     private readonly Dictionary<PageAddress, LinkedListNode<CachedPage>> pages = [];
     private readonly LinkedList<CachedPage> recent = [];
+    private readonly Stack<byte[]> spareBuffers = [];
     private readonly Dictionary<PageFile, LinkedListNode<CachedFileHandle>> handles = [];
     private readonly LinkedList<CachedFileHandle> recentHandles = [];
     private long handleOpens;
@@ -43,7 +44,7 @@ public sealed class PageCache : IDisposable
         {
             lock (gate)
             {
-                return new(pages.Count * (long)pageSize + reservedMemory, peak, reads, writes, hits, misses, evictions, scratch);
+                return new((pages.Count + spareBuffers.Count) * (long)pageSize + reservedMemory, peak, reads, writes, hits, misses, evictions, scratch);
             }
         }
     }
@@ -60,8 +61,12 @@ public sealed class PageCache : IDisposable
             {
                 return null;
             }
-            while (pages.Count * (long)pageSize > capacity - reservedMemory - bytes)
+            while ((pages.Count + spareBuffers.Count) * (long)pageSize > capacity - reservedMemory - bytes)
             {
+                if (spareBuffers.TryPop(out _))
+                {
+                    continue;
+                }
                 var oldest = recent.Last!;
                 Flush(oldest.Value);
                 pages.Remove(oldest.Value.Address);
@@ -70,8 +75,59 @@ public sealed class PageCache : IDisposable
             }
             var reservation = new PageMemoryReservation(this, bytes);
             reservedMemory += bytes;
-            peak = Math.Max(peak, pages.Count * (long)pageSize + reservedMemory);
+            peak = Math.Max(peak, (pages.Count + spareBuffers.Count) * (long)pageSize + reservedMemory);
             return reservation;
+        }
+    }
+
+    // Transfer cache-owned pages to resident scratch instead of evicting a
+    // byte buffer only to allocate another one of the same size. Returned idle
+    // buffers remain charged to this cache and are discarded for other reserves.
+    internal ResidentScratchBlock? TryRentScratchBlock(int length)
+    {
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            var capacity = Math.Max(length, pageSize);
+            var charge = capacity + 128L;
+            var fits = charge <= this.capacity / 4 * 3 - reservedMemory
+                && charge <= this.capacity - reservedMemory - pageSize;
+            if (!fits)
+            {
+                return null;
+            }
+            byte[]? buffer = null;
+            var reusePage = capacity == pageSize && !spareBuffers.TryPop(out buffer);
+            if (reusePage && recent.Last is { } oldest)
+            {
+                Flush(oldest.Value);
+                pages.Remove(oldest.Value.Address);
+                recent.RemoveLast();
+                buffer = oldest.Value.Bytes;
+                evictions++;
+            }
+            var reservation = TryReserveMemory(charge)!;
+            try
+            {
+                return new ResidentScratchBlock(this, buffer ?? new byte[capacity], length, reservation);
+            }
+            catch
+            {
+                reservation.Dispose();
+                throw;
+            }
+        }
+    }
+
+    internal void ReturnScratchBlock(byte[] buffer, PageMemoryReservation reservation)
+    {
+        lock (gate)
+        {
+            reservation.Dispose();
+            if (!disposed && buffer.Length == pageSize)
+            {
+                spareBuffers.Push(buffer);
+            }
         }
     }
 
@@ -250,6 +306,10 @@ public sealed class PageCache : IDisposable
                     }
                     pages.Remove(node.Value.Address);
                     recent.Remove(node);
+                    if (file.RetainReleasedBuffers)
+                    {
+                        spareBuffers.Push(node.Value.Bytes);
+                    }
                 }
                 node = next;
             }
@@ -280,6 +340,7 @@ public sealed class PageCache : IDisposable
             {
                 recent.Clear();
                 pages.Clear();
+                spareBuffers.Clear();
                 foreach (var handle in recentHandles)
                 {
                     handle.Handle.Dispose();
@@ -304,7 +365,12 @@ public sealed class PageCache : IDisposable
         }
         misses++;
         byte[] bytes;
-        if ((pages.Count + 1L) * pageSize > capacity - reservedMemory)
+        if (spareBuffers.TryPop(out var spare))
+        {
+            bytes = spare;
+            Array.Clear(bytes);
+        }
+        else if ((pages.Count + 1L) * pageSize > capacity - reservedMemory)
         {
             var oldest = recent.Last!;
             Flush(oldest.Value);
@@ -327,7 +393,7 @@ public sealed class PageCache : IDisposable
         }
         var page = new CachedPage { Address = address, Bytes = bytes };
         pages.Add(address, recent.AddFirst(page));
-        peak = Math.Max(peak, pages.Count * (long)pageSize + reservedMemory);
+        peak = Math.Max(peak, (pages.Count + spareBuffers.Count) * (long)pageSize + reservedMemory);
         return page;
     }
 

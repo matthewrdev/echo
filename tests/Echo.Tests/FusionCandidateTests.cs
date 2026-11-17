@@ -112,6 +112,45 @@ public sealed class FusionCandidateTests
             }
             Check(File.ReadAllText(existing) == "existing file", "Scratch cleanup must not touch pre-existing files");
         }));
+        tests.Run("Resident scratch spills within its budget and shared readers preserve records", () => InDirectory(directory =>
+        {
+            using var session = new BulkDataSession(1024 * 1024, 0);
+            using var records = session.TemporaryRecords(directory, new IntRecordCodec(), preferResident: true);
+            var small = records.Write(Enumerable.Range(0, 10000));
+            Check(session.Statistics.WrittenBytes == 0 && session.Statistics.ScratchBytes == 0,
+                "A small sort run unnecessarily touched disk");
+            Check(small.ReadShared().SequenceEqual(Enumerable.Range(0, 10000)), "Resident records changed");
+            records.Delete(small);
+            Check(session.Statistics.ResidentBytes <= 65536, "Released scratch exceeded its reusable cache page");
+            var spilled = records.Write(Enumerable.Range(0, 600000));
+            Check(session.Statistics.WrittenBytes is > 0 and < 600000 * 4 && session.Statistics.PeakResidentBytes <= 1024 * 1024,
+                "Spill wrote the resident prefix or exceeded the memory budget");
+            Check(spilled.Read().SequenceEqual(Enumerable.Range(0, 600000)), "Hybrid sequential records changed");
+            var reads = Enumerable.Range(0, 4).Select(_ => spilled.ReadShared().GetEnumerator()).ToArray();
+            try
+            {
+                var before = session.Statistics.ReadBytes;
+                for (var index = 0; index < 600000; index++)
+                {
+                    foreach (var reader in reads)
+                    {
+                        Check(reader.MoveNext() && reader.Current == index, "Shared merge cursors changed records");
+                    }
+                }
+                Check(session.Statistics.ReadBytes - before <= 600000 * 4 + 65536, "Shared cursors reread identical disk pages");
+            }
+            finally
+            {
+                foreach (var reader in reads)
+                {
+                    reader.Dispose();
+                }
+            }
+            records.Delete(spilled);
+            Check(session.Statistics.ScratchBytes == 0 && session.Statistics.ResidentBytes <= 1024 * 1024, "Spilled scratch leaked resources");
+            session.Dispose();
+            Check(session.Statistics.ResidentBytes == 0, "Cache disposal retained reusable scratch pages");
+        }));
         tests.Run("Batched paged records survive page boundaries, eviction and reopening", () => InDirectory(directory =>
         {
             var source = Enumerable.Range(0, 20003).Select(index => new DenseSample(index, -index, index * .25f, 1, 2, 3, index % 2, .75f)).ToArray();

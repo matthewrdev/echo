@@ -7,11 +7,18 @@ public sealed class BulkDataSession : IDisposable
 {
     private readonly List<IDisposable> resources = [];
     private readonly PageCache cache;
+    private readonly bool ownsCache = true;
     private readonly object gate = new();
 
     public BulkDataSession(long memoryBytes, long diskBytes)
     {
         cache = new PageCache(memoryBytes, diskBytes);
+    }
+
+    internal BulkDataSession(PageCache cache)
+    {
+        this.cache = cache;
+        ownsCache = false;
     }
 
     public PagingStatistics Statistics => cache.Statistics;
@@ -45,8 +52,8 @@ public sealed class BulkDataSession : IDisposable
         }
     }
 
-    public TemporaryRecordSet<T> TemporaryRecords<T>(string directory, RecordCodec<T> codec)
-        => new(directory, codec, cache);
+    public TemporaryRecordSet<T> TemporaryRecords<T>(string directory, RecordCodec<T> codec, bool preferResident = false)
+        => new(directory, codec, cache, preferResident);
 
     public T Read<T>(string path)
     {
@@ -163,7 +170,10 @@ public sealed class BulkDataSession : IDisposable
         resources.Clear();
         try
         {
-            cache.Dispose();
+            if (ownsCache)
+            {
+                cache.Dispose();
+            }
         }
         catch (Exception error)
         {

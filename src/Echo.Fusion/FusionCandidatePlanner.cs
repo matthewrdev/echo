@@ -23,9 +23,9 @@ internal static class FusionCandidatePlanner
     private static FusionCandidateGrid? BuildCore(DenseCloudData cloud, DepthView?[] sources, double tolerance, double voxel,
         long limit, FusionGridPlanningOptions options, CancellationToken cancellation, WorkBuffers? work, FusionPlanningProgress status)
     {
-        using var session = work == null ? new BulkDataSession(65536, 0) : null;
-        using var records = work?.TemporaryRecords(new GridSpanRecordCodec())
-            ?? session!.TemporaryRecords(Path.GetTempPath(), new GridSpanRecordCodec());
+        using var session = work == null ? new BulkDataSession(Math.Max(65536, options.Workers * (long)options.BatchCapacity * 16), 0) : null;
+        using var records = work?.TemporaryRecords(new GridSpanRecordCodec(), preferResident: true)
+            ?? session!.TemporaryRecords(Path.GetTempPath(), new GridSpanRecordCodec(), preferResident: true);
         var occupied = Coverage(cloud, sources, tolerance, voxel, limit, options, cancellation, records, status);
         if (occupied == null)
         {
@@ -155,7 +155,7 @@ internal static class FusionCandidatePlanner
         var completed = 0;
         // Dilation is separable: merge four shifts per axis, deduplicating
         // between passes. The first pass also extends the inclusive Z interval.
-        foreach (var span in occupied.Read())
+        foreach (var span in occupied.ReadShared())
         {
             if (completed % 4096 == 0)
             {
