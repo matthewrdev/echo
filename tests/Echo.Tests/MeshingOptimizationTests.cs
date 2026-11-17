@@ -24,6 +24,47 @@ public sealed class MeshingOptimizationTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Volume prefetch preserves CPU fallback ordering and explicit Metal failures", () =>
+        {
+            var keys = Enumerable.Range(0, VolumeCellBatch.Capacity * 2 + 17).Select(index => new Grid(index, -index, 7)).ToArray();
+            using var session = new FailingVolumeComputeSession();
+            using (var reader = new VolumeCellReader(keys, session, ComputeBackend.Auto, 0, default))
+            {
+                var seen = 0;
+                while (reader.Read() is { } batch)
+                {
+                    Check(!batch.Accelerated, "Failed GPU batch remained accelerated");
+                    for (var index = 0; index < batch.Count; index++)
+                    {
+                        Check(batch.Keys[index] == keys[seen++], "Fallback reordered or skipped a batch");
+                    }
+                }
+                Check(seen == keys.Length && session.Attempts == 1, "Fallback lost its tail or retried a failed session");
+            }
+            using (var reader = new VolumeCellReader(keys, session, ComputeBackend.Metal, 0, default))
+            {
+                try
+                {
+                    reader.Read();
+                    throw new InvalidOperationException("Required Metal failure was swallowed");
+                }
+                catch (ComputeException)
+                {
+                }
+            }
+            using var cancellation = new CancellationTokenSource();
+            using var cancelled = new VolumeCellReader(keys, null, ComputeBackend.Cpu, 0, cancellation.Token);
+            cancelled.Read();
+            cancellation.Cancel();
+            try
+            {
+                cancelled.Read();
+                throw new InvalidOperationException("Prefetch ignored cancellation");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        });
         tests.Run("Paired SIMD quadrics preserve scalar accumulation bits", () =>
         {
             var random = new Random(731);

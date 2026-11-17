@@ -63,6 +63,7 @@ public sealed class ComputeBenchmarks
                 DepthFilterCompute.TryFilter(compute, ComputeBackend.Metal, map, default);
             });
         FusionAndExtraction();
+        SurfaceOcclusion();
         Geometry();
         UvAndSeams();
     }
@@ -97,6 +98,51 @@ public sealed class ComputeBenchmarks
         Measure("Surface extraction 125000 lattice samples",
             () => TetrahedralSurface.Extract(samples, .1, default),
             () => TetrahedralSurface.Extract(samples, .1, default, compute: compute, backend: ComputeBackend.Metal));
+    }
+
+    private void SurfaceOcclusion()
+    {
+        const int width = 128;
+        var mesh = new Surface();
+        for (var y = 0; y <= width; y++)
+        {
+            for (var x = 0; x <= width; x++)
+            {
+                mesh.Vertices.Add([x, y, Math.Sin(x * .1) * Math.Cos(y * .1)]);
+            }
+        }
+        for (var y = 0; y < width; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var first = y * (width + 1) + x;
+                mesh.Faces.Add([first, first + 1, first + width + 1]);
+                mesh.Faces.Add([first + 1, first + width + 2, first + width + 1]);
+            }
+        }
+        using var index = new SurfaceTriangleIndex(mesh, default);
+        var random = new Random(712);
+        var rays = new SurfaceRay[65536];
+        for (var ray = 0; ray < rays.Length; ray++)
+        {
+            var triangle = index.Triangle(ray % mesh.Faces.Count);
+            rays[ray] = new SurfaceRay(new V3(random.NextDouble() * width, random.NextDouble() * width, 30),
+                (triangle.A + triangle.B + triangle.C) / 3);
+        }
+        var cpu = new bool[rays.Length];
+        var gpu = new bool[rays.Length];
+        var parallel = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+        Measure("Surface occlusion 32768 faces, 65536 rays including BVH upload",
+            () => Parallel.For(0, rays.Length, parallel, ray => cpu[ray] = index.HasOccluder(rays[ray].Start, rays[ray].End)),
+            () =>
+            {
+                using var acceleration = SurfaceOcclusionPreparation.Open(compute, ComputeBackend.Metal, index, default)!;
+                acceleration.Evaluate(rays, gpu, default);
+            });
+        if (!cpu.SequenceEqual(gpu))
+        {
+            throw new InvalidOperationException("Occlusion benchmark changed visibility decisions.");
+        }
     }
 
     private void Geometry()

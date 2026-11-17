@@ -16,57 +16,28 @@ internal static class TetrahedralSurface
         ReadOnlySpan<int> tetrahedra = [0, 5, 1, 6, 0, 1, 2, 6, 0, 2, 3, 6,
             0, 3, 7, 6, 0, 7, 4, 6, 0, 4, 5, 6];
         var mesh = work?.Surface() ?? new Surface();
+        var reader = new SurfaceGeometryReader(mesh);
+        var writer = new SurfaceGeometryWriter(mesh);
         using var scratch = work?.CreateScope();
-        var vertices = new BinaryHashIndex<VolumeEdge, int>(samples.Count, new VolumeEdgeRecordCodec(), new IntRecordCodec(), scratch, cancellation);
+        var vertices = new BinaryHashIndex<VolumeEdge, int>(Math.Min(samples.Count, 262144), new VolumeEdgeRecordCodec(), new IntRecordCodec(), scratch, cancellation);
         Span<Grid> corners = stackalloc Grid[8];
         Span<float> values = stackalloc float[8];
         operationProgress?.Invoke(new OperationProgress("Surface extraction", "Extracting the zero crossing surface…", 0, samples.Count, "lattice cells"));
         var completed = 0;
-        using var acceleration = SparseVolumeCompute.Open(compute, backend, samples, cancellation, out var mask);
-        var failed = false;
-        var keys = new Grid[4096];
-        var computedValues = new float[keys.Length * 8];
-        using var enumerator = samples.Keys.GetEnumerator();
-        while (true)
+        using var acceleration = SparseVolumeCompute.Open(compute, backend, samples, cancellation, out var mask, VolumeCellBatch.Capacity);
+        using var batches = new VolumeCellReader(samples.Keys, acceleration, backend, mask, cancellation);
+        while (batches.Read() is { } batch)
         {
-            var count = 0;
-            while (count < keys.Length && enumerator.MoveNext())
+            var keys = batch.Keys;
+            var activeCells = batch.Records;
+            var count = batch.Count;
+            var accelerated = batch.Accelerated;
+            var activeCount = batch.ActiveCount;
+            completed += count;
+            for (var cell = 0; cell < (accelerated ? activeCount : count); cell++)
             {
-                keys[count++] = enumerator.Current;
-            }
-            if (count == 0)
-            {
-                break;
-            }
-            var accelerated = acceleration != null && !failed;
-            if (accelerated)
-            {
-                try
-                {
-                    SparseVolumeCompute.Read(acceleration!, keys.AsSpan(0, count), computedValues.AsSpan(0, count * 8), mask);
-                }
-                catch (ComputeException) when (backend == ComputeBackend.Auto)
-                {
-                    failed = true;
-                    accelerated = false;
-                }
-            }
-            for (var cell = 0; cell < count; cell++)
-            {
-                var key = keys[cell];
+                var key = accelerated ? new Grid(activeCells[cell * 12], activeCells[cell * 12 + 1], activeCells[cell * 12 + 2]) : keys[cell];
                 cancellation.ThrowIfCancellationRequested();
-                if (++completed % 50000 == 0)
-                {
-                    var message = $"Extracting surface: {completed:N0}/{samples.Count:N0} lattice cells; {mesh.Faces.Count:N0} triangles…";
-                    if (operationProgress != null)
-                    {
-                        operationProgress(new OperationProgress("Surface extraction", message, completed, samples.Count, "lattice cells"));
-                    }
-                    else
-                    {
-                        progress?.Invoke(message);
-                    }
-                }
                 var complete = true;
                 var negative = false;
                 var positive = false;
@@ -77,7 +48,7 @@ internal static class TetrahedralSurface
                     var found = accelerated;
                     if (accelerated)
                     {
-                        values[index] = computedValues[cell * 8 + index];
+                        values[index] = BitConverter.Int32BitsToSingle(activeCells[cell * 12 + 4 + index]);
                     }
                     else
                     {
@@ -99,15 +70,24 @@ internal static class TetrahedralSurface
 
                 for (var index = 0; index < tetrahedra.Length; index += 4)
                 {
-                    Append(mesh, vertices, corners, values, tetrahedra.Slice(index, 4), voxelSize);
+                    Append(mesh, reader, writer, vertices, corners, values, tetrahedra.Slice(index, 4), voxelSize);
                 }
+            }
+            var message = $"Extracting surface: {completed:N0}/{samples.Count:N0} lattice cells; {mesh.Faces.Count:N0} triangles…";
+            if (operationProgress != null)
+            {
+                operationProgress(new OperationProgress("Surface extraction", message, completed, samples.Count, "lattice cells"));
+            }
+            else
+            {
+                progress?.Invoke(message);
             }
         }
         operationProgress?.Invoke(new OperationProgress("Surface extraction", $"Extracted {mesh.Faces.Count:N0} triangles.", samples.Count, samples.Count, "lattice cells"));
         return mesh;
     }
 
-    private static void Append(Surface mesh, BinaryHashIndex<VolumeEdge, int> vertices,
+    private static void Append(Surface mesh, SurfaceGeometryReader reader, SurfaceGeometryWriter writer, BinaryHashIndex<VolumeEdge, int> vertices,
         ReadOnlySpan<Grid> corners, ReadOnlySpan<float> values, ReadOnlySpan<int> tetrahedron, double voxelSize)
     {
         Span<int> negative = stackalloc int[4];
@@ -140,10 +120,10 @@ internal static class TetrahedralSurface
             var opposite = below == 1 ? positive : negative;
             for (var index = 0; index < 3; index++)
             {
-                polygon[index] = Vertex(mesh, vertices, corners[single], corners[opposite[index]],
+                polygon[index] = Vertex(mesh, writer, vertices, corners[single], corners[opposite[index]],
                     values[single], values[opposite[index]], voxelSize);
             }
-            AddTriangle(mesh, polygon[0], polygon[1], polygon[2], direction, voxelSize);
+            AddTriangle(reader, writer, polygon[0], polygon[1], polygon[2], direction, voxelSize);
             return;
         }
 
@@ -151,13 +131,13 @@ internal static class TetrahedralSurface
         {
             var a = negative[index < 2 ? 0 : 1];
             var b = positive[index is 0 or 3 ? 0 : 1];
-            polygon[index] = Vertex(mesh, vertices, corners[a], corners[b], values[a], values[b], voxelSize);
+            polygon[index] = Vertex(mesh, writer, vertices, corners[a], corners[b], values[a], values[b], voxelSize);
         }
-        AddTriangle(mesh, polygon[0], polygon[1], polygon[2], direction, voxelSize);
-        AddTriangle(mesh, polygon[0], polygon[2], polygon[3], direction, voxelSize);
+        AddTriangle(reader, writer, polygon[0], polygon[1], polygon[2], direction, voxelSize);
+        AddTriangle(reader, writer, polygon[0], polygon[2], polygon[3], direction, voxelSize);
     }
 
-    private static int Vertex(Surface mesh, BinaryHashIndex<VolumeEdge, int> vertices,
+    private static int Vertex(Surface mesh, SurfaceGeometryWriter writer, BinaryHashIndex<VolumeEdge, int> vertices,
         Grid a, Grid b, float valueA, float valueB, double voxelSize)
     {
         // Zero crossings at grid vertices must weld across all incident edges.
@@ -168,8 +148,8 @@ internal static class TetrahedralSurface
         }
         var fraction = (double)valueA / (valueA - valueB);
         var index = mesh.Vertices.Count;
-        mesh.Vertices.Add([(a.X + (b.X - a.X) * fraction) * voxelSize,
-            (a.Y + (b.Y - a.Y) * fraction) * voxelSize, (a.Z + (b.Z - a.Z) * fraction) * voxelSize]);
+        writer.AddVertex(new V3((a.X + (b.X - a.X) * fraction) * voxelSize,
+            (a.Y + (b.Y - a.Y) * fraction) * voxelSize, (a.Z + (b.Z - a.Z) * fraction) * voxelSize));
         vertices.Add(edge, index);
         return index;
     }
@@ -188,14 +168,14 @@ internal static class TetrahedralSurface
         return order <= 0 ? new VolumeEdge(a, b) : new VolumeEdge(b, a);
     }
 
-    private static void AddTriangle(Surface mesh, int a, int b, int c, V3 direction, double voxelSize)
+    private static void AddTriangle(SurfaceGeometryReader reader, SurfaceGeometryWriter writer, int a, int b, int c, V3 direction, double voxelSize)
     {
-        var origin = new V3(mesh.Vertices[a]);
-        var normal = (new V3(mesh.Vertices[b]) - origin).Cross(new V3(mesh.Vertices[c]) - origin);
+        var origin = reader.Vertex(a);
+        var normal = (reader.Vertex(b) - origin).Cross(reader.Vertex(c) - origin);
         if (normal.Length <= voxelSize * voxelSize * 1e-12)
         {
             return;
         }
-        mesh.Faces.Add(normal.Dot(direction) >= 0 ? [a, b, c] : [a, c, b]);
+        writer.AddFace(normal.Dot(direction) >= 0 ? new SurfaceTriangleVertices(a, b, c) : new SurfaceTriangleVertices(a, c, b));
     }
 }

@@ -64,11 +64,12 @@ internal static class SemanticProjectionCompute
     {
         result = result[..checked(count * views * 4)];
         var points = ArrayPool<float>.Shared.Rent(count * 8);
+        var reader = new SurfaceGeometryReader(surface);
         try
         {
             for (var i = 0; i < count; i++)
             {
-                var point = new V3(surface.Vertices[first + i]) - origin;
+                var point = reader.Vertex(first + i) - origin;
                 var normal = normals[first + i];
                 points[i * 8] = (float)point.X;
                 points[i * 8 + 1] = (float)point.Y;

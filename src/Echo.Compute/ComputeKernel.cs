@@ -20,5 +20,10 @@ public enum ComputeKernel
     EpipolarCounts,
     TriangulatePairs,
     UvWarmStart,
-    VolumeIndex
+    VolumeIndex,
+    SurfaceOcclusion,
+    VolumeActiveCells,
+    VolumeCompactOffsets,
+    VolumeCompactCells,
+    VolumeCompactGroups
 }

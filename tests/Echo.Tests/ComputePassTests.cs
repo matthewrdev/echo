@@ -44,12 +44,73 @@ public sealed class ComputePassTests
         tests.Run("Metal sparse extraction preserves topology and full integer grid coordinates", Extraction);
         tests.Run("Large Metal volume indexes use bounded staging and respect the session budget", LargeExtractionIndex);
         tests.Run("Metal visibility and semantic projection retain CPU evidence decisions", Visibility);
+        tests.Run("Metal occlusion broad phase preserves exact CPU rays, endpoints, large origins and overflow", Occlusion);
         tests.Run("Metal guided matching rejects off-line descriptor aliases", GuidedMatching);
         tests.Run("Metal batched epipolar verification preserves inliers and adaptive stopping", Epipolar);
         tests.Run("Metal triangulation preserves large origins, low parallax and rejected matches", Triangulation);
         tests.Run("Metal UV warm starts retain double precision residual convergence", UvSolve);
         tests.Run("Metal seam diffusion preserves anchors and propagation", Seams);
         tests.Run("Metal padding preserves original colour, distance and tie ordering", Padding);
+    }
+
+    private void Occlusion()
+    {
+        var mesh = new Surface();
+        var random = new Random(1853);
+        var origin = new V3(20000001, -20000001, 30000001);
+        for (var face = 0; face < 600; face++)
+        {
+            var first = mesh.Vertices.Count;
+            var centre = origin + new V3(random.NextDouble() * 10, random.NextDouble() * 10, random.NextDouble() * 10);
+            mesh.Vertices.Add(centre.Array);
+            mesh.Vertices.Add((centre + new V3(.5, 0, .1)).Array);
+            mesh.Vertices.Add((centre + new V3(0, .5, -.1)).Array);
+            mesh.Faces.Add([first, first + 1, first + 2]);
+        }
+        // More than one output batch, with endpoint and grazing rays mixed in.
+        var rays = new SurfaceRay[5000];
+        for (var ray = 0; ray < rays.Length; ray++)
+        {
+            var triangle = mesh.Faces[ray % mesh.Faces.Count];
+            var end = ray % 3 == 0 ? new V3(mesh.Vertices[triangle[0]])
+                : origin + new V3(random.NextDouble() * 12, random.NextDouble() * 12, random.NextDouble() * 12);
+            rays[ray] = new SurfaceRay(origin + new V3(random.NextDouble() * 12, random.NextDouble() * 12, -2), end);
+        }
+        using var index = new SurfaceTriangleIndex(mesh, default);
+        using (var acceleration = SurfaceOcclusionPreparation.Open(compute, ComputeBackend.Metal, index, default))
+        {
+            Check(acceleration != null, "Occlusion acceleration was skipped");
+            var actual = new bool[rays.Length];
+            acceleration!.Evaluate(rays, actual, default);
+            for (var ray = 0; ray < rays.Length; ray++)
+            {
+                Check(actual[ray] == index.HasOccluder(rays[ray].Start, rays[ray].End), "Occlusion differs for ray " + ray);
+            }
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            try
+            {
+                acceleration.Evaluate(rays, actual, cancelled.Token);
+                throw new InvalidOperationException("Occlusion ignored cancellation");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+        var layers = new Surface();
+        for (var layer = 0; layer < 100; layer++)
+        {
+            var first = layers.Vertices.Count;
+            layers.Vertices.Add([0, 0, layer]);
+            layers.Vertices.Add([1, 0, layer]);
+            layers.Vertices.Add([0, 1, layer]);
+            layers.Faces.Add([first, first + 1, first + 2]);
+        }
+        using var layeredIndex = new SurfaceTriangleIndex(layers, default);
+        using var layered = SurfaceOcclusionPreparation.Open(compute, ComputeBackend.Metal, layeredIndex, default);
+        var overflow = new bool[1];
+        layered!.Evaluate([new SurfaceRay(new V3(.2, .2, -1), new V3(.2, .2, 101))], overflow, default);
+        Check(overflow[0], "Overflow failed to use exact CPU visibility");
     }
 
     private void Gaussian()
@@ -151,11 +212,11 @@ public sealed class ComputePassTests
     private void Extraction()
     {
         var samples = new Dictionary<Echo.Meshing.Grid, float>();
-        for (var x = 0; x < 18; x++)
+        for (var x = 0; x < 34; x++)
         {
-            for (var y = 0; y < 18; y++)
+            for (var y = 0; y < 34; y++)
             {
-                for (var z = 0; z < 18; z++)
+                for (var z = 0; z < 34; z++)
                 {
                     samples.Add(new Echo.Meshing.Grid(20000001 + x, -20000001 + y, z), z - 8.3f);
                 }

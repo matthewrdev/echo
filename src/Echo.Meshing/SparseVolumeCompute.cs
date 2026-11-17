@@ -8,7 +8,7 @@ namespace Echo.Meshing;
 internal static class SparseVolumeCompute
 {
     public static IComputeSession? Open(IComputeService? compute, ComputeBackend backend, IReadOnlyDictionary<Grid, float> samples,
-        CancellationToken cancellation, out int mask)
+        CancellationToken cancellation, out int mask, int batchSize = 4096)
     {
         mask = 0;
         if (compute == null || samples.Count < 4096)
@@ -25,7 +25,7 @@ internal static class SparseVolumeCompute
         var tableBytes = capacity * sizeof(int);
         var sampleBytes = samples.Count * 4L * sizeof(int);
         var addressable = tableBytes <= int.MaxValue && sampleBytes <= int.MaxValue;
-        if (!addressable || !compute.CanAllocate(tableBytes + sampleBytes + 4096 * 12 * sizeof(int) + 65536, backend))
+        if (!addressable || !compute.CanAllocate(tableBytes + sampleBytes + batchSize * 59L * sizeof(int) + ((batchSize + 255L) / 256 + 1) * sizeof(int) + 65536, backend))
         {
             return null;
         }
@@ -79,6 +79,49 @@ internal static class SparseVolumeCompute
         finally
         {
             ArrayPool<int>.Shared.Return(records);
+        }
+    }
+
+    public static int ReadActive(IComputeSession session, ReadOnlySpan<Grid> keys, Span<int> records, int mask)
+    {
+        var jobs = ArrayPool<int>.Shared.Rent(keys.Length * 4);
+        try
+        {
+            for (var cell = 0; cell < keys.Length; cell++)
+            {
+                jobs[cell * 4] = keys[cell].X;
+                jobs[cell * 4 + 1] = keys[cell].Y;
+                jobs[cell * 4 + 2] = keys[cell].Z;
+                jobs[cell * 4 + 3] = 0;
+            }
+            session.Upload<int>(2, jobs.AsSpan(0, keys.Length * 4));
+            session.Allocate(3, keys.Length * 8 * sizeof(float));
+            session.Allocate(4, keys.Length * sizeof(int));
+            session.Allocate(5, sizeof(int));
+            var groups = (keys.Length + 255) / 256;
+            session.Allocate(7, groups * sizeof(int));
+            session.Allocate(6, keys.Length * 12 * sizeof(int));
+            session.Dispatch(ComputeKernel.VolumeCorners, keys.Length, [mask]);
+            session.Dispatch(ComputeKernel.VolumeActiveCells, keys.Length, [keys.Length]);
+            session.Dispatch(ComputeKernel.VolumeCompactOffsets, groups, [keys.Length]);
+            session.Dispatch(ComputeKernel.VolumeCompactGroups, 1, [groups]);
+            session.Dispatch(ComputeKernel.VolumeCompactCells, keys.Length, [keys.Length]);
+            Span<int> total = stackalloc int[1];
+            session.Read<int>(5, total);
+            var count = total[0];
+            if ((uint)count > (uint)keys.Length)
+            {
+                throw new ComputeException("Invalid active-cell count.");
+            }
+            if (count > 0)
+            {
+                session.Read<int>(6, records[..checked(count * 12)]);
+            }
+            return count;
+        }
+        finally
+        {
+            ArrayPool<int>.Shared.Return(jobs);
         }
     }
 
