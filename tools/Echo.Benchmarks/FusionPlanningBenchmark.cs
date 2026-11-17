@@ -1,5 +1,7 @@
 using System.ComponentModel.Composition;
 using System.Diagnostics;
+using System.Buffers.Binary;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.DenseCloud;
@@ -76,6 +78,7 @@ public sealed class FusionPlanningBenchmark
         {
             Axis = FusionGridAxes.Select(cloud, sources, default)
         };
+        var before = session.Statistics;
         var watch = Stopwatch.StartNew();
         using var process = Process.GetCurrentProcess();
         var cpu = process.TotalProcessorTime;
@@ -88,8 +91,33 @@ public sealed class FusionPlanningBenchmark
         process.Refresh();
         var measurement = new FusionPlanningMeasurement(cloud.Samples.Count, options.Workers, options.BatchCapacity,
             options.Axis, voxel, keys.Count, seconds, (process.TotalProcessorTime - cpu).TotalSeconds,
-            GC.GetTotalAllocatedBytes(false) - allocated, process.WorkingSet64, session.Statistics);
+            GC.GetTotalAllocatedBytes(false) - allocated, process.WorkingSet64, session.Statistics, session.Statistics.ReadBytes - before.ReadBytes,
+            session.Statistics.WrittenBytes - before.WrittenBytes, process.PeakWorkingSet64, SaveGrid(keys, directory));
         Console.WriteLine(JsonSerializer.Serialize(measurement, FusionPlanningBenchmarkJsonContext.Default.FusionPlanningMeasurement));
         return 0;
     }
+    private string SaveGrid(FusionCandidateGrid grid, string directory)
+    {
+        var codec = new GridSpanRecordCodec();
+        using var stream = File.Create(Path.Combine(directory, "grid.bin"));
+        Span<byte> header = stackalloc byte[16];
+        BinaryPrimitives.WriteInt32LittleEndian(header, 0x31504345);
+        BinaryPrimitives.WriteInt32LittleEndian(header[4..], 1);
+        BinaryPrimitives.WriteInt32LittleEndian(header[8..], codec.Size);
+        BinaryPrimitives.WriteInt32LittleEndian(header[12..], grid.Spans.Count);
+        stream.Write(header);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var spans = new GridSpan[4096];
+        var bytes = new byte[4096 * codec.Size];
+        for (var first = 0; first < grid.Spans.Count; first += spans.Length)
+        {
+            var count = Math.Min(spans.Length, grid.Spans.Count - first);
+            RecordListOperations.Read(grid.Spans, first, spans.AsSpan(0, count));
+            codec.EncodeBlock(spans.AsSpan(0, count), bytes.AsSpan(0, count * codec.Size));
+            stream.Write(bytes.AsSpan(0, count * codec.Size));
+            hash.AppendData(bytes.AsSpan(0, count * codec.Size));
+        }
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
 }

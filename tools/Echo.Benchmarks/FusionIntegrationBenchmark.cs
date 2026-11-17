@@ -18,21 +18,21 @@ public sealed class FusionIntegrationBenchmark
 {
     private readonly IProjectStoreFactory stores;
     private readonly IJsonCodec json;
-    private readonly IComputeService compute;
+    private readonly ProfileComputeService compute;
 
     [ImportingConstructor]
     public FusionIntegrationBenchmark(IProjectStoreFactory stores, IJsonCodec json, IComputeService compute)
     {
         this.stores = stores;
         this.json = json;
-        this.compute = compute;
+        this.compute = new ProfileComputeService(compute);
     }
 
     public int Run(string[] args)
     {
-        if (args.Length != 7)
+        if (args.Length is < 7 or > 8)
         {
-            throw new EchoException("Usage: fusion-integration PROJECT RUN GRID_FILE AXIS VOXEL CELL_LIMIT MODE (Reference, Cpu, Metal, MetalTiled).", 2);
+            throw new EchoException("Usage: fusion-integration PROJECT RUN GRID_FILE AXIS VOXEL CELL_LIMIT MODE (Reference, Cpu, Metal, MetalTiled) [KEEP_EVERY_N].", 2);
         }
         var axis = Enum.Parse<GridAxis>(args[3], true);
         var voxel = double.Parse(args[4], CultureInfo.InvariantCulture);
@@ -58,6 +58,15 @@ public sealed class FusionIntegrationBenchmark
         var cells = new Grid[limit];
         var count = new FusionGridReader(spans, axis).Read(cells);
         Array.Resize(ref cells, count);
+        var stride = args.Length == 8 ? int.Parse(args[7], CultureInfo.InvariantCulture) : 1;
+        ArgumentOutOfRangeException.ThrowIfLessThan(stride, 1);
+        for (var index = 0; index < cells.Length; index++)
+        {
+            if (index % stride != 0)
+            {
+                cells[index] = new Grid(int.MaxValue / 2, int.MaxValue / 2, int.MaxValue / 2);
+            }
+        }
         using var scope = compute.BeginScope(mode == FusionIntegrationBenchmarkMode.Metal ? 3L << 30 : 512L << 20);
         var plan = FusionIntegrationPlanning.Resolve(8L << 30, compute.MemoryBudgetBytes, count,
             mode == FusionIntegrationBenchmarkMode.Metal ? views.Sum(view => (long)view.Map.SampleCount) : long.MaxValue);
@@ -77,6 +86,8 @@ public sealed class FusionIntegrationBenchmark
         }
         for (var repeat = 0; repeat < 7; repeat++)
         {
+            var uploaded = compute.UploadedBytes;
+            var readback = compute.ReadbackBytes;
             var allocated = GC.GetTotalAllocatedBytes(true);
             var read = data.Statistics.ReadBytes;
             var watch = Stopwatch.StartNew();
@@ -89,7 +100,8 @@ public sealed class FusionIntegrationBenchmark
             var measurement = new FusionIntegrationMeasurement(mode, count, samples.Count, watch.Elapsed.TotalSeconds / iterations,
                 (GC.GetTotalAllocatedBytes(false) - allocated) / iterations, (data.Statistics.ReadBytes - read) / iterations, scope.Devices.Length > 0,
                 samples.Sum(sample => (long)sample.Views), samples.Sum(sample => (double)sample.Distance),
-                preparation.Elapsed.TotalSeconds, plan.ResidentDepthCount, HashSamples(samples));
+                preparation.Elapsed.TotalSeconds, plan.ResidentDepthCount, HashSamples(samples), (compute.UploadedBytes - uploaded) / iterations,
+                (compute.ReadbackBytes - readback) / iterations);
             Console.WriteLine(JsonSerializer.Serialize(measurement, FusionPlanningBenchmarkJsonContext.Default.FusionIntegrationMeasurement));
         }
         return 0;

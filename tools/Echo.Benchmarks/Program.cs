@@ -16,6 +16,14 @@ if (args.FirstOrDefault() == "fusion-planning")
 {
     return composition.Resolve<FusionPlanningBenchmark>().Run(args[1..]);
 }
+if (args.FirstOrDefault() == "mesh-index")
+{
+    return composition.Resolve<MeshIndexBenchmark>().Run(args[1..]);
+}
+if (args.FirstOrDefault() == "fusion-resume")
+{
+    return composition.Resolve<FusionResumeBenchmark>().Run(args[1..]);
+}
 if (args.FirstOrDefault() == "fusion-integration")
 {
     return composition.Resolve<FusionIntegrationBenchmark>().Run(args[1..]);
