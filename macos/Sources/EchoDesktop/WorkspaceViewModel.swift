@@ -514,6 +514,15 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         execute("Importing photos…", ["images", "import", url.path, "--set", url.lastPathComponent])
     }
 
+    var canRunGroups: Bool {
+        canEdit && (inspection?.project.images.filter(\.enabled).count ?? 0) >= 2
+    }
+
+    func start(group: PipelineGroup) {
+        guard canRunGroups else { return }
+        start(through: group.target)
+    }
+
     func start(through stage: PipelineStage? = nil) {
         guard canEdit else { return }
         selectedRun = "latest"

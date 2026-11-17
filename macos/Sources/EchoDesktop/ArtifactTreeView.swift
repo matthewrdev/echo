@@ -3,6 +3,7 @@ import SwiftUI
 struct ArtifactTreeView: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @StateObject private var depthQuality: DepthStageQualityViewModel
+    @State private var expandedGroups: Set<PipelineGroup> = [.images]
 
     @MainActor
     init(workspace: WorkspaceViewModel, depthQuality: DepthStageQualityViewModel? = nil) {
@@ -12,11 +13,66 @@ struct ArtifactTreeView: View {
 
     private var photos: [Photo] { workspace.inspection?.project.images ?? [] }
 
+    private var activeGroup: PipelineGroup? {
+        guard let progress = workspace.workingRun?.progress, progress.phase != "checking",
+            let stage = PipelineStage(rawValue: progress.stage)
+        else { return nil }
+        return PipelineGroup.allCases.first { $0.stages.contains(stage) }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 3) {
+                ForEach(PipelineGroup.allCases) { group in
+                    groupNode(group)
+                }
+            }.padding(8)
+        }
+        .accessibilityLabel("Workspace artifacts")
+        .onChange(of: workspace.destination, initial: true) { _, destination in
+            if let group = PipelineGroup.allCases.first(where: { $0.contains(destination) }) {
+                expandedGroups.insert(group)
+            }
+        }
+        .onChange(of: activeGroup, initial: true) { _, group in
+            if let group { expandedGroups.insert(group) }
+        }
+        .task(id: workspace.depthQualityRequest) {
+            await depthQuality.load(workspace.depthQualityRequest)
+        }
+    }
+
+    private func groupNode(_ group: PipelineGroup) -> some View {
+        let activity = workspace.workingRun?.progress.flatMap { progress in
+            group.stages.contains(where: { $0.rawValue == progress.stage }) && progress.phase != "checking"
+                ? progress : nil
+        }
+        let outdated = group.stages.contains { workspace.stageStatus($0) == "Out of date" }
+        let saved = group.stages.filter { workspace.displayedRun?.artifacts[$0.rawValue] != nil }.count
+        let symbol =
+            activity != nil
+            ? "arrow.trianglehead.2.clockwise.rotate.90"
+            : outdated
+                ? "exclamationmark.triangle.fill"
+                : saved == group.stages.count
+                    ? "checkmark.circle.fill" : saved > 0 ? "circle.lefthalf.filled" : "circle"
+        let color: Color =
+            activity != nil ? .accentColor : outdated ? .orange : saved == group.stages.count ? .green : .secondary
+        return ArtifactTreeGroup(
+            group: group, selected: group.contains(workspace.destination),
+            status: groupStatus(group, activity: activity, saved: saved, outdated: outdated),
+            statusSymbol: symbol, statusColor: color, activity: activity, canRun: workspace.canRunGroups,
+            run: { workspace.start(group: group) }, select: { workspace.showArtifact(group.target) },
+            expanded: Binding(
+                get: { expandedGroups.contains(group) },
+                set: { expanded in
+                    if expanded { expandedGroups.insert(group) } else { expandedGroups.remove(group) }
+                })
+        ) {
+            if group.includesPhotographs {
                 ArtifactTreeNode(
-                    title: "Images", symbol: "photo.on.rectangle.angled", selected: workspace.destination == .images,
+                    title: "Photographs", symbol: "photo.on.rectangle.angled",
+                    selected: workspace.destination == .images,
                     select: { workspace.destination = .images }
                 ) {
                     VStack(alignment: .leading, spacing: 3) {
@@ -26,15 +82,30 @@ struct ArtifactTreeView: View {
                         Text("\(photos.filter { $0.gps != nil }.count.formatted()) with GPS")
                     }
                 }
-                ForEach(PipelineStage.allCases) { stage in
-                    stageNode(stage)
-                }
-            }.padding(8)
+            }
+            ForEach(group.stages) { stage in
+                stageNode(stage)
+            }
         }
-        .accessibilityLabel("Workspace artifacts")
-        .task(id: workspace.depthQualityRequest) {
-            await depthQuality.load(workspace.depthQualityRequest)
+        .contextMenu {
+            Button("Run \(group.title)") { workspace.start(group: group) }
+                .disabled(!workspace.canRunGroups)
+            Button("View \(group.target.title)") { workspace.showArtifact(group.target) }
+            Button("Show artifact files") { workspace.revealArtifact(group.target) }
+                .disabled(workspace.displayedRun?.artifacts[group.target.rawValue] == nil)
         }
+        .help(group.isExpandable ? group.runHelp : group.target.explanation)
+    }
+
+    private func groupStatus(_ group: PipelineGroup, activity: RunProgress?, saved: Int, outdated: Bool) -> String {
+        if let activity {
+            let stage = PipelineStage(rawValue: activity.stage)?.shortTitle ?? group.title
+            return workspace.cancelRequested ? "Stopping · \(stage)" : "Processing · \(stage)"
+        }
+        if outdated { return "Out of date" }
+        if !group.isExpandable { return workspace.stageStatus(group.target) }
+        if saved > 0 { return "\(saved)/\(group.stages.count) stages saved" }
+        return group.stages.map(\.shortTitle).joined(separator: " → ")
     }
 
     private func stageNode(_ stage: PipelineStage) -> some View {
@@ -66,7 +137,7 @@ struct ArtifactTreeView: View {
         .contextMenu {
             Button("View \(stage.title)") { workspace.showArtifact(stage) }
             Button("Process to \(stage.shortTitle)") { workspace.start(through: stage) }
-                .disabled(!workspace.canEdit || photos.filter(\.enabled).count < 2)
+                .disabled(!workspace.canRunGroups)
             Button("Show artifact files") { workspace.revealArtifact(stage) }
                 .disabled(workspace.displayedRun?.artifacts[stage.rawValue] == nil)
         }
