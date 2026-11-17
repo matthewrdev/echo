@@ -168,6 +168,11 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 target[index] = target[index].WithAlpha(255);
             }
         }
+        if (project.Settings.TextureSeamBlendPixels > 0)
+        {
+            progress?.Invoke(new OperationProgress("Seam softening", "Softening residual photographic seams…"));
+            TextureSeamSoftener.Apply(target, size, mesh, texture.Uvs, project.Settings.TextureSeamBlendPixels, cancellation, work);
+        }
         var gutter = texture.GutterPixels > 0 ? texture.GutterPixels : project.Settings.TextureGutter;
         if (!useCompute || !TexturePaddingCompute.TryExtend(compute, project.Settings.ComputeBackend, target, size, gutter, cancellation))
         {

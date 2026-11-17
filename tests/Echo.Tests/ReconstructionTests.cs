@@ -682,6 +682,30 @@ public sealed class ReconstructionTests
                 var wider = processor.Execute(store, "export", default);
                 Check(wider.Artifacts["mesh"] == guarded.Artifacts["mesh"] && wider.Artifacts["texture"] != guarded.Artifacts["texture"], "Sky margin affects texture only");
             });
+            tests.Run("Colour finishing rebuilds texture only and off reuses the original photographic checkpoint", () =>
+            {
+                store.Edit(p =>
+                {
+                    p.Settings.TextureColourEnhancement = 0;
+                    p.Settings.TextureSeamBlendPixels = 0;
+                });
+                var original = processor.Execute(store, "export", default);
+                store.Edit(p => p.Settings.TextureColourEnhancement = .5);
+                var enhanced = processor.Execute(store, "export", default);
+                Check(enhanced.Artifacts["mesh"] == original.Artifacts["mesh"], "Colour finishing preserves geometry");
+                Check(enhanced.Artifacts["texture"] != original.Artifacts["texture"], "Finishing changes the baked texture checkpoint");
+                store.Edit(p => p.Settings.TextureSeamBlendPixels = 4);
+                var softened = processor.Execute(store, "export", default);
+                Check(softened.Artifacts["mesh"] == enhanced.Artifacts["mesh"] && softened.Artifacts["texture"] != enhanced.Artifacts["texture"],
+                    "Seam softening changes texture without changing geometry");
+                store.Edit(p =>
+                {
+                    p.Settings.TextureColourEnhancement = 0;
+                    p.Settings.TextureSeamBlendPixels = 0;
+                });
+                var restored = processor.Execute(store, "export", default);
+                Check(restored.Artifacts["texture"] == original.Artifacts["texture"], "Off restores the original photographic checkpoint");
+            });
             tests.Run("Stage setting edits invalidate dependent artifacts while earlier work is reused", () =>
             {
                 var before = store.GetRun();

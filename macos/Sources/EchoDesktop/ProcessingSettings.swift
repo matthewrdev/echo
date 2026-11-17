@@ -56,6 +56,8 @@ struct ProcessingSettings: Codable {
     var textureSuppressSky: Bool = false
     var textureSkyMarginPixels: Int = 8
     var textureSize: Int = 8192
+    var textureSeamBlendPixels: Int = 4
+    var textureColourEnhancement: Double = 0.5
     var textureJpegQuality: Int = 92
     var faceLimit: Int = 1_500_000
     var meshCompleteSurface: Bool = true
@@ -131,6 +133,8 @@ struct ProcessingSettings: Codable {
         textureSuppressSky = try values.decodeIfPresent(Bool.self, forKey: .textureSuppressSky) ?? false
         textureSkyMarginPixels = try values.decodeIfPresent(Int.self, forKey: .textureSkyMarginPixels) ?? 8
         textureSize = try values.decodeIfPresent(Int.self, forKey: .textureSize) ?? 8192
+        textureSeamBlendPixels = try values.decodeIfPresent(Int.self, forKey: .textureSeamBlendPixels) ?? 4
+        textureColourEnhancement = try values.decodeIfPresent(Double.self, forKey: .textureColourEnhancement) ?? 0.5
         textureJpegQuality = try values.decodeIfPresent(Int.self, forKey: .textureJpegQuality) ?? 92
         faceLimit = try values.decodeIfPresent(Int.self, forKey: .faceLimit) ?? 1_500_000
         meshCompleteSurface = try values.decodeIfPresent(Bool.self, forKey: .meshCompleteSurface) ?? true
@@ -200,6 +204,8 @@ struct ProcessingSettings: Codable {
         try values.encode(textureSuppressSky, forKey: .textureSuppressSky)
         try values.encode(textureSkyMarginPixels, forKey: .textureSkyMarginPixels)
         try values.encode(textureSize, forKey: .textureSize)
+        try values.encode(textureSeamBlendPixels, forKey: .textureSeamBlendPixels)
+        try values.encode(textureColourEnhancement, forKey: .textureColourEnhancement)
         try values.encode(textureJpegQuality, forKey: .textureJpegQuality)
         try values.encode(faceLimit, forKey: .faceLimit)
         try values.encode(meshCompleteSurface, forKey: .meshCompleteSurface)
@@ -255,7 +261,7 @@ struct ProcessingSettings: Codable {
             return "Up to \(faceLimit.formatted()) triangles · \(completion) · \(islands)"
         case .texture:
             return
-                "\(textureSize) × \(textureSize) texture · JPEG \(textureJpegQuality) · \(textureChartFaces) faces per chart · \(textureChartAngle)° chart angle · \(textureGutter) px gutter · sky guard \(textureSuppressSky ? "\(textureSkyMarginPixels) px" : "off")"
+                "\(textureSize) × \(textureSize) texture · seam softening \(textureSeamBlendPixels) px · colour finish \(Int((textureColourEnhancement * 100).rounded()))% · JPEG \(textureJpegQuality) · \(textureChartFaces) faces per chart · \(textureChartAngle)° chart angle · \(textureGutter) px gutter · sky guard \(textureSuppressSky ? "\(textureSkyMarginPixels) px" : "off")"
         case .export: return "GLB + georeference sidecar · structural validation \(exportValidate ? "on" : "off")"
         }
     }

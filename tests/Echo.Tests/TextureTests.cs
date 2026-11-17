@@ -34,6 +34,59 @@ public sealed class TextureTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Photographic colour finishing preserves neutrals, alpha, hue order and an exact off mode", () =>
+        {
+            SKColor[] colours = [SKColors.Black, SKColors.White, new(64, 64, 64), new(192, 192, 192),
+                new(140, 100, 60), new(60, 100, 50), new(230, 80, 20), new(10, 40, 60, 0)];
+            foreach (var type in new[] { SKColorType.Bgra8888, SKColorType.Rgba8888 })
+            {
+                using var bitmap = new SKBitmap(new SKImageInfo(colours.Length, 1, type, SKAlphaType.Unpremul));
+                bitmap.Pixels = colours;
+                var originalPixels = bitmap.Pixels;
+                var bytes = bitmap.GetPixelSpan().ToArray();
+                TextureColourEnhancer.Apply(bitmap, 0, default);
+                Check(bitmap.GetPixelSpan().SequenceEqual(bytes), "Disabled finishing leaves every byte unchanged");
+                TextureColourEnhancer.Apply(bitmap, .5, default);
+                var output = bitmap.Pixels;
+                Check(output[0] == SKColors.Black && output[1] == SKColors.White, "Black and white endpoints remain fixed");
+                Check(output[2].Red > colours[2].Red && output[3].Red > colours[3].Red, "The finish lifts dim midtones while preserving its black and white endpoints");
+                Check(output.Take(4).All(pixel => pixel.Red == pixel.Green && pixel.Green == pixel.Blue), "Neutral colours do not acquire a cast");
+                Check(output[4].Red > output[4].Green && output[4].Green > output[4].Blue, "Warm rock colours retain their hue order");
+                Check(output[5].Green > output[5].Red && output[5].Red > output[5].Blue, "Vegetation retains its hue order");
+                Check(output[7] == originalPixels[7], "Transparent unused atlas pixels remain unchanged");
+                Expect<ArgumentOutOfRangeException>(() => TextureColourEnhancer.Apply(bitmap, double.NaN, default));
+                Expect<OperationCanceledException>(() => TextureColourEnhancer.Apply(bitmap, .5, new CancellationToken(true)));
+            }
+        });
+        tests.Run("Seam softening follows UV-split geometric neighbours and preserves chart interiors", () =>
+        {
+            const int size = 64;
+            var pixels = Enumerable.Range(0, size * size).Select(index =>
+                new SKColor((byte)(index % size < 32 ? 100 : 140), 80, 60)).ToArray();
+            var before = pixels.ToArray();
+            var mesh = new Surface
+            {
+                Vertices = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]],
+                Faces = [[0, 1, 2], [3, 4, 5]],
+                SourceImages = ["a", "b"]
+            };
+            double[][] uvs = [[8d / size, 8d / size], [24d / size, 8d / size], [8d / size, 24d / size],
+                [40d / size, 8d / size], [56d / size, 24d / size], [40d / size, 24d / size]];
+            TextureSeamSoftener.Apply(pixels, size, mesh, uvs, 0, default);
+            Check(pixels.SequenceEqual(before), "Off is exactly byte preserving");
+            TextureSeamSoftener.Apply(pixels, size, mesh, uvs, 4, default);
+            var difference = Math.Abs(pixels[16 * size + 41].Red - pixels[15 * size + 15].Red);
+            Check(difference < 24, "Matched seam strips move towards the same colour despite different UV orientations");
+            Check(pixels[10 * size + 10] == before[10 * size + 10] && pixels[20 * size + 50] == before[20 * size + 50],
+                "Photographic interiors remain exactly unchanged");
+            Check(pixels.All(pixel => pixel.Green == 80 && pixel.Blue == 60 && pixel.Alpha == 255), "Unchanged channels and coverage remain intact");
+            mesh.SourceImages[1] = "a";
+            var same = before.ToArray();
+            TextureSeamSoftener.Apply(same, size, mesh, uvs, 4, default);
+            Check(same.SequenceEqual(before), "UV packing boundaries alone do not trigger photographic softening");
+            Expect<OperationCanceledException>(() => TextureSeamSoftener.Apply(same, size, mesh, uvs, 4, new CancellationToken(true)));
+            Expect<ArgumentOutOfRangeException>(() => TextureSeamSoftener.Apply(same, size, mesh, uvs, 17, default));
+        });
         tests.Run("Sky suppression changes baked skyline colour without changing the surface or source image", () =>
         {
             var directory = Path.Combine(Path.GetTempPath(), "echo-sky-texture-" + Guid.NewGuid().ToString("N"));
@@ -49,7 +102,7 @@ public sealed class TextureTests
                 var project = new ProjectData
                 {
                     Images = [new Photo { Id = "a", Source = "source.png", Width = 128, Height = 128, FocalPixels = 64 }],
-                    Settings = new Settings { TextureSize = 256, TextureJpegQuality = 100 }
+                    Settings = new Settings { TextureColourEnhancement = 0, TextureSeamBlendPixels = 0, TextureSize = 256, TextureJpegQuality = 100 }
                 };
                 var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
                 var mesh = new Surface
@@ -89,7 +142,7 @@ public sealed class TextureTests
                 var project = new ProjectData
                 {
                     Images = [new Photo { Id = "a", Source = "a.png", Width = 128, Height = 128, FocalPixels = 64 }],
-                    Settings = new Settings { TextureSize = 256, TextureChartFaces = 2, TextureJpegQuality = 100 }
+                    Settings = new Settings { TextureColourEnhancement = 0, TextureSeamBlendPixels = 0, TextureSize = 256, TextureChartFaces = 2, TextureJpegQuality = 100 }
                 };
                 var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
                 var mesh = new Surface
@@ -156,7 +209,7 @@ public sealed class TextureTests
                 var project = new ProjectData
                 {
                     Images = [new Photo { Id = "a", Source = "a.png", Width = 128, Height = 128, FocalPixels = 70 }],
-                    Settings = new Settings { TextureSize = 256, TextureChartFaces = 256, TextureChartAngle = 45 }
+                    Settings = new Settings { TextureColourEnhancement = 0, TextureSeamBlendPixels = 0, TextureSize = 256, TextureChartFaces = 256, TextureChartAngle = 45 }
                 };
                 var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
                 project.Images.Add(new Photo { Id = "b", Source = "a.png", Width = 128, Height = 128, FocalPixels = 70 });
@@ -382,7 +435,7 @@ public sealed class TextureTests
                 var project = new ProjectData
                 {
                     Images = [new Photo { Id = "a", Source = "source.png", Width = 256, Height = 256, FocalPixels = 128 }],
-                    Settings = new Settings { TextureSize = 256, TextureChartFaces = 64, TextureJpegQuality = 100 }
+                    Settings = new Settings { TextureColourEnhancement = 0, TextureSeamBlendPixels = 0, TextureSize = 256, TextureChartFaces = 64, TextureJpegQuality = 100 }
                 };
                 var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
                 var mesh = new Surface
@@ -437,6 +490,19 @@ public sealed class TextureTests
                 Directory.Delete(directory, true);
             }
         });
+    }
+
+    private void Expect<T>(Action action) where T : Exception
+    {
+        try
+        {
+            action();
+        }
+        catch (T)
+        {
+            return;
+        }
+        throw new Exception($"Expected {typeof(T).Name}.");
     }
 
     private void Check(bool condition, string message)

@@ -35,7 +35,7 @@ public sealed class TextureStage : IPipelineStage
         project.Settings.TexturePriority?.ValidateAlignment(alignment);
         var scene = context.Scene();
         var meshPath = context.Artifact("mesh");
-        var texture = context.Build("texture", new
+        var inputs = new
         {
             meshPath,
             alignment,
@@ -52,7 +52,18 @@ public sealed class TextureStage : IPipelineStage
             project.Settings.TextureGutter,
             project.Settings.TextureSuppressSky,
             project.Settings.TextureSkyMarginPixels
-        }, dir =>
+        };
+        // Preserve the existing photographic checkpoint exactly when finishing is off.
+        var originalPhotographicFinish = project.Settings.TextureColourEnhancement == 0 && project.Settings.TextureSeamBlendPixels == 0;
+        object fingerprint = originalPhotographicFinish ? inputs : new
+        {
+            inputs,
+            colourFinishVersion = 2,
+            seamSofteningVersion = 1,
+            project.Settings.TextureSeamBlendPixels,
+            project.Settings.TextureColourEnhancement
+        };
+        var texture = context.Build("texture", fingerprint, dir =>
                 {
                     var surface = context.ReadData<Surface>(store.PathFor(meshPath + "/mesh.json"));
                     var vegetation = project.Settings.OptimiseVegetation

@@ -262,6 +262,16 @@ struct StageSettingsEditor: View {
                     step: 1)
                 IntegerSettingSlider(title: "Island padding (px)", value: $settings.textureGutter, range: 1...16)
                 IntegerSettingSlider(title: "JPEG quality", value: $settings.textureJpegQuality, range: 25...100)
+                DecimalSettingSlider(
+                    title: "Colour finish", value: $settings.textureColourEnhancement, range: 0...1, step: 0.05)
+                Text(
+                    "Lifts midtones, adds gentle contrast and brings out muted colours in the exported texture. Start with 0.5; 0 preserves the photographic colours. Does not change geometry."
+                ).font(.caption).foregroundStyle(.secondary)
+                IntegerSettingSlider(
+                    title: "Seam softening (atlas px)", value: $settings.textureSeamBlendPixels, range: 0...16)
+                Text(
+                    "Softens colour transitions in a narrow strip along photographic seams. Start with 4 px; 0 disables it. Rock detail away from seams stays sharp."
+                ).font(.caption).foregroundStyle(.secondary)
                 Toggle("Reduce sky colour bleed", isOn: $settings.textureSuppressSky)
                 if settings.textureSuppressSky {
                     IntegerSettingSlider(

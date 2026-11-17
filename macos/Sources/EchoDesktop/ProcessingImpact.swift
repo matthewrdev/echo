@@ -57,6 +57,8 @@ struct ProcessingImpact {
             || old.vegetationTextureScale != new.vegetationTextureScale
             || old.textureSize != new.textureSize || old.textureJpegQuality != new.textureJpegQuality
             || old.textureChartFaces != new.textureChartFaces || old.textureChartAngle != new.textureChartAngle
+            || old.textureSeamBlendPixels != new.textureSeamBlendPixels
+            || old.textureColourEnhancement != new.textureColourEnhancement
             || old.textureGutter != new.textureGutter
             || old.textureSuppressSky != new.textureSuppressSky
             || old.textureSkyMarginPixels != new.textureSkyMarginPixels

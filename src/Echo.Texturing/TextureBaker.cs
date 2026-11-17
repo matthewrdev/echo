@@ -77,6 +77,11 @@ public sealed class TextureBaker : ITextureBaker
         progress?.Invoke("Baking source photographs into the packed mesh UVs…");
         using var atlas = new SKBitmap(size, size);
         result.CoverageFraction = rasterizer.Paint(store, project, scene, surface, result, patches, atlas, cancellation, operationProgress, work);
+        if (project.Settings.TextureColourEnhancement > 0)
+        {
+            progress?.Invoke("Finishing texture contrast and colour…");
+            TextureColourEnhancer.Apply(atlas, project.Settings.TextureColourEnhancement, cancellation);
+        }
         progress?.Invoke("Encoding the photographic texture atlas…");
         images.Save(atlas, output, SKEncodedImageFormat.Jpeg, project.Settings.TextureJpegQuality);
         SaveVariants(atlas, result, output, project.Settings.TextureJpegQuality, cancellation, progress);

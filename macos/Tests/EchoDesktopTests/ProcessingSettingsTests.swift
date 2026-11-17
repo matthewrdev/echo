@@ -3,6 +3,22 @@ import XCTest
 @testable import EchoDesktop
 
 final class ProcessingSettingsTests: XCTestCase {
+    func testColourFinishRoundTripAndTextureOnlyImpact() throws {
+        let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
+        XCTAssertEqual(original.textureColourEnhancement, 0.5)
+        XCTAssertEqual(original.textureSeamBlendPixels, 4)
+        var changed = original
+        changed.textureColourEnhancement = 0.7
+        changed.textureSeamBlendPixels = 8
+        let restored = try JSONDecoder().decode(
+            ProcessingSettings.self, from: JSONEncoder().encode(changed))
+        XCTAssertEqual(restored.textureColourEnhancement, 0.7)
+        XCTAssertEqual(restored.textureSeamBlendPixels, 8)
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .texture)
+        changed.textureColourEnhancement = 0
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .texture)
+    }
+
     func testResourceDefaultsAreAutomaticAndRetainExplicitLimits() throws {
         let automatic = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
         XCTAssertEqual(automatic.depthMemoryBudgetMb, 0)

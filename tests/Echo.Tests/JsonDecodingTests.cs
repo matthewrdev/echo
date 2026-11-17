@@ -74,6 +74,7 @@ public sealed class JsonDecodingTests
         tests.Run("Older projects preserve disabled island trimming until explicitly enabled", () =>
         {
             var settings = Read<Settings>("{}");
+            Check(settings.TextureColourEnhancement == .5 && settings.TextureSeamBlendPixels == 4, "Colour tuning and seam softening default on");
             Check(settings.MeshCompleteSurface, "Older projects retain surface completion until explicitly disabled");
             Check(settings.MeshIslandMode == IslandTrimMode.Off && settings.MeshIslandMinimumAreaPercent == .1, "Missing fields retain compatible defaults");
             Check(settings.FusionIslandMode == IslandTrimMode.Off && settings.FusionIslandMinimumSizePercent == .1, "Early trimming remains opt-in");

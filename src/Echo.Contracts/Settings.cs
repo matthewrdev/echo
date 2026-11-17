@@ -53,6 +53,8 @@ public sealed class Settings
     public double FusionIslandMinimumSizePercent { get; set; } = .1;
     public bool TextureSuppressSky { get; set; } = false;
     public int TextureSkyMarginPixels { get; set; } = 8;
+    public int TextureSeamBlendPixels { get; set; } = 4;
+    public double TextureColourEnhancement { get; set; } = .5;
     public int TextureJpegQuality { get; set; } = 92;
     public int TextureChartFaces { get; set; } = 512;
     public double TextureChartAngle { get; set; } = 60;
@@ -148,6 +150,9 @@ public sealed class Settings
         var invalidOutputSettings = TextureSize is < 256 or > 8192
             || (TextureSize & (TextureSize - 1)) != 0
             || FaceLimit is < 1 or > 10000000
+            || TextureSeamBlendPixels is < 0 or > 16
+            || !double.IsFinite(TextureColourEnhancement)
+            || TextureColourEnhancement is < 0 or > 1
             || TextureJpegQuality is < 25 or > 100
             || TextureChartFaces is < 16 or > 8192
             || TextureGutter is < 1 or > 16
