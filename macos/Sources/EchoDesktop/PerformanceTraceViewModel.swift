@@ -6,11 +6,13 @@ import UniformTypeIdentifiers
 final class PerformanceTraceViewModel: ObservableObject {
     private let client: ProjectClient
     private var root = ""
+    private var historyStages: Set<String> = []
     @Published var attempts: [PerformanceTraceSummary] = []
     @Published var selected = ""
     @Published var comparison = ""
     @Published var document: PerformanceTraceDocument?
     @Published var baseline: PerformanceTraceDocument?
+    @Published var originalTimings: [String: PerformanceStageTiming] = [:]
     @Published var error: String?
 
     init(client: ProjectClient) { self.client = client }
@@ -23,6 +25,8 @@ final class PerformanceTraceViewModel: ObservableObject {
             document = nil
             baseline = nil
             attempts = []
+            historyStages = []
+            originalTimings = [:]
         }
         do {
             let found = try await client.performanceTraces(root: root)
@@ -42,7 +46,13 @@ final class PerformanceTraceViewModel: ObservableObject {
 
     func load(comparing: Bool = false) async {
         let id = comparing ? comparison : selected
-        if comparing { baseline = nil } else if document?.summary.id != id { document = nil }
+        if comparing {
+            baseline = nil
+        } else if document?.summary.id != id {
+            document = nil
+            originalTimings = [:]
+            historyStages = []
+        }
         guard let attempt = attempts.first(where: { $0.id == id }) else { return }
         let requestedRoot = root
         do {
@@ -51,6 +61,13 @@ final class PerformanceTraceViewModel: ObservableObject {
                 id == (comparing ? comparison : selected)
             else { return }
             guard value.schemaVersion == 1 else { throw CLIError(message: "Unsupported performance trace version.") }
+            if !comparing && (document?.summary.id != id || historyStages != value.reusedStages) {
+                let timings = await PerformanceStageHistory(client: client).timings(
+                    for: value, attempts: attempts, root: requestedRoot)
+                guard requestedRoot == root, !Task.isCancelled, selected == id else { return }
+                originalTimings = timings
+                historyStages = value.reusedStages
+            }
             if comparing { baseline = value } else { document = value }
             error = nil
         } catch is CancellationError {

@@ -11,7 +11,7 @@ struct PerformanceTraceSummary: Codable, Identifiable {
     let cpuMilliseconds: Double
     let droppedSpans: Int
 
-    var label: String {
+    var startDate: Date? {
         let parser = ISO8601DateFormatter()
         parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         var date = parser.date(from: startedAt)
@@ -19,7 +19,11 @@ struct PerformanceTraceSummary: Codable, Identifiable {
             parser.formatOptions = [.withInternetDateTime]
             date = parser.date(from: startedAt)
         }
-        let timestamp = date?.formatted(date: .abbreviated, time: .standard) ?? startedAt
+        return date
+    }
+
+    var label: String {
+        let timestamp = startDate?.formatted(date: .abbreviated, time: .standard) ?? startedAt
         return "\(target.capitalized) · \(timestamp)"
     }
 }

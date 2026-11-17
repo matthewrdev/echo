@@ -31,7 +31,7 @@ struct PerformanceTraceView: View {
                 PerformanceTraceHeader(model: model, page: $page)
                 if let document = model.document {
                     if page == .overview {
-                        PerformanceRunGraph(document: document) { selected in
+                        PerformanceRunGraph(document: document, originalTimings: model.originalTimings) { selected in
                             stage = selected
                             kind = .operation
                             page = .timings

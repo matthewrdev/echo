@@ -2,9 +2,12 @@ import SwiftUI
 
 struct PerformanceRunGraph: View {
     let document: PerformanceTraceDocument
+    var originalTimings: [String: PerformanceStageTiming] = [:]
     let select: (PipelineStage) -> Void
 
-    private var nodes: [PerformanceGraphNode] { PerformanceGraphNode.make(document) }
+    private var nodes: [PerformanceGraphNode] {
+        PerformanceGraphNode.make(document, originalTimings: originalTimings)
+    }
     private let cardHeight: CGFloat = 144
     private let gap: CGFloat = 30
 
@@ -51,7 +54,9 @@ struct PerformanceRunGraph: View {
                             .buttonStyle(.plain)
                             .help(node.stage == nil ? node.title : "Inspect timings for \(node.title)")
                             .allowsHitTesting(node.stage != nil)
-                            .accessibilityLabel("\(index + 1). \(node.title), \(node.status.rawValue), \(node.detail)")
+                            .accessibilityLabel(
+                                "\(index + 1). \(node.title), \(node.status.rawValue), \(node.durationLabel), \(node.detail)"
+                            )
                             .frame(width: width, height: cardHeight)
                             .position(centre(index, columns: columns, width: width))
                         }
@@ -60,7 +65,7 @@ struct PerformanceRunGraph: View {
                 }
             }
             Text(
-                "Built/reused counts refer to checkpoints. Arrows show stage order; work inside a stage may run concurrently."
+                "Reused stages show original processing time when recorded; totals and detailed timings describe this attempt. Built/reused counts refer to checkpoints. Arrows show stage order; work inside a stage may run concurrently."
             )
             .font(.caption).foregroundStyle(.secondary)
         }
@@ -94,7 +99,7 @@ struct PerformanceRunGraph: View {
             HStack {
                 Text(node.status.rawValue.capitalized).foregroundStyle(color(node.status))
                 Spacer()
-                Text(PerformanceDuration.format(node.milliseconds)).monospacedDigit()
+                Text(node.durationLabel).monospacedDigit().help(node.timingHelp)
             }.font(.callout)
             Text(node.detail).font(.caption)
             Text(node.work).font(.caption).foregroundStyle(.secondary)

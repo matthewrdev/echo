@@ -6,11 +6,20 @@ struct PerformanceGraphNode: Identifiable {
     let title: String
     let symbol: String
     let status: PerformanceStatus
-    let milliseconds: Double
+    let milliseconds: Double?
     let detail: String
     let work: String
+    var timingHelp: String = ""
 
-    static func make(_ document: PerformanceTraceDocument) -> [PerformanceGraphNode] {
+    var durationLabel: String {
+        guard let milliseconds else { return "Not recorded" }
+        let duration = PerformanceDuration.format(milliseconds)
+        return status == .reused ? "\(duration) original" : duration
+    }
+
+    static func make(
+        _ document: PerformanceTraceDocument, originalTimings: [String: PerformanceStageTiming] = [:]
+    ) -> [PerformanceGraphNode] {
         let stages = document.spans.filter { $0.kind == .stage }.sorted { $0.startMilliseconds < $1.startMilliseconds }
         let target = PipelineStage(rawValue: document.summary.target)?.shortTitle ?? document.summary.target
         var nodes = [
@@ -28,10 +37,18 @@ struct PerformanceGraphNode: Identifiable {
             let failed = checkpoints.reduce(0) { $0 + $1.failedCount }
             let total = checkpoints.reduce(0) { $0 + $1.count }
             let built = max(0, total - reused - failed)
-            let reusedStage = span.status == .completed && total > 0 && reused == total
-            let gpu = statistics.compactMap(\.gpuMilliseconds).reduce(0, +)
-            let metal = statistics.contains { $0.backend == .metal }
-            let work = metal ? "Metal work · \(PerformanceDuration.format(gpu)) GPU" : "CPU / host work"
+            let reusedStage = document.isReused(span)
+            let original = reusedStage ? originalTimings[span.stage] : nil
+            let gpu = original?.gpuMilliseconds ?? statistics.compactMap(\.gpuMilliseconds).reduce(0, +)
+            let metal = original?.usesMetal ?? statistics.contains { $0.backend == .metal }
+            let work: String
+            if reusedStage && original == nil {
+                work = "Original processing time unavailable"
+            } else {
+                work = metal ? "Metal work · \(PerformanceDuration.format(gpu)) GPU" : "CPU / host work"
+            }
+            var timingHelp = "This attempt: \(PerformanceDuration.format(span.durationMilliseconds))"
+            if let original { timingHelp += " · Originally processed: \(original.attempt.label)" }
             var detail = "\(built.formatted()) built · \(reused.formatted()) reused"
             if failed > 0 { detail += " · \(failed.formatted()) unfinished" }
             if total == 0 { detail = span.status == .running ? "Processing…" : "No completed checkpoints" }
@@ -39,7 +56,8 @@ struct PerformanceGraphNode: Identifiable {
                 PerformanceGraphNode(
                     id: "stage-\(span.id)", stage: stage, title: stage?.title ?? span.name,
                     symbol: stage?.symbol ?? "gearshape", status: reusedStage ? .reused : span.status,
-                    milliseconds: span.durationMilliseconds, detail: detail, work: work))
+                    milliseconds: reusedStage ? original?.milliseconds : span.durationMilliseconds,
+                    detail: detail, work: work, timingHelp: timingHelp))
         }
         let status = document.summary.status
         let title: String
