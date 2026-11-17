@@ -10,12 +10,14 @@ public sealed class FileOperations : IFileOperations
 {
     private readonly IJsonCodec jsonCodec;
     private readonly IBulkArtifactStore bulk;
+    private readonly IArtifactWriteObserver writes;
 
     [ImportingConstructor]
-    public FileOperations(IJsonCodec jsonCodec, IBulkArtifactStore bulk)
+    public FileOperations(IJsonCodec jsonCodec, IBulkArtifactStore bulk, IArtifactWriteObserver writes)
     {
         this.jsonCodec = jsonCodec;
         this.bulk = bulk;
+        this.writes = writes;
     }
 
     public string HashFile(string file)
@@ -56,13 +58,20 @@ public sealed class FileOperations : IFileOperations
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
+            string? checksum;
             using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var hashing = new ChecksummedWriteStream(stream))
             {
-                write(stream);
+                write(hashing);
                 stream.Flush(true);
+                checksum = hashing.CompleteChecksum();
             }
 
             File.Move(temp, path, true);
+            if (checksum != null)
+            {
+                writes.Record(path, checksum);
+            }
         }
         finally
         {

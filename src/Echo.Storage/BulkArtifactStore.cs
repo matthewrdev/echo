@@ -1,5 +1,7 @@
 using System.ComponentModel.Composition;
 using System.Text.Json;
+using System.Buffers;
+using System.Buffers.Binary;
 using Echo.Contracts;
 
 namespace Echo.Storage;
@@ -7,9 +9,12 @@ namespace Echo.Storage;
 [Export(typeof(IBulkArtifactStore)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class BulkArtifactStore : IBulkArtifactStore
 {
+    private readonly IArtifactWriteObserver writes;
+
     [ImportingConstructor]
-    public BulkArtifactStore()
+    public BulkArtifactStore(IArtifactWriteObserver writes)
     {
+        this.writes = writes;
     }
 
     public bool CanStore<T>(T value) => value is DepthMap or FusedVolume or Surface or TextureCoordinates or SemanticMap or ReconstructionScene;
@@ -79,52 +84,7 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
             var filename = Path.GetFileNameWithoutExtension(path) + "-" + name + "-" + suffix + ".bin";
             var target = Path.Combine(Path.GetDirectoryName(path)!, filename);
             created.Add(target);
-            using var cache = new PageCache(65536, 0);
-            using var file = new PageFile(target, cache, true);
-            using var records = new PagedList<TRecord>(file, codec);
-            var batch = new TRecord[4096];
-            if (values is ArraySegment<TRecord> segment)
-            {
-                cancellation.ThrowIfCancellationRequested();
-                records.AddRange(segment.AsSpan());
-            }
-            else if (values is IList<TRecord> list)
-            {
-                for (var start = 0; start < list.Count; start += batch.Length)
-                {
-                    cancellation.ThrowIfCancellationRequested();
-                    var count = Math.Min(batch.Length, list.Count - start);
-                    if (list is PagedList<TRecord> paged)
-                    {
-                        paged.ReadRange(start, batch.AsSpan(0, count));
-                    }
-                    else
-                    {
-                        for (var index = 0; index < count; index++)
-                        {
-                            batch[index] = list[start + index];
-                        }
-                    }
-                    records.AddRange(batch.AsSpan(0, count));
-                }
-            }
-            else
-            {
-                var count = 0;
-                foreach (var item in values)
-                {
-                    batch[count++] = item;
-                    if (count == batch.Length)
-                    {
-                        cancellation.ThrowIfCancellationRequested();
-                        records.AddRange(batch);
-                        count = 0;
-                    }
-                }
-                cancellation.ThrowIfCancellationRequested();
-                records.AddRange(batch.AsSpan(0, count));
-            }
-            records.Commit();
+            WriteRecords(target, values, codec, cancellation);
             header.Buffers.Add(name, filename);
         }
 
@@ -208,12 +168,19 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
                 default:
                     throw new ArgumentException("Unsupported binary artifact.", nameof(value));
             }
+            string? metadataHash;
             using (var output = File.Create(metadata))
+            using (var hashing = new ChecksummedWriteStream(output))
             {
-                JsonSerializer.Serialize(output, header, BulkJsonContext.Default.BulkArtifactHeader);
+                JsonSerializer.Serialize(hashing, header, BulkJsonContext.Default.BulkArtifactHeader);
                 output.Flush(true);
+                metadataHash = hashing.CompleteChecksum();
             }
             File.Move(metadata, path, false);
+            if (metadataHash != null)
+            {
+                writes.Record(path, metadataHash);
+            }
             created.Clear();
         }
         finally
@@ -223,6 +190,102 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
             {
                 File.Delete(file);
             }
+        }
+    }
+
+    private void WriteRecords<TRecord>(string path, IEnumerable<TRecord> values, RecordCodec<TRecord> codec, CancellationToken cancellation)
+    {
+        if (!values.TryGetNonEnumeratedCount(out var count))
+        {
+            using var cache = new PageCache(65536, 0);
+            using var file = new PageFile(path, cache, true);
+            using var records = new PagedList<TRecord>(file, codec);
+            var batch = new TRecord[4096];
+            var filled = 0;
+            foreach (var item in values)
+            {
+                batch[filled++] = item;
+                if (filled == batch.Length)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    records.AddRange(batch);
+                    filled = 0;
+                }
+            }
+            cancellation.ThrowIfCancellationRequested();
+            records.AddRange(batch.AsSpan(0, filled));
+            return;
+        }
+
+        string? checksum;
+        using (var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.SequentialScan))
+        using (var hashing = new ChecksummedWriteStream(output))
+        {
+            Span<byte> header = stackalloc byte[16];
+            BinaryPrimitives.WriteInt32LittleEndian(header, 0x31504345);
+            BinaryPrimitives.WriteInt32LittleEndian(header[4..], 1);
+            BinaryPrimitives.WriteInt32LittleEndian(header[8..], codec.Size);
+            BinaryPrimitives.WriteInt32LittleEndian(header[12..], count);
+            hashing.Write(header);
+            if (values is PagedList<TRecord> paged && codec.CanCopyFrom(paged.Codec))
+            {
+                paged.CopyEncodedRecordsTo(hashing, cancellation);
+            }
+            else
+            {
+                EncodeRecords(hashing, values, codec, count, cancellation);
+            }
+            // Preserve the existing page-padded artifact representation exactly.
+            var length = 16 + (long)count * codec.Size;
+            var padding = (int)((65536 - length % 65536) % 65536);
+            var zeros = ArrayPool<byte>.Shared.Rent(65536);
+            try
+            {
+                zeros.AsSpan(0, padding).Clear();
+                hashing.Write(zeros.AsSpan(0, padding));
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(zeros);
+            }
+            output.Flush(true);
+            checksum = hashing.CompleteChecksum();
+        }
+        if (checksum != null)
+        {
+            writes.Record(path, checksum);
+        }
+    }
+
+    private void EncodeRecords<TRecord>(Stream output, IEnumerable<TRecord> values, RecordCodec<TRecord> codec, int expected, CancellationToken cancellation)
+    {
+        var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(65536, codec.Size));
+        try
+        {
+            var capacity = bytes.Length / codec.Size;
+            var count = 0;
+            var total = 0;
+            foreach (var item in values)
+            {
+                codec.Encode(item, bytes.AsSpan(count++ * codec.Size, codec.Size));
+                total++;
+                if (count == capacity)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    output.Write(bytes.AsSpan(0, count * codec.Size));
+                    count = 0;
+                }
+            }
+            cancellation.ThrowIfCancellationRequested();
+            if (total != expected)
+            {
+                throw new InvalidDataException("Artifact record count changed during publication.");
+            }
+            output.Write(bytes.AsSpan(0, count * codec.Size));
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(bytes);
         }
     }
 }

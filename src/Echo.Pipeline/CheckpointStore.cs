@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
+using Echo.Storage;
 
 namespace Echo.Pipeline;
 
@@ -12,12 +13,14 @@ public sealed class CheckpointStore : ICheckpointStore
 {
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
+    private readonly IArtifactWriteObserver writes;
 
     [ImportingConstructor]
-    public CheckpointStore(IFileOperations fileOperations, IJsonCodec jsonCodec)
+    public CheckpointStore(IFileOperations fileOperations, IJsonCodec jsonCodec, IArtifactWriteObserver writes)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
+        this.writes = writes;
     }
 
     public string Build(IProjectStore store,
@@ -84,6 +87,7 @@ public sealed class CheckpointStore : ICheckpointStore
         });
         try
         {
+            using var written = writes.BeginScope();
             action(temp);
             cancellation.ThrowIfCancellationRequested();
             var metadata = processing?.Invoke() ?? new ProcessingMetadata
@@ -97,7 +101,7 @@ public sealed class CheckpointStore : ICheckpointStore
             metadata.Runtime = RuntimeInformation.FrameworkDescription;
             metadata.SoftwareVersion = typeof(CheckpointStore).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
             fileOperations.AtomicJson(Path.Combine(temp, "processing.json"), metadata);
-            var files = Directory.GetFiles(temp, "*", SearchOption.AllDirectories).ToDictionary(p => Path.GetRelativePath(temp, p), fileOperations.HashFile);
+            var files = Directory.GetFiles(temp, "*", SearchOption.AllDirectories).ToDictionary(p => Path.GetRelativePath(temp, p), p => written.TryGetChecksum(p, out var checksum) ? checksum : fileOperations.HashFile(p));
             fileOperations.AtomicJson(Path.Combine(temp, "manifest.json"), new Artifact
             {
                 Stage = stage,

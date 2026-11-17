@@ -77,6 +77,7 @@ if (args.Contains("--run-recovery", StringComparer.Ordinal))
 }
 if (args.Contains("--mesh", StringComparer.Ordinal))
 {
+    composition.Resolve<MeshingOptimizationTests>().Run(scaleTests);
     composition.Resolve<RunRecoveryTests>().Run(scaleTests);
     composition.Resolve<MeshQualityTests>().Run(scaleTests);
     composition.Resolve<PhotographSelectionTests>().Run(scaleTests);
@@ -90,6 +91,7 @@ if (args.Contains("--scene-storage", StringComparer.Ordinal))
 {
     return scaleTests.Finish();
 }
+composition.Resolve<MeshingOptimizationTests>().Run(scaleTests);
 composition.Resolve<DiskIoTests>().Run(scaleTests);
 if (args.Contains("--disk-io", StringComparer.Ordinal))
 {

@@ -9,14 +9,18 @@ namespace Echo.Pipeline;
 [Export(typeof(IPlyWriter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PlyWriter : IPlyWriter
 {
+    private readonly IArtifactWriteObserver writes;
+
     [ImportingConstructor]
-    public PlyWriter()
+    public PlyWriter(IArtifactWriteObserver writes)
     {
+        this.writes = writes;
     }
 
     public void Write(string path, IList<double[]> points, IList<int[]>? faces = null)
     {
-        using var stream = File.Create(path);
+        using var outputFile = File.Create(path);
+        using var stream = new ChecksummedWriteStream(outputFile);
         var header = FormattableString.Invariant($"ply\nformat binary_little_endian 1.0\nelement vertex {points.Count}\nproperty float x\nproperty float y\nproperty float z\n");
         if (faces != null)
         {
@@ -37,6 +41,12 @@ public sealed class PlyWriter : IPlyWriter
         {
             ArrayPool<byte>.Shared.Return(input);
             ArrayPool<byte>.Shared.Return(output);
+        }
+        outputFile.Flush(true);
+        var checksum = stream.CompleteChecksum();
+        if (checksum != null)
+        {
+            writes.Record(path, checksum);
         }
     }
 
