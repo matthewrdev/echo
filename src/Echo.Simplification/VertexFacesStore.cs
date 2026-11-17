@@ -35,20 +35,41 @@ internal sealed class VertexFacesStore
         if (slot >= 0)
         {
             var old = slots[slot];
-            slots[slot] = old with
+            // Slot IDs retain encounter order. Reinsert a recycled slot among
+            // live slots so enumeration never walks deleted records.
+            var previous = -1;
+            var next = head.First;
+            while (next >= 0 && next < slot)
             {
-                Face = face,
-                FreeNext = -1
-            };
+                previous = next;
+                next = slots[next].Next;
+            }
+            slots[slot] = new AdjacencySlot(face, next, -1, previous);
+            if (previous >= 0)
+            {
+                slots[previous] = slots[previous] with
+                {
+                    Next = slot
+                };
+            }
+            if (next >= 0)
+            {
+                slots[next] = slots[next] with
+                {
+                    Previous = slot
+                };
+            }
             head = head with
             {
-                Free = old.FreeNext
+                Free = old.FreeNext,
+                First = previous < 0 ? slot : head.First,
+                Last = next < 0 ? slot : head.Last
             };
         }
         else
         {
             slot = slots.Count;
-            slots.Add(new AdjacencySlot(face, -1, -1));
+            slots.Add(new AdjacencySlot(face, -1, -1, head.Last));
             if (head.Last >= 0)
             {
                 slots[head.Last] = slots[head.Last] with
@@ -76,7 +97,22 @@ internal sealed class VertexFacesStore
             return false;
         }
         var head = heads[vertex];
-        slots[slot] = slots[slot] with
+        var removed = slots[slot];
+        if (removed.Previous >= 0)
+        {
+            slots[removed.Previous] = slots[removed.Previous] with
+            {
+                Next = removed.Next
+            };
+        }
+        if (removed.Next >= 0)
+        {
+            slots[removed.Next] = slots[removed.Next] with
+            {
+                Previous = removed.Previous
+            };
+        }
+        slots[slot] = removed with
         {
             Face = -1,
             FreeNext = head.Free
@@ -84,6 +120,8 @@ internal sealed class VertexFacesStore
         heads[vertex] = head with
         {
             Free = slot,
+            First = removed.Previous < 0 ? removed.Next : head.First,
+            Last = removed.Next < 0 ? removed.Previous : head.Last,
             Count = head.Count - 1
         };
         return true;

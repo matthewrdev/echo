@@ -83,6 +83,15 @@ public sealed class PageCache : IDisposable
         }
     }
 
+    internal PageMemoryReservation? TryReserveScratchMemory(long bytes)
+    {
+        lock (gate)
+        {
+            // Keep paging useful when several typed lists grow concurrently.
+            return bytes <= capacity / 4 * 3 - reservedMemory ? TryReserveMemory(bytes) : null;
+        }
+    }
+
     public int OpenHandleCount
     {
         get
@@ -137,22 +146,27 @@ public sealed class PageCache : IDisposable
     {
         lock (gate)
         {
-            ObjectDisposedException.ThrowIf(disposed, this);
-            length = checked((length + pageSize - 1) / pageSize * pageSize);
-            var growth = length - file.Length;
-            if (growth <= 0)
-            {
-                return;
-            }
-            if (file.Writable && diskLimit != 0 && growth > diskLimit - scratch)
-            {
-                throw new EchoException("Paging scratch-disk budget exceeded. Completed checkpoints are retained; increase ProcessingDiskBudgetMb and resume.", 5);
-            }
-            file.SetLength(length);
-            if (file.Writable)
-            {
-                scratch += growth;
-            }
+            GrowLocked(file, length);
+        }
+    }
+
+    private void GrowLocked(PageFile file, long length)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (length <= file.Length)
+        {
+            return;
+        }
+        length = checked((length + pageSize - 1) / pageSize * pageSize);
+        var growth = length - file.Length;
+        if (file.Writable && diskLimit != 0 && growth > diskLimit - scratch)
+        {
+            throw new EchoException("Paging scratch-disk budget exceeded. Completed checkpoints are retained; increase ProcessingDiskBudgetMb and resume.", 5);
+        }
+        file.SetLength(length);
+        if (file.Writable)
+        {
+            scratch += growth;
         }
     }
 
@@ -206,7 +220,7 @@ public sealed class PageCache : IDisposable
     {
         lock (gate)
         {
-            Grow(file, checked(offset + source.Length));
+            GrowLocked(file, checked(offset + source.Length));
             while (!source.IsEmpty)
             {
                 var page = Get(file, offset / pageSize);

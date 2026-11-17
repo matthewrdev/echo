@@ -34,6 +34,82 @@ internal sealed class CollapseCandidateQueue
     public int Count => entries.Count;
     internal int AllocatedHandles => links.Count;
 
+    public bool Refresh(int a, int b, int revisionA, int revisionB)
+    {
+        if (a > b)
+        {
+            return Refresh(b, a, revisionB, revisionA);
+        }
+        for (var handle = buckets[Bucket(a, b)]; handle >= 0;)
+        {
+            var link = links[handle];
+            if (link.A == a && link.B == b)
+            {
+                var item = entries[link.Slot];
+                entries[link.Slot] = item with
+                {
+                    Value = item.Value with
+                    {
+                        RevisionA = revisionA,
+                        RevisionB = revisionB
+                    }
+                };
+                return true;
+            }
+            handle = link.Next;
+        }
+        return false;
+    }
+
+    public void Retain(Func<Candidate, bool> predicate, CancellationToken cancellation)
+    {
+        var retained = 0;
+        for (var index = 0; index < entries.Count; index++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var item = entries[index];
+            if (predicate(item.Value))
+            {
+                Write(retained++, item);
+                continue;
+            }
+            var bucket = Bucket(item.Value.A, item.Value.B);
+            var previous = -1;
+            for (var handle = buckets[bucket]; handle >= 0;)
+            {
+                var link = links[handle];
+                if (handle == item.Handle)
+                {
+                    if (previous < 0)
+                    {
+                        buckets[bucket] = link.Next;
+                    }
+                    else
+                    {
+                        links[previous] = links[previous] with
+                        {
+                            Next = link.Next
+                        };
+                    }
+                    links[handle] = new CandidateQueueLink(-1, -1, free, -1);
+                    free = handle;
+                    break;
+                }
+                previous = handle;
+                handle = link.Next;
+            }
+        }
+        while (entries.Count > retained)
+        {
+            entries.RemoveAt(entries.Count - 1);
+        }
+        for (var index = (entries.Count - 2) / 4; index >= 0 && entries.Count > 1; index--)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            MoveDown(index, entries[index]);
+        }
+    }
+
     public void Offer(Candidate candidate, double priority)
     {
         var bucket = Bucket(candidate.A, candidate.B);
@@ -42,7 +118,18 @@ internal sealed class CollapseCandidateQueue
             var link = links[handle];
             if (link.A == candidate.A && link.B == candidate.B)
             {
-                Replace(link.Slot, new IndexedCandidate(candidate, priority, handle));
+                var updated = new IndexedCandidate(candidate, priority, handle);
+                if (entries[link.Slot].Priority.CompareTo(priority) == 0)
+                {
+                    // Neighbour topology can change the revision stamps while
+                    // leaving this edge's cost untouched. Its heap slot and
+                    // handle remain valid, including equal-priority ordering.
+                    entries[link.Slot] = updated;
+                }
+                else
+                {
+                    Replace(link.Slot, updated);
+                }
                 return;
             }
             handle = link.Next;

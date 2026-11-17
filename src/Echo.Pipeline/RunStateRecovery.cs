@@ -45,7 +45,7 @@ public sealed class RunStateRecovery : IRunStateRecovery
 
             foreach (var path in Directory.EnumerateFiles(directory, "run.json", SearchOption.AllDirectories))
             {
-                var run = jsonCodec.Read<RunData>(path);
+                var run = store.GetRun(Path.GetFileName(Path.GetDirectoryName(path))!);
                 if (run.Status != "running")
                 {
                     continue;

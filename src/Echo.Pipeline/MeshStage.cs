@@ -59,7 +59,7 @@ public sealed class MeshStage : IPipelineStage
             alignment,
             completionVersion = 6,
             project.Settings.ExclusionRegions,
-            simplificationVersion = 3,
+            simplificationVersion = 4,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Mesh),
             photographSelectionVersion = 2,
@@ -74,6 +74,7 @@ public sealed class MeshStage : IPipelineStage
                 {
                     var progress = new MeshProgress(project.Settings, update => context.ReportOperation(Name, update));
                     progress.Begin(MeshPhase.LoadInputs);
+                    context.ReportProgress(Name, $"Processing RAM budget: {context.Resources.MemoryBytes / 1073741824.0:G4} GiB; shared page cache {context.Resources.CacheBytes / 1048576:N0} MiB. Storage mode: {context.Resources.Mode}.");
                     var semantics = semanticUnits.ToDictionary(pair => pair.Key,
                         pair => context.ReadData<SemanticMap>(store.PathFor(pair.Value + "/semantics.json")));
                     var maps = context.DepthMaps();

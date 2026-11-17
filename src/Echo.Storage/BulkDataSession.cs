@@ -7,6 +7,7 @@ public sealed class BulkDataSession : IDisposable
 {
     private readonly List<IDisposable> resources = [];
     private readonly PageCache cache;
+    private readonly object gate = new();
 
     public BulkDataSession(long memoryBytes, long diskBytes)
     {
@@ -14,6 +15,8 @@ public sealed class BulkDataSession : IDisposable
     }
 
     public PagingStatistics Statistics => cache.Statistics;
+
+    internal PageMemoryReservation? TryReserveMemory(long bytes) => cache.TryReserveScratchMemory(bytes);
 
     public PagedList<T> Open<T>(string path, RecordCodec<T> codec, bool writable = false, long offset = -1, int count = 0)
     {
@@ -29,7 +32,10 @@ public sealed class BulkDataSession : IDisposable
         try
         {
             var list = new PagedList<T>(file, codec, offset, count);
-            resources.Add(list);
+            lock (gate)
+            {
+                resources.Add(list);
+            }
             return list;
         }
         catch

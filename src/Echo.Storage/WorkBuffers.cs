@@ -1,4 +1,5 @@
 using Echo.Contracts;
+using System.Runtime.CompilerServices;
 
 namespace Echo.Storage;
 
@@ -9,26 +10,35 @@ public sealed class WorkBuffers : IDisposable
     private int nextFile;
     private readonly List<IDisposable> resources = [];
     private bool disposed;
+    private readonly bool preferResident;
 
-    public WorkBuffers(BulkDataSession session, string directory)
+    public WorkBuffers(BulkDataSession session, string directory, bool preferResident = false)
     {
         this.session = session;
         this.directory = directory;
+        this.preferResident = preferResident;
         Directory.CreateDirectory(directory);
     }
 
     public IList<T> List<T>(RecordCodec<T> codec)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        var result = session.OpenTemporary(Path.Combine(directory, $"buffer-{nextFile++}.bin"), codec);
+        var path = Path.Combine(directory, $"buffer-{nextFile++}.bin");
+        if (preferResident && !RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+        {
+            var resident = new ResidentRecordList<T>(session, path, codec);
+            resources.Add(resident);
+            return resident;
+        }
+        var result = session.OpenTemporary(path, codec);
         resources.Add(result);
         return result;
     }
 
-    public WorkBuffers CreateScope()
+    public WorkBuffers CreateScope(bool preferResident = false)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        var scope = new WorkBuffers(session, Path.Combine(directory, $"scope-{nextFile++}"));
+        var scope = new WorkBuffers(session, Path.Combine(directory, $"scope-{nextFile++}"), preferResident || this.preferResident);
         resources.Add(scope);
         return scope;
     }
@@ -66,8 +76,19 @@ public sealed class WorkBuffers : IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         cancellation.ThrowIfCancellationRequested();
-        var result = (PagedList<T>)List(codec);
-        result.AddRepeated(value, count, cancellation);
+        var result = List(codec);
+        if (result is PagedList<T> paged)
+        {
+            paged.AddRepeated(value, count, cancellation);
+        }
+        else
+        {
+            for (var index = 0; index < count; index++)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                result.Add(value);
+            }
+        }
         return result;
     }
 

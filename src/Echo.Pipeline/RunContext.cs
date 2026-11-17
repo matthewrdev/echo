@@ -24,9 +24,13 @@ public sealed class RunContext : IDisposable
     private bool processingDirty = true;
     private long sequence;
     private readonly IBulkArtifactStore bulk;
+    private readonly IProcessingResourcePlanner resourcePlanner;
+    private readonly ProcessingResourcePlan runResources;
     private BulkDataSession? data;
     private string? scratchDirectory;
     private long lastResourceReport;
+    private long lastProgressSave = long.MinValue;
+    private StreamWriter? eventWriter;
     private WorkBuffers? work;
     private long diskReadBytes;
     private long diskWrittenBytes;
@@ -48,7 +52,7 @@ public sealed class RunContext : IDisposable
         Action<object>? output,
         ICheckpointStore checkpoints,
         IJsonCodec jsonCodec,
-        IFileOperations fileOperations, IBulkArtifactStore bulk, ProcessingResourcePlan resources, ProcessingMemoryTracker memory,
+        IFileOperations fileOperations, IBulkArtifactStore bulk, IProcessingResourcePlanner resourcePlanner, ProcessingResourcePlan resources, ProcessingMemoryTracker memory,
         ProcessingTelemetryTracker telemetry, IPerformanceTrace trace, IPerformanceTraceStore traces, IComputeService? compute = null)
     {
         this.compute = compute;
@@ -62,6 +66,8 @@ public sealed class RunContext : IDisposable
         this.jsonCodec = jsonCodec;
         this.fileOperations = fileOperations;
         this.bulk = bulk;
+        this.resourcePlanner = resourcePlanner;
+        runResources = resources;
         Resources = resources;
         Memory = memory;
         this.telemetry = telemetry;
@@ -96,7 +102,7 @@ public sealed class RunContext : IDisposable
     }
     public ProcessingResourcePlan Resources
     {
-        get;
+        get; private set;
     }
     public long WorkingMemoryBytes => Resources.MemoryBytes - Resources.HeadroomBytes - Resources.CacheBytes;
     public bool Paged => Resources.Mode == ProcessingMemoryMode.Paged;
@@ -123,6 +129,7 @@ public sealed class RunContext : IDisposable
             ReleaseStageResources();
             Memory.Dispose();
             traceSession?.Dispose();
+            eventWriter?.Dispose();
         }
     }
 
@@ -131,6 +138,15 @@ public sealed class RunContext : IDisposable
         lock (reportGate)
         {
             ReleaseBuffers();
+        }
+    }
+
+    public void PrepareStageResources(string stage)
+    {
+        lock (reportGate)
+        {
+            ReleaseBuffers();
+            Resources = resourcePlanner.PlanStage(runResources, stage);
         }
     }
 
@@ -196,7 +212,7 @@ public sealed class RunContext : IDisposable
                 lastResourceReport = Environment.TickCount64;
                 SaveTrace();
                 Run.Progress.Resources = usage;
-                SaveRun();
+                SaveProgress(true);
                 Report("resourceProgress", new
                 {
                     stage = Run.Progress.Stage,
@@ -498,7 +514,9 @@ public sealed class RunContext : IDisposable
                 type,
                 payload
             };
-            File.AppendAllText(Store.PathFor($"runs/{Run.Id}/events.ndjson"), JsonSerializer.Serialize(record, eventOptions) + "\n");
+            eventWriter ??= new StreamWriter(Store.PathFor($"runs/{Run.Id}/events.ndjson"), append: true);
+            eventWriter.WriteLine(JsonSerializer.Serialize(record, eventOptions));
+            eventWriter.Flush();
             output?.Invoke(record);
         }
     }
@@ -581,7 +599,7 @@ public sealed class RunContext : IDisposable
                 StepIndex = stepIndex,
                 StageSteps = stageSteps,
                 StageStepIndex = stageStepIndex,
-                Resources = MeasureResources(),
+                Resources = previous?.Resources ?? MeasureResources(),
                 Operation = operation,
                 OperationStarted = started,
                 Unit = unit,
@@ -594,8 +612,22 @@ public sealed class RunContext : IDisposable
                         : $"{completed:N0} / {total:N0} {unit} completed"
                     : "Processing saved inputs…"
             };
-            SaveRun();
+            var completedOperation = total.HasValue && completed >= total;
+            SaveProgress(operationChanged || completedOperation || previous == null);
         }
+    }
+
+    private void SaveProgress(bool force)
+    {
+        var now = Environment.TickCount64;
+        if (!force && lastProgressSave != long.MinValue && now - lastProgressSave < 1000)
+        {
+            return;
+        }
+        // events.ndjson is the incremental history. Polling only needs this
+        // small latest-value snapshot, not another copy of every source photo.
+        fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/progress.json"), Run.Progress);
+        lastProgressSave = now;
     }
 
     public void SaveTrace()
@@ -630,5 +662,7 @@ public sealed class RunContext : IDisposable
             processingDirty = false;
         }
         fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/run.json"), Run);
+        File.Delete(Store.PathFor($"runs/{Run.Id}/progress.json"));
+        lastProgressSave = long.MinValue;
     }
 }

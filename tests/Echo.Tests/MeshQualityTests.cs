@@ -21,6 +21,41 @@ public sealed class MeshQualityTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Parallel collapse joins seams without holes and is deterministic across worker counts", () =>
+        {
+            var source = DetailSurface();
+            var serial = ParallelMeshCollapse.Reduce((EdgeCollapse)simplifier, source, 200, default, .01, null, null, null, 4, 1);
+            var parallel = ParallelMeshCollapse.Reduce((EdgeCollapse)simplifier, source, 200, default, .01, null, null, null, 4, 4);
+            var baseline = simplifier.Reduce(source, 200, default, .01);
+            Console.WriteLine($"  Region reduction: {parallel.Faces.Count} faces, peak {parallel.Vertices.Max(point => point[2]):F6}; serial baseline {baseline.Faces.Count} faces, peak {baseline.Vertices.Max(point => point[2]):F6}");
+            Check(serial.Faces.Count == parallel.Faces.Count && serial.Vertices.Count == parallel.Vertices.Count, "Worker count changed mesh size");
+            Check(serial.Vertices.Zip(parallel.Vertices).All(pair => pair.First.SequenceEqual(pair.Second))
+                && serial.Faces.Zip(parallel.Faces).All(pair => pair.First.SequenceEqual(pair.Second)), "Scheduling changed the deterministic mesh");
+            Check(EulerCharacteristic(parallel) == 1 && parallel.Faces.All(face => Normal(parallel, face).Z > 0), "Region joining introduced holes or inverted faces");
+            Check(parallel.Faces.Count <= 200 && parallel.Vertices.Max(point => point[2]) > .7, "Parallel reduction missed the ceiling or removed high-relief detail");
+            Check(source.Faces.Count == 1200, "Parallel simplification mutated its source");
+        });
+        tests.Run("Parallel collapse preserves protected vertices and supports cancellation", () =>
+        {
+            var source = DetailSurface();
+            var tolerances = source.Vertices.Select(point => point[0] < 8 ? 0d : .1).ToArray();
+            var reduced = ParallelMeshCollapse.Reduce((EdgeCollapse)simplifier, source, source.Faces.Count, default, 0,
+                tolerances, null, null, 4, 4);
+            foreach (var point in source.Vertices.Where(point => point[0] < 8))
+            {
+                Check(reduced.Vertices.Any(vertex => vertex.SequenceEqual(point)), "Parallel collapse moved a protected vertex");
+            }
+            Check(EulerCharacteristic(reduced) == 1, "Protected material boundaries developed holes");
+            using var cancellation = new CancellationTokenSource();
+            ExpectCancellation(() => ParallelMeshCollapse.Reduce((EdgeCollapse)simplifier, source, 200, cancellation.Token, .01,
+                null, null, update =>
+                {
+                    if (update.Operation == "Parallel edge collapse")
+                    {
+                        cancellation.Cancel();
+                    }
+                }, 4, 4));
+        });
         tests.Run("Triangle search index agrees with direct geometry queries", () =>
         {
             var mesh = new Surface();

@@ -5,6 +5,7 @@ using Echo.Depth;
 using Echo.Infrastructure;
 using Echo.Pipeline;
 using Echo.Projects;
+using Echo.Storage;
 
 namespace Echo.Tests;
 
@@ -17,10 +18,12 @@ public sealed class RunRecoveryTests
     private readonly ICommandApplication application;
     private readonly IRunContextFactory contexts;
     private readonly IDepthExecutionPlanner depthPlanner;
+    private readonly IProcessingResourcePlanner resourcePlanner;
 
     [ImportingConstructor]
     public RunRecoveryTests(IRunStateRecovery recovery, IProjectStoreFactory stores,
-        IFileOperations files, ICommandApplication application, IRunContextFactory contexts, IDepthExecutionPlanner depthPlanner)
+        IFileOperations files, ICommandApplication application, IRunContextFactory contexts, IDepthExecutionPlanner depthPlanner,
+        IProcessingResourcePlanner resourcePlanner)
     {
         this.recovery = recovery;
         this.stores = stores;
@@ -28,10 +31,33 @@ public sealed class RunRecoveryTests
         this.application = application;
         this.contexts = contexts;
         this.depthPlanner = depthPlanner;
+        this.resourcePlanner = resourcePlanner;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Progress appends events without rewriting the project snapshot and final state absorbs the sidecar", () => WithProject(store =>
+        {
+            using var context = contexts.Create(store, SaveRun(store), default, null);
+            context.Start();
+            var path = store.PathFor($"runs/{context.Run.Id}/run.json");
+            var original = File.ReadAllBytes(path);
+            context.ReportOperation("mesh", new OperationProgress("Collapse edges", "First", 0, 100));
+            var progressPath = store.PathFor($"runs/{context.Run.Id}/progress.json");
+            var firstProgress = File.ReadAllBytes(progressPath);
+            for (var index = 0; index < 100; index++)
+            {
+                context.ReportProgress("mesh", $"Incremental event {index}");
+            }
+            Check(File.ReadAllBytes(path).SequenceEqual(original), "A progress event rewrote the full run snapshot");
+            Check(File.ReadAllBytes(progressPath).SequenceEqual(firstProgress), "Polling snapshots were rewritten for every event");
+            Check(File.ReadLines(store.PathFor($"runs/{context.Run.Id}/events.ndjson")).Count() == 102, "Incremental progress history was lost or buffered from readers");
+            context.ReportOperation("mesh", new OperationProgress("Collapse edges", "Finished", 100, 100));
+            Check(store.GetRun(context.Run.Id).Progress?.Completed == 100, "Polling missed operation completion");
+            context.Complete();
+            Check(!File.Exists(progressPath) && store.GetRun(context.Run.Id).Progress?.Completed == 100,
+                "Final run snapshot did not absorb the latest progress");
+        }));
         tests.Run("Progress reports percentage changes at up to eight updates per second", () =>
         {
             var filter = new OperationProgressFilter();
@@ -217,6 +243,52 @@ public sealed class RunRecoveryTests
             Check(context.Resources.MemoryBytes == 1024L * 1048576 && context.Resources.DiskBytes == 2048L * 1048576, "Resume ignored updated operational limits");
             Check(context.Resources.DepthMemoryBudgetMb == 512, "Resume ignored the updated depth scheduling budget");
             Check(context.Run.Snapshot.Settings.DepthWidth == width, "Resource changes modified reconstruction inputs");
+        }));
+        tests.Run("Mesh paging uses the run budget without taking depth worker memory or headroom", () =>
+        {
+            foreach (var memoryMb in new[] { 256, 1024, 32768, 524287 })
+            {
+                var settings = new Settings { ProcessingMemoryBudgetMb = memoryMb, ProcessingDiskBudgetMb = 2048, DepthMemoryBudgetMb = 512 };
+                var run = resourcePlanner.Plan(settings);
+                var mesh = resourcePlanner.PlanStage(run, "mesh");
+                Check(mesh.CacheBytes == mesh.MemoryBytes / 2, "Mesh topology still receives only a small I/O cache");
+                var preservedLimits = mesh.MemoryBytes == run.MemoryBytes && mesh.DiskBytes == run.DiskBytes && mesh.HeadroomBytes == run.HeadroomBytes;
+                Check(preservedLimits, "Mesh planning changed run limits or removed headroom");
+                Check(mesh.MemoryBytes - mesh.CacheBytes - mesh.HeadroomBytes >= mesh.MemoryBytes / 4,
+                    "Mesh paging left too little room for compute and managed work");
+                Check(resourcePlanner.PlanStage(run, "depth") == run && resourcePlanner.PlanStage(run, "fusion") == run,
+                    "Mesh planning reduced another stage's worker budget");
+                settings.ProcessingMemoryMode = ProcessingMemoryMode.InMemory;
+                var memory = resourcePlanner.Plan(settings);
+                Check(resourcePlanner.PlanStage(memory, "mesh") == memory, "In-memory mode reserved an unused larger page cache");
+            }
+        });
+        tests.Run("Stage transitions create the larger mesh cache and return it before other work", () => WithProject(store =>
+        {
+            store.Edit(project => project.Settings.ProcessingMemoryBudgetMb = 256);
+            using var context = contexts.Create(store, SaveRun(store), default, null);
+            var original = context.Resources;
+            context.PrepareStageResources("mesh");
+            var records = context.Work!.Filled(10 * 1048576, 17, new IntRecordCodec());
+            var paging = context.Data.Statistics;
+            Check(paging.ResidentBytes > original.CacheBytes && paging.Evictions == 0,
+                "The mesh session did not actually receive its larger cache");
+            Check(paging.PeakResidentBytes <= context.Resources.CacheBytes, "The mesh cache exceeded its allocation");
+            Check(records[0] == 17 && records[^1] == 17, "Mesh scratch contents changed");
+
+            context.PrepareStageResources("depth");
+            Check(context.Resources == original && context.WorkingMemoryBytes == original.MemoryBytes - original.CacheBytes - original.HeadroomBytes,
+                "The mesh allocation leaked into depth scheduling");
+            Check(context.Data.Statistics.ResidentBytes == 0 && context.Data.Statistics.ScratchBytes == 0,
+                "A stage transition retained the previous mesh buffers");
+            try
+            {
+                _ = records[0];
+                throw new InvalidOperationException("Released mesh scratch remained readable");
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }));
         tests.Run("Depth admission identifies the limiting budget and accepts a scheduling-only override", () =>
         {

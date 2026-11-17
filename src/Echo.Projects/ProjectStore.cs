@@ -314,7 +314,7 @@ public sealed class ProjectStore : IProjectStore
         if (id == "latest")
         {
             var file = Directory.GetFiles(PathFor("runs"), "run.json", SearchOption.AllDirectories).OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
-            return file == null ? throw new EchoException("No runs yet.") : jsonCodec.Read<RunData>(file);
+            return file == null ? throw new EchoException("No runs yet.") : ReadRun(file);
         }
 
         if (!Guid.TryParseExact(id, "N", out _))
@@ -322,6 +322,28 @@ public sealed class ProjectStore : IProjectStore
             throw new EchoException("Invalid run ID.", 2);
         }
 
-        return jsonCodec.Read<RunData>(PathFor($"runs/{id}/run.json"));
+        return ReadRun(PathFor($"runs/{id}/run.json"));
+    }
+
+    private RunData ReadRun(string path)
+    {
+        var run = jsonCodec.Read<RunData>(path);
+        if (run.Status == "running")
+        {
+            try
+            {
+                var progress = jsonCodec.Read<RunProgress>(Path.Combine(Path.GetDirectoryName(path)!, "progress.json"));
+                if (run.Progress == null || progress.Updated >= run.Progress.Updated)
+                {
+                    run.Progress = progress;
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                // Older workers use run.json alone. A checkpoint may also
+                // atomically publish the full state and remove this sidecar.
+            }
+        }
+        return run;
     }
 }

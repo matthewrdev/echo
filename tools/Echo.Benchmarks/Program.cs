@@ -4,6 +4,14 @@ using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(DepthBenchmark).Assembly, typeof(Processor).Assembly,
     typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly, typeof(Echo.Texturing.Metal.MetalTexturePlacementAccelerator).Assembly);
+if (args.FirstOrDefault() == "simplification")
+{
+    return composition.Resolve<SimplificationBenchmark>().Run(args[1..]);
+}
+if (args.FirstOrDefault() == "simplification-artifact")
+{
+    return composition.Resolve<SimplificationBenchmark>().RunArtifact(args[1..]);
+}
 if (args.FirstOrDefault() == "fusion-planning")
 {
     return composition.Resolve<FusionPlanningBenchmark>().Run(args[1..]);

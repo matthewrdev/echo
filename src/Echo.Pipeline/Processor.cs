@@ -125,6 +125,7 @@ public sealed class Processor : IProcessor
         using var span = context.Trace.Begin(stage.Name, PerformanceSpanKind.Stage, PerformanceBackend.Mixed, stage.Name);
         try
         {
+            context.PrepareStageResources(stage.Name);
             stage.Execute(context);
             context.ReleaseStageResources();
             span?.Complete();

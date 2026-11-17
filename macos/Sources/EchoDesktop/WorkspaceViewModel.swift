@@ -26,7 +26,16 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var showsTelemetry = false
     @Published var openingError: String?
     @Published var root: String
-    @Published var inspection: Inspection?
+    @Published var inspection: Inspection? {
+        didSet {
+            if let project = inspection?.project, let saved = inspection?.run?.snapshot {
+                firstOutdatedStage = ProcessingImpact().firstChangedStage(from: saved, to: project)
+            } else {
+                firstOutdatedStage = nil
+            }
+        }
+    }
+    @Published private(set) var firstOutdatedStage: PipelineStage?
     @Published var storageInventory: ArtifactStorageInventory?
     @Published var runs: [RunSummary] = []
     @Published var selectedRun = "latest"
@@ -173,11 +182,6 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             return counts
         }
         return progressMessage
-    }
-
-    var firstOutdatedStage: PipelineStage? {
-        guard let project = inspection?.project, let saved = inspection?.run?.snapshot else { return nil }
-        return ProcessingImpact().firstChangedStage(from: saved, to: project)
     }
 
     func stageStatus(_ stage: PipelineStage) -> String {

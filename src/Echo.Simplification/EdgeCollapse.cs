@@ -16,6 +16,20 @@ public sealed class EdgeCollapse : IEdgeCollapse
 
     public Surface Reduce(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation, double detailTolerance = 0, IReadOnlyList<double>? vertexTolerances = null, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
     {
+        var regions = Math.Min(16, sourceMesh.Faces.Count / 262144);
+        if (regions >= 2)
+        {
+            return ParallelMeshCollapse.Reduce(this, sourceMesh, targetFaceCount, cancellation, detailTolerance,
+                vertexTolerances, work, progress, regions, Math.Min(8, Environment.ProcessorCount));
+        }
+        return ReduceCore(sourceMesh, targetFaceCount, cancellation, detailTolerance, vertexTolerances, work, progress);
+    }
+
+    internal Surface ReduceCore(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation, double detailTolerance = 0,
+        IReadOnlyList<double>? vertexTolerances = null, WorkBuffers? work = null, Action<OperationProgress>? progress = null,
+        IReadOnlyList<bool>? lockedVertices = null, IList<int>? outputVertices = null, IList<double>? outputTolerances = null,
+        IReadOnlyList<Vertex>? initialVertices = null, IList<Vertex>? outputStates = null)
+    {
         cancellation.ThrowIfCancellationRequested();
         if (!double.IsFinite(detailTolerance) || detailTolerance < 0)
         {
@@ -27,7 +41,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             throw new ArgumentException("Expected a finite nonnegative tolerance per source vertex.", nameof(vertexTolerances));
         }
         var outputWork = work;
-        using var scratch = work?.CreateScope();
+        using var scratch = work?.CreateScope(preferResident: true);
         work = scratch;
         IList<double>? tolerances = null;
         if (vertexTolerances != null)
@@ -38,7 +52,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 tolerances.Add(tolerance);
             }
         }
-        if (sourceMesh.Faces.Count <= targetFaceCount && detailTolerance == 0 && tolerances == null)
+        if (sourceMesh.Faces.Count <= targetFaceCount && detailTolerance == 0 && tolerances == null && outputVertices == null)
         {
             return sourceMesh;
         }
@@ -53,7 +67,15 @@ public sealed class EdgeCollapse : IEdgeCollapse
         for (var index = 0; index < sourceMesh.Vertices.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
-            vertices.Add(new Vertex { Id = index, Position = new V3(sourceMesh.Vertices[index]) });
+            var vertex = initialVertices == null
+                ? new Vertex { Id = index, Position = new V3(sourceMesh.Vertices[index]) }
+                : initialVertices[index] with
+                {
+                    Id = index,
+                    Revision = 0,
+                    Removed = false
+                };
+            vertices.Add(vertex);
             revisions.Add(0);
             boundaries.Add(BoundaryState.Unknown);
             updates.Advance(adjacencyRecords + (long)index + 1);
@@ -86,6 +108,11 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 adjacency.Add(f[corner], i);
             }
 
+            if (initialVertices != null)
+            {
+                continue;
+            }
+
             var a = vertices[f[0]].Position;
             var normal = (vertices[f[1]].Position - a).Cross(vertices[f[2]].Position - a).Unit;
             plane[0] = normal.X;
@@ -111,9 +138,15 @@ public sealed class EdgeCollapse : IEdgeCollapse
         updates.Complete();
         var queue = new CollapseCandidateQueue(faces.Count, work, cancellation);
         var edgeCounts = new Dictionary<int, int>();
+        var boundaryNeighbours = new HashSet<int>();
         void Neighbours(int vertex, HashSet<int> result)
         {
             result.Clear();
+            var measureBoundary = boundaries[vertex] == BoundaryState.Unknown;
+            if (measureBoundary)
+            {
+                edgeCounts.Clear();
+            }
             foreach (var face in adjacency.Faces(vertex))
             {
                 var triangleVertices = faces[face];
@@ -123,45 +156,37 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     if (neighbour != vertex)
                     {
                         result.Add(neighbour);
+                        if (measureBoundary)
+                        {
+                            edgeCounts.TryGetValue(neighbour, out var count);
+                            edgeCounts[neighbour] = count + 1;
+                        }
                     }
                 }
             }
+            if (measureBoundary)
+            {
+                boundaries[vertex] = edgeCounts.Values.Contains(1) ? BoundaryState.Boundary : BoundaryState.Interior;
+            }
         }
-        bool Boundary(Vertex vertex)
+        bool Boundary(int vertex)
         {
-            var cached = boundaries[vertex.Id];
+            var cached = boundaries[vertex];
             if (cached != BoundaryState.Unknown)
             {
                 return cached == BoundaryState.Boundary;
             }
-            edgeCounts.Clear();
-            foreach (var face in adjacency.Faces(vertex.Id))
-            {
-                var triangleVertices = faces[face];
-                for (var corner = 0; corner < 3; corner++)
-                {
-                    var neighbour = triangleVertices[corner];
-                    if (neighbour != vertex.Id)
-                    {
-                        edgeCounts.TryGetValue(neighbour, out var count);
-                        edgeCounts[neighbour] = count + 1;
-                    }
-                }
-            }
-            foreach (var count in edgeCounts.Values)
-            {
-                if (count == 1)
-                {
-                    boundaries[vertex.Id] = BoundaryState.Boundary;
-                    return true;
-                }
-            }
-            boundaries[vertex.Id] = BoundaryState.Interior;
-            return false;
+            Neighbours(vertex, boundaryNeighbours);
+            return boundaries[vertex] == BoundaryState.Boundary;
         }
         void Offer(int a, int b)
         {
             if (a == b)
+            {
+                return;
+            }
+
+            if (lockedVertices != null && (lockedVertices[a] || lockedVertices[b]))
             {
                 return;
             }
@@ -183,8 +208,8 @@ public sealed class EdgeCollapse : IEdgeCollapse
             {
                 return;
             }
-            var aBoundary = Boundary(va);
-            var bBoundary = Boundary(vb);
+            var aBoundary = Boundary(a);
+            var bBoundary = Boundary(b);
             Span<V3> options = stackalloc V3[3];
             var optionCount = 1;
             if (aBoundary && !bBoundary)
@@ -229,7 +254,18 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
 
             var priority = best + (va.Position - vb.Position).Length * 1e-8;
-            queue.Offer(new Candidate(a, b, va.Revision, vb.Revision, bestPoint, best), priority);
+            if (remaining <= targetFaceCount && !WithinTolerance(a, b, best))
+            {
+                queue.Remove(a, b);
+                return;
+            }
+            queue.Offer(new Candidate(a, b, revisions[a], revisions[b], bestPoint, best), priority);
+        }
+
+        bool WithinTolerance(int a, int b, double error)
+        {
+            var tolerance = tolerances == null ? detailTolerance : Math.Min(tolerances[a], tolerances[b]);
+            return tolerance > 0 && error <= tolerance * tolerance;
         }
 
         updates.Start(SimplificationPhase.Edges, faces.Count, "triangles");
@@ -257,13 +293,15 @@ public sealed class EdgeCollapse : IEdgeCollapse
         {
             cancellation.ThrowIfCancellationRequested();
             updates.Advance(constrainedEdges++);
-            var vertexA = vertices[edge.A];
-            var vertexB = vertices[edge.B];
+            if (initialVertices != null)
+            {
+                continue;
+            }
             var sharedCount = 0;
             var sharedFace = -1;
-            foreach (var face in adjacency.Faces(vertexA.Id))
+            foreach (var face in adjacency.Faces(edge.A))
             {
-                if (adjacency.Contains(vertexB.Id, face))
+                if (faces[face].Contains(edge.B))
                 {
                     sharedCount++;
                     sharedFace = face;
@@ -274,6 +312,8 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 continue;
             }
 
+            var vertexA = vertices[edge.A];
+            var vertexB = vertices[edge.B];
             var f = faces[sharedFace];
             var a = vertexA.Position;
             var b = vertexB.Position;
@@ -320,6 +360,8 @@ public sealed class EdgeCollapse : IEdgeCollapse
         var touched = new HashSet<int>();
         var updatedNeighbours = new HashSet<int>();
         var survivingTriangles = new HashSet<TriangleKey>();
+        var costChanged = new HashSet<int>();
+        var neighbourhoods = new List<CollapseNeighbourhood>();
         Span<int> triangle = stackalloc int[3];
         Span<V3> old = stackalloc V3[3];
         Span<V3> next = stackalloc V3[3];
@@ -327,25 +369,35 @@ public sealed class EdgeCollapse : IEdgeCollapse
         // Continue below it while RMS distance to the accumulated source planes
         // is small. Normalizing by plane count keeps the tolerance in distance
         // units instead of growing with the number of contributing planes.
-        var maximumDetailError = detailTolerance * detailTolerance;
         var evaluated = 0L;
         var targetOnly = detailTolerance == 0 && tolerances == null;
+        var filteredForTolerance = false;
         bool Current(Candidate candidate)
         {
             // Check compact revision stamps before decoding full vertices.
             // Candidates rejected by Offer still need this topology guard.
             return revisions[candidate.A] == candidate.RevisionA && revisions[candidate.B] == candidate.RevisionB;
         }
-        while ((!targetOnly || remaining > targetFaceCount) && queue.TryDequeue(out var edge))
+        while (!targetOnly || remaining > targetFaceCount)
         {
             cancellation.ThrowIfCancellationRequested();
+            if (!filteredForTolerance && remaining <= targetFaceCount)
+            {
+                // Discard the ineligible tail in one linear pass instead of
+                // performing a heap removal for every rejected edge.
+                queue.Retain(candidate => Current(candidate) && WithinTolerance(candidate.A, candidate.B, candidate.Error), cancellation);
+                filteredForTolerance = true;
+            }
+            if (!queue.TryDequeue(out var edge))
+            {
+                break;
+            }
             updates.Advance(++evaluated, remaining, queue.Count);
             if (!Current(edge))
             {
                 continue;
             }
-            var allowedError = tolerances == null ? maximumDetailError : Math.Pow(Math.Min(tolerances[edge.A], tolerances[edge.B]), 2);
-            if (remaining <= targetFaceCount && (allowedError == 0 || edge.Error > allowedError))
+            if (remaining <= targetFaceCount && !WithinTolerance(edge.A, edge.B, edge.Error))
             {
                 continue;
             }
@@ -355,7 +407,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             commonFaces.Clear();
             foreach (var face in adjacency.Faces(a.Id))
             {
-                if (adjacency.Contains(b.Id, face))
+                if (faces[face].Contains(b.Id))
                 {
                     commonFaces.Add(face);
                 }
@@ -380,7 +432,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 continue;
             }
 
-            if (Boundary(a) && Boundary(b) && commonFaces.Count != 1)
+            if (Boundary(a.Id) && Boundary(b.Id) && commonFaces.Count != 1)
             {
                 continue;
             }
@@ -448,24 +500,25 @@ public sealed class EdgeCollapse : IEdgeCollapse
             foreach (var fi in affected)
             {
                 var original = faces[fi];
-                for (var corner = 0; corner < 3; corner++)
-                {
-                    adjacency.Remove(original[corner], fi);
-                }
-
                 if (commonFaces.Contains(fi))
                 {
+                    for (var corner = 0; corner < 3; corner++)
+                    {
+                        adjacency.Remove(original[corner], fi);
+                    }
                     removed[fi] = true;
                     remaining--;
                     continue;
                 }
 
-                var updated = original.Replace(edge.B, edge.A);
-                faces[fi] = updated;
-
-                for (var corner = 0; corner < 3; corner++)
+                // Removing and immediately re-adding an unchanged corner only
+                // returns its same adjacency slot. Preserve it in place; only
+                // the removed endpoint transfers its face to the survivor.
+                if (original.Contains(edge.B))
                 {
-                    adjacency.Add(updated[corner], fi);
+                    adjacency.Remove(edge.B, fi);
+                    faces[fi] = original.Replace(edge.B, edge.A);
+                    adjacency.Add(edge.A, fi);
                 }
             }
 
@@ -485,11 +538,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             vertices[edge.B] = b;
             foreach (var vi in touched)
             {
-                var vertex = vertices[vi];
-                vertex.Revision++;
-                vertices[vi] = vertex;
-                revisions[vi] = vertex.Removed ? -1 : vertex.Revision;
-                boundaries[vi] = BoundaryState.Unknown;
+                revisions[vi] = vi == edge.B ? -1 : revisions[vi] + 1;
             }
 
             // Edges incident to the removed vertex no longer exist. Also drop
@@ -507,18 +556,42 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 }
             }
 
+            costChanged.Clear();
+            costChanged.Add(edge.A);
+            var neighbourhoodCount = 0;
             foreach (var vi in touched)
             {
-                if (vertices[vi].Removed)
+                if (vi == edge.B)
                 {
                     continue;
                 }
-                Neighbours(vi, updatedNeighbours);
-                foreach (var n in updatedNeighbours)
+                if (neighbourhoodCount == neighbourhoods.Count)
+                {
+                    neighbourhoods.Add(new CollapseNeighbourhood());
+                }
+                var neighbourhood = neighbourhoods[neighbourhoodCount++];
+                neighbourhood.Vertex = vi;
+                var previousBoundary = boundaries[vi];
+                boundaries[vi] = BoundaryState.Unknown;
+                Neighbours(vi, neighbourhood.Neighbours);
+                if (previousBoundary != boundaries[vi])
+                {
+                    costChanged.Add(vi);
+                }
+            }
+            for (var index = 0; index < neighbourhoodCount; index++)
+            {
+                var neighbourhood = neighbourhoods[index];
+                var vi = neighbourhood.Vertex;
+                foreach (var n in neighbourhood.Neighbours)
                 {
                     if (vi < n || !touched.Contains(n))
                     {
-                        Offer(vi, n);
+                        var unchangedCost = !costChanged.Contains(vi) && !costChanged.Contains(n);
+                        if (!unchangedCost || !queue.Refresh(vi, n, revisions[vi], revisions[n]))
+                        {
+                            Offer(vi, n);
+                        }
                     }
                 }
             }
@@ -545,6 +618,12 @@ public sealed class EdgeCollapse : IEdgeCollapse
                         index = result.Vertices.Count;
                         remap[v] = index;
                         result.Vertices.Add(vertices[v].Position.Array);
+                        outputVertices?.Add(v);
+                        outputStates?.Add(vertices[v]);
+                        if (outputTolerances != null)
+                        {
+                            outputTolerances.Add(tolerances![v]);
+                        }
                     }
 
                     output[j] = index;

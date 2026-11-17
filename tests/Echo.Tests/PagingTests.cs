@@ -28,6 +28,127 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Parallel reduction preserves geometry across resident and paged budgets", () => InDirectory(directory =>
+        {
+            var source = new Surface();
+            const int side = 24;
+            for (var y = 0; y <= side; y++)
+            {
+                for (var x = 0; x <= side; x++)
+                {
+                    source.Vertices.Add([x, y, Math.Sin(x * .3) * Math.Cos(y * .2)]);
+                }
+            }
+            for (var y = 0; y < side; y++)
+            {
+                for (var x = 0; x < side; x++)
+                {
+                    var first = y * (side + 1) + x;
+                    source.Faces.Add([first, first + 1, first + side + 2]);
+                    source.Faces.Add([first, first + side + 2, first + side + 1]);
+                }
+            }
+            var expected = ParallelMeshCollapse.Reduce((EdgeCollapse)simplifier, source, 200, default, .01, null, null, null, 4, 1);
+            foreach (var budget in new[] { 65536L, 16 * 1048576L })
+            {
+                using var session = artifacts.OpenSession(budget, 0);
+                using (var work = new WorkBuffers(session, Path.Combine(directory, budget.ToString())))
+                {
+                    var actual = ParallelMeshCollapse.Reduce((EdgeCollapse)simplifier, source, 200, default, .01, null, work, null, 4, 4);
+                    Check(actual.Faces.Count == expected.Faces.Count && actual.Vertices.Count == expected.Vertices.Count,
+                        "Shared memory pressure changed parallel output counts");
+                    Check(actual.Vertices.Zip(expected.Vertices).All(pair => pair.First.SequenceEqual(pair.Second))
+                        && actual.Faces.Zip(expected.Faces).All(pair => pair.First.SequenceEqual(pair.Second)),
+                        "Paging changed parallel geometry or seam joining");
+                }
+                Check(session.Statistics.ResidentBytes == 0 && session.Statistics.ScratchBytes == 0,
+                    "Parallel reduction leaked scratch records after disposal");
+            }
+        }));
+        tests.Run("Resident scratch spills within the shared budget and releases its reservations", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(1048576, 0);
+            using var work = new WorkBuffers(session, directory);
+            using (var resident = work.CreateScope(preferResident: true))
+            {
+                var values = resident.List(new IntRecordCodec());
+                for (var index = 0; index < 400000; index++)
+                {
+                    values.Add(index * 3);
+                }
+                values[12345] = -17;
+                values.RemoveAt(values.Count - 1);
+                values.Add(9000000);
+                Check(values.Count == 400000 && values[12345] == -17 && values[^1] == 9000000, "Spilling changed mutable records");
+                for (var index = 0; index < values.Count - 1; index += 997)
+                {
+                    Check(values[index] == index * 3, "Spilling lost a block or changed record order");
+                }
+                Check(session.Statistics.PeakResidentBytes <= 1048576 && session.Statistics.Evictions > 0, "Typed records escaped the memory budget or did not exercise fallback");
+            }
+            Check(session.Statistics.ResidentBytes == 0 && session.Statistics.ScratchBytes == 0, "Typed scratch retained memory or disk after disposal");
+        }));
+        tests.Run("Parallel scratch scopes share one memory budget without sharing mutable lists", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(4 * 1048576, 0);
+            using var work = new WorkBuffers(session, directory);
+            var scopes = Enumerable.Range(0, 4).Select(_ => work.CreateScope(preferResident: true)).ToArray();
+            Parallel.For(0, scopes.Length, worker =>
+            {
+                var values = scopes[worker].List(new IntRecordCodec());
+                for (var index = 0; index < 300000; index++)
+                {
+                    values.Add(index + worker);
+                }
+                Check(values[12345] == 12345 + worker && values[^1] == 299999 + worker, "Concurrent scratch lists corrupted each other");
+                scopes[worker].Dispose();
+            });
+            Check(session.Statistics.PeakResidentBytes <= 4 * 1048576 && session.Statistics.ResidentBytes == 0, "Parallel reservations exceeded or leaked the shared budget");
+        }));
+        tests.Run("Adjacency removes dead slots while preserving recycled encounter order", () =>
+        {
+            var adjacency = new VertexFacesStore(2, null);
+            var expected = new HashSet<int>();
+            var random = new Random(179);
+            for (var index = 0; index < 5000; index++)
+            {
+                var face = random.Next(40);
+                if (random.Next(2) == 0)
+                {
+                    expected.Add(face);
+                    adjacency.Add(0, face);
+                }
+                else
+                {
+                    Check(adjacency.Remove(0, face) == expected.Remove(face), "Adjacency removal disagrees with membership");
+                }
+                Check(adjacency.Faces(0).SequenceEqual(expected) && adjacency.Count(0) == expected.Count,
+                    "Unlinking or recycling a slot changed deterministic face order");
+            }
+        });
+        tests.Run("Candidate refresh and linear pruning preserve costs and reusable handles", () =>
+        {
+            var queue = new CollapseCandidateQueue(32, null, default);
+            for (var index = 0; index < 1000; index++)
+            {
+                queue.Offer(new Candidate(index, index + 1, 0, 0, new V3(index, 1, 2), index), index);
+            }
+            Check(queue.Refresh(41, 40, 7, 9), "Existing cost could not be refreshed");
+            queue.Retain(candidate => candidate.Error % 2 == 0 && candidate.Error < 100, default);
+            Check(queue.Count == 50, "Pruning retained ineligible candidates");
+            queue.Offer(new Candidate(1001, 1002, 0, 0, default, 3), 3);
+            Check(queue.AllocatedHandles == 1000, "Pruning did not recycle removed handles");
+            var previous = -1d;
+            while (queue.TryDequeue(out var candidate))
+            {
+                Check(candidate.Error >= previous, "Pruning did not rebuild a valid heap");
+                previous = candidate.Error;
+                if (candidate.A == 40)
+                {
+                    Check(candidate.RevisionA == 9 && candidate.RevisionB == 7 && candidate.Position == new V3(40, 1, 2), "Refresh changed geometry or reversed revisions");
+                }
+            }
+        });
         tests.Run("Repeated record fills cross pages, append correctly and retain codec tables", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);
@@ -141,6 +262,31 @@ public sealed class PagingTests
                 Check(queue.TryDequeue(out var candidate) && candidate == entry.Value, "The final queue order or revision differs");
             }
             Check(!queue.TryDequeue(out _) && session.Statistics.Evictions > 0, "The paged queue did not exercise eviction");
+        }));
+        tests.Run("Unchanged collapse costs retain tie order while updating candidate revisions", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory);
+            var original = new CollapseCandidateQueue(16, null, default);
+            var updated = new CollapseCandidateQueue(16, work, default);
+            for (var index = 0; index < 2000; index++)
+            {
+                var candidate = new Candidate(index, index + 2000, 0, 0, new V3(index, 0, 0), index % 5);
+                original.Offer(candidate, index % 5);
+                updated.Offer(candidate, index % 5);
+            }
+            for (var index = 1999; index >= 0; index--)
+            {
+                updated.Offer(new Candidate(index, index + 2000, 7, 9, new V3(index, 1, 2), index % 5), index % 5);
+            }
+            while (original.TryDequeue(out var expected))
+            {
+                var sameEdge = updated.TryDequeue(out var actual) && actual.A == expected.A && actual.B == expected.B;
+                Check(sameEdge, "Updating unchanged priorities reordered tied candidates");
+                var refreshed = actual.RevisionA == 7 && actual.RevisionB == 9 && actual.Position == new V3(expected.A, 1, 2);
+                Check(refreshed, "Skipping heap repair lost the new revision or position");
+            }
+            Check(updated.Count == 0 && session.Statistics.Evictions > 0, "The updated paged queue lost candidates or did not exercise eviction");
         }));
         tests.Run("Temporary scopes discard dirty pages and return scratch space without flushing", () => InDirectory(directory =>
         {
