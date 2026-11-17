@@ -1,10 +1,45 @@
 using Echo.Contracts;
 using Echo.Compute;
+using System.Runtime.ExceptionServices;
 
 namespace Echo.Geometry;
 
 public static class ImagePairVerifier
 {
+    public static List<ImagePair> VerifyAll(IReadOnlyDictionary<string, Photo> photos, IReadOnlyList<ImagePair> pairs,
+        int workers, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(workers, 1);
+        var verified = new ImagePair?[pairs.Count];
+        var options = new ParallelOptions { MaxDegreeOfParallelism = workers, CancellationToken = cancellation };
+        try
+        {
+            Parallel.For(0, pairs.Count, options, index =>
+            {
+                var pair = pairs[index];
+                if (photos.TryGetValue(pair.A, out var left) && photos.TryGetValue(pair.B, out var right))
+                {
+                    verified[index] = Verify(left, right, pair, cancellation, compute, backend);
+                }
+            });
+        }
+        catch (AggregateException error)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            ExceptionDispatchInfo.Capture(error.GetBaseException()).Throw();
+            throw;
+        }
+        var result = new List<ImagePair>(pairs.Count);
+        foreach (var pair in verified)
+        {
+            if (pair != null)
+            {
+                result.Add(pair);
+            }
+        }
+        return result;
+    }
+
     public static ImagePair Verify(Photo leftPhoto, Photo rightPhoto, ImagePair candidates, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         cancellation.ThrowIfCancellationRequested();

@@ -8,12 +8,23 @@ public static class DescriptorMatcher
 {
     public static DescriptorMatches Match<T>(ReadOnlySpan<T> leftFeatures, ReadOnlySpan<T> rightFeatures, Settings settings, CancellationToken cancellation, bool allowReversedDescriptor = false, IComputeService? compute = null) where T : IFeatureDescriptor
     {
+        var partitioned = PartitionedDescriptorMatcher.TryMatch(leftFeatures, rightFeatures, settings, allowReversedDescriptor, compute, cancellation);
+        if (partitioned != null)
+        {
+            return partitioned;
+        }
         var accelerated = AcceleratedDescriptorMatcher.TryMatch(leftFeatures, rightFeatures, settings, allowReversedDescriptor, compute, cancellation);
         if (accelerated != null)
         {
             return accelerated;
         }
 
+        return MatchCpu(leftFeatures, rightFeatures, settings, cancellation, allowReversedDescriptor);
+    }
+
+    internal static DescriptorMatches MatchCpu<T>(ReadOnlySpan<T> leftFeatures, ReadOnlySpan<T> rightFeatures, Settings settings,
+        CancellationToken cancellation, bool allowReversedDescriptor, bool requireMultipleFeatures = true) where T : IFeatureDescriptor
+    {
         var diagnostics = new MatchingDiagnostics
         {
             FeaturesA = leftFeatures.Length,
@@ -22,7 +33,8 @@ public static class DescriptorMatcher
             DistanceThreshold = settings.MatchDistanceThreshold
         };
         var result = new DescriptorMatches([], diagnostics);
-        if (leftFeatures.Length < 2 || rightFeatures.Length < 2)
+        var minimumFeatures = requireMultipleFeatures ? 2 : 1;
+        if (leftFeatures.Length < minimumFeatures || rightFeatures.Length < minimumFeatures)
         {
             diagnostics.RejectedAmbiguous = leftFeatures.Length;
             return result;
@@ -110,7 +122,7 @@ public static class DescriptorMatcher
             ArrayPool<int>.Shared.Return(indices);
         }
     }
-    private static double Distance(ReadOnlySpan<float> leftDescriptor, ReadOnlySpan<float> rightDescriptor, bool reverseRightDescriptor)
+    internal static double Distance(ReadOnlySpan<float> leftDescriptor, ReadOnlySpan<float> rightDescriptor, bool reverseRightDescriptor)
     {
         if (leftDescriptor.Length == 0 || leftDescriptor.Length != rightDescriptor.Length)
         {

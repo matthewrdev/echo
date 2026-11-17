@@ -53,6 +53,41 @@ public sealed class ComputeTests
                 }
             }
         });
+        tests.Run("Mixed point and junction descriptors use Metal while preserving CPU matches and rejection counts", () =>
+        {
+            var random = new Random(724);
+            var left = Enumerable.Range(0, 300).Select(_ => new Feature
+            {
+                Descriptor = Enumerable.Range(0, 128).Select(_ => (float)random.NextDouble() * .1f).ToArray()
+            }).ToList();
+            var right = left.Select(feature => new Feature { Descriptor = feature.Descriptor.ToArray() }).ToList();
+            left.Insert(0, new Feature { Descriptor = new float[19] });
+            left.Add(new Feature { Descriptor = [] });
+            left.Add(new Feature { Descriptor = [.1f, .2f, .3f] });
+            right.Add(new Feature { Descriptor = [.1f, .2f, .3f] });
+            for (var index = 0; index < 5; index++)
+            {
+                var descriptor = Enumerable.Range(0, 64).Select(_ => (float)random.NextDouble() * .1f).ToArray();
+                left.Insert(index * 9, new Feature { Descriptor = descriptor });
+                right.Insert(index * 7, new Feature { Descriptor = descriptor.ToArray() });
+            }
+            right.Add(new Feature { Descriptor = right[20].Descriptor.ToArray() });
+            right.Add(new Feature { Descriptor = new float[23] });
+            foreach (var reversed in new[] { false, true })
+            {
+                var first = left.ToArray();
+                var second = right.ToArray();
+                var cpu = DescriptorMatcher.Match<Feature>(first, second, new Settings { ComputeBackend = ComputeBackend.Cpu }, default, reversed);
+                using var scope = compute.BeginScope(128L * 1024 * 1024);
+                var gpu = DescriptorMatcher.Match<Feature>(first, second, new Settings { ComputeBackend = ComputeBackend.Auto }, default, reversed, compute);
+                Check(cpu.Matches.SequenceEqual(gpu.Matches), "Mixed descriptor groups changed ordered correspondences or scores");
+                Check(scope.Devices.Length > 0, "Mixed descriptor lengths silently disabled acceleration");
+                Check(cpu.Diagnostics.Accepted == gpu.Diagnostics.Accepted, "Accepted count changed");
+                Check(cpu.Diagnostics.RejectedAmbiguous == gpu.Diagnostics.RejectedAmbiguous, "Ambiguous count changed");
+                Check(cpu.Diagnostics.RejectedNonMutual == gpu.Diagnostics.RejectedNonMutual, "Non-mutual count changed");
+                Check(cpu.Diagnostics.RejectedDistance == gpu.Diagnostics.RejectedDistance, "Distance rejection count changed");
+            }
+        });
         tests.Run("Compute scopes enforce native budgets, restore parents and record GPU use", () =>
         {
             using var outer = compute.BeginScope(1024 * 1024);

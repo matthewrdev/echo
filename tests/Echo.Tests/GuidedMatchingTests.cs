@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Infrastructure;
 using Echo.Matching;
 
 namespace Echo.Tests;
@@ -9,11 +10,13 @@ namespace Echo.Tests;
 public sealed class GuidedMatchingTests
 {
     private readonly IGuidedFeatureMatcher guided;
+    private readonly IFileOperations files;
 
     [ImportingConstructor]
-    public GuidedMatchingTests(IGuidedFeatureMatcher guided)
+    public GuidedMatchingTests(IGuidedFeatureMatcher guided, IFileOperations files)
     {
         this.guided = guided;
+        this.files = files;
     }
 
     internal void Run(TestSuite tests)
@@ -41,6 +44,20 @@ public sealed class GuidedMatchingTests
             }
             Check(correct >= 55 && correct >= result.Inliers.Count * .95, $"Recovered {correct}/{result.Inliers.Count} true matches");
             Check(result.Iterations > 128, "Low overlap must not truncate the search after a tiny early consensus");
+            var photos = new Dictionary<string, Photo>
+            {
+                ["left"] = new Photo { Id = "left", Width = 1000 },
+                ["right"] = new Photo { Id = "right", Width = 1000 }
+            };
+            var pairs = Enumerable.Range(0, 4).Select(_ => new ImagePair
+            {
+                A = "left",
+                B = "right",
+                Matches = candidates.Select(match => new Match { A = match.A, B = match.B }).ToList()
+            }).ToArray();
+            var serial = files.Hash(ImagePairVerifier.VerifyAll(photos, pairs, 1, default));
+            var parallel = files.Hash(ImagePairVerifier.VerifyAll(photos, pairs, 4, default));
+            Check(serial == parallel, "Parallel geometric verification must preserve pair order, inliers and scores");
             var degenerate = new List<Match>();
             for (var index = 0; index < 40; index++)
             {
@@ -72,6 +89,12 @@ public sealed class GuidedMatchingTests
                 right.Features.Add(new Feature { X = match.B[0] + 35, Y = match.B[1] + 190, Descriptor = descriptor });
             }
             var seed = truth.GetRange(0, 25);
+            var inputs = files.Hash(new
+            {
+                left,
+                right,
+                seed
+            });
             var recovered = guided.Recover(left, right, seed, new Settings(), 1, default);
             Check(recovered != null && recovered.Matches.Count >= 70, $"Second pass should recover at least 70 of 80 real observations; got {recovered?.Matches.Count ?? 0}");
             foreach (var match in recovered!.Matches)
@@ -79,6 +102,18 @@ public sealed class GuidedMatchingTests
                 Check(truth.Exists(candidate => candidate.A[0] == match.A[0] && candidate.B[0] == match.B[0]
                     && candidate.B[1] == match.B[1]), "Guidance must not admit descriptor aliases");
             }
+            var expected = files.Hash(recovered);
+            Parallel.For(0, 4, _ =>
+            {
+                var parallel = guided.Recover(left, right, seed, new Settings(), 1, default);
+                Check(files.Hash(parallel!) == expected, "Concurrent recovery must preserve serial correspondences and order");
+            });
+            Check(files.Hash(new
+            {
+                left,
+                right,
+                seed
+            }) == inputs, "Recovery must not mutate cached features or shared seed matches");
             using var cancelled = new CancellationTokenSource();
             cancelled.Cancel();
             try

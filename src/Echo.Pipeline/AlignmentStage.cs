@@ -17,9 +17,14 @@ public sealed class AlignmentStage : IPipelineStage
     private readonly IPlyWriter plyWriter;
     private readonly IGuidedFeatureMatcher guidedMatcher;
     private readonly IBundleAdjuster bundleAdjuster;
+    private readonly IImageWorkPlanner workPlanner;
+    private readonly IOrderedWorkExecutor workExecutor;
+    private readonly IFeatureSetCacheFactory cacheFactory;
 
     [ImportingConstructor]
-    public AlignmentStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IReconstructor reconstructor, IPlyWriter plyWriter, IGuidedFeatureMatcher guidedMatcher, IBundleAdjuster bundleAdjuster)
+    public AlignmentStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IReconstructor reconstructor, IPlyWriter plyWriter,
+        IGuidedFeatureMatcher guidedMatcher, IBundleAdjuster bundleAdjuster, IImageWorkPlanner workPlanner,
+        IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
@@ -27,6 +32,9 @@ public sealed class AlignmentStage : IPipelineStage
         this.plyWriter = plyWriter;
         this.guidedMatcher = guidedMatcher;
         this.bundleAdjuster = bundleAdjuster;
+        this.workPlanner = workPlanner;
+        this.workExecutor = workExecutor;
+        this.cacheFactory = cacheFactory;
     }
 
     public string Name => "alignment";
@@ -137,33 +145,40 @@ public sealed class AlignmentStage : IPipelineStage
         }
         var settings = context.Run.Snapshot.Settings;
         var units = new List<string>(pairs.Count);
-        for (var index = 0; index < pairs.Count; index++)
+        var plan = workPlanner.Matching(settings, pairs.Count);
+        using var cache = cacheFactory.Create(plan.FeatureCacheBytes);
+        workExecutor.Run(pairs.Count, plan.Workers,
+            index => BuildRecoveryPair(context, pairs[index], pairUnits[index], photos, features, cache), (index, unit) =>
         {
-            context.Cancellation.ThrowIfCancellationRequested();
-            var pair = pairs[index];
-            var threshold = Math.Max(photos[pair.A].Width, photos[pair.B].Width) / 1000.0;
-            var unit = context.Build("alignment-guided-pair", new
-            {
-                algorithmVersion = 2,
-                settings.ComputeBackend,
-                computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
-                initialPair = pairUnits[index],
-                left = features[pair.A],
-                right = features[pair.B],
-                threshold,
-                settings.MatchRatioThreshold,
-                settings.MatchDistanceThreshold
-            }, directory =>
-            {
-                var left = jsonCodec.Read<FeatureSet>(context.Store.PathFor(features[pair.A] + "/features.json"));
-                var right = jsonCodec.Read<FeatureSet>(context.Store.PathFor(features[pair.B] + "/features.json"));
-                var recovered = guidedMatcher.Recover(left, right, pair.Matches, settings, threshold, context.Cancellation);
-                fileOperations.AtomicJson(Path.Combine(directory, "pair.json"), recovered ?? new ImagePair { A = pair.A, B = pair.B });
-            });
             units.Add(unit);
             context.ReportProgress(Name, $"Second pass: searching and validating overlap in image pair {index + 1:N0} of {pairs.Count:N0}.", index + 1, pairs.Count);
-        }
+        }, context.Cancellation);
         return units;
+    }
+
+    private string BuildRecoveryPair(RunContext context, ImagePair pair, string initialPair,
+        IReadOnlyDictionary<string, Photo> photos, IReadOnlyDictionary<string, string> features, FeatureSetCache cache)
+    {
+        var settings = context.Run.Snapshot.Settings;
+        var threshold = Math.Max(photos[pair.A].Width, photos[pair.B].Width) / 1000.0;
+        return context.Build("alignment-guided-pair", new
+        {
+            algorithmVersion = 2,
+            settings.ComputeBackend,
+            computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
+            initialPair,
+            left = features[pair.A],
+            right = features[pair.B],
+            threshold,
+            settings.MatchRatioThreshold,
+            settings.MatchDistanceThreshold
+        }, directory =>
+        {
+            var left = cache.Read(context.Store.PathFor(features[pair.A] + "/features.json"), context.Cancellation);
+            var right = cache.Read(context.Store.PathFor(features[pair.B] + "/features.json"), context.Cancellation);
+            var recovered = guidedMatcher.Recover(left, right, pair.Matches, settings, threshold, context.Cancellation);
+            fileOperations.AtomicJson(Path.Combine(directory, "pair.json"), recovered ?? new ImagePair { A = pair.A, B = pair.B });
+        });
     }
 
     private int ApplyRecoveredPairs(RunContext context, List<ImagePair> pairs, List<string> units)
