@@ -22,7 +22,7 @@ public sealed class DepthFusion : IDepthFusion
         IReadOnlyList<DepthMap> maps,
         DenseCloudData cloud,
         FusionResourcePlan resources,
-        CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null, IFusionChunkStore? chunks = null, Action<OperationProgress>? operationProgress = null, Action<FusionPreview>? preview = null)
+        CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null, IFusionChunkStore? chunks = null, Action<OperationProgress>? operationProgress = null, Action<FusionPreview>? preview = null, IFusionGridStore? grids = null)
     {
         var photos = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
@@ -42,7 +42,8 @@ public sealed class DepthFusion : IDepthFusion
             views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
         }
         cloud = FusionExclusions.Filter(cloud, project.Settings.ExclusionRegions, cancellation, work);
-        var grid = FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress, work, operationProgress);
+        FusionGrid BuildGrid() => FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress, work, operationProgress);
+        var grid = grids?.ReadOrBuild(BuildGrid) ?? BuildGrid();
         progress?.Invoke($"Fusion resolution: requested {grid.RequestedVoxelSize:G6} m; using {grid.VoxelSize:G6} m across {grid.Keys.Count:N0} grid samples.");
         var voxel = grid.VoxelSize;
         var keys = grid.Keys;
@@ -65,19 +66,23 @@ public sealed class DepthFusion : IDepthFusion
         var cleanup = project.Settings.FusionIslandMode != IslandTrimMode.Off;
         var plan = FusionIntegrationPlanning.Resolve(resources.MemoryBudgetBytes, compute?.MemoryBudgetBytes ?? 0,
             keys.Count, views.Sum(view => (long)view.Map.SampleCount));
-        operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
-            "Preparing depth maps for integration…", 0, views.Length, "depth maps"));
-        using var integrator = new FusionBatchIntegrator(views, voxel, project.Settings.CloudDepthTolerance, plan,
-            compute, plan.SelectBackend(project.Settings.ComputeBackend), cancellation, progress,
-            (done, total) => operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation,
-                cleanup, $"Loading resident depth maps: {done:N0}/{total:N0}", done, total, "depth maps")));
-        operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
-            "Depth integration ready.", views.Length, views.Length, "depth maps"));
+        FusionBatchIntegrator PrepareIntegrator()
+        {
+            operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
+                "Preparing depth maps for integration…", 0, views.Length, "depth maps"));
+            var integrator = new FusionBatchIntegrator(views, voxel, project.Settings.CloudDepthTolerance, plan,
+                compute, plan.SelectBackend(project.Settings.ComputeBackend), cancellation, progress,
+                (done, total) => operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation,
+                    cleanup, $"Loading resident depth maps: {done:N0}/{total:N0}", done, total, "depth maps")));
+            operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
+                "Depth integration ready.", views.Length, views.Length, "depth maps"));
+            return integrator;
+        }
         var previewSamples = preview == null ? null : new FusionPreviewSampler();
         var appender = new FusionVolumeAppender(result.Samples, previewSamples, project.Settings.ExclusionRegions, voxel);
         long lastPreview = 0;
-        using var batches = new FusionChunkIntegrator(integrator, keys.OpenReader(),
-            chunks == null ? integrator.Capacity : plan.CheckpointCapacity, cancellation);
+        using var batches = new FusionChunkIntegrator(PrepareIntegrator, keys.OpenReader(),
+            chunks == null ? plan.BatchCapacity : Math.Max(plan.BatchCapacity, plan.CheckpointCapacity), cancellation);
         var integrationProgress = new FusionPlanningProgress(update =>
         {
             if (operationProgress != null)

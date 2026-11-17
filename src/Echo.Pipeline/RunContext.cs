@@ -297,6 +297,7 @@ public sealed class RunContext : IDisposable
             "alignment-guided-pair" => "alignment",
             "cloud-preview" => "cloud",
             "fusion-chunk" => "fusion",
+            "fusion-grid" => "fusion",
             _ => stage
         };
         if (Run.Snapshot.StageRevisions.TryGetValue(owner, out var resetRevision))
@@ -548,6 +549,7 @@ public sealed class RunContext : IDisposable
                 "semantics" => "depth",
                 "cliff-depth-image" => "depth",
                 "fusion-chunk" => "fusion",
+                "fusion-grid" => "fusion",
                 "depth-image" => "depth",
                 _ => stage
             };

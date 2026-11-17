@@ -57,6 +57,28 @@ public sealed class FusionStage : IPipelineStage
             project.Settings.FusionIslandMode,
             project.Settings.FusionIslandMinimumSizePercent
         };
+        var gridInputs = new
+        {
+            cloudPath,
+            depthUnits,
+            alignment,
+            inputs.maximumGridSamples,
+            inputs.fusionVersion,
+            project.Settings.ExclusionRegions,
+            project.Settings.CloudDepthTolerance,
+            project.Settings.FusionDetailMultiplier,
+            project.Settings.FusionVoxelSize,
+            project.Settings.FusionAllowCoarserResolution
+        };
+        var integrationInputs = new
+        {
+            gridInputs,
+            project.Settings.ComputeBackend,
+            inputs.computeImplementation,
+            // Auto backend selection and checkpoint boundaries depend on budgets.
+            resources.MemoryBudgetBytes,
+            computeBudget = context.WorkingMemoryBytes / 4
+        };
         var fusionPath = context.Build("fusion", inputs, dir =>
                 {
                     var previews = new RunPreviewPublisher(context, fileOperations, RunPreviewStage.Fusion);
@@ -65,9 +87,10 @@ public sealed class FusionStage : IPipelineStage
                     context.ReportProgress(Name, $"Processing RAM budget: {context.Resources.MemoryBytes / 1073741824.0:G4} GiB; shared page cache {context.Resources.CacheBytes / 1048576:N0} MiB. Storage mode: {context.Resources.Mode}.");
                     var volume = depthFusion.Fuse(project, scene, maps, cloud, resources, cancellation,
                         message => context.ReportProgress(Name, message), context.Work,
-                        context.Paged ? new FusionChunkCheckpoints(context, inputs, fileOperations) : null,
+                        context.Paged ? new FusionChunkCheckpoints(context, integrationInputs, fileOperations) : null,
                         update => context.ReportOperation(Name, update),
-                        preview => previews.Publish(preview));
+                        preview => previews.Publish(preview),
+                        context.Paged ? new FusionGridCheckpoints(context, gridInputs, fileOperations, jsonCodec) : null);
                     if (project.Settings.FusionIslandMode != IslandTrimMode.Off)
                     {
                         context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Cleanup, true, "Removing disconnected fusion regions before meshing…"));

@@ -10,5 +10,5 @@ public interface IDepthFusion
         IReadOnlyList<DepthMap> maps,
         DenseCloudData cloud,
         FusionResourcePlan resources,
-        CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null, IFusionChunkStore? chunks = null, Action<OperationProgress>? operationProgress = null, Action<FusionPreview>? preview = null);
+        CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null, IFusionChunkStore? chunks = null, Action<OperationProgress>? operationProgress = null, Action<FusionPreview>? preview = null, IFusionGridStore? grids = null);
 }

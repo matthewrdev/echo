@@ -73,6 +73,28 @@ public sealed class CropPipelineTests
             store.Edit(project => project.Settings.CloudDepthTolerance *= 2);
             Check(Process(store).Artifacts["cloud"] != cloudPath, "Cloud validation settings must still invalidate cloud generation");
         }));
+        tests.Run("Fusion cleanup reuses integration and grid checkpoints while reset and resolution changes invalidate them", () => WithProject(store =>
+        {
+            var original = Process(store, fusion: true);
+            var grids = Directory.GetDirectories(store.PathFor("artifacts/fusion-grid")).Length;
+            var chunks = Directory.GetDirectories(store.PathFor("artifacts/fusion-chunk")).Length;
+            Check(grids == 1 && chunks > 0, "Initial fusion did not publish internal checkpoints");
+            store.Edit(project => project.Settings.FusionIslandMode = IslandTrimMode.Main);
+            var cleaned = Process(store, fusion: true);
+            Check(cleaned.Artifacts["fusion"] != original.Artifacts["fusion"], "Cleanup must have its own final artifact");
+            Check(Directory.GetDirectories(store.PathFor("artifacts/fusion-grid")).Length == grids
+                && Directory.GetDirectories(store.PathFor("artifacts/fusion-chunk")).Length == chunks,
+                "Cleanup invalidated grid planning or integration");
+            store.Edit(project => project.StageRevisions["fusion"] = "explicit-reset");
+            Process(store, fusion: true);
+            Check(Directory.GetDirectories(store.PathFor("artifacts/fusion-grid")).Length == grids * 2
+                && Directory.GetDirectories(store.PathFor("artifacts/fusion-chunk")).Length == chunks * 2,
+                "Internal caches ignored an explicit fusion reset");
+            store.Edit(project => project.Settings.FusionVoxelSize = .5);
+            Process(store, fusion: true);
+            Check(Directory.GetDirectories(store.PathFor("artifacts/fusion-grid")).Length == 3,
+                "A changed voxel size reused the old grid");
+        }));
         foreach (var version in new[] { 4, 5, 6, 7 })
         {
             tests.Run($"Crop edits reuse an existing complete version {version} cloud", () => WithProject(store =>

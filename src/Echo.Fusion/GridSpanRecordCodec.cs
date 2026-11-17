@@ -3,7 +3,7 @@ using Echo.Storage;
 
 namespace Echo.Fusion;
 
-internal sealed class GridSpanRecordCodec : RecordCodec<GridSpan>
+public sealed class GridSpanRecordCodec : RecordCodec<GridSpan>
 {
     public override int Size => 16;
 

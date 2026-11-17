@@ -1,6 +1,6 @@
 namespace Echo.Fusion;
 
-internal sealed class FusionGrid
+public sealed class FusionGrid
 {
     public double PixelFootprint
     {

@@ -2,7 +2,7 @@ using System.Collections;
 
 namespace Echo.Fusion;
 
-internal sealed class FusionCandidateGrid : IEnumerable<Grid>
+public sealed class FusionCandidateGrid : IEnumerable<Grid>
 {
     private readonly IList<GridSpan> spans;
     private readonly GridAxis axis;
@@ -32,5 +32,8 @@ internal sealed class FusionCandidateGrid : IEnumerable<Grid>
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    public FusionGridReader OpenReader() => new(spans, axis);
+    public IList<GridSpan> Spans => spans;
+    public GridAxis Axis => axis;
+
+    internal FusionGridReader OpenReader() => new(spans, axis);
 }

@@ -5,18 +5,19 @@ namespace Echo.Fusion;
 
 internal sealed class FusionChunkIntegrator : IDisposable
 {
-    private readonly FusionBatchIntegrator integrator;
+    private readonly Func<FusionBatchIntegrator> prepare;
+    private FusionBatchIntegrator? integrator;
     private readonly FusionGridReader reader;
-    private readonly VolumeSample[] output;
+    private VolumeSample[]? output;
     private readonly CancellationToken cancellation;
 
-    public FusionChunkIntegrator(FusionBatchIntegrator integrator, FusionGridReader reader, int capacity, CancellationToken cancellation)
+    public FusionChunkIntegrator(Func<FusionBatchIntegrator> prepare, FusionGridReader reader, int capacity, CancellationToken cancellation)
     {
-        this.integrator = integrator;
+        this.prepare = prepare;
         this.reader = reader;
         this.cancellation = cancellation;
-        Capacity = Math.Max(integrator.Capacity, capacity);
-        output = ArrayPool<VolumeSample>.Shared.Rent(Capacity);
+        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
+        Capacity = capacity;
     }
 
     public int Capacity
@@ -26,6 +27,9 @@ internal sealed class FusionChunkIntegrator : IDisposable
 
     public ArraySegment<VolumeSample> Integrate(int count, Action<int>? progress = null)
     {
+        cancellation.ThrowIfCancellationRequested();
+        integrator ??= prepare();
+        output ??= ArrayPool<VolumeSample>.Shared.Rent(Capacity);
         var retained = 0;
         for (var first = 0; first < count; first += integrator.Capacity)
         {
@@ -46,5 +50,13 @@ internal sealed class FusionChunkIntegrator : IDisposable
 
     public void Skip(int count) => reader.Skip(count);
 
-    public void Dispose() => ArrayPool<VolumeSample>.Shared.Return(output);
+    public void Dispose()
+    {
+        integrator?.Dispose();
+        if (output != null)
+        {
+            ArrayPool<VolumeSample>.Shared.Return(output);
+            output = null;
+        }
+    }
 }

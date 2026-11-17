@@ -2,7 +2,7 @@ namespace Echo.Fusion;
 
 // An inclusive, contiguous Z interval at one X/Y coordinate. This preserves
 // every cell while avoiding per-cell records for long uncertainty rays.
-internal readonly record struct GridSpan(int X, int Y, int FirstZ, int LastZ) : IComparable<GridSpan>
+public readonly record struct GridSpan(int X, int Y, int FirstZ, int LastZ) : IComparable<GridSpan>
 {
     public long CellCount => (long)LastZ - FirstZ + 1;
 

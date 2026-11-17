@@ -1,6 +1,6 @@
 namespace Echo.Fusion;
 
-internal enum GridAxis
+public enum GridAxis
 {
     X,
     Y,

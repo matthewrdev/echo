@@ -94,10 +94,10 @@ public sealed class FusionIntegrationTests
             var chunks = new FusionTestChunkStore();
             var fusion = new DepthFusion(compute);
             var resources = new FusionResourcePlan(25600000, 100000);
-            var first = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default, chunks: chunks);
+            var first = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default, chunks: chunks, grids: chunks);
             var builds = chunks.Builds;
-            var resumed = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default, chunks: chunks);
-            Check(builds > 0 && chunks.Builds == builds, "Saved integration checkpoints were rebuilt");
+            var resumed = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default, chunks: chunks, grids: chunks);
+            Check(builds > 0 && chunks.Builds == builds && chunks.GridBuilds == 1, "Saved integration checkpoints were rebuilt");
             Check(resumed.Samples.SequenceEqual(first.Samples), "Resuming changed the integrated volume");
         });
         tests.Run("Cancellation inside a grouped fusion checkpoint cannot publish partial samples", () =>
@@ -107,7 +107,7 @@ public sealed class FusionIntegrationTests
             using var integration = new FusionBatchIntegrator(fixture.Views, .125, .01,
                 new FusionIntegrationPlan(16, 64), null, ComputeBackend.Cpu, stop.Token);
             var grid = new FusionCandidateGrid([new GridSpan(0, 0, 76, 139)], 64, GridAxis.Z);
-            using var group = new FusionChunkIntegrator(integration, grid.OpenReader(), 64, stop.Token);
+            using var group = new FusionChunkIntegrator(() => integration, grid.OpenReader(), 64, stop.Token);
             var store = new FusionTestChunkStore();
             try
             {
