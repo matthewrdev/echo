@@ -8,9 +8,9 @@ namespace Echo.Meshing;
 public static class SurfaceVisibilityFilter
 {
     public static Surface Filter(Surface surface, ProjectData project, ReconstructionScene scene,
-        IReadOnlyList<DepthMap> maps, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null, IComputeService? compute = null)
+        IReadOnlyList<DepthMap> maps, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null, IComputeService? compute = null, MeshDepthContext? depthContext = null)
     {
-        return Filter(surface, MeshDepthViews.Build(project, scene, maps), project.Settings.CloudDepthTolerance, cancellation, work, progress, compute, project.Settings.ComputeBackend);
+        return Filter(surface, (depthContext ?? new MeshDepthContext(project, scene, maps)).Views, project.Settings.CloudDepthTolerance, cancellation, work, progress, compute, project.Settings.ComputeBackend);
     }
 
     public static Surface Filter(Surface surface, IReadOnlyList<DepthView> views,

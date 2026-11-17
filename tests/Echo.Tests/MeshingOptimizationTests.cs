@@ -24,6 +24,70 @@ public sealed class MeshingOptimizationTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Triangle indexes account for all buffers and spill without changing queries", () => InDirectory(directory =>
+        {
+            var mesh = new Surface();
+            const int side = 40;
+            for (var y = 0; y <= side; y++)
+            {
+                for (var x = 0; x <= side; x++)
+                {
+                    mesh.Vertices.Add([x * .1, y * .1, Math.Sin(x * .1) * .03]);
+                }
+            }
+            for (var y = 0; y < side; y++)
+            {
+                for (var x = 0; x < side; x++)
+                {
+                    var a = y * (side + 1) + x;
+                    mesh.Faces.Add([a, a + 1, a + side + 2]);
+                    mesh.Faces.Add([a, a + side + 2, a + side + 1]);
+                }
+            }
+            using var expected = new SurfaceTriangleIndex(mesh, default);
+            foreach (var budget in new[] { 65536, 4 * 1024 * 1024 })
+            {
+                using var data = new BulkDataSession(budget, 0);
+                using var work = new WorkBuffers(data, Path.Combine(directory, budget.ToString()));
+                var paged = work.Surface();
+                foreach (var vertex in mesh.Vertices)
+                {
+                    paged.Vertices.Add(vertex);
+                }
+                foreach (var face in mesh.Faces)
+                {
+                    paged.Faces.Add(face);
+                }
+                var before = data.Statistics.ScratchBytes;
+                using (var actual = new SurfaceTriangleIndex(paged, default, work))
+                {
+                    var random = new Random(716);
+                    for (var query = 0; query < 100; query++)
+                    {
+                        var point = new V3(random.NextDouble() * 4, random.NextDouble() * 4, .5);
+                        Check(actual.Nearest(point, 2) == expected.Nearest(point, 2), "Paging changed nearest surface queries");
+                        Check(actual.HasOccluder(point, point - new V3(0, 0, 1)) == expected.HasOccluder(point, point - new V3(0, 0, 1)),
+                            "Paging changed occlusion");
+                    }
+                    Check(data.Statistics.PeakResidentBytes <= budget, "Index arrays escaped the shared budget");
+                }
+                Check(data.Statistics.ScratchBytes == before, "Index disposal retained temporary records");
+            }
+        }));
+        tests.Run("Prepared mesh views are reused only within their owning inputs", () =>
+        {
+            var fixture = new FusionFixture();
+            fixture.Project.Settings.ExclusionRegions.Add(new ExclusionRegion { Width = 1, Height = 1, Depth = 1 });
+            var prepared = new MeshDepthContext(fixture.Project, fixture.Scene, fixture.Maps);
+            Check(prepared.Views.Length == fixture.Maps.Count && !ReferenceEquals(prepared.Views[0].Map, fixture.Maps[0]),
+                "Exclusion-aware views were not prepared");
+            var first = prepared.Views[0];
+            Check(ReferenceEquals(first, prepared.Views[0]), "Prepared views were reconstructed on access");
+            fixture.Project.Settings.ExclusionRegions.Clear();
+            var next = new MeshDepthContext(fixture.Project, fixture.Scene, fixture.Maps);
+            Check(ReferenceEquals(next.Views[0].Map, fixture.Maps[0]) && !ReferenceEquals(next.Views[0], first),
+                "A later run retained stale excluded depths");
+        });
         tests.Run("Volume prefetch preserves CPU fallback ordering and explicit Metal failures", () =>
         {
             var keys = Enumerable.Range(0, VolumeCellBatch.Capacity * 2 + 17).Select(index => new Grid(index, -index, 7)).ToArray();

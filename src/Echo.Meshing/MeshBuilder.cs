@@ -35,10 +35,11 @@ public sealed class MeshBuilder : IMeshBuilder
         ReconstructionScene scene,
         IReadOnlyList<DepthMap> maps,
         Surface geometry,
-        CancellationToken cancellation, Action<string>? progress = null, bool retainUnobserved = false, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null, bool forCompletion = false)
+        CancellationToken cancellation, Action<string>? progress = null, bool retainUnobserved = false, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null, bool forCompletion = false, MeshDepthContext? depthContext = null)
     {
-        var photos = project.Images.ToDictionary(photo => photo.Id, StringComparer.Ordinal);
-        var views = MeshDepthViews.Build(project, scene, maps);
+        depthContext ??= new MeshDepthContext(project, scene, maps);
+        var photos = depthContext.Photos;
+        var views = depthContext.Views;
         using var scratch = work?.CreateScope();
         var result = work?.Surface() ?? new Surface();
         var vertices = new BinaryHashIndex<ChartVertex, int>(geometry.Vertices.Count, new ChartVertexCodec(), new IntRecordCodec(), scratch, cancellation);
@@ -90,10 +91,10 @@ public sealed class MeshBuilder : IMeshBuilder
     }
 
     public SurfaceHoleRepairResult RepairFinalHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
-        Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null)
+        Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null, MeshDepthContext? depthContext = null)
     {
         ValidateRepair(geometry, voxelSize, cancellation);
-        var views = MeshDepthViews.Build(project, scene, maps);
+        var views = (depthContext ?? new MeshDepthContext(project, scene, maps)).Views;
         var originalFaces = geometry.Faces.Count;
         // The final pass repairs only bounded, nearly planar internal loops.
         // It cannot connect fragments or extrapolate the scan perimeter.
@@ -103,10 +104,10 @@ public sealed class MeshBuilder : IMeshBuilder
     }
 
     public void FillHoles(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
-        Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null)
+        Surface geometry, double voxelSize, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? operationProgress = null, MeshDepthContext? depthContext = null)
     {
         ValidateRepair(geometry, voxelSize, cancellation);
-        var views = MeshDepthViews.Build(project, scene, maps);
+        var views = (depthContext ?? new MeshDepthContext(project, scene, maps)).Views;
         bool Observed(V3 point)
         {
             var count = 0;

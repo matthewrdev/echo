@@ -40,7 +40,7 @@ public static class SurfaceSupportFilter
             throw new ArgumentOutOfRangeException(nameof(maximumDistance));
         }
         using var scratch = work?.CreateScope();
-        using var index = new SurfaceTriangleIndex(observed, cancellation);
+        using var index = new SurfaceTriangleIndex(observed, cancellation, work);
         var reader = new SurfaceGeometryReader(reconstruction);
         IList<bool> supported = scratch?.List(new BoolRecordCodec()) ?? new List<bool>(reconstruction.Vertices.Count);
         var points = new V3[4096];

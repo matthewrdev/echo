@@ -78,6 +78,7 @@ public sealed class MeshStage : IPipelineStage
                     var semantics = semanticUnits.ToDictionary(pair => pair.Key,
                         pair => context.ReadData<SemanticMap>(store.PathFor(pair.Value + "/semantics.json")));
                     var maps = context.DepthMaps();
+                    var depthContext = new MeshDepthContext(project, scene, maps);
                     var volume = context.ReadData<FusedVolume>(store.PathFor(fusionPath + "/volume.json"));
                     progress.Begin(MeshPhase.ExtractSurface);
                     using var geometryBuffers = new MeshGeometryBuffers(context.Work);
@@ -89,7 +90,7 @@ public sealed class MeshStage : IPipelineStage
                     progress.Begin(MeshPhase.SimplifyGeometry);
                     var reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(extracted, project.Settings.FaceLimit, cancellation, detailTolerance, work: work, progress: progress.Report));
                     progress.Begin(MeshPhase.RepairObservedHoles);
-                    meshBuilder.FillHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report);
+                    meshBuilder.FillHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report, depthContext);
                     reduced = geometryBuffers.Replace(work => SurfaceExclusionFilter.Filter(reduced, project.Settings.ExclusionRegions, cancellation, work));
                     if (reduced.Faces.Count > project.Settings.FaceLimit)
                     {
@@ -98,7 +99,7 @@ public sealed class MeshStage : IPipelineStage
                     progress.Begin(MeshPhase.CompleteSurface);
                     context.ReportProgress(Name, "Removing surfaces contradicted by visible depth rays before completion…");
                     var facesBeforeVisibility = reduced.Faces.Count;
-                    reduced = geometryBuffers.Replace(work => SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, work, progress.Report, compute));
+                    reduced = geometryBuffers.Replace(work => SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, work, progress.Report, compute, depthContext));
                     var rejectedBeforeCompletion = facesBeforeVisibility - reduced.Faces.Count;
                     var rejectedAfterCompletion = 0;
                     context.ReportProgress(Name, $"Rejected {rejectedBeforeCompletion:N0} triangles contradicted by observed empty space.");
@@ -109,7 +110,7 @@ public sealed class MeshStage : IPipelineStage
                         progress.Report(new OperationProgress("Completion photograph selection", "Selecting photographs for surface completion…"));
                         using var observedWork = context.Work?.CreateScope();
                         var observed = meshBuilder.AssignCameras(project, scene, maps, reduced, cancellation,
-                            operationProgress: progress.Report, work: observedWork, forCompletion: true);
+                            operationProgress: progress.Report, work: observedWork, forCompletion: true, depthContext: depthContext);
                         using var completionBuffers = new MeshGeometryBuffers(context.Work);
                         progress.Report(new OperationProgress("Surface reconstruction", "Reconstructing missing surface…"));
                         var reconstructed = completionBuffers.Replace(work => surfaceReconstructor.Reconstruct(observed, scene, volume.VoxelSize, cancellation,
@@ -121,13 +122,13 @@ public sealed class MeshStage : IPipelineStage
                         reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance, work: work, progress: progress.Report));
                         context.ReportProgress(Name, "Checking completed surfaces against observed empty space…");
                         facesBeforeVisibility = reduced.Faces.Count;
-                        reduced = geometryBuffers.Replace(work => SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, work, progress.Report, compute));
+                        reduced = geometryBuffers.Replace(work => SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, work, progress.Report, compute, depthContext));
                         rejectedAfterCompletion = facesBeforeVisibility - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Rejected {rejectedAfterCompletion:N0} completed triangles contradicted by observed empty space.");
                     }
                     context.ReportProgress(Name, "Repairing small enclosed holes after visibility cleanup…");
                     progress.Begin(MeshPhase.RepairFinalHoles);
-                    var finalRepair = meshBuilder.RepairFinalHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report);
+                    var finalRepair = meshBuilder.RepairFinalHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report, depthContext);
                     context.ReportProgress(Name, $"Closed {finalRepair.RepairedHoles:N0} small holes with {finalRepair.AddedFaces:N0} triangles.");
                     if (reduced.Faces.Count > project.Settings.FaceLimit)
                     {
@@ -139,7 +140,7 @@ public sealed class MeshStage : IPipelineStage
                         context.ReportProgress(Name, "Allocating fewer triangles to vegetation confirmed by multiple visible photographs…");
                         progress.Begin(MeshPhase.OptimiseVegetation);
                         using var vegetationWork = context.Work?.CreateScope();
-                        var labels = SurfaceVegetationClassifier.Classify(reduced, project, scene, maps, semantics, cancellation, vegetationWork, progress.Report, compute);
+                        var labels = SurfaceVegetationClassifier.Classify(reduced, project, scene, maps, semantics, cancellation, vegetationWork, progress.Report, compute, depthContext);
                         var tolerances = SurfaceVegetationClassifier.Tolerances(reduced, labels,
                             detailTolerance * project.Settings.VegetationMeshToleranceMultiplier, vegetationWork, cancellation);
                         var before = reduced.Faces.Count;
@@ -170,13 +171,13 @@ public sealed class MeshStage : IPipelineStage
                     // of the surviving surface during source assignment.
                     progress.Begin(MeshPhase.SelectPhotographs);
                     var mesh = meshBuilder.AssignCameras(project, scene, maps, trimming.Surface, cancellation,
-                        retainUnobserved: true, operationProgress: progress.Report, work: context.Work);
+                        retainUnobserved: true, operationProgress: progress.Report, work: context.Work, depthContext: depthContext);
                     var photographCoverage = SurfacePhotographCoverage.Measure(mesh, cancellation);
                     context.ReportProgress(Name, $"Photographs assigned to {photographCoverage.Faces - photographCoverage.InferredFaces:N0}/{photographCoverage.Faces:N0} triangles. Inferred colour covers {photographCoverage.InferredAreaPercent:F2}% of total surface area, including hidden and completed surfaces.");
                     if (project.Settings.OptimiseVegetation)
                     {
                         using var vegetationWork = context.Work?.CreateScope();
-                        var labels = SurfaceVegetationClassifier.Classify(mesh, project, scene, maps, semantics, cancellation, vegetationWork, progress.Report, compute);
+                        var labels = SurfaceVegetationClassifier.Classify(mesh, project, scene, maps, semantics, cancellation, vegetationWork, progress.Report, compute, depthContext);
                         var faces = SurfaceVegetationClassifier.FaceLabels(mesh, labels, cancellation);
                         fileOperations.AtomicJson(Path.Combine(dir, "vegetation.json"), faces);
                     }

@@ -19,7 +19,7 @@ internal static class FaceViewSelection
         var selected = new int[mesh.Faces.Count];
         Array.Fill(selected, -1);
         reporter.Start(PhotographSelectionPhase.BuildVisibilityIndex);
-        using var visibility = new SurfaceTriangleIndex(mesh, cancellation);
+        using var visibility = new SurfaceTriangleIndex(mesh, cancellation, scratch);
         var sourcePhotos = views.Select(view => photos[view.Camera.ImageId]).ToArray();
         using (var occlusion = SurfaceOcclusionPreparation.Open(compute, backend, visibility, cancellation))
         {
