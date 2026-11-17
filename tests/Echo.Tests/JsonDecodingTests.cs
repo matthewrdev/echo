@@ -71,12 +71,13 @@ public sealed class JsonDecodingTests
             RoundTrip(new Dictionary<string, string> { ["image"] = "artifact/path" });
             RoundTrip(new List<string> { "artifact/path" });
         });
-        tests.Run("Older projects preserve disabled island trimming until explicitly enabled", () =>
+        tests.Run("Missing mesh island settings keep the main surface and explicit modes round trip", () =>
         {
             var settings = Read<Settings>("{}");
             Check(settings.TextureColourEnhancement == .5 && settings.TextureSeamBlendPixels == 4, "Colour tuning and seam softening default on");
             Check(settings.MeshCompleteSurface, "Older projects retain surface completion until explicitly disabled");
-            Check(settings.MeshIslandMode == IslandTrimMode.Off && settings.MeshIslandMinimumAreaPercent == .1, "Missing fields retain compatible defaults");
+            Check(settings.MeshIslandMode == IslandTrimMode.Main && settings.MeshIslandMinimumAreaPercent == .1, "Missing mesh island settings keep the main surface");
+            Check(new Settings().MeshIslandMode == IslandTrimMode.Main, "New projects keep the main surface by default");
             Check(settings.FusionIslandMode == IslandTrimMode.Off && settings.FusionIslandMinimumSizePercent == .1, "Early trimming remains opt-in");
             Check(!settings.OptimiseVegetation && !settings.RecoverCliffDepth, "Semantic passes remain opt-in for old projects");
             Check(!settings.DepthSuppressSky, "Missing sky exclusion setting must not trigger a model download");

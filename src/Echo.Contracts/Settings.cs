@@ -75,7 +75,7 @@ public sealed class Settings
     public int TextureSize { get; set; } = 8192;
     public int FaceLimit { get; set; } = 1500000;
     public bool MeshCompleteSurface { get; set; } = true;
-    public IslandTrimMode MeshIslandMode { get; set; } = IslandTrimMode.Off;
+    public IslandTrimMode MeshIslandMode { get; set; } = IslandTrimMode.Main;
     public double MeshIslandMinimumAreaPercent { get; set; } = .1;
 
     public void Validate()

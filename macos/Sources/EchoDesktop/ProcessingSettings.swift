@@ -61,7 +61,7 @@ struct ProcessingSettings: Codable {
     var textureJpegQuality: Int = 92
     var faceLimit: Int = 1_500_000
     var meshCompleteSurface: Bool = true
-    var meshIslandMode: IslandTrimMode = .off
+    var meshIslandMode: IslandTrimMode = .main
     var meshIslandMinimumAreaPercent: Double = 0.1
     var textureChartFaces: Int = 512
     var textureChartAngle: Double = 60
@@ -138,7 +138,7 @@ struct ProcessingSettings: Codable {
         textureJpegQuality = try values.decodeIfPresent(Int.self, forKey: .textureJpegQuality) ?? 92
         faceLimit = try values.decodeIfPresent(Int.self, forKey: .faceLimit) ?? 1_500_000
         meshCompleteSurface = try values.decodeIfPresent(Bool.self, forKey: .meshCompleteSurface) ?? true
-        meshIslandMode = try values.decodeIfPresent(IslandTrimMode.self, forKey: .meshIslandMode) ?? .off
+        meshIslandMode = try values.decodeIfPresent(IslandTrimMode.self, forKey: .meshIslandMode) ?? .main
         meshIslandMinimumAreaPercent =
             try values.decodeIfPresent(Double.self, forKey: .meshIslandMinimumAreaPercent) ?? 0.1
         textureChartFaces = try values.decodeIfPresent(Int.self, forKey: .textureChartFaces) ?? 512

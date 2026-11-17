@@ -127,7 +127,8 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertTrue(settings.depthRangeAutomatic)
         XCTAssertEqual(settings.depthMemoryBudgetMb, 0)
         XCTAssertEqual(settings.depthBackend, "auto")
-        XCTAssertEqual(settings.meshIslandMode, .off)
+        XCTAssertEqual(settings.meshIslandMode, .main)
+        XCTAssertEqual(ProcessingSettings().meshIslandMode, .main)
         XCTAssertEqual(settings.meshIslandMinimumAreaPercent, 0.1)
         XCTAssertFalse(settings.optimiseVegetation)
         XCTAssertFalse(settings.recoverCliffDepth)
@@ -203,7 +204,8 @@ final class ProcessingSettingsTests: XCTestCase {
     }
 
     func testIslandTrimmingModesRoundTripAndInvalidateMeshOnwards() throws {
-        let original = ProcessingSettings()
+        var original = ProcessingSettings()
+        original.meshIslandMode = .off
         for mode in [IslandTrimMode.small, .main] {
             var settings = original
             settings.meshIslandMode = mode
