@@ -46,7 +46,7 @@ struct ArtifactViewer: View {
                             .help("Saved artifact view")
                     }
                     Spacer(minLength: 12)
-                    if model.presentation?.scene != nil {
+                    if workspace.selectedStage == .cloud, model.presentation?.scene != nil {
                         editingTools
                     }
                 }
@@ -147,7 +147,7 @@ struct ArtifactViewer: View {
     }
 
     private var showsToolbar: Bool {
-        showsViewPicker || [.cloud, .alignment].contains(workspace.selectedStage) || model.presentation?.scene != nil
+        showsViewPicker || [.cloud, .alignment].contains(workspace.selectedStage)
     }
 
     private var showsViewPicker: Bool {
