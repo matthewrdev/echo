@@ -59,7 +59,15 @@ final class GlbAssetReader {
         let indices = try accessor(indexIndex, components: 1, componentType: 5125).map { Int($0[0]) }
         guard indices.count.isMultiple(of: 3), indices.allSatisfy({ vertices.indices.contains($0) }),
             uvs.count == vertices.count,
-            let images = root["images"] as? [[String: Any]], let imageIndex = images.first?["bufferView"] as? Int,
+            let materials = root["materials"] as? [[String: Any]],
+            let materialIndex = primitive["material"] as? Int, materials.indices.contains(materialIndex),
+            let pbr = materials[materialIndex]["pbrMetallicRoughness"] as? [String: Any],
+            let baseColour = pbr["baseColorTexture"] as? [String: Any],
+            let textureIndex = baseColour["index"] as? Int,
+            let textures = root["textures"] as? [[String: Any]], textures.indices.contains(textureIndex),
+            let sourceIndex = textures[textureIndex]["source"] as? Int,
+            let images = root["images"] as? [[String: Any]], images.indices.contains(sourceIndex),
+            let imageIndex = images[sourceIndex]["bufferView"] as? Int,
             views.indices.contains(imageIndex), let imageLength = views[imageIndex]["byteLength"] as? Int
         else {
             throw CLIError(message: "Invalid GLB geometry or texture.")
