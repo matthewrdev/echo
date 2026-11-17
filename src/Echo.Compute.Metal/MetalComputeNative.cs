@@ -27,6 +27,13 @@ internal static unsafe class MetalComputeNative
     internal static extern int Dispatch(IntPtr session, [MarshalAs(UnmanagedType.LPUTF8Str)] string kernel, int count,
         int* parameters, int parameterCount, StringBuilder error, int capacity);
 
+    [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_dispatch_bound")]
+    internal static extern int DispatchBound(IntPtr session, [MarshalAs(UnmanagedType.LPUTF8Str)] string kernel, int count,
+        int* parameters, int parameterCount, int* slots, int slotCount, StringBuilder error, int capacity);
+
+    [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_submit")]
+    internal static extern int Submit(IntPtr session, StringBuilder error, int capacity);
+
     [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_read")]
     internal static extern int Read(IntPtr session, int slot, void* output, int bytes, StringBuilder error, int capacity);
     [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_gpu_time")]

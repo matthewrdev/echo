@@ -12,18 +12,31 @@ internal sealed class FusionCompute : IDisposable
     private readonly float[] values;
     private readonly float[] metadata;
     private FusionDepthWindow[] residentWindows = [];
+    private readonly IComputeStreamingSession? streaming;
+    private int tileIndex;
+    private bool compactionUseful = true;
     private bool first;
     private bool disposed;
 
     public FusionCompute(IComputeSession session, FusionIntegrationPlan plan, int viewCount)
     {
         this.session = session;
+        streaming = session as IComputeStreamingSession;
+        if (streaming?.SupportsStreaming != true || plan.BatchCapacity < 4096)
+        {
+            streaming = null;
+        }
         metadata = new float[Math.Max(128, viewCount) * 24];
         session.Allocate(0, metadata.Length * sizeof(float));
         session.Allocate(1, checked(Math.Max(plan.ResidentDepthCount, plan.DepthCapacity) * sizeof(float)));
         session.Allocate(2, checked(plan.BatchCapacity * 4 * sizeof(float)));
         session.Allocate(3, checked(plan.BatchCapacity * 4 * sizeof(float)));
         session.Allocate(4, 2 * sizeof(float));
+        if (streaming != null && plan.ResidentDepthCount == 0)
+        {
+            session.Allocate(5, metadata.Length * sizeof(float));
+            session.Allocate(6, checked(plan.DepthCapacity * sizeof(float)));
+        }
         jobs = ArrayPool<float>.Shared.Rent(plan.BatchCapacity * 4);
         try
         {
@@ -39,6 +52,7 @@ internal sealed class FusionCompute : IDisposable
     public void Begin(ReadOnlySpan<Grid> cells, double voxel, V3 origin, double tolerance)
     {
         first = true;
+        tileIndex = 0;
         for (var index = 0; index < cells.Length; index++)
         {
             var key = cells[index];
@@ -54,9 +68,19 @@ internal sealed class FusionCompute : IDisposable
     public void Add(FusionDepthTiles tiles, V3 origin, int count)
     {
         WriteMetadata(tiles.Windows.AsSpan(0, tiles.Count), origin);
-        session.Upload<float>(0, metadata.AsSpan(0, tiles.Count * 24));
-        session.Upload<float>(1, tiles.Depths.AsSpan(0, tiles.Length));
-        session.Dispatch(ComputeKernel.FusionIntegrate, count, [tiles.Count, first ? 1 : 0]);
+        var alternate = streaming != null && (tileIndex++ & 1) != 0;
+        session.Upload<float>(alternate ? 5 : 0, metadata.AsSpan(0, tiles.Count * 24));
+        session.Upload<float>(alternate ? 6 : 1, tiles.Depths.AsSpan(0, tiles.Length));
+        if (streaming != null)
+        {
+            streaming.DispatchBound(ComputeKernel.FusionIntegrate, count, [tiles.Count, first ? 1 : 0],
+                alternate ? [5, 6, 2, 3, 4] : [0, 1, 2, 3, 4]);
+            streaming.Submit();
+        }
+        else
+        {
+            session.Dispatch(ComputeKernel.FusionIntegrate, count, [tiles.Count, first ? 1 : 0]);
+        }
         first = false;
     }
 
@@ -137,9 +161,39 @@ internal sealed class FusionCompute : IDisposable
         {
             return 0;
         }
-        session.Read<float>(3, values.AsSpan(0, cells.Length * 4));
+        var compacted = false;
+        var readCount = cells.Length;
+        // Small batches cost less to compact on CPU. Dense batches keep the
+        // direct read path; sparse batches transfer only retained records.
+        if (cells.Length >= 65536 && compactionUseful)
+        {
+            var groups = (cells.Length + 255) / 256;
+            session.Allocate(5, groups * sizeof(int));
+            session.Allocate(7, sizeof(int));
+            session.Allocate(6, cells.Length * 4 * sizeof(float));
+            session.Dispatch(ComputeKernel.FusionRetainedCounts, cells.Length, [cells.Length]);
+            session.Dispatch(ComputeKernel.FusionRetainedOffsets, 1, [groups]);
+            session.Dispatch(ComputeKernel.FusionCompactResults, cells.Length, [cells.Length]);
+            Span<int> retainedCount = stackalloc int[1];
+            session.Read<int>(7, retainedCount);
+            if (retainedCount[0] < 0 || retainedCount[0] > cells.Length)
+            {
+                throw new ComputeException("Invalid retained fusion sample count.");
+            }
+            if (retainedCount[0] == 0)
+            {
+                compactionUseful = true;
+                return 0;
+            }
+            if (retainedCount[0] < cells.Length * 3 / 4)
+            {
+                compacted = true;
+                readCount = retainedCount[0];
+            }
+        }
+        session.Read<float>(compacted ? 6 : 3, values.AsSpan(0, readCount * 4));
         var retained = 0;
-        for (var index = 0; index < cells.Length; index++)
+        for (var index = 0; index < readCount; index++)
         {
             if (index % 4096 == 0)
             {
@@ -148,7 +202,7 @@ internal sealed class FusionCompute : IDisposable
             var support = (int)values[index * 4 + 2];
             if (support >= 2)
             {
-                var key = cells[index];
+                var key = cells[compacted ? BitConverter.SingleToInt32Bits(values[index * 4 + 3]) : index];
                 output[retained++] = new VolumeSample
                 {
                     X = key.X,
@@ -159,6 +213,7 @@ internal sealed class FusionCompute : IDisposable
                 };
             }
         }
+        compactionUseful = retained < cells.Length * 3 / 4;
         return retained;
     }
 

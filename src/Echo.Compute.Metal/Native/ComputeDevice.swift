@@ -36,7 +36,9 @@ final class ComputeDevice {
     }
 
     func acquire(_ size: Int, limit: Int) throws -> MTLBuffer {
-        if let index = spare.firstIndex(where: { $0.length >= size && $0.length <= min(limit, max(4096, size * 2)) }) {
+        // Reusing an oversized allocation can consume space reserved for later
+        // slots and make a valid plan fail depending on previous workloads.
+        if let index = spare.firstIndex(where: { $0.length == max(4, size) && $0.length <= limit }) {
             return spare.remove(at: index)
         }
         guard let buffer = device.makeBuffer(length: max(4, size), options: .storageModeShared) else {

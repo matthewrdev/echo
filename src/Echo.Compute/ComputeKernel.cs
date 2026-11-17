@@ -25,5 +25,8 @@ public enum ComputeKernel
     VolumeActiveCells,
     VolumeCompactOffsets,
     VolumeCompactCells,
-    VolumeCompactGroups
+    VolumeCompactGroups,
+    FusionRetainedCounts,
+    FusionRetainedOffsets,
+    FusionCompactResults
 }

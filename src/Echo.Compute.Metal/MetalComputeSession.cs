@@ -3,7 +3,7 @@ using Echo.Telemetry;
 
 namespace Echo.Compute.Metal;
 
-internal sealed unsafe class MetalComputeSession : IComputeSession, IGpuTimingSource
+internal sealed unsafe class MetalComputeSession : IComputeStreamingSession, IGpuTimingSource
 {
     private readonly SemaphoreSlim gate;
     private readonly CancellationToken cancellation;
@@ -67,6 +67,25 @@ internal sealed unsafe class MetalComputeSession : IComputeSession, IGpuTimingSo
             Verify(MetalComputeNative.Read(handle, slot, pointer, checked(destination.Length * sizeof(T)), error, error.Capacity));
         }
         cancellation.ThrowIfCancellationRequested();
+    }
+
+    public bool SupportsStreaming => true;
+
+    public void DispatchBound(ComputeKernel kernel, int count, ReadOnlySpan<int> parameters, ReadOnlySpan<int> slots)
+    {
+        Check();
+        fixed (int* parameterPointer = parameters)
+        fixed (int* slotPointer = slots)
+        {
+            Verify(MetalComputeNative.DispatchBound(handle, MetalComputeKernel.Name(kernel), count,
+                parameterPointer, parameters.Length, slotPointer, slots.Length, error, error.Capacity));
+        }
+    }
+
+    public void Submit()
+    {
+        Check();
+        Verify(MetalComputeNative.Submit(handle, error, error.Capacity));
     }
 
     private void Check()

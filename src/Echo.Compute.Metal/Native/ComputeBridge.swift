@@ -99,6 +99,32 @@ public func computeRead(
     }
 }
 
+@_cdecl("echo_compute_dispatch_bound")
+public func computeDispatchBound(
+    _ handle: UnsafeMutableRawPointer, _ kernel: UnsafePointer<CChar>, _ count: Int32,
+    _ parameters: UnsafePointer<Int32>?, _ parameterCount: Int32, _ slots: UnsafePointer<Int32>?,
+    _ slotCount: Int32, _ output: UnsafeMutablePointer<CChar>?, _ capacity: Int32
+) -> Int32 {
+    perform(output, capacity) {
+        guard let slots, slotCount > 0, slotCount <= 8 else {
+            throw ComputeDevice.failure("Invalid compute buffer bindings")
+        }
+        try Unmanaged<ComputeSession>.fromOpaque(handle).takeUnretainedValue().dispatch(
+            name: String(cString: kernel), count: Int(count), parameters: parameters,
+            parameterCount: Int(parameterCount),
+            slots: UnsafeBufferPointer(start: slots, count: Int(slotCount)))
+    }
+}
+
+@_cdecl("echo_compute_submit")
+public func computeSubmit(_ handle: UnsafeMutableRawPointer, _ output: UnsafeMutablePointer<CChar>?, _ capacity: Int32)
+    -> Int32
+{
+    perform(output, capacity) {
+        try Unmanaged<ComputeSession>.fromOpaque(handle).takeUnretainedValue().submit()
+    }
+}
+
 @_cdecl("echo_compute_gpu_time")
 public func computeGpuTime(_ handle: UnsafeMutableRawPointer) -> Double {
     Unmanaged<ComputeSession>.fromOpaque(handle).takeUnretainedValue().gpuMilliseconds

@@ -286,6 +286,65 @@ public sealed class FusionIntegrationTests
                 return;
             }
         }
+        tests.Run("Cached Metal fusion skips grid planning and depth uploads", () =>
+        {
+            var fixture = new FusionFixture();
+            fixture.Project.Settings.ComputeBackend = ComputeBackend.Metal;
+            var counts = fixture.Maps.Select(map => new CountingDepthSamples(map.Depth)).ToArray();
+            for (var index = 0; index < counts.Length; index++)
+            {
+                fixture.Maps[index].Samples = counts[index];
+            }
+            var chunks = new FusionTestChunkStore();
+            var fusion = new DepthFusion(compute);
+            var resources = new FusionResourcePlan(25600000, 100000);
+            var expected = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default, chunks: chunks, grids: chunks);
+            var reads = counts.Sum(value => value.ReadSamples);
+            Check(reads > 0, "Initial Metal fusion did not load depths");
+            var actual = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default, chunks: chunks, grids: chunks);
+            Check(counts.Sum(value => value.ReadSamples) == reads && chunks.GridBuilds == 1, "Cached fusion reloaded depth maps or planned its grid");
+            Check(actual.Samples.SequenceEqual(expected.Samples), "Cached fusion changed volume records");
+        });
+        tests.Run("Metal compact readback preserves sparse, dense and empty tails exactly", () =>
+        {
+            const int count = 65539;
+            var fixture = new FusionFixture();
+            var batches = new List<Grid[]>();
+            var references = new List<List<VolumeSample>>();
+            foreach (var stride in new[] { 1, 7, 7, 0, 1 })
+            {
+                var cells = new Grid[count];
+                for (var index = 0; index < count; index++)
+                {
+                    var observed = stride > 0 && (stride == 1 || index % stride == 1);
+                    cells[index] = observed ? new Grid(index % 9 - 4, index % 7 - 3, 80) : new Grid(0, 0, -1);
+                }
+                var expected = new List<VolumeSample>();
+                using (var reference = new FusionBatchIntegrator(fixture.Views, .125, .01,
+                    new FusionIntegrationPlan(1024, 8192, 8192), compute, ComputeBackend.Metal, default))
+                {
+                    for (var first = 0; first < count; first += reference.Capacity)
+                    {
+                        var length = Math.Min(reference.Capacity, count - first);
+                        cells.AsSpan(first, length).CopyTo(reference.Cells);
+                        expected.AddRange(reference.Integrate(length));
+                    }
+                }
+                batches.Add(cells);
+                references.Add(expected);
+            }
+            foreach (var residentDepths in new[] { 0, 8192 })
+            {
+                using var integration = new FusionBatchIntegrator(fixture.Views, .125, .01,
+                    new FusionIntegrationPlan(count, 4096, residentDepths), compute, ComputeBackend.Metal, default);
+                for (var batch = 0; batch < batches.Count; batch++)
+                {
+                    batches[batch].CopyTo(integration.Cells, 0);
+                    var actual = integration.Integrate(count);
+                    Check(actual.SequenceEqual(references[batch]), $"Compaction changed batch {batch}: {actual.Count} vs {references[batch].Count}");
+                }
+            }
+        });
         tests.Run("CPU and Metal integration preserve evidence across many cameras and partial batches", CompareManyCameras);
         tests.Run("Resident Metal fusion matches tiled evidence and never rereads maps between batches", () =>
         {
@@ -339,7 +398,7 @@ public sealed class FusionIntegrationTests
             VolumeSample[] Execute(int capacity)
             {
                 using var integration = new FusionBatchIntegrator(fixture.Views, .125, .01,
-                    new FusionIntegrationPlan(1024, capacity), compute, ComputeBackend.Metal, default);
+                    new FusionIntegrationPlan(16384, capacity), compute, ComputeBackend.Metal, default);
                 cells.CopyTo(integration.Cells, 0);
                 return integration.Integrate(cells.Length).ToArray();
             }

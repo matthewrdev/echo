@@ -4,7 +4,7 @@ using Echo.Telemetry;
 
 namespace Echo.Compute;
 
-internal sealed class ObservedComputeSession : IComputeSession
+internal sealed class ObservedComputeSession : IComputeStreamingSession
 {
     private readonly IComputeSession session;
     private readonly Action<ComputeKernel> record;
@@ -133,6 +133,55 @@ internal sealed class ObservedComputeSession : IComputeSession
         finally
         {
             Measure(span, count, 0);
+        }
+    }
+
+    public bool SupportsStreaming => session is IComputeStreamingSession { SupportsStreaming: true };
+
+    public void DispatchBound(ComputeKernel kernel, int count, ReadOnlySpan<int> parameters, ReadOnlySpan<int> slots)
+    {
+        using var span = trace.Begin(kernel.ToString(), PerformanceSpanKind.Compute, PerformanceBackend.Metal);
+        try
+        {
+            ((IComputeStreamingSession)session).DispatchBound(kernel, count, parameters, slots);
+            record(kernel);
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            Measure(span, count, 0);
+        }
+    }
+
+    public void Submit()
+    {
+        using var span = trace.Begin("Submit Metal work", PerformanceSpanKind.Wait, PerformanceBackend.Metal);
+        try
+        {
+            ((IComputeStreamingSession)session).Submit();
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            Measure(span, null, 0);
         }
     }
 
