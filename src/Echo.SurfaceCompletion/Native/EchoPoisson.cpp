@@ -19,10 +19,11 @@ int main(int argc, char** argv)
         }
 
         using namespace PoissonRecon;
-        // Isolate upstream global threading state in this worker process. The
-        // serial extractor also avoids the ARM64 flag races in parallel builds.
-        ThreadPool::ParallelizationType = ThreadPool::NONE;
         PoissonInputStream input(argv[1]);
+        // Keep upstream ARM64 extraction serial and avoid allocating a scratch
+        // array for every hardware thread when only one worker is active.
+        ThreadPool::SetNumThreads(1);
+        ThreadPool::ParallelizationType = ThreadPool::NONE;
         using Algorithm = Reconstructor::Poisson;
         // A zero boundary condition closes the implicit surface inside the
         // padded domain, instead of clipping missing caps at the cube boundary.
@@ -53,8 +54,8 @@ int main(int argc, char** argv)
         output.write(reinterpret_cast<const char*>(&version), sizeof(version));
         output.write(reinterpret_cast<const char*>(&vertexCount), sizeof(vertexCount));
         output.write(reinterpret_cast<const char*>(&faceCount), sizeof(faceCount));
-        output.write(reinterpret_cast<const char*>(vertices.vertices.data()), vertexCount * sizeof(vertices.vertices[0]));
-        output.write(reinterpret_cast<const char*>(faces.faces.data()), faceCount * sizeof(faces.faces[0]));
+        vertices.copyTo(output);
+        faces.copyTo(output);
         output.close();
         if (!output)
         {

@@ -3,6 +3,7 @@ using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Meshing;
 using Echo.SurfaceCompletion;
+using Echo.Storage;
 
 namespace Echo.Tests;
 
@@ -205,6 +206,27 @@ public sealed class SurfaceCompletionTests
                     }
                 }
                 var surface = codec.Read(path, default);
+                var scratchDirectory = path + "-scratch";
+                try
+                {
+                    using var session = new BulkDataSession(65536 * 2, 0);
+                    using var work = new WorkBuffers(session, scratchDirectory);
+                    var paged = codec.Read(path, default, work);
+                    Check(paged.Vertices is PagedList<double[]> && paged.Faces is PagedList<int[]>, "Poisson output escaped the paging budget");
+                    for (var vertex = 0; vertex < surface.Vertices.Count; vertex++)
+                    {
+                        Check(paged.Vertices[vertex].Select(BitConverter.DoubleToInt64Bits)
+                            .SequenceEqual(surface.Vertices[vertex].Select(BitConverter.DoubleToInt64Bits)), "Paged Poisson vertex bits differ");
+                    }
+                    for (var face = 0; face < surface.Faces.Count; face++)
+                    {
+                        Check(paged.Faces[face].SequenceEqual(surface.Faces[face]), "Paged Poisson triangles differ");
+                    }
+                }
+                finally
+                {
+                    Directory.Delete(scratchDirectory, true);
+                }
                 Check(surface.Vertices.Count == vertexCount && surface.Faces.Count == faceCount, "Block tail lost records");
                 for (var index = 0; index < vertexCount; index++)
                 {

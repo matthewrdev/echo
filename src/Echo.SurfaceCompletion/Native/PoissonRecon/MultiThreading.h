@@ -59,6 +59,8 @@ namespace PoissonRecon
 		static const std::vector< std::string > ScheduleNames;
 
 		static unsigned int NumThreads( void ){ return _NumThreads; }
+		// Echo configures this isolated worker before solving.
+		static void SetNumThreads( unsigned int count ){ _NumThreads = std::max(1u, count); }
 		static ParallelType ParallelizationType;
 		static size_t ChunkSize;
 		static ScheduleType Schedule;

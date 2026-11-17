@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.ComponentModel.Composition;
 using Echo.Contracts;
+using Echo.Storage;
 
 namespace Echo.SurfaceCompletion;
 
@@ -50,7 +51,7 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
         }
     }
 
-    public Surface Read(string path, CancellationToken cancellation)
+    public Surface Read(string path, CancellationToken cancellation, WorkBuffers? work = null)
     {
         cancellation.ThrowIfCancellationRequested();
         using var stream = File.OpenRead(path);
@@ -67,7 +68,7 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
         {
             throw new EchoException("Invalid completed-surface size.", 5);
         }
-        var surface = new Surface
+        var surface = work?.Surface() ?? new Surface
         {
             Vertices = new List<double[]>((int)vertices),
             Faces = new List<int[]>((int)faces)
@@ -91,7 +92,14 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
                     {
                         throw new EchoException("The completed surface contains a non-finite vertex.", 5);
                     }
-                    surface.Vertices.Add([x, y, z]);
+                    if (surface.Vertices is not PagedList<double[]>)
+                    {
+                        surface.Vertices.Add([x, y, z]);
+                    }
+                }
+                if (surface.Vertices is PagedList<double[]> pagedVertices)
+                {
+                    pagedVertices.AddEncodedRecords(buffer.AsSpan(0, count * 24));
                 }
                 start += count;
             }
@@ -112,7 +120,14 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
                     {
                         throw new EchoException("The completed surface contains an invalid triangle.", 5);
                     }
-                    surface.Faces.Add([(int)a, (int)b, (int)c]);
+                    if (surface.Faces is not PagedList<int[]>)
+                    {
+                        surface.Faces.Add([(int)a, (int)b, (int)c]);
+                    }
+                }
+                if (surface.Faces is PagedList<int[]> pagedFaces)
+                {
+                    pagedFaces.AddEncodedRecords(buffer.AsSpan(0, count * 12));
                 }
                 start += count;
             }

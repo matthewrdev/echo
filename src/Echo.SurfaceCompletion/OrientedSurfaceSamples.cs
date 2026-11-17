@@ -1,18 +1,23 @@
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.SurfaceCompletion;
 
 public static class OrientedSurfaceSamples
 {
     public static OrientedSurfaceSample[] Build(Surface mesh, ReconstructionScene scene, CancellationToken cancellation)
+        => BuildRecords(mesh, scene, cancellation).ToArray();
+
+    public static IReadOnlyList<OrientedSurfaceSample> BuildRecords(Surface mesh, ReconstructionScene scene, CancellationToken cancellation, WorkBuffers? work = null)
     {
         if (mesh.SourceImages.Count != mesh.Faces.Count)
         {
             throw new EchoException("Surface completion requires a verified photograph for each input face.", 5);
         }
         var cameras = scene.Cameras.ToDictionary(camera => camera.ImageId, camera => new V3(camera.Centre));
-        var normals = new Dictionary<V3, V3>();
+        using var scratch = work?.CreateScope(preferResident: true);
+        var normals = new BinaryHashIndex<V3, V3>(mesh.Vertices.Count, new Vector3RecordCodec(), new Vector3RecordCodec(), scratch, cancellation);
         foreach (var index in Enumerable.Range(0, mesh.Faces.Count))
         {
             cancellation.ThrowIfCancellationRequested();
@@ -29,13 +34,22 @@ public static class OrientedSurfaceSamples
             {
                 normal *= -1;
             }
-            foreach (var vertex in face)
+            ReadOnlySpan<V3> points = [a, b, c];
+            foreach (var point in points)
             {
-                var point = new V3(mesh.Vertices[vertex]);
-                normals[point] = normals.GetValueOrDefault(point) + normal;
+                normals.TryGetValue(point, out var accumulated);
+                normals[point] = accumulated + normal;
             }
         }
-        return normals.Where(entry => entry.Value.Length > 1e-12)
-            .Select(entry => new OrientedSurfaceSample(entry.Key, entry.Value.Unit)).ToArray();
+        IList<OrientedSurfaceSample> samples = work?.List(new OrientedSurfaceSampleCodec()) ?? new List<OrientedSurfaceSample>();
+        foreach (var entry in normals)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            if (entry.Value.Length > 1e-12)
+            {
+                samples.Add(new OrientedSurfaceSample(entry.Key, entry.Value.Unit));
+            }
+        }
+        return (IReadOnlyList<OrientedSurfaceSample>)samples;
     }
 }

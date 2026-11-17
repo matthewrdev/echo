@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Echo.Contracts;
 using Echo.Storage;
+using Echo.Geometry;
 
 namespace Echo.SurfaceCompletion;
 
@@ -18,7 +19,7 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
     }
 
     public Surface Reconstruct(Surface measured, ReconstructionScene scene, double voxelSize,
-        CancellationToken cancellation, Action<string>? progress = null, ProcessingMemoryTracker? memory = null)
+        CancellationToken cancellation, Action<string>? progress = null, ProcessingMemoryTracker? memory = null, WorkBuffers? work = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!(voxelSize > 0) || !double.IsFinite(voxelSize))
@@ -30,14 +31,23 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
         {
             throw new EchoException("The screened Poisson reconstruction worker is missing. Rebuild the processing application.", 5);
         }
-        var samples = OrientedSurfaceSamples.Build(measured, scene, cancellation);
-        if (samples.Length < 3)
+        using var sampleWork = work?.CreateScope();
+        var samples = OrientedSurfaceSamples.BuildRecords(measured, scene, cancellation, sampleWork);
+        if (samples.Count < 3)
         {
             throw new EchoException("Too few oriented samples for surface completion.", 5);
         }
-        var width = Math.Max(samples.Max(sample => sample.Position.X) - samples.Min(sample => sample.Position.X),
-            Math.Max(samples.Max(sample => sample.Position.Y) - samples.Min(sample => sample.Position.Y),
-                samples.Max(sample => sample.Position.Z) - samples.Min(sample => sample.Position.Z)));
+        var minimum = samples[0].Position;
+        var maximum = minimum;
+        foreach (var sample in samples)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var point = sample.Position;
+            minimum = new V3(Math.Min(minimum.X, point.X), Math.Min(minimum.Y, point.Y), Math.Min(minimum.Z, point.Z));
+            maximum = new V3(Math.Max(maximum.X, point.X), Math.Max(maximum.Y, point.Y), Math.Max(maximum.Z, point.Z));
+        }
+        var extent = maximum - minimum;
+        var width = Math.Max(extent.X, Math.Max(extent.Y, extent.Z));
         var depth = Math.Clamp((int)Math.Ceiling(Math.Log2(Math.Max(width * 1.25 / voxelSize, 1))), 5, 12);
         var directory = Path.Combine(Path.GetTempPath(), "echo-poisson-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -46,6 +56,7 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
             var input = Path.Combine(directory, "samples.bin");
             var output = Path.Combine(directory, "surface.bin");
             codec.WriteSamples(input, samples, cancellation);
+            sampleWork?.Dispose();
             var start = new ProcessStartInfo(executable)
             {
                 UseShellExecute = false,
@@ -86,7 +97,7 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
             {
                 throw new EchoException($"Surface completion failed: {details.Trim()}", 5);
             }
-            return codec.Read(output, cancellation);
+            return codec.Read(output, cancellation, work);
         }
         finally
         {

@@ -5,16 +5,18 @@
 
 class PoissonInputStream : public PoissonRecon::Reconstructor::InputOrientedSampleStream<double, 3>
 {
-    std::vector<std::array<double, 6>> samples;
-    size_t current = 0;
+    std::ifstream input;
+    std::array<std::array<double, 6>, 4096> buffer;
+    uint64_t count = 0;
+    uint64_t current = 0;
+    size_t buffered = 0;
+    size_t position = 0;
 
 public:
-    explicit PoissonInputStream(const char* path)
+    explicit PoissonInputStream(const char* path) : input(path, std::ios::binary)
     {
-        std::ifstream input(path, std::ios::binary);
         uint32_t magic = 0;
         uint32_t version = 0;
-        uint64_t count = 0;
         input.read(reinterpret_cast<char*>(&magic), sizeof(magic));
         input.read(reinterpret_cast<char*>(&version), sizeof(version));
         input.read(reinterpret_cast<char*>(&count), sizeof(count));
@@ -24,41 +26,56 @@ public:
         {
             throw std::runtime_error("Invalid oriented-sample header.");
         }
-
-        samples.resize(count);
-        input.read(reinterpret_cast<char*>(samples.data()), count * sizeof(samples[0]));
-        if (!input || input.peek() != std::ifstream::traits_type::eof())
+        input.seekg(0, std::ios::end);
+        if (input.tellg() != std::streamoff(16 + count * sizeof(buffer[0])))
         {
             throw std::runtime_error("Invalid oriented-sample length.");
         }
+        reset();
+    }
 
-        for (const auto& sample : samples)
-        {
-            for (double value : sample)
-            {
-                if (!std::isfinite(value))
-                {
-                    throw std::runtime_error("Non-finite oriented sample.");
-                }
-            }
-        }
+    uint64_t size() const
+    {
+        return count;
     }
 
     void reset() override
     {
+        input.clear();
+        input.seekg(16);
         current = 0;
+        buffered = 0;
+        position = 0;
+        if (!input)
+        {
+            throw std::runtime_error("Failed to reset oriented samples.");
+        }
     }
 
     bool read(PoissonRecon::Point<double, 3>& point, PoissonRecon::Point<double, 3>& normal) override
     {
-        if (current == samples.size())
+        if (current == count)
         {
             return false;
         }
-
-        const auto& value = samples[current++];
+        if (position == buffered)
+        {
+            buffered = size_t(std::min<uint64_t>(buffer.size(), count - current));
+            input.read(reinterpret_cast<char*>(buffer.data()), buffered * sizeof(buffer[0]));
+            if (!input)
+            {
+                throw std::runtime_error("Truncated oriented samples.");
+            }
+            position = 0;
+        }
+        const auto& value = buffer[position++];
+        current++;
         for (unsigned int axis = 0; axis < 3; axis++)
         {
+            if (!std::isfinite(value[axis]) || !std::isfinite(value[axis + 3]))
+            {
+                throw std::runtime_error("Non-finite oriented sample.");
+            }
             point[axis] = value[axis];
             normal[axis] = value[axis + 3];
         }
