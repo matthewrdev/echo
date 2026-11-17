@@ -113,15 +113,20 @@ final class CameraNavigationStressTests: XCTestCase {
         if let output = ProcessInfo.processInfo.environment["ECHO_TEST_CAMERA_RENDER"] {
             let folder = URL(fileURLWithPath: output)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-            host.cacheDisplay(in: host.bounds, to: bitmap)
-            try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
-                to: folder.appendingPathComponent("cloud-camera-stress.png"))
+            try writeSnapshot(main, to: folder.appendingPathComponent("cloud-camera-stress.png"))
+            try writeSnapshot(preview, to: folder.appendingPathComponent("cloud-camera-stress-preview.png"))
         }
         preview.keyDown(with: try key(53, window: window))
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertNil(cameraPreview(in: host))
         XCTAssertNil(scene.rootNode.childNode(withName: "sparse-selection", recursively: false))
+    }
+
+    @MainActor
+    private func writeSnapshot(_ view: SCNView, to file: URL) throws {
+        let data = try XCTUnwrap(view.snapshot().tiffRepresentation)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: data))
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: file)
     }
 
     @MainActor
