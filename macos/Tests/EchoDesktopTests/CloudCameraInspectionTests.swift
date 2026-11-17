@@ -98,7 +98,8 @@ final class CloudCameraInspectionTests: XCTestCase {
         let photo = try photograph()
         let pose = camera(x: -1)
         let view = ArtifactSceneView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
-        view.cloudInspection = CloudInspectionData(root: URL(fileURLWithPath: "/tmp"), cameras: [pose], photos: [photo])
+        view.cameraInspection = CameraInspectionData(
+            root: URL(fileURLWithPath: "/tmp"), cameras: [pose], photos: [photo])
         for _ in 0..<2 {
             view.scene = NativeSceneFactory().make(
                 reconstruction: nil, points: [CloudPoint(position: [0, 0, 0], colour: nil, error: 0)],

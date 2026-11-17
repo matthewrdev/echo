@@ -172,20 +172,27 @@ final class SavedArtifactReader: ArtifactReader {
                 artifact.meshFile.map { folder.appendingPathComponent($0) }
                 ?? root.appendingPathComponent(meshPath).appendingPathComponent("mesh.json")
             let surface: Surface = try read(surfaceFile)
+            let reconstruction = try cameraScene(root: root, run: run)
             let scene = scenes.make(
-                reconstruction: nil, points: [], photos: [], root: root, surface: surface,
+                reconstruction: reconstruction, points: [], photos: photos, root: root, surface: surface,
                 uvs: artifact.uvs, texture: image)
             return ArtifactPresentation(
                 title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue,
+                cameraInspection: CameraInspectionData(
+                    root: root, cameras: reconstruction?.cameras ?? [], photos: photos),
                 metricScale: metricScale())
         case .export:
             let asset = try glb.read(folder.appendingPathComponent("cliff.glb"))
+            let reconstruction = try cameraScene(root: root, run: run)
             let scene = scenes.make(
-                reconstruction: nil, points: [], photos: [], root: root, surface: asset.surface,
+                reconstruction: reconstruction, points: [], photos: photos, root: root, surface: asset.surface,
                 uvs: asset.uvs, texture: asset.image, meshMode: MeshViewMode(rawValue: mode) ?? .textured)
             return ArtifactPresentation(
                 title: stage.title, detail: "\(asset.surface.faces.count.formatted()) triangles · actual exported GLB",
-                scene: scene, sceneIdentity: run.id + stage.rawValue, metricScale: metricScale())
+                scene: scene, sceneIdentity: run.id + stage.rawValue,
+                cameraInspection: CameraInspectionData(
+                    root: root, cameras: reconstruction?.cameras ?? [], photos: photos),
+                metricScale: metricScale())
         case .alignment, .cloud, .mesh:
             let alignmentPath = run.artifacts["alignment"] ?? run.artifacts["alignmentPreview"]
             var totalSparsePoints: Int?
@@ -252,14 +259,16 @@ final class SavedArtifactReader: ArtifactReader {
                     "\(label) · \(report.retainedSamples.formatted()) accepted points · displaying \(displayedCount.formatted()) \(density) · updated \(updated)"
             }
             if stage == .mesh {
-                surface = try read(folder.appendingPathComponent("mesh.json"))
+                let savedSurface: Surface = try read(folder.appendingPathComponent("mesh.json"))
+                surface = savedSurface
                 points = []
-                detail = "\(surface!.faces.count.formatted()) triangles"
+                detail = "\(savedSurface.faces.count.formatted()) triangles"
                 if mode == "Textured", let texturePath = run.artifacts["texture"] {
                     let textureFolder = root.appendingPathComponent(texturePath)
                     let artifact: TextureArtifact = try read(textureFolder.appendingPathComponent("texture.json"))
                     if let meshFile = artifact.meshFile {
-                        surface = try read(textureFolder.appendingPathComponent(meshFile))
+                        let texturedSurface: Surface = try read(textureFolder.appendingPathComponent(meshFile))
+                        surface = texturedSurface
                     }
                     uvs = artifact.uvs
                     texture = NSImage(contentsOf: textureFolder.appendingPathComponent("atlas.jpg"))
@@ -282,10 +291,19 @@ final class SavedArtifactReader: ArtifactReader {
             return ArtifactPresentation(
                 title: stage.title, detail: detail, scene: scene, sceneIdentity: run.id + stage.rawValue,
                 sparseInspection: inspection,
-                cloudInspection: stage == .cloud
-                    ? CloudInspectionData(root: root, cameras: reconstruction?.cameras ?? [], photos: photos) : nil,
+                cameraInspection: stage == .cloud || stage == .mesh
+                    ? CameraInspectionData(root: root, cameras: reconstruction?.cameras ?? [], photos: photos) : nil,
                 metricScale: reconstruction?.origin != nil && !(reconstruction?.frame.contains("arbitrary") ?? true))
         }
+    }
+
+    private func cameraScene(root: URL, run: RunData) throws -> ReconstructionScene? {
+        guard let alignment = run.artifacts["alignment"] else { return nil }
+        let metadata: ReconstructionMetadata = try read(
+            root.appendingPathComponent(alignment).appendingPathComponent("scene.json"))
+        return ReconstructionScene(
+            frame: metadata.frame, origin: metadata.origin, cameras: metadata.cameras,
+            points: [], unplaced: [], warnings: [])
     }
 
     private func read<T: Decodable>(_ file: URL) throws -> T {

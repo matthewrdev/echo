@@ -24,7 +24,7 @@ struct SparseInspectionData {
         cameraOrder =
             photos.map(\.id).filter { cameraIDs.contains($0) }
             + cameraIDs.subtracting(photos.map(\.id)).sorted()
-        frustums = CloudInspectionData(root: root, cameras: scene.cameras, photos: photos).frustums
+        frustums = CameraInspectionData(root: root, cameras: scene.cameras, photos: photos).frustums
         self.featureFiles = featureFiles
         var tracks: [SparseTrack] = []
         var lookup: [SparseTrackKey: Int] = [:]

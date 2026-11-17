@@ -37,7 +37,8 @@ struct GeoreferenceArtifactReader {
                 uvs = result.uvs
                 texture = NSImage(contentsOf: folder.appendingPathComponent("atlas.jpg"))
             }
-            surface = try json.read(file)
+            let savedSurface: Surface = try json.read(file)
+            surface = savedSurface
             source = texture == nil ? "Saved mesh" : "Textured mesh"
         }
         try Task.checkCancellation()
@@ -54,6 +55,8 @@ struct GeoreferenceArtifactReader {
             reconstruction: reconstruction,
             presentation: ArtifactPresentation(
                 title: "Geographic view", detail: source, scene: scene, sceneIdentity: run.id + "geographic",
+                cameraInspection: CameraInspectionData(
+                    root: root, cameras: metadata.cameras, photos: run.snapshot.images),
                 metricScale: true),
             overlay: overlay, cameras: cameras,
             bounds: SceneBounds(positions: surface?.vertices ?? metadata.cameras.map(\.centre)))

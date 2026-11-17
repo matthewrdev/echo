@@ -25,11 +25,14 @@ struct Artifact3DViewer: View {
                     placeExclusion: placeExclusion
                 )
                 .overlay(alignment: .bottomLeading) {
-                    if let data = presentation.cloudInspection, let scene = presentation.scene,
+                    if let data = presentation.cameraInspection, let scene = presentation.scene,
                         case .camera(let imageID) = selected
                     {
-                        CloudCameraComparison(data: data, imageID: imageID, scene: scene) { selected = nil }
-                            .frame(maxWidth: 520).padding(10).padding(.bottom, 42)
+                        SourceCameraComparison(
+                            data: data, imageID: imageID, scene: scene, move: controller.moveCamera,
+                            cameraKey: controller.handleCameraKey
+                        ) { selected = nil }
+                        .frame(maxWidth: 520).padding(10).padding(.bottom, 42)
                     }
                 }
                 .overlay(alignment: .topTrailing) {
@@ -101,7 +104,7 @@ struct Artifact3DViewer: View {
             }
         }
         .onChange(of: presentation.id) { _, _ in
-            if presentation.cloudInspection != nil { return }
+            if presentation.cameraInspection != nil { return }
             selected = nil
             observationIndex = 0
         }

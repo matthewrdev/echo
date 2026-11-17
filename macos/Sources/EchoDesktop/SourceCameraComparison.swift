@@ -1,10 +1,12 @@
 import SceneKit
 import SwiftUI
 
-struct CloudCameraComparison: View {
-    let data: CloudInspectionData
+struct SourceCameraComparison: View {
+    let data: CameraInspectionData
     let imageID: String
     let scene: SCNScene
+    let move: (Int) -> Void
+    let cameraKey: (NSEvent) -> Bool
     let clear: () -> Void
     @State private var image: NSImage?
     @State private var imageLoaded = false
@@ -18,6 +20,17 @@ struct CloudCameraComparison: View {
                     Button("Clear camera selection", systemImage: "xmark", action: clear)
                         .labelStyle(.iconOnly).buttonStyle(.plain).help("Clear camera selection (Esc)")
                         .keyboardShortcut(.cancelAction)
+                }
+                if let index = data.cameraOrder.firstIndex(of: imageID) {
+                    HStack {
+                        Button("Previous camera", systemImage: "chevron.left") { move(-1) }
+                            .disabled(index == 0).keyboardShortcut(.leftArrow, modifiers: [])
+                        Text("Camera \(index + 1) of \(data.cameraOrder.count)").monospacedDigit()
+                        Button("Next camera", systemImage: "chevron.right") { move(1) }
+                            .disabled(index == data.cameraOrder.count - 1).keyboardShortcut(.rightArrow, modifiers: [])
+                        Spacer()
+                        Text("← / → Browse · Esc Clear").foregroundStyle(.secondary)
+                    }.labelStyle(.iconOnly).buttonStyle(.plain)
                 }
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -35,12 +48,12 @@ struct CloudCameraComparison: View {
                         }.aspectRatio(CGFloat(photo.width) / CGFloat(photo.height), contentMode: .fit)
                     }.frame(maxWidth: .infinity)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Camera view · point cloud").foregroundStyle(.secondary)
-                        CameraPointCloudView(scene: scene, frustum: frustum)
+                        Text("Virtual camera").foregroundStyle(.secondary)
+                        SourceCameraViewport(scene: scene, frustum: frustum, cameraKey: cameraKey)
                             .aspectRatio(CGFloat(photo.width) / CGFloat(photo.height), contentMode: .fit)
                     }.frame(maxWidth: .infinity)
                 }
-                Text("Field of view highlighted · other points at 10% opacity")
+                Text("Same camera position, orientation and field of view as the source photo")
                     .font(.caption2).foregroundStyle(.secondary)
             }
             .font(.caption).padding(10)

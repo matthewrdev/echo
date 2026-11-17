@@ -6,6 +6,47 @@ import XCTest
 @testable import EchoDesktop
 
 final class CompletedMeshViewerTests: XCTestCase {
+    @MainActor
+    func testNativeViewerOpensCompletedMeshArtifact() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let project = environment["ECHO_TEST_PROJECT"], let runID = environment["ECHO_TEST_RUN"] else {
+            throw XCTSkip("Set ECHO_TEST_PROJECT and ECHO_TEST_RUN to inspect a completed mesh.")
+        }
+        let root = URL(fileURLWithPath: project)
+        let json = ArtifactJSONReader()
+        let run: RunData = try json.read(root.appendingPathComponent("runs/\(runID)/run.json"))
+        let reader = SavedArtifactReader(
+            scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
+            featureMatches: FeatureMatchIndexer(json: json),
+            depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
+            fusion: SavedFusionArtifactReader(json: json, scenes: NativeSceneFactory()), json: json)
+        let presentation: ArtifactPresentation
+        do {
+            presentation = try await reader.load(
+                root: root, run: run, stage: .mesh, unit: nil, mode: "Solid", slice: 0.5)
+        } catch {
+            XCTFail("Mesh loading failed: \(String(reflecting: error))")
+            return
+        }
+        let scene = try XCTUnwrap(presentation.scene)
+        let geometry = try XCTUnwrap(scene.rootNode.childNode(withName: "artifact", recursively: false)?.geometry)
+        XCTAssertGreaterThan(geometry.elements.first?.primitiveCount ?? 0, 0)
+        if let output = environment["ECHO_TEST_RENDER_DIR"] {
+            let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+            let camera = try XCTUnwrap(scene.rootNode.childNode(withName: "viewer-camera", recursively: false))
+            let renderer = SCNRenderer(device: device, options: nil)
+            renderer.scene = scene
+            renderer.pointOfView = camera
+            let rendered = renderer.snapshot(
+                atTime: 0, with: CGSize(width: 1440, height: 900), antialiasingMode: .multisampling4X)
+            let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(rendered.tiffRepresentation)))
+            let folder = URL(fileURLWithPath: output)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
+                to: folder.appendingPathComponent("completed-mesh-native-viewer.png"))
+        }
+    }
+
     func testNativeViewerOpensAndRendersCompletedGlb() throws {
         guard let path = ProcessInfo.processInfo.environment["ECHO_TEST_COMPLETED_GLB"] else {
             throw XCTSkip("Set ECHO_TEST_COMPLETED_GLB to inspect a completed reconstruction.")

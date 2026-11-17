@@ -115,7 +115,7 @@ final class DenseCloudPreviewTests: XCTestCase {
                 to: URL(fileURLWithPath: output).appendingPathComponent("dense-\(direction).png"))
         }
         let highlighter = CloudCameraHighlight()
-        let frustum = try XCTUnwrap(presentation.cloudInspection?.frustums.values.first)
+        let frustum = try XCTUnwrap(presentation.cameraInspection?.frustums.values.first)
         highlighter.show(frustum, on: artifact)
         bounds.fit(camera: camera, size: CGSize(width: 2200, height: 1400), direction: .north)
         let snapshot = renderer.snapshot(

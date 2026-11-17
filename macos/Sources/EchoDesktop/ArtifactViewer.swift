@@ -181,16 +181,24 @@ struct ArtifactViewer: View {
                 }
             } else {
                 ContentUnavailableView(
-                    workspace.isWorking ? "Waiting for this stage’s output" : "No saved output yet",
+                    hasSavedArtifact && model.error != nil
+                        ? "Couldn’t open saved output"
+                        : workspace.isWorking ? "Waiting for this stage’s output" : "No saved output yet",
                     systemImage: workspace.selectedStage == .cloud
                         ? "point.3.connected.trianglepath.dotted" : "square.stack.3d.up",
                     description: Text(
-                        workspace.selectedStage == .cloud && workspace.isWorking
+                        workspace.selectedStage == .cloud && workspace.isWorking && !hasSavedArtifact
                             ? "A sampled point cloud will appear here as supported points are accepted."
                             : model.error ?? "Process to this stage to create its artifact.")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+    }
+
+    private var hasSavedArtifact: Bool {
+        let artifacts = workspace.displayedRun?.artifacts ?? [:]
+        let stage = workspace.selectedStage.rawValue
+        return artifacts[stage] != nil || artifacts[stage + "Preview"] != nil
     }
 }

@@ -47,7 +47,7 @@ struct SceneViewport: NSViewRepresentable {
         }
         view.scene?.rootNode.childNode(withName: "ground-grid", recursively: false)?.isHidden = !showGround
         view.inspection = presentation.sparseInspection
-        view.cloudInspection = presentation.cloudInspection
+        view.cameraInspection = presentation.cameraInspection
         view.selection = selection
         view.placeExclusion = placeExclusion
         view.exclusionOverlay.update(scene: view.scene, regions: exclusionRegions, selectedID: selectedExclusionID)

@@ -1,7 +1,7 @@
 import SceneKit
 import simd
 
-struct CameraFrustum {
+struct CameraFrustum: Equatable {
     let centre: SIMD3<Double>
     let right: SIMD3<Double>
     let down: SIMD3<Double>

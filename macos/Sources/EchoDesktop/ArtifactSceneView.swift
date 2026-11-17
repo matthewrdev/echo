@@ -7,7 +7,7 @@ final class ArtifactSceneView: SCNView {
     var artifactIdentity = ""
     var needsInitialFit = true
     var inspection: SparseInspectionData?
-    var cloudInspection: CloudInspectionData?
+    var cameraInspection: CameraInspectionData?
     var selection: ((SparseSelection?) -> Void)?
     private let cloudHighlight = CloudCameraHighlight()
     private var mouseStart: NSPoint?
@@ -52,8 +52,8 @@ final class ArtifactSceneView: SCNView {
             return
         }
         guard selection != nil else { return }
-        if let cloudInspection {
-            selection?(pick(at: location, cameras: cloudInspection.cameras, tracks: []))
+        if let cameraInspection {
+            selection?(pick(at: location, cameras: cameraInspection.cameras, tracks: []))
         } else if let inspection {
             selection?(pick(at: location, inspection: inspection))
         }
@@ -68,24 +68,31 @@ final class ArtifactSceneView: SCNView {
     }
 
     override func keyDown(with event: NSEvent) {
+        if !handleCameraKey(event) { super.keyDown(with: event) }
+    }
+
+    func handleCameraKey(_ event: NSEvent) -> Bool {
         if event.keyCode == 53, highlighted != nil {
             selection?(nil)
             highlight(nil)
-        } else if moveCamera(with: event) {
-            return
-        } else {
-            super.keyDown(with: event)
+            return true
         }
+        return moveCamera(with: event)
     }
 
     func moveCamera(with event: NSEvent) -> Bool {
         guard event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
-            event.keyCode == 123 || event.keyCode == 124,
-            case .camera(let imageID) = highlighted, let selection
+            event.keyCode == 123 || event.keyCode == 124
         else { return false }
-        let cameras = cloudInspection?.cameraOrder ?? inspection?.cameraOrder ?? []
+        return moveCamera(by: event.keyCode == 123 ? -1 : 1)
+    }
+
+    @discardableResult
+    func moveCamera(by offset: Int) -> Bool {
+        guard case .camera(let imageID) = highlighted, let selection else { return false }
+        let cameras = cameraInspection?.cameraOrder ?? inspection?.cameraOrder ?? []
         guard let index = cameras.firstIndex(of: imageID) else { return false }
-        let nextIndex = min(max(0, index + (event.keyCode == 123 ? -1 : 1)), cameras.count - 1)
+        let nextIndex = min(max(0, index + offset), cameras.count - 1)
         if nextIndex != index {
             let next = SparseSelection.camera(cameras[nextIndex])
             selection(next)
@@ -140,10 +147,14 @@ final class ArtifactSceneView: SCNView {
         scene?.rootNode.childNode(withName: "sparse-selection", recursively: false)?.removeFromParentNode()
         scene?.rootNode.childNode(withName: "artifact", recursively: false)?.opacity = 1
         if case .camera(let imageID) = selected,
-            let frustum = cloudInspection?.frustums[imageID] ?? inspection?.frustums[imageID], let scene,
+            let frustum = cameraInspection?.frustums[imageID] ?? inspection?.frustums[imageID], let scene,
             let artifact = scene.rootNode.childNode(withName: "artifact", recursively: false)
         {
-            cloudHighlight.show(frustum, on: artifact)
+            if artifact.geometry?.elements.first?.primitiveType == .point {
+                cloudHighlight.show(frustum, on: artifact)
+            } else {
+                cloudHighlight.clear()
+            }
             let marker = markers(
                 [SCNVector3(frustum.centre.x, frustum.centre.y, frustum.centre.z)], color: .systemYellow, radius: 8)
             marker.name = "sparse-selection"

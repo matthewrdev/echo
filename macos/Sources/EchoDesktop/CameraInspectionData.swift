@@ -1,6 +1,6 @@
 import Foundation
 
-struct CloudInspectionData {
+struct CameraInspectionData {
     let root: URL
     let photos: [String: Photo]
     let cameras: [String: CameraPose]
