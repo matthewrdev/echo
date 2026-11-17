@@ -200,6 +200,10 @@ struct StageSettingsEditor: View {
                     "Removes disconnected observed volume before mesh extraction and hole closing. Region size uses the number of fusion samples. Main region only can also remove real detached objects. Nearby fragments joined by the fusion band may remain; Mesh island trimming can clean up later."
                 ).font(.caption).foregroundStyle(.secondary)
             case .mesh:
+                Toggle("Infer missing surfaces", isOn: $settings.meshCompleteSurface)
+                Text(
+                    "Completes gaps near the observed surface. Turn off to inspect the measured shape without inferred surface completion. Small local hole repairs still run. Changing this setting reuses fusion."
+                ).font(.caption).foregroundStyle(.secondary)
                 Toggle("Optimise vegetation", isOn: $settings.optimiseVegetation)
                 Text(
                     "Uses the optional Hugging Face model to identify vegetation before simplifying it. Requires the 228 MB download described below."

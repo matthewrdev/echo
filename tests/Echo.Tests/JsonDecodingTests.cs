@@ -57,6 +57,7 @@ public sealed class JsonDecodingTests
             RoundTrip(new RunData());
             RoundTrip(new Artifact());
             RoundTrip(new Settings());
+            RoundTrip(new Settings { MeshCompleteSurface = false });
             RoundTrip(new Settings { MeshIslandMode = IslandTrimMode.Main, MeshIslandMinimumAreaPercent = 2.5 });
             RoundTrip(new Settings { FusionIslandMode = IslandTrimMode.Small, FusionIslandMinimumSizePercent = 1.5, TextureSuppressSky = true, TextureSkyMarginPixels = 16 });
             RoundTrip(new Photo());
@@ -73,6 +74,7 @@ public sealed class JsonDecodingTests
         tests.Run("Older projects preserve disabled island trimming until explicitly enabled", () =>
         {
             var settings = Read<Settings>("{}");
+            Check(settings.MeshCompleteSurface, "Older projects retain surface completion until explicitly disabled");
             Check(settings.MeshIslandMode == IslandTrimMode.Off && settings.MeshIslandMinimumAreaPercent == .1, "Missing fields retain compatible defaults");
             Check(settings.FusionIslandMode == IslandTrimMode.Off && settings.FusionIslandMinimumSizePercent == .1, "Early trimming remains opt-in");
             Check(!settings.OptimiseVegetation && !settings.RecoverCliffDepth, "Semantic passes remain opt-in for old projects");

@@ -587,6 +587,26 @@ public sealed class ReconstructionTests
                     Check(changed.Artifacts[stage] != before.Artifacts[stage], "Triangle budgets rebuild " + stage);
                 }
             });
+            tests.Run("Disabling inferred surface completion reuses fusion and produces an observed mesh", () =>
+            {
+                var before = store.GetRun();
+                store.Edit(project => project.Settings.MeshCompleteSurface = false);
+                var changed = processor.Execute(store, "export", default);
+                foreach (var stage in new[] { "alignment", "depth", "cloud", "fusion" })
+                {
+                    Check(changed.Artifacts[stage] == before.Artifacts[stage], "Completion setting preserves " + stage);
+                }
+                foreach (var stage in new[] { "mesh", "texture", "export" })
+                {
+                    Check(changed.Artifacts[stage] != before.Artifacts[stage], "Completion setting rebuilds " + stage);
+                }
+                using var report = JsonDocument.Parse(File.ReadAllText(store.PathFor(changed.Artifacts["mesh"] + "/mesh.report.json")));
+                Check(!report.RootElement.GetProperty("completed").GetBoolean(), "Disabled completion must not reconstruct missing surfaces");
+                Check(report.RootElement.GetProperty("completionDistance").GetDouble() == 0, "Disabled completion has no extrapolation reach");
+                var mesh = jsonCodec.Read<Surface>(store.PathFor(changed.Artifacts["mesh"] + "/mesh.json"));
+                Check(mesh.Faces.Count > 0, "Observed geometry survives without inferred completion");
+                store.Edit(project => project.Settings.MeshCompleteSurface = true);
+            });
             tests.Run("Island trimming edits reuse fusion and rebuild the completed mesh and downstream artifacts", () =>
             {
                 foreach (var mode in new[] { IslandTrimMode.Small, IslandTrimMode.Main })

@@ -88,6 +88,17 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .texture)
     }
 
+    func testSurfaceCompletionCanBeDisabledWithoutInvalidatingFusion() throws {
+        let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
+        XCTAssertTrue(original.meshCompleteSurface)
+        var changed = original
+        changed.meshCompleteSurface = false
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .mesh)
+        let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(changed))
+        XCTAssertFalse(restored.meshCompleteSurface)
+        XCTAssertTrue(restored.summary(for: .mesh).contains("surface completion off"))
+    }
+
     func testOlderProjectSettingsDecodeAndNewControlsRoundTrip() throws {
         let old = Data(#"{"featureWidth":800,"textureSize":4096}"#.utf8)
         var settings = try JSONDecoder().decode(ProcessingSettings.self, from: old)

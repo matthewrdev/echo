@@ -18,6 +18,48 @@ public sealed class FinalHoleRepairTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Curved cave gaps use bounded inference without moving measured rock at different scales", () =>
+        {
+            foreach (var scale in new[] { .001, 1.0, 1000.0 })
+            {
+                var surface = CurvedRing(scale);
+                var vertices = surface.Vertices.Select(point => point.ToArray()).ToArray();
+                var faces = surface.Faces.Select(face => face.ToArray()).ToArray();
+                var project = new ProjectData { Settings = new Settings { MeshCompleteSurface = false } };
+                Check(meshes.RepairFinalHoles(project, new ReconstructionScene(), [], surface, .1 * scale, default).AddedFaces == 0,
+                    "Turning off inference preserves the original conservative repair policy");
+                project.Settings.MeshCompleteSurface = true;
+                var repair = meshes.RepairFinalHoles(project, new ReconstructionScene(), [], surface, .1 * scale, default);
+                Check(repair.RepairedHoles == 1 && repair.AddedFaces == 2,
+                    "A bounded curved hole closes even when its interior has no measured depth");
+                Check(surface.Vertices.Select((point, index) => point.SequenceEqual(vertices[index])).All(equal => equal)
+                    && surface.Faces.Take(faces.Length).Select((face, index) => face.SequenceEqual(faces[index])).All(equal => equal),
+                    "All measured vertex coordinates and triangles remain exactly fixed");
+                Check(SurfaceBoundaryLoops.Find(surface, default).Count() == 1,
+                    "The exterior scan boundary stays open");
+            }
+        });
+        tests.Run("Curved inference preserves real cave openings and rejects deep folds", () =>
+        {
+            var project = new ProjectData();
+            var scene = new ReconstructionScene();
+            var maps = new List<DepthMap>();
+            for (var index = 0; index < 3; index++)
+            {
+                var id = index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                project.Images.Add(new Photo { Id = id, Width = 100, Height = 100, FocalPixels = 100 });
+                scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [(index - 1) * .1, 0, 0] });
+                maps.Add(new DepthMap { ImageId = id, Width = 100, Height = 100, Depth = Enumerable.Repeat(12f, 10000).ToArray() });
+            }
+            Check(meshes.RepairFinalHoles(project, scene, maps, CurvedRing(1), .1, default).AddedFaces == 0,
+                "Three independent views through an opening prevent a curved cap");
+            var folded = CurvedRing(1);
+            folded.Vertices[4][2] = 8;
+            folded.Vertices[6][2] = 8;
+            Check(meshes.RepairFinalHoles(project, new ReconstructionScene(), [], folded, .1, default).AddedFaces == 0,
+                "A deep fold cannot be flattened into a local hole patch");
+            Expect<ArgumentException>(() => SurfaceHoleRepair.Fill(CurvedRing(1), .1, default, allowCurvedInference: true));
+        });
         tests.Run("Final repair closes internal gaps without moving the surface or capping the scan perimeter", () =>
         {
             var surface = Ring();
@@ -112,6 +154,20 @@ public sealed class FinalHoleRepairTests
         Faces = [[0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5],
             [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]]
     };
+
+    private Surface CurvedRing(double scale)
+    {
+        var surface = Ring();
+        for (var index = 0; index < surface.Vertices.Count; index++)
+        {
+            surface.Vertices[index][2] += index % 2 == 0 ? -.3 : .3;
+            for (var axis = 0; axis < 3; axis++)
+            {
+                surface.Vertices[index][axis] *= scale;
+            }
+        }
+        return surface;
+    }
 
     private void Check(bool condition, string message)
     {

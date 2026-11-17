@@ -9,11 +9,16 @@ namespace Echo.Meshing;
 internal static class SurfaceHoleRepair
 {
     public static int Fill(Surface mesh, double voxelSize, CancellationToken cancellation,
-        Func<V3, bool>? supportsSurface = null, Func<SurfaceTriangle, bool>? acceptsTriangle = null, WorkBuffers? work = null, Action<OperationProgress>? progress = null)
+        Func<V3, bool>? supportsSurface = null, Func<SurfaceTriangle, bool>? acceptsTriangle = null, WorkBuffers? work = null, Action<OperationProgress>? progress = null,
+        bool allowCurvedInference = false)
     {
+        if (allowCurvedInference && acceptsTriangle == null)
+        {
+            throw new ArgumentException("Inferred patches require a visibility check.", nameof(acceptsTriangle));
+        }
         using var scratch = work?.CreateScope();
         work = scratch;
-        var maximumLoop = supportsSurface == null ? 256 : 8192;
+        var maximumLoop = supportsSurface != null ? 8192 : allowCurvedInference ? 1024 : 256;
         var edges = new BinaryHashIndex<SurfaceEdge, BoundaryEdge>(mesh.Faces.Count, new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec(), work, cancellation);
         var loops = SurfaceBoundaryLoops.Find(mesh, cancellation, work, progress, edges);
         SurfaceTriangleIndex? index = null;
@@ -43,17 +48,31 @@ internal static class SurfaceHoleRepair
                 {
                     points[vertex] = new V3(mesh.Vertices[loop[vertex]]);
                 }
-                if (!SupportedLoop(points, boundary.AdjacentNormal, voxelSize, supportsSurface != null,
+                if (!SupportedLoop(points, boundary.AdjacentNormal, voxelSize, supportsSurface != null, allowCurvedInference,
                     out var patchNormal, out var requiresObservation))
                 {
                     continue;
                 }
-                if (requiresObservation && supportsSurface == null)
+                var verifyObservation = requiresObservation && !allowCurvedInference;
+                if (verifyObservation && supportsSurface == null)
                 {
                     continue;
                 }
 
-                var patch = Triangulate(loop, points, patchNormal, edges, cancellation);
+                List<int[]>? patch;
+                if (allowCurvedInference)
+                {
+                    // A planar ear order can cut through a curved cave wall even
+                    // when its boundary projects to a simple polygon. Prefer the
+                    // adjacent normals and intersection checks in the 3D order.
+                    index ??= new SurfaceTriangleIndex(mesh, cancellation, work);
+                    patch = CurvedHoleTriangulation.Fill(mesh, loop, edges, index, cancellation, work)
+                        ?? Triangulate(loop, points, patchNormal, edges, cancellation);
+                }
+                else
+                {
+                    patch = Triangulate(loop, points, patchNormal, edges, cancellation);
+                }
                 if (patch == null && supportsSurface != null)
                 {
                     index ??= new SurfaceTriangleIndex(mesh, cancellation, work);
@@ -63,7 +82,7 @@ internal static class SurfaceHoleRepair
                 {
                     continue;
                 }
-                if (requiresObservation && !ObservedPatch(mesh, patch, supportsSurface!, cancellation))
+                if (verifyObservation && !ObservedPatch(mesh, patch, supportsSurface!, cancellation))
                 {
                     continue;
                 }
@@ -125,7 +144,7 @@ internal static class SurfaceHoleRepair
     }
 
     private static bool SupportedLoop(ReadOnlySpan<V3> points, V3 adjacentNormal, double voxelSize,
-        bool allowObservedCompletion, out V3 normal, out bool requiresObservation)
+        bool allowObservedCompletion, bool allowCurvedInference, out V3 normal, out bool requiresObservation)
     {
         requiresObservation = false;
         var origin = points[0];
@@ -150,16 +169,21 @@ internal static class SurfaceHoleRepair
         {
             radius = Math.Max(radius, (point - centre).Length);
         }
+        if (allowCurvedInference && radius > voxelSize * 24)
+        {
+            return false;
+        }
         foreach (var point in points)
         {
             var deviation = Math.Abs((point - centre).Dot(normal));
             requiresObservation |= deviation > voxelSize * .75;
-            var maximumDeviation = allowObservedCompletion ? Math.Max(voxelSize * 4, radius * .4) : voxelSize * .75;
+            var maximumDeviation = allowCurvedInference ? Math.Min(voxelSize * 6, radius * .4)
+                : allowObservedCompletion ? Math.Max(voxelSize * 4, radius * .4) : voxelSize * .75;
             if (deviation > maximumDeviation)
             {
                 return false;
             }
-            if (!allowObservedCompletion)
+            if (!allowObservedCompletion && !allowCurvedInference)
             {
                 foreach (var other in points)
                 {

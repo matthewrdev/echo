@@ -58,6 +58,7 @@ struct ProcessingSettings: Codable {
     var textureSize: Int = 8192
     var textureJpegQuality: Int = 92
     var faceLimit: Int = 1_500_000
+    var meshCompleteSurface: Bool = true
     var meshIslandMode: IslandTrimMode = .off
     var meshIslandMinimumAreaPercent: Double = 0.1
     var textureChartFaces: Int = 512
@@ -132,6 +133,7 @@ struct ProcessingSettings: Codable {
         textureSize = try values.decodeIfPresent(Int.self, forKey: .textureSize) ?? 8192
         textureJpegQuality = try values.decodeIfPresent(Int.self, forKey: .textureJpegQuality) ?? 92
         faceLimit = try values.decodeIfPresent(Int.self, forKey: .faceLimit) ?? 1_500_000
+        meshCompleteSurface = try values.decodeIfPresent(Bool.self, forKey: .meshCompleteSurface) ?? true
         meshIslandMode = try values.decodeIfPresent(IslandTrimMode.self, forKey: .meshIslandMode) ?? .off
         meshIslandMinimumAreaPercent =
             try values.decodeIfPresent(Double.self, forKey: .meshIslandMinimumAreaPercent) ?? 0.1
@@ -200,6 +202,7 @@ struct ProcessingSettings: Codable {
         try values.encode(textureSize, forKey: .textureSize)
         try values.encode(textureJpegQuality, forKey: .textureJpegQuality)
         try values.encode(faceLimit, forKey: .faceLimit)
+        try values.encode(meshCompleteSurface, forKey: .meshCompleteSurface)
         try values.encode(meshIslandMode, forKey: .meshIslandMode)
         try values.encode(meshIslandMinimumAreaPercent, forKey: .meshIslandMinimumAreaPercent)
         try values.encode(textureChartFaces, forKey: .textureChartFaces)
@@ -248,7 +251,8 @@ struct ProcessingSettings: Codable {
                 : meshIslandMode == .small
                     ? "trim islands below \(meshIslandMinimumAreaPercent.formatted())% area"
                     : "island trimming off"
-            return "Up to \(faceLimit.formatted()) triangles · \(islands)"
+            let completion = meshCompleteSurface ? "surface completion on" : "surface completion off"
+            return "Up to \(faceLimit.formatted()) triangles · \(completion) · \(islands)"
         case .texture:
             return
                 "\(textureSize) × \(textureSize) texture · JPEG \(textureJpegQuality) · \(textureChartFaces) faces per chart · \(textureChartAngle)° chart angle · \(textureGutter) px gutter · sky guard \(textureSuppressSky ? "\(textureSkyMarginPixels) px" : "off")"

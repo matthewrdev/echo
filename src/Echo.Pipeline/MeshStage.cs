@@ -26,7 +26,8 @@ public sealed class MeshStage : IPipelineStage
         IMeshBuilder meshBuilder,
         IEdgeCollapse edgeCollapse,
         IPlyWriter plyWriter,
-        ISurfaceReconstructor surfaceReconstructor, [Import(AllowDefault = true)] IComputeService? compute = null)
+        ISurfaceReconstructor surfaceReconstructor,
+        [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
@@ -57,7 +58,8 @@ public sealed class MeshStage : IPipelineStage
             fusionPath,
             depthUnits,
             alignment,
-            completionVersion = 10,
+            completionVersion = project.Settings.MeshCompleteSurface ? 13 : 10,
+            project.Settings.MeshCompleteSurface,
             project.Settings.ExclusionRegions,
             simplificationVersion = 5,
             project.Settings.ComputeBackend,
@@ -97,14 +99,16 @@ public sealed class MeshStage : IPipelineStage
                         reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: work, progress: progress.Report));
                     }
                     progress.Begin(MeshPhase.CompleteSurface);
-                    context.ReportProgress(Name, "Removing surfaces contradicted by visible depth rays before completion…");
+                    context.ReportProgress(Name, "Removing surfaces contradicted by visible depth rays…");
                     var facesBeforeVisibility = reduced.Faces.Count;
                     reduced = geometryBuffers.Replace(work => SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, work, progress.Report, compute, depthContext));
                     var rejectedBeforeCompletion = facesBeforeVisibility - reduced.Faces.Count;
                     var rejectedAfterCompletion = 0;
                     context.ReportProgress(Name, $"Rejected {rejectedBeforeCompletion:N0} triangles contradicted by observed empty space.");
-                    progress.Report(new OperationProgress("Find surface gaps", "Checking the surface for gaps…"));
-                    var completed = SurfaceSupportFilter.HasGaps(reduced, cancellation, context.Work);
+                    progress.Report(new OperationProgress("Find surface gaps", project.Settings.MeshCompleteSurface
+                        ? "Checking the surface for gaps…" : "Inferred surface completion is disabled."));
+                    var completed = project.Settings.MeshCompleteSurface
+                        && SurfaceSupportFilter.HasGaps(reduced, cancellation, context.Work);
                     if (completed)
                     {
                         progress.Report(new OperationProgress("Completion photograph selection", "Selecting photographs for surface completion…"));
@@ -126,10 +130,10 @@ public sealed class MeshStage : IPipelineStage
                         rejectedAfterCompletion = facesBeforeVisibility - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Rejected {rejectedAfterCompletion:N0} completed triangles contradicted by observed empty space.");
                     }
-                    context.ReportProgress(Name, "Repairing small enclosed holes after visibility cleanup…");
+                    context.ReportProgress(Name, "Repairing bounded enclosed holes after visibility cleanup…");
                     progress.Begin(MeshPhase.RepairFinalHoles);
                     var finalRepair = meshBuilder.RepairFinalHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report, depthContext);
-                    context.ReportProgress(Name, $"Closed {finalRepair.RepairedHoles:N0} small holes with {finalRepair.AddedFaces:N0} triangles.");
+                    context.ReportProgress(Name, $"Closed {finalRepair.RepairedHoles:N0} bounded holes with {finalRepair.AddedFaces:N0} triangles.");
                     if (reduced.Faces.Count > project.Settings.FaceLimit)
                     {
                         reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: work, progress: progress.Report));
@@ -197,6 +201,7 @@ public sealed class MeshStage : IPipelineStage
                         volume.VoxelSize,
                         detailTolerance,
                         completed,
+                        completionEnabled = project.Settings.MeshCompleteSurface,
                         visibilityFiltering = new
                         {
                             rejectedBeforeCompletion,
@@ -213,8 +218,12 @@ public sealed class MeshStage : IPipelineStage
                             trimming.RemovedFaces,
                             trimming.RemovedArea
                         },
-                        method = "Visibility-constrained screened Poisson completion, adaptive simplification and graph-cut photographic view selection",
-                        note = "Completed regions are inferred geometry. Distant extrapolation and surfaces contradicted by multiple visible depth rays are removed; missing and occluded depths remain neutral."
+                        method = completed
+                            ? "Visibility-constrained screened Poisson completion, adaptive simplification and graph-cut photographic view selection"
+                            : "Observed surface extraction, supported hole repair, adaptive simplification and graph-cut photographic view selection",
+                        note = completed
+                            ? "Completed regions are inferred geometry. Distant extrapolation and surfaces contradicted by multiple visible depth rays are removed; missing and occluded depths remain neutral."
+                            : "No inferred surface completion was applied. Small local holes may be repaired; missing and occluded depths remain neutral."
                     });
                 });
         context.Publish("mesh", meshPath);

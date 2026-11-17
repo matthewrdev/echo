@@ -49,6 +49,7 @@ struct ProcessingImpact {
             old.optimiseVegetation != new.optimiseVegetation
             || old.vegetationMeshToleranceMultiplier != new.vegetationMeshToleranceMultiplier
             || old.faceLimit != new.faceLimit || old.meshIslandMode != new.meshIslandMode
+            || old.meshCompleteSurface != new.meshCompleteSurface
             || old.meshIslandMinimumAreaPercent != new.meshIslandMinimumAreaPercent
         if mesh { return .mesh }
         let texture =

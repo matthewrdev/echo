@@ -39,7 +39,7 @@ public sealed class CheckpointStore : ICheckpointStore
             "alignment" => "echo-0.1.0-bundle6",
             "fusion" => "echo-0.1.0-tsdf6-minimum",
             "fusion-chunk" => "echo-fusion-batch2",
-            "mesh" => "echo-0.1.0-surface9",
+            "mesh" => "echo-0.1.0-surface10",
             "texture" => "echo-0.1.0-charts9-painted-priority",
             "export" => "echo-0.1.0-export4",
             "feature-image" => "echo-0.1.0-area2",

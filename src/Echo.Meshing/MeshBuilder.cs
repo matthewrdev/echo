@@ -96,10 +96,11 @@ public sealed class MeshBuilder : IMeshBuilder
         ValidateRepair(geometry, voxelSize, cancellation);
         var views = (depthContext ?? new MeshDepthContext(project, scene, maps)).Views;
         var originalFaces = geometry.Faces.Count;
-        // The final pass repairs only bounded, nearly planar internal loops.
-        // It cannot connect fragments or extrapolate the scan perimeter.
+        // Curved patches are inferred only when general completion is enabled.
+        // Both modes preserve the scan perimeter and reject observed empty space.
         var repaired = SurfaceHoleRepair.Fill(geometry, voxelSize, cancellation,
-            acceptsTriangle: triangle => !SurfaceVisibilityEvidence.Contradicts(triangle, views, project.Settings.CloudDepthTolerance), work: work, progress: operationProgress);
+            acceptsTriangle: triangle => !SurfaceVisibilityEvidence.Contradicts(triangle, views, project.Settings.CloudDepthTolerance), work: work, progress: operationProgress,
+            allowCurvedInference: project.Settings.MeshCompleteSurface);
         return new SurfaceHoleRepairResult(repaired, geometry.Faces.Count - originalFaces);
     }
 

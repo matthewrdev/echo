@@ -38,6 +38,7 @@ public sealed class ExportStage : IPipelineStage
         var fusionPath = context.Artifact("fusion");
         var export = context.Build("export", new
         {
+            descriptionVersion = 3,
             texture,
             meshPath,
             alignment,
@@ -77,7 +78,7 @@ public sealed class ExportStage : IPipelineStage
                         tex.CoverageFraction,
                         scene.Unplaced,
                         warnings = scene.Warnings,
-                        geometry = "Multiview-validated dense cloud, uncertainty-aware TSDF, consistent tetrahedral extraction, screened Poisson gap completion bounded to the observed neighbourhood, and adaptive simplification. Completed regions are inferred geometry; unseen regions retain geometry with smoothly interpolated boundary colours. Graph-cut photographic regions, exposure and seam correction, antialiased charts with padded gutters and mipmap filtering.",
+                        geometry = GeometryDescription(project.Settings.MeshCompleteSurface),
                         alignment,
                         cloud = cloudPath,
                         fusion = fusionPath,
@@ -91,5 +92,15 @@ public sealed class ExportStage : IPipelineStage
                     }
                 });
         context.Publish("export", export);
+    }
+
+    private string GeometryDescription(bool completeSurface)
+    {
+        var completion = completeSurface
+            ? "Screened Poisson gap completion is bounded to the observed neighbourhood; completed regions are inferred geometry. "
+            : "Missing-surface inference is disabled; gaps in observed geometry remain open. ";
+        return "Multiview-validated dense cloud, uncertainty-aware TSDF, consistent tetrahedral extraction, and adaptive simplification. "
+            + completion
+            + "Unseen regions retain geometry with smoothly interpolated boundary colours. Graph-cut photographic regions, exposure and seam correction, antialiased charts with padded gutters and mipmap filtering.";
     }
 }

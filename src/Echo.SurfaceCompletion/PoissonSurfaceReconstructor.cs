@@ -32,7 +32,10 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
             throw new EchoException("The screened Poisson reconstruction worker is missing. Rebuild the processing application.", 5);
         }
         using var sampleWork = work?.CreateScope();
-        var samples = OrientedSurfaceSamples.BuildRecords(measured, scene, cancellation, sampleWork);
+        // Add interior constraints only on faces spanning several reconstruction
+        // cells; already dense curved surfaces retain their original sampling.
+        var samples = OrientedSurfaceSamples.BuildRecords(measured, scene, cancellation, sampleWork,
+            interiorSampleEdgeThreshold: voxelSize * 3);
         if (samples.Count < 3)
         {
             throw new EchoException("Too few oriented samples for surface completion.", 5);

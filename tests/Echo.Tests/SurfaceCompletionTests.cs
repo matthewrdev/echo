@@ -24,6 +24,38 @@ public sealed class SurfaceCompletionTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Completion constrains large measured face interiors at the reconstruction scale", () =>
+        {
+            foreach (var scale in new[] { .001, 1.0, 1000.0 })
+            {
+                var measured = new Surface
+                {
+                    Vertices = [[0, 0, 10 * scale], [2 * scale, 0, 10 * scale], [0, 2 * scale, 10 * scale],
+                        [3 * scale, 0, 10 * scale], [3.1 * scale, 0, 10 * scale], [3 * scale, .1 * scale, 10 * scale]],
+                    Faces = [[0, 2, 1], [3, 4, 5]],
+                    SourceImages = ["camera", "camera"]
+                };
+                var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "camera" }] };
+                var originalVertices = measured.Vertices.Select(point => point.ToArray()).ToArray();
+                var originalFaces = measured.Faces.Select(face => face.ToArray()).ToArray();
+                var samples = OrientedSurfaceSamples.BuildRecords(measured, scene, default, interiorSampleEdgeThreshold: .4 * scale);
+                Check(samples.Count == 7, "Only the coarse triangle needs an additional interior constraint");
+                Check(samples.All(sample => Math.Abs(sample.Position.Z - 10 * scale) < scale * 1e-10 && sample.Normal.Z < -.999),
+                    "New samples remain on the measured plane and both windings face the observing camera");
+                Check(samples.Any(sample =>
+                {
+                    var insideX = sample.Position.X > .6 * scale && sample.Position.X < .7 * scale;
+                    var insideY = sample.Position.Y > .6 * scale && sample.Position.Y < .7 * scale;
+                    return insideX && insideY;
+                }),
+                    "The large measured face receives an interior constraint at every scene scale");
+                Check(measured.Vertices.Select((point, index) => point.SequenceEqual(originalVertices[index])).All(equal => equal)
+                    && measured.Faces.Select((face, index) => face.SequenceEqual(originalFaces[index])).All(equal => equal),
+                    "Sampling leaves the original measured mesh exactly unchanged");
+                Expect<ArgumentOutOfRangeException>(() => OrientedSurfaceSamples.BuildRecords(measured, scene, default, interiorSampleEdgeThreshold: 0));
+                Expect<ArgumentOutOfRangeException>(() => OrientedSurfaceSamples.BuildRecords(measured, scene, default, interiorSampleEdgeThreshold: double.NaN));
+            }
+        });
         tests.Run("Completion cannot place a hull across observed free space", () =>
         {
             var fixture = new FusionFixture();
