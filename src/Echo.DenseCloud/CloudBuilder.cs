@@ -210,7 +210,7 @@ public sealed class CloudBuilder : ICloudBuilder
                     {
                         continue;
                     }
-                    var consistentDepth = other.TrySurfacePoint(point, settings.CloudDepthTolerance, out var surface);
+                    var consistentDepth = other.TrySurfacePoint(point, settings.CloudDepthTolerance, out var surface, preserveDepthEdges: true);
                     if (consistentDepth && view.ReprojectsTo(surface, x, y, settings.CloudReprojectionTolerancePixels))
                     {
                         support++;

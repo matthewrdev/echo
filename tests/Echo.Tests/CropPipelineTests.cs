@@ -95,16 +95,15 @@ public sealed class CropPipelineTests
             Check(Directory.GetDirectories(store.PathFor("artifacts/fusion-grid")).Length == 3,
                 "A changed voxel size reused the old grid");
         }));
-        foreach (var version in new[] { 4, 5, 6, 7 })
+        foreach (var version in new[] { 4, 5, 6, 7, 8 })
         {
-            tests.Run($"Crop edits reuse an existing complete version {version} cloud", () => WithProject(store =>
+            tests.Run($"Depth-edge support rebuilds a version {version} cloud before crop reuse", () => WithProject(store =>
             {
                 var legacy = SaveLegacy(store, version, cropped: false);
                 store.Edit(project => project.Settings.ExclusionRegions = [new ExclusionRegion { Mode = CropRegionMode.Include }]);
                 var run = Process(store);
-                Check(run.Artifacts["cloud"] == legacy, "A compatible full cloud was needlessly rebuilt");
-                var events = File.ReadAllText(store.PathFor($"runs/{run.Id}/events.ndjson"));
-                Check(events.Contains("artifactReused") && !events.Contains("stageStarted"), "Cache reuse performed cloud processing");
+                Check(run.Artifacts["cloud"] != legacy, "A previous depth-support algorithm was incorrectly reused");
+                Check(Process(store).Artifacts["cloud"] == run.Artifacts["cloud"], "The rebuilt full cloud was not reusable");
             }));
         }
         tests.Run("Previously cropped checkpoints cannot become full-cloud inputs", () => WithProject(store =>
@@ -115,12 +114,12 @@ public sealed class CropPipelineTests
             var report = json.Read<DenseCloudReport>(store.PathFor(run.Artifacts["cloud"] + "/cloud.json"));
             Check(report.RetainedSamples > 1000, "The complete cloud was not regenerated from original depth maps");
         }));
-        tests.Run("Compatible cloud reuse honours reset revisions and checkpoint integrity", () => WithProject(store =>
+        tests.Run("Current cloud reuse honours reset revisions and checkpoint integrity", () => WithProject(store =>
         {
-            var legacy = SaveLegacy(store, 7, cropped: false);
+            var legacy = Process(store).Artifacts["cloud"];
             store.Edit(project => project.StageRevisions["cloud"] = "reset-one");
-            var reset = SaveLegacy(store, 7, cropped: false);
-            Check(reset != legacy && Process(store).Artifacts["cloud"] == reset, "Compatibility bypassed the requested reset revision");
+            var reset = Process(store).Artifacts["cloud"];
+            Check(reset != legacy && Process(store).Artifacts["cloud"] == reset, "Cloud reuse bypassed the requested reset revision");
             File.AppendAllText(store.PathFor(reset + "/cloud.ply"), "corrupt");
             try
             {
@@ -147,7 +146,7 @@ public sealed class CropPipelineTests
         var units = json.Read<List<string>>(store.PathFor(run.Artifacts["depth"] + "/units.json"));
         var implementation = settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : compute.GetImplementation(ComputeOperation.Cloud);
         var manifest = json.Read<Artifact>(store.PathFor(run.Artifacts["cloud"] + "/manifest.json"));
-        foreach (var version in new[] { 4, 5, 6, 7, 8 })
+        foreach (var version in new[] { 9 })
         {
             object inputs = new DenseCloudInputs(units, run.Artifacts["alignment"], settings, implementation, version);
             if (run.Snapshot.StageRevisions.TryGetValue("cloud", out var resetRevision))
@@ -249,7 +248,7 @@ public sealed class CropPipelineTests
         var depthUnits = context.DepthUnits();
         var alignment = context.Artifact("alignment");
         // Independent historical payloads verify exact serialized key compatibility.
-        object inputs = version == 4 ? new
+        object inputs = version is 4 or >= 8 ? new
         {
             depthUnits,
             alignment,

@@ -98,6 +98,23 @@ public sealed class CloudProcessingTests
             Check(neighbour.TrySurfacePoint(point, .01, out surface), "Depth tolerance alone accepts this sample");
             Check(!reference.ReprojectsTo(surface, 32, 24, .01), "Round-trip consistency rejects its pixel mismatch");
         });
+        tests.Run("Cloud edge support retains a measured branch without inventing intermediate depths", () =>
+        {
+            var photo = new Photo { Width = 64, Height = 48, FocalPixels = 64 };
+            var depths = Enumerable.Repeat(15f, 64 * 48).ToArray();
+            depths[24 * 64 + 32] = 5;
+            var view = new DepthView(photo, new CameraPose(), new DepthMap { Width = 64, Height = 48, Depth = depths });
+            var branch = new V3(.2 * 5 / 64, .1 * 5 / 64, 5);
+            Check(!view.TrySurfacePoint(branch, .01, out _), "Conservative mesh sampling still rejects a mixed footprint");
+            Check(view.TrySurfacePoint(branch, .01, out var surface, preserveDepthEdges: true), "The measured branch owns most of this footprint");
+            Check((surface - branch).Length < 1e-8, "Background depths must not pull the branch away from its measured position");
+            Check(!view.TrySurfacePoint(branch * 2, .01, out _, preserveDepthEdges: true), "No surface exists midway between branch and background");
+            var minority = new V3(.8 * 5 / 64, .8 * 5 / 64, 5);
+            Check(!view.TrySurfacePoint(minority, .01, out _, preserveDepthEdges: true), "A tiny agreeing corner cannot support a whole pixel footprint");
+            Check(!view.Observe(branch, .01).IsValid, "Cloud edge support does not relax fusion or free-space evidence");
+            Array.Fill(depths, float.NaN);
+            Check(!view.TrySurfacePoint(branch, .01, out _, preserveDepthEdges: true), "Non-finite samples provide no support");
+        });
         tests.Run("Cloud batch planning bounds pooled scratch for large images and worker counts", () =>
         {
             var settings = new Settings { CloudWorkerThreads = 256, CloudBatchRows = 128 };

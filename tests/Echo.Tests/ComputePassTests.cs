@@ -183,7 +183,7 @@ public sealed class ComputePassTests
                 var b = point - neighbour.Centre;
                 var cross = a.Cross(b);
                 var parallax = cross.Dot(cross) >= minimumSine * minimumSine * a.Dot(a) * b.Dot(b);
-                var supported = parallax && neighbour.TrySurfacePoint(point, settings.CloudDepthTolerance, out var surface)
+                var supported = parallax && neighbour.TrySurfacePoint(point, settings.CloudDepthTolerance, out var surface, preserveDepthEdges: true)
                     && reference.ReprojectsTo(surface, x, y, settings.CloudReprojectionTolerancePixels);
                 Check(gpu![y * reference.Map.Width + x] == (supported ? 1 : 0), "Cloud support differs at " + x + "," + y);
             }

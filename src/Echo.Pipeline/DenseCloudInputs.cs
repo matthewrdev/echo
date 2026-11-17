@@ -6,7 +6,7 @@ namespace Echo.Pipeline;
 public sealed class DenseCloudInputs
 {
     public DenseCloudInputs(IReadOnlyList<string> depthUnits, string alignment, Settings settings,
-        string computeImplementation, int cloudVersion = 8)
+        string computeImplementation, int cloudVersion = 9)
     {
         DepthUnits = depthUnits;
         Alignment = alignment;

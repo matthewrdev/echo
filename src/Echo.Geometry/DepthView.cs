@@ -48,7 +48,7 @@ public sealed class DepthView
 
     public V3 Point(int x, int y, double depth) => Centre + CameraGeometry.Rotate(Camera.Rotation, new V3((x - Map.Width * .5) / Focal, (y - Map.Height * .5) / Focal, 1)) * depth;
 
-    public bool TrySurfacePoint(V3 world, double relativeTolerance, out V3 surface)
+    public bool TrySurfacePoint(V3 world, double relativeTolerance, out V3 surface, bool preserveDepthEdges = false)
     {
         surface = default;
         var local = CameraGeometry.Rotate(Inverse, world - Centre);
@@ -79,10 +79,15 @@ public sealed class DepthView
                 {
                     continue;
                 }
-                // Do not interpolate a fictitious surface between foreground and
-                // background depths. Every contributing valid corner must agree.
+                // Never average foreground and background into an invented surface.
+                // Cloud validation may retain the agreeing side of an edge when
+                // it carries at least half of the bilinear footprint below.
                 if (!float.IsFinite(depth) || Math.Abs(depth - local.Z) >= tolerance)
                 {
+                    if (preserveDepthEdges)
+                    {
+                        continue;
+                    }
                     return false;
                 }
                 sum += depth * w;

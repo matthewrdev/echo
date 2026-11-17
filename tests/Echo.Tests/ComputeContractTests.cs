@@ -49,6 +49,12 @@ public sealed class ComputeContractTests
                 var dependsOnProjection = operation is ComputeOperation.Cloud or ComputeOperation.Fusion or ComputeOperation.Mesh or ComputeOperation.Alignment;
                 Check((original.Implementation(operation) != projection.Implementation(operation)) == dependsOnProjection, "Projection dependency incorrect for " + operation);
             }
+            changed = new Dictionary<string, string>(sources) { ["03Cloud.metal"] = sources["03Cloud.metal"] + "\n// cloud edge support change" };
+            var cloud = new MetalComputeLibrary(changed);
+            foreach (var operation in Enum.GetValues<ComputeOperation>().Where(operation => operation != ComputeOperation.TexturePacking))
+            {
+                Check((original.Implementation(operation) != cloud.Implementation(operation)) == (operation == ComputeOperation.Cloud), "Cloud support invalidated " + operation);
+            }
         });
     }
 
