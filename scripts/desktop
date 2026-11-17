@@ -4,4 +4,4 @@ repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
 dotnet build "$repo_dir/src/Echo.Cli/Echo.Cli.csproj" -c Release --nologo -m:1 >&2
 swift build --package-path "$repo_dir/macos" -c release >&2
 native_bin="$(swift build --package-path "$repo_dir/macos" -c release --show-bin-path)"
-exec "$native_bin/EchoDesktop" --cli "$repo_dir/src/Echo.Cli/bin/Release/net10.0/echo-photo.dll" "$@"
+exec "$native_bin/EchoDesktop" --cli "$repo_dir/src/Echo.Cli/bin/Release/net10.0/echo-photo" "$@"

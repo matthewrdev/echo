@@ -11,6 +11,21 @@ trap 'rm -rf "$scratch"' EXIT
 # Relocation, spaces in the app path, and an empty tool search path must all work.
 ditto "$app" "$scratch/Echo relocated.app"
 cli="$scratch/Echo relocated.app/Contents/MacOS/echo-photo"
+python3 - "$cli" <<'PY'
+import json
+import pathlib
+import sys
+
+cli = pathlib.Path(sys.argv[1])
+contents = cli.parent.parent.resolve()
+options = json.loads(cli.with_suffix('.runtimeconfig.json').read_text())['runtimeOptions']
+assert not options.get('framework') and not options.get('frameworks'), 'CLI requires an installed .NET runtime.'
+assert any(item['name'] == 'Microsoft.NETCore.App' for item in options.get('includedFrameworks', [])), \
+    'CLI does not declare a bundled .NET runtime.'
+for name in ('libhostfxr.dylib', 'libhostpolicy.dylib', 'libcoreclr.dylib', 'System.Private.CoreLib.dll'):
+    library = (cli.parent / name).resolve(strict=True)
+    assert contents in library.parents and library.is_file(), f'Runtime dependency is outside the app: {name}'
+PY
 run_cli() {
     env -i PATH=/nonexistent HOME="$scratch" TMPDIR="$scratch/" "$cli" "$@"
 }

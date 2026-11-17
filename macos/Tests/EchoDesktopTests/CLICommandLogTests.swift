@@ -41,17 +41,18 @@ final class CLICommandLogTests: XCTestCase {
         }
     }
 
-    func testCommandQuotingPreservesLiteralArgumentsAndDotnetLaunch() async throws {
+    func testCommandQuotingPreservesLiteralArgumentsAndExecutableLaunch() async throws {
         let values = ["", "two words", "Matt's cliff", "$(printf injected)", "semi;colon", "line\nbreak"]
         let invocation = CLICommandInvocation(
             executable: URL(fileURLWithPath: "/usr/bin/printf"), arguments: ["%s\\n"] + values)
         let shell = ProcessCLIClient(executable: URL(fileURLWithPath: "/bin/sh"))
         let output = try await shell.execute(["-c", invocation.command], progress: { _ in })
         XCTAssertEqual(String(decoding: output, as: UTF8.self), values.joined(separator: "\n") + "\n")
-        let dotnet = CLICommandInvocation(
-            executable: URL(fileURLWithPath: "/tmp/Echo App/echo-photo.dll"), arguments: ["run", "start"])
-        XCTAssertEqual(dotnet.executable, "/usr/bin/env")
-        XCTAssertEqual(dotnet.arguments, ["dotnet", "/tmp/Echo App/echo-photo.dll", "run", "start"])
+        let cli = CLICommandInvocation(
+            executable: URL(fileURLWithPath: "/tmp/Echo App/echo-photo"), arguments: ["run", "start"])
+        XCTAssertEqual(cli.executable, "/tmp/Echo App/echo-photo")
+        XCTAssertEqual(cli.arguments, ["run", "start"])
+        XCTAssertEqual(cli.command, "'/tmp/Echo App/echo-photo' run start")
     }
 
     func testProcessBoundaryRecordsActualCommandsIncludingFailedLaunches() async throws {

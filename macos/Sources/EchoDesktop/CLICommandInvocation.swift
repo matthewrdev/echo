@@ -11,8 +11,8 @@ struct CLICommandInvocation: Codable, Identifiable, Sendable {
     init(executable: URL, arguments: [String]) {
         id = UUID()
         timestamp = Date()
-        self.executable = executable.pathExtension == "dll" ? "/usr/bin/env" : executable.path
-        self.arguments = executable.pathExtension == "dll" ? ["dotnet", executable.path] + arguments : arguments
+        self.executable = executable.path
+        self.arguments = arguments
         var words = arguments
         if let index = words.firstIndex(of: "--project"), index + 1 < words.count {
             projectRoot = URL(fileURLWithPath: words[index + 1]).standardizedFileURL.path

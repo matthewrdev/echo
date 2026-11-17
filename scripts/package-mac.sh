@@ -168,6 +168,11 @@ sign_app() {
 }
 
 sign_app
+if [[ "$(uname -m)" == "$architecture" ]]; then
+    bash scripts/check-mac-package.sh "$staged_app"
+else
+    echo "Run scripts/check-mac-package.sh on a $architecture Mac to verify the package runtime."
+fi
 mkdir -p "$app_dir"
 rsync -a --delete "$staged_app/" "$app_dir/"
 codesign --verify --deep --strict --all-architectures "$app_dir"
