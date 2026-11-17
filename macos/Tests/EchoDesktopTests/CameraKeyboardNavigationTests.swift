@@ -92,15 +92,45 @@ final class CameraKeyboardNavigationTests: XCTestCase {
         let previousScene = preview.scene
         preview.show(scene: scene, frustum: try XCTUnwrap(data.frustums["a"]))
         XCTAssertTrue(preview.scene === previousScene, "Unchanged camera updates must reuse the existing preview")
+        let previousCamera = preview.pointOfView
+        let previousMarker = scene.rootNode.childNode(withName: "sparse-selection", recursively: false)
         preview.keyDown(with: try key(124))
         XCTAssertEqual(selected, .camera("m"))
         XCTAssertEqual(preview.pointOfView?.position.x, 2)
+        XCTAssertTrue(preview.scene === previousScene, "Browsing cameras must retain the rendered preview graph")
+        XCTAssertTrue(preview.pointOfView === previousCamera)
+        XCTAssertTrue(scene.rootNode.childNode(withName: "sparse-selection", recursively: false) === previousMarker)
         preview.keyDown(with: try key(123))
         XCTAssertEqual(selected, .camera("a"))
         preview.keyDown(with: try key(53))
         XCTAssertNil(selected)
         XCTAssertNil(scene.rootNode.childNode(withName: "sparse-selection", recursively: false))
         XCTAssertTrue(artifact.geometry === geometry)
+    }
+
+    @MainActor
+    func testPreviewRefreshesChangedGeometryAndRecoversAfterAnEmptyScene() throws {
+        let photo = try XCTUnwrap(photographs().first)
+        let frustum = try XCTUnwrap(CameraFrustum(camera: camera(photo.id), photo: photo))
+        let scene = NativeSceneFactory().make(
+            reconstruction: nil, points: [CloudPoint(position: [0, 0, 0], colour: nil, error: 0)],
+            photos: [], root: URL(fileURLWithPath: "/tmp"))
+        let artifact = try XCTUnwrap(scene.rootNode.childNode(withName: "artifact", recursively: false))
+        let preview = SourceCameraSceneView(frame: NSRect(x: 0, y: 0, width: 200, height: 160))
+        preview.show(scene: scene, frustum: frustum)
+        let firstScene = try XCTUnwrap(preview.scene)
+        let replacement = SCNBox(width: 1, height: 1, length: 1, chamferRadius: 0)
+        artifact.geometry = replacement
+        preview.show(scene: scene, frustum: frustum)
+        XCTAssertFalse(preview.scene === firstScene)
+        XCTAssertTrue(
+            preview.scene?.rootNode.childNode(withName: "artifact", recursively: false)?.geometry === replacement)
+        preview.show(scene: SCNScene(), frustum: frustum)
+        XCTAssertNil(preview.scene)
+        XCTAssertNil(preview.pointOfView)
+        preview.show(scene: scene, frustum: frustum)
+        XCTAssertNotNil(preview.scene)
+        XCTAssertNotNil(preview.pointOfView)
     }
 
     private func photographs() throws -> [Photo] {
