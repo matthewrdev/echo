@@ -15,21 +15,30 @@ public static class SurfaceVegetationClassifier
         var photos = project.Images.ToDictionary(photo => photo.Id);
         var views = MeshDepthViews.Build(project, scene, maps.Where(map => semantics.ContainsKey(map.ImageId)).ToArray());
         using var visibility = new SurfaceTriangleIndex(surface, cancellation);
-        IList<V3> normals = work?.Filled(surface.Vertices.Count, new V3(), new V3RecordCodec()) ?? new V3[surface.Vertices.Count];
-        foreach (var face in surface.Faces)
+        var reader = new SurfaceGeometryReader(surface);
+        using var scratch = work?.CreateScope();
+        IList<V3> normals = scratch?.Filled(surface.Vertices.Count, new V3(), new V3RecordCodec()) ?? new V3[surface.Vertices.Count];
+        for (var faceIndex = 0; faceIndex < surface.Faces.Count; faceIndex++)
         {
-            var a = new V3(surface.Vertices[face[0]]);
-            var b = new V3(surface.Vertices[face[1]]);
-            var c = new V3(surface.Vertices[face[2]]);
+            cancellation.ThrowIfCancellationRequested();
+            var face = reader.Face(faceIndex);
+            var a = reader.Vertex(face.A);
+            var b = reader.Vertex(face.B);
+            var c = reader.Vertex(face.C);
             var normal = (b - a).Cross(c - a);
-            foreach (var vertex in face)
+            for (var corner = 0; corner < 3; corner++)
             {
-                normals[vertex] += normal;
+                normals[face[corner]] += normal;
             }
         }
         IList<bool> result = work?.Filled(surface.Vertices.Count, false, new BoolRecordCodec()) ?? new bool[surface.Vertices.Count];
         var origin = views.Length == 0 ? default : views[0].Centre;
         using var acceleration = SemanticProjectionCompute.Open(compute, project, views, photos, semantics, origin, cancellation);
+        using var occlusion = acceleration == null ? null : SurfaceOcclusionPreparation.Open(compute,
+            project.Settings.ComputeBackend, visibility, cancellation, acceleration);
+        var rays = occlusion == null ? null : new SurfaceRay[checked(1024 * views.Length)];
+        var raySlots = rays == null ? null : new int[rays.Length];
+        var hidden = rays == null ? null : new bool[rays.Length];
         var projectionBuffer = acceleration == null ? null : ArrayPool<float>.Shared.Rent(checked(1024 * views.Length * 4));
         try
         {
@@ -50,9 +59,34 @@ public static class SurfaceVegetationClassifier
                         failed = true;
                     }
                 }
+                if (projectedVotes != null && occlusion != null)
+                {
+                    var count = 0;
+                    for (var vertex = start; vertex < end; vertex++)
+                    {
+                        var point = reader.Vertex(vertex);
+                        for (var view = 0; view < views.Length; view++)
+                        {
+                            var slot = ((vertex - start) * views.Length + view) * 4;
+                            if (projectedVotes[slot + 3] != 0)
+                            {
+                                raySlots![count] = slot;
+                                rays![count++] = new SurfaceRay(views[view].Centre, point);
+                            }
+                        }
+                    }
+                    occlusion.Evaluate(rays.AsSpan(0, count), hidden.AsSpan(0, count), cancellation);
+                    for (var ray = 0; ray < count; ray++)
+                    {
+                        if (hidden![ray])
+                        {
+                            projectedVotes[raySlots![ray] + 3] = 0;
+                        }
+                    }
+                }
                 Parallel.For(start, end, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = Math.Min(8, Environment.ProcessorCount) }, index =>
             {
-                var point = new V3(surface.Vertices[index]);
+                var point = reader.Vertex(index);
                 Span<VegetationViewVote> votes = stackalloc VegetationViewVote[8];
                 var count = 0;
                 for (var viewIndex = 0; viewIndex < views.Length; viewIndex++)
@@ -78,7 +112,7 @@ public static class SurfaceVegetationClassifier
                         {
                             continue;
                         }
-                        if (visibility.HasOccluder(view.Centre, point))
+                        if (occlusion == null && visibility.HasOccluder(view.Centre, point))
                         {
                             continue;
                         }
@@ -158,6 +192,25 @@ public static class SurfaceVegetationClassifier
         return (IReadOnlyList<bool>)result;
     }
 
+    public static bool[] FaceLabels(Surface surface, IReadOnlyList<bool> vertices, CancellationToken cancellation)
+    {
+        var reader = new SurfaceGeometryReader(surface);
+        var result = new bool[surface.Faces.Count];
+        var batch = new SurfaceTriangleVertices[4096];
+        for (var start = 0; start < result.Length; start += batch.Length)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var count = Math.Min(batch.Length, result.Length - start);
+            reader.ReadFaces(start, batch.AsSpan(0, count));
+            for (var index = 0; index < count; index++)
+            {
+                var face = batch[index];
+                result[start + index] = vertices[face.A] && vertices[face.B] && vertices[face.C];
+            }
+        }
+        return result;
+    }
+
     public static IReadOnlyList<double> Tolerances(Surface surface, IReadOnlyList<bool> vegetation, double tolerance, WorkBuffers? work = null, CancellationToken cancellation = default)
     {
         if (vegetation.Count != surface.Vertices.Count)
@@ -170,27 +223,34 @@ public static class SurfaceVegetationClassifier
             cancellation.ThrowIfCancellationRequested();
             result.Add(value ? tolerance : 0);
         }
-        foreach (var face in surface.Faces)
+        var reader = new SurfaceGeometryReader(surface);
+        for (var index = 0; index < surface.Faces.Count; index++)
         {
-            if (face.Any(vertex => !vegetation[vertex]))
+            cancellation.ThrowIfCancellationRequested();
+            var face = reader.Face(index);
+            var boundary = !vegetation[face.A] || !vegetation[face.B] || !vegetation[face.C];
+            if (boundary)
             {
                 // Lock both sides of the material transition: a collapse must
                 // never drag a rock vertex into a lower-detail vegetation region.
-                foreach (var vertex in face)
+                for (var corner = 0; corner < 3; corner++)
                 {
-                    result[vertex] = 0;
+                    result[face[corner]] = 0;
                 }
             }
         }
-        var neighbours = SurfaceTopologyBuilder.Build(surface, cancellation, work).Neighbours;
+        using var scratch = work?.CreateScope();
+        var neighbours = SurfaceTopologyBuilder.Build(surface, cancellation, scratch).Neighbours;
         for (var face = 0; face < surface.Faces.Count; face++)
         {
+            cancellation.ThrowIfCancellationRequested();
+            var vertices = reader.Face(face);
             for (var edge = 0; edge < 3; edge++)
             {
                 if (neighbours[face * 3 + edge] < 0)
                 {
-                    result[surface.Faces[face][edge]] = 0;
-                    result[surface.Faces[face][(edge + 1) % 3]] = 0;
+                    result[vertices[edge]] = 0;
+                    result[vertices[(edge + 1) % 3]] = 0;
                 }
             }
         }

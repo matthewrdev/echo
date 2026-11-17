@@ -35,14 +35,19 @@ public sealed class MeshBuilder : IMeshBuilder
         ReconstructionScene scene,
         IReadOnlyList<DepthMap> maps,
         Surface geometry,
-        CancellationToken cancellation, Action<string>? progress = null, bool retainUnobserved = false, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null)
+        CancellationToken cancellation, Action<string>? progress = null, bool retainUnobserved = false, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null, bool forCompletion = false)
     {
         var photos = project.Images.ToDictionary(photo => photo.Id, StringComparer.Ordinal);
         var views = MeshDepthViews.Build(project, scene, maps);
-        var result = new Surface();
-        var vertices = new Dictionary<ChartVertex, int>();
+        using var scratch = work?.CreateScope();
+        var result = work?.Surface() ?? new Surface();
+        var vertices = new BinaryHashIndex<ChartVertex, int>(geometry.Vertices.Count, new ChartVertexCodec(), new IntRecordCodec(), scratch, cancellation);
+        var reader = new SurfaceGeometryReader(geometry);
+        var writer = new SurfaceGeometryWriter(result);
+        Span<int> output = stackalloc int[3];
         var reporter = new PhotographSelectionProgress(progress, operationProgress);
-        var selection = FaceViewSelection.Select(geometry, views, photos, cancellation, selectionProgress: reporter, work: work);
+        var selection = FaceViewSelection.Select(geometry, views, photos, cancellation, selectionProgress: reporter, work: work,
+            compute: compute, backend: project.Settings.ComputeBackend, optimizeSeams: !forCompletion);
         reporter.Start(PhotographSelectionPhase.AssembleMesh, geometry.Faces.Count);
         for (var faceIndex = 0; faceIndex < geometry.Faces.Count; faceIndex++)
         {
@@ -52,26 +57,25 @@ public sealed class MeshBuilder : IMeshBuilder
                 reporter.Increment();
                 continue;
             }
-            var face = geometry.Faces[faceIndex];
+            var face = reader.Face(faceIndex);
             // An empty source means inferred colour, not a photograph through
             // an occluder. Completed geometry must survive missing imagery.
             var image = selection[faceIndex] < 0 ? string.Empty : views[selection[faceIndex]].Camera.ImageId;
 
-            var output = new int[3];
             for (var i = 0; i < 3; i++)
             {
-                var key = new ChartVertex(face[i], image);
+                var key = new ChartVertex(face[i], forCompletion ? string.Empty : image);
                 if (!vertices.TryGetValue(key, out var index))
                 {
                     index = result.Vertices.Count;
                     vertices[key] = index;
-                    result.Vertices.Add(geometry.Vertices[face[i]]);
+                    writer.AddVertex(reader.Vertex(face[i]));
                 }
 
                 output[i] = index;
             }
 
-            result.Faces.Add(output);
+            writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
             result.SourceImages.Add(image);
             reporter.Increment();
         }

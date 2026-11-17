@@ -1,18 +1,21 @@
+using Echo.Storage;
+
 namespace Echo.Meshing;
 
 internal static class FaceViewOptimizer
 {
-    public static void Optimize(FaceViewCandidate[][] candidates, int[] selected, IList<int> neighbours,
-        double[] penalties, int viewCount, CancellationToken cancellation, Action<string>? progress = null)
+    public static void Optimize(FaceViewCandidateStore candidates, int[] selected, IList<int> neighbours,
+        IList<double> penalties, int viewCount, CancellationToken cancellation, Action<string>? progress = null, WorkBuffers? work = null)
     {
+        using var scratch = work?.CreateScope(preferResident: true);
         // Exact contiguous view ranges avoid growing one List for every camera.
         var offsets = new int[viewCount + 1];
-        foreach (var options in candidates)
+        for (var face = 0; face < candidates.FaceCount; face++)
         {
             cancellation.ThrowIfCancellationRequested();
-            foreach (var candidate in options)
+            for (var option = 0; option < candidates.Count(face); option++)
             {
-                offsets[candidate.View + 1]++;
+                offsets[candidates.Get(face, option).View + 1]++;
             }
         }
         var maximumActive = 0;
@@ -21,23 +24,31 @@ internal static class FaceViewOptimizer
             maximumActive = Math.Max(maximumActive, offsets[view + 1]);
             offsets[view + 1] = checked(offsets[view + 1] + offsets[view]);
         }
-        var available = new int[offsets[^1]];
+        IList<FaceViewChoice> available = scratch?.Filled(offsets[^1], default(FaceViewChoice), new FaceViewChoiceCodec(), cancellation) ?? new FaceViewChoice[offsets[^1]];
         var writeOffsets = (int[])offsets.Clone();
-        for (var face = 0; face < candidates.Length; face++)
+        for (var face = 0; face < candidates.FaceCount; face++)
         {
             cancellation.ThrowIfCancellationRequested();
-            foreach (var candidate in candidates[face])
+            for (var option = 0; option < candidates.Count(face); option++)
             {
-                available[writeOffsets[candidate.View]++] = face;
+                available[writeOffsets[candidates.Get(face, option).View]++] = new FaceViewChoice(face, option);
             }
         }
-        var activeBuffer = new int[maximumActive];
-        var keep = new double[maximumActive];
-        var change = new double[maximumActive];
-        var expansionBuffer = new bool[maximumActive];
+        IList<int> active = scratch?.Filled(maximumActive, 0, new IntRecordCodec(), cancellation) ?? new int[maximumActive];
+        IList<double> keep = scratch?.Filled(maximumActive, 0d, new DoubleRecordCodec(), cancellation) ?? new double[maximumActive];
+        IList<double> change = scratch?.Filled(maximumActive, 0d, new DoubleRecordCodec(), cancellation) ?? new double[maximumActive];
+        IList<double> viewCosts = scratch?.Filled(maximumActive, 0d, new DoubleRecordCodec(), cancellation) ?? new double[maximumActive];
+        IList<double> selectedCosts = scratch?.Filled(selected.Length, 0d, new DoubleRecordCodec(), cancellation) ?? new double[selected.Length];
+        IList<bool> expansion = scratch?.Filled(maximumActive, false, new BoolRecordCodec(), cancellation) ?? new bool[maximumActive];
         BinaryCut? cut = null;
-        var activeIndex = new int[selected.Length];
-        Array.Fill(activeIndex, -1);
+        IList<int> activeIndex = scratch?.Filled(selected.Length, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, selected.Length).ToArray();
+        for (var face = 0; face < selected.Length; face++)
+        {
+            if (selected[face] >= 0)
+            {
+                selectedCosts[face] = Cost(candidates, face, selected[face]);
+            }
+        }
         // Alpha expansion solves a binary cut for an entire region at a time.
         // Candidate visibility is a hard constraint. Every accepted expansion
         // decreases the same unary-quality plus pairwise-seam energy.
@@ -50,31 +61,32 @@ internal static class FaceViewOptimizer
                 var view = pass % 2 == 0 ? step : viewCount - step - 1;
                 progress?.Invoke($"Choosing coherent source photographs: pass {pass + 1}/4, view {step + 1}/{viewCount}…");
                 var count = 0;
-                foreach (var face in available.AsSpan(offsets[view], offsets[view + 1] - offsets[view]))
+                for (var slot = offsets[view]; slot < offsets[view + 1]; slot++)
                 {
-                    if (selected[face] != view)
+                    var choice = available[slot];
+                    if (selected[choice.Face] != view)
                     {
-                        activeBuffer[count++] = face;
+                        active[count] = choice.Face;
+                        viewCosts[count++] = candidates.Get(choice.Face, choice.Option).Cost;
                     }
                 }
-                var active = activeBuffer.AsSpan(0, count);
-                if (active.Length == 0)
+                if (count == 0)
                 {
                     continue;
                 }
-                for (var index = 0; index < active.Length; index++)
+                for (var index = 0; index < count; index++)
                 {
                     activeIndex[active[index]] = index;
                 }
-                keep.AsSpan(0, count).Clear();
-                change.AsSpan(0, count).Clear();
-                cut ??= new BinaryCut(maximumActive);
+                RecordListOperations.Fill(keep, count, 0d);
+                RecordListOperations.Fill(change, count, 0d);
+                cut ??= new BinaryCut(maximumActive, scratch, cancellation);
                 cut.Reset(count);
-                for (var index = 0; index < active.Length; index++)
+                for (var index = 0; index < count; index++)
                 {
                     var face = active[index];
-                    keep[index] += Cost(candidates[face], selected[face]);
-                    change[index] += Cost(candidates[face], view);
+                    keep[index] += selectedCosts[face];
+                    change[index] += viewCosts[index];
                     for (var corner = 0; corner < 3; corner++)
                     {
                         var slot = face * 3 + corner;
@@ -103,21 +115,20 @@ internal static class FaceViewOptimizer
                         }
                     }
                 }
-                for (var index = 0; index < active.Length; index++)
+                for (var index = 0; index < count; index++)
                 {
                     cut.Unary(index, keep[index], change[index]);
                 }
-                var expansion = expansionBuffer.AsSpan(0, count);
                 cut.Solve(expansion, cancellation);
                 var improvement = 0.0;
-                for (var index = 0; index < active.Length; index++)
+                for (var index = 0; index < count; index++)
                 {
                     if (!expansion[index])
                     {
                         continue;
                     }
                     var face = active[index];
-                    improvement += Cost(candidates[face], view) - Cost(candidates[face], selected[face]);
+                    improvement += viewCosts[index] - selectedCosts[face];
                     for (var corner = 0; corner < 3; corner++)
                     {
                         var slot = face * 3 + corner;
@@ -139,18 +150,19 @@ internal static class FaceViewOptimizer
                 }
                 if (improvement < -1e-8)
                 {
-                    for (var index = 0; index < active.Length; index++)
+                    for (var index = 0; index < count; index++)
                     {
                         if (expansion[index])
                         {
                             selected[active[index]] = view;
+                            selectedCosts[active[index]] = viewCosts[index];
                             changes++;
                         }
                     }
                 }
-                foreach (var face in active)
+                for (var index = 0; index < count; index++)
                 {
-                    activeIndex[face] = -1;
+                    activeIndex[active[index]] = -1;
                 }
             }
             if (changes == 0)
@@ -160,10 +172,11 @@ internal static class FaceViewOptimizer
         }
     }
 
-    private static double Cost(FaceViewCandidate[] candidates, int view)
+    private static double Cost(FaceViewCandidateStore candidates, int face, int view)
     {
-        foreach (var candidate in candidates)
+        for (var option = 0; option < candidates.Count(face); option++)
         {
+            var candidate = candidates.Get(face, option);
             if (candidate.View == view)
             {
                 return candidate.Cost;

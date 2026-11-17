@@ -65,6 +65,38 @@ public sealed class MeshingOptimizationTests
             {
             }
         });
+        tests.Run("Graph cut storage spills within budget without changing reused solves", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory, preferResident: true);
+            var actual = new BinaryCut(601, work);
+            var expected = new BinaryCut(601);
+            var random = new Random(32);
+            foreach (var count in new[] { 601, 107, 499 })
+            {
+                actual.Reset(count);
+                expected.Reset(count);
+                for (var node = 0; node < count; node++)
+                {
+                    var keep = random.NextDouble();
+                    var change = random.NextDouble();
+                    actual.Unary(node, keep, change);
+                    expected.Unary(node, keep, change);
+                    if (node > 0)
+                    {
+                        actual.Pair(node - 1, node, .3, .3);
+                        expected.Pair(node - 1, node, .3, .3);
+                    }
+                }
+                var labels = work.Filled(count + 13, false, new BoolRecordCodec());
+                var reference = new bool[count];
+                actual.Solve(labels, default);
+                expected.Solve(reference, default);
+                Check(labels.Take(count).SequenceEqual(reference), "Spilled graph changed an expansion");
+                Check(session.Statistics.ResidentBytes <= 65536, "Graph exceeded the shared budget");
+            }
+            Check(session.Statistics.WrittenBytes > 0, "Graph fixture did not exercise spilling");
+        }));
         tests.Run("Paired SIMD quadrics preserve scalar accumulation bits", () =>
         {
             var random = new Random(731);
@@ -105,6 +137,45 @@ public sealed class MeshingOptimizationTests
                     }
                     Check(BitConverter.DoubleToInt64Bits(expected) == BitConverter.DoubleToInt64Bits(errors[point]), "SIMD changed a collapse error");
                 }
+            }
+        });
+        tests.Run("Partial candidate ranking matches a complete stable camera ranking", () =>
+        {
+            var random = new Random(17);
+            for (var count = 0; count < 1500; count += 7)
+            {
+                var candidates = Enumerable.Range(0, count).Select(view => new FaceViewCandidate(view, random.Next(8), 1)).ToList();
+                random.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(candidates));
+                var expected = candidates.OrderByDescending(candidate => candidate.Cost).ThenBy(candidate => candidate.View).Take(32).ToArray();
+                FaceViewCandidateRanking.RetainBest(candidates, 32);
+                Check(candidates.SequenceEqual(expected), "Partial ranking changed selected cameras");
+            }
+        });
+        tests.Run("Camera box rejection retains visible borders and large world coordinates", () =>
+        {
+            var photo = new Photo { Width = 800, Height = 600, FocalPixels = 400 };
+            var random = new Random(912);
+            foreach (var origin in new[] { 0d, 1e10, -1e10 })
+            {
+                var angle = .39;
+                double[] rotation = [Math.Cos(angle), 0, Math.Sin(angle), 0, 1, 0, -Math.Sin(angle), 0, Math.Cos(angle)];
+                var camera = new CameraPose { Centre = [origin, -origin, origin], Rotation = rotation };
+                var projection = new CameraProjector(photo, camera);
+                for (var iteration = 0; iteration < 10000; iteration++)
+                {
+                    var depth = .1 + random.NextDouble() * 100;
+                    var x = iteration % 3 == 0 ? 1d : 1 + random.NextDouble() * 798;
+                    var y = iteration % 5 == 0 ? 1d : 1 + random.NextDouble() * 598;
+                    var local = new V3((x - 400) * depth / 400, (y - 300) * depth / 400, depth);
+                    var world = CameraGeometry.Rotate(rotation, local) + new V3(camera.Centre);
+                    var pixel = projection.Project(world);
+                    if (pixel.HasValue && pixel.Value.X >= 1 && pixel.Value.X < 799 && pixel.Value.Y >= 1 && pixel.Value.Y < 599)
+                    {
+                        Check(projection.MaySee(world, world), "Rejected an exactly visible point");
+                    }
+                }
+                var behind = CameraGeometry.Rotate(rotation, new V3(0, 0, -10)) + new V3(camera.Centre);
+                Check(!projection.MaySee(behind, behind), "Behind-camera rejection is ineffective");
             }
         });
         tests.Run("Incremental triangle bounds match exhaustive intersections on paged and resident storage", () => InDirectory(directory =>

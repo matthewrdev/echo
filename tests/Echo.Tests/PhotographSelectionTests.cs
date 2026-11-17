@@ -18,6 +18,26 @@ public sealed class PhotographSelectionTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Completion verifies photographs without running seam optimization", () =>
+        {
+            var project = new ProjectData { Images = [new Photo { Id = "photo", Width = 100, Height = 100, FocalPixels = 50 }] };
+            var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "photo" }] };
+            var operations = new List<string>();
+            var observed = meshes.AssignCameras(project, scene, [Map("photo", 100, 10)], Triangle(), default,
+                operationProgress: operation => operations.Add(operation.Operation), forCompletion: true);
+            Check(observed.SourceImages.SequenceEqual(["photo"]) && observed.Vertices.Count == 3, "Completion lost verified geometry");
+            Check(!operations.Contains("Choose coherent photographs") && !operations.Contains("Build seam neighbours"), "Completion still paid for texture seam optimization");
+        });
+        tests.Run("Photograph candidate pruning applies density before the top-32 score limit", () =>
+        {
+            var options = Enumerable.Range(0, 64).Select(view => new FaceViewCandidate(view, 1000 - view, 10)).ToList();
+            options.Add(new FaceViewCandidate(64, 1, 100));
+            FaceViewSelection.RetainDetail(options);
+            Check(options.Count == 1 && options[0].View == 64, "Early score pruning discarded the detailed photograph");
+            options = Enumerable.Range(0, 64).Reverse().Select(view => new FaceViewCandidate(view, 1, 100)).ToList();
+            FaceViewSelection.RetainDetail(options);
+            Check(options.Select(option => option.View).SequenceEqual(Enumerable.Range(0, 32)), "Tied candidates lost camera ordering");
+        });
         tests.Run("Occluded detailed views cannot prune a visible coarse photograph across a gap", () =>
         {
             var detailed = new Photo { Id = "detailed", Width = 400, Height = 400, FocalPixels = 200 };
