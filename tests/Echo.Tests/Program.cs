@@ -42,6 +42,7 @@ if (args.Contains("--texture", StringComparer.Ordinal))
     composition.Resolve<TexturePackingTests>().Run(scaleTests, args.Contains("--require-metal", StringComparer.Ordinal));
     composition.Resolve<TextureParameterizationTests>().Run(scaleTests);
     composition.Resolve<TextureTests>().Run(scaleTests);
+    composition.Resolve<TextureRunOptionsTests>().Run(scaleTests);
     return scaleTests.Finish();
 }
 composition.Resolve<FusionCandidateTests>().Run(scaleTests);
@@ -107,6 +108,7 @@ if (args.Contains("--paging", StringComparer.Ordinal))
 }
 composition.Resolve<MetadataTests>().Run(scaleTests);
 composition.Resolve<JsonDecodingTests>().Run(scaleTests);
+composition.Resolve<TextureRunOptionsTests>().Run(scaleTests);
 composition.Resolve<PhotoDeduplicationTests>().Run(scaleTests);
 composition.Resolve<ScaleSpaceFeatureTests>().Run(scaleTests);
 composition.Resolve<GuidedMatchingTests>().Run(scaleTests);

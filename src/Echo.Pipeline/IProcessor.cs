@@ -14,5 +14,6 @@ public interface IProcessor
         string target,
         CancellationToken token,
         string? resumeId = null,
-Action<object>? output = null);
+        Action<object>? output = null,
+        TextureRunOptions? textureOptions = null);
 }

@@ -28,8 +28,13 @@ public sealed class Processor : IProcessor
         string target,
         CancellationToken token,
         string? resumeId = null,
-        Action<object>? output = null)
+        Action<object>? output = null,
+        TextureRunOptions? textureOptions = null)
     {
+        if (resumeId != null && textureOptions != null)
+        {
+            throw new EchoException("Resume preserves its saved texture settings. Use run start to change colour tuning or edge softening.", 2);
+        }
         using var lease = store.Lock("run");
         var run = resumeId == null
             ? CreateRun(store, target)
@@ -45,6 +50,7 @@ public sealed class Processor : IProcessor
             throw new EchoException("This run uses obsolete artifact storage. Start a new run to reprocess the source photographs.", 2);
         }
 
+        textureOptions?.Apply(run.Snapshot.Settings);
         run.Snapshot.Settings.Validate();
         var cancelFile = store.PathFor($"runs/{run.Id}/cancel");
         if (File.Exists(cancelFile))

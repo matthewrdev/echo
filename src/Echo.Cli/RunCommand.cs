@@ -72,6 +72,7 @@ public sealed class RunCommand : ICliCommand
 
     private void ExecuteRun(IProjectStore store, Arguments args, string? resumeId)
     {
+        var textureOptions = TextureRunOptionParser.Parse(args);
         using var cancellation = new CancellationTokenSource();
         ConsoleCancelEventHandler cancel = (_, eventArgs) =>
         {
@@ -86,7 +87,8 @@ public sealed class RunCommand : ICliCommand
                 args.Get("target", "alignment")!,
                 cancellation.Token,
                 resumeId,
-                value => output.Progress(value, args.IsNdjson));
+                value => output.Progress(value, args.IsNdjson),
+                textureOptions);
             if (!args.IsNdjson)
             {
                 output.Write(run);

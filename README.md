@@ -48,6 +48,8 @@ Use the signing certificate's team when creating the profile. Notarisation stapl
 
 Use `--help` for commands and `doctor` to check dependencies. Commands return JSON; `--events ndjson` streams progress. Resume keeps the run's reconstruction settings; start a new run to apply reconstruction changes.
 
+Colour tuning and texture seam softening default to strength `0.5` and a `4`-pixel atlas strip. Add `--colour-tuning off --edge-softening off` to `run start` to disable them, or supply a strength from `0` to `1` and a width from `0` to `16`. These overrides affect only that run; project settings stay unchanged.
+
 ## Development
 
 The desktop uses SwiftUI, AppKit and SceneKit/Metal. The CLI and processing subsystems use C#/.NET with MEF composition.

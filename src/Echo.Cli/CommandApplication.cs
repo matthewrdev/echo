@@ -42,6 +42,7 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH hints disable HINT_ID
     echo-photo --project PATH pipeline plan [--target export]
     echo-photo --project PATH run start [--target alignment] [--events ndjson]
+        [--colour-tuning on|off|0..1] [--edge-softening on|off|0..16]
     echo-photo --project PATH run resume RUN_ID [--events ndjson]
     echo-photo --project PATH run status|cancel|events [RUN_ID]
     echo-photo --project PATH trace list [--all] [--run RUN_ID]
@@ -56,6 +57,8 @@ public sealed class CommandApplication : ICommandApplication
     All data responses are JSON. Long jobs emit NDJSON with --events ndjson;
     otherwise progress goes to stderr and the final result is JSON.
     Stages: features → matching → alignment → depth → cloud → fusion → mesh → texture → export.
+    Texture defaults: colour tuning 0.5; edge softening 4 atlas pixels.
+    Run options override only the new run; saved project settings are unchanged.
     Cancellation: Ctrl-C or run cancel RUN_ID. Resume preserves the original inputs.
     Outputs live in immutable project artifacts; input photos are never modified.
     """;
