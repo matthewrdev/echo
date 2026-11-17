@@ -15,7 +15,7 @@ internal static class VolumeGapRepair
         }
         progress?.Invoke($"Indexed {samples.Count:N0} volume samples; finding bounded gaps…");
         using var scratch = work?.CreateScope();
-        var candidates = new BinaryHashIndex<Grid, int>(volume.Samples.Count, new GridRecordCodec(), new IntRecordCodec(), scratch, cancellation);
+        BinaryHashIndex<Grid, int>? candidates = null;
         foreach (var key in samples.Keys)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -36,6 +36,8 @@ internal static class VolumeGapRepair
                     }
                     for (var step = 1; step < span; step++)
                     {
+                        candidates ??= new BinaryHashIndex<Grid, int>(Math.Min(volume.Samples.Count, 4096),
+                            new GridRecordCodec(), new IntRecordCodec(), scratch, cancellation);
                         candidates.TryAdd(key.Add(x * step, y * step, z * step), 0);
                     }
                     break;
@@ -43,11 +45,15 @@ internal static class VolumeGapRepair
             }
         }
 
+        if (candidates == null)
+        {
+            return samples;
+        }
         // Interpolate bounded gaps bracketed on two independent axes. Read only
         // the original field, so completion cannot recursively expand a scan.
         // Agreement between the two interpolants rejects discontinuities while
         // allowing a locally planar ground surface to span sparse observations.
-        var repaired = new BinaryHashIndex<Grid, float>(volume.Samples.Count, new GridRecordCodec(), new FloatRecordCodec(), scratch, cancellation);
+        IList<VolumeGapSample> repaired = scratch?.List(new VolumeGapSampleCodec()) ?? new List<VolumeGapSample>();
         foreach (var key in candidates.Keys)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -87,7 +93,7 @@ internal static class VolumeGapRepair
 
             if (count >= 2 && maximum - minimum <= volume.VoxelSize * .5)
             {
-                repaired.Add(key, (float)(sum / weight));
+                repaired.Add(new VolumeGapSample(key, (float)(sum / weight)));
             }
         }
 

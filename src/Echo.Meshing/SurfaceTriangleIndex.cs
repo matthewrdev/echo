@@ -1,20 +1,22 @@
 using System.Buffers;
 using Echo.Contracts;
+using Echo.Storage;
 using Echo.Geometry;
 
 namespace Echo.Meshing;
 
 internal sealed class SurfaceTriangleIndex : IDisposable
 {
-    private readonly Surface mesh;
+    private readonly SurfaceGeometryReader reader;
     private readonly SurfaceGeometrySnapshot geometry;
     private readonly int[] order;
     private readonly List<SurfaceSearchNode> nodes = [];
-    private readonly List<SurfaceTriangle> additions = [];
+    private readonly DynamicTriangleIndex additions;
 
-    public SurfaceTriangleIndex(Surface mesh, CancellationToken cancellation)
+    public SurfaceTriangleIndex(Surface mesh, CancellationToken cancellation, WorkBuffers? work = null)
     {
-        this.mesh = mesh;
+        additions = new DynamicTriangleIndex(work);
+        reader = new SurfaceGeometryReader(mesh);
         geometry = new SurfaceGeometrySnapshot(mesh, cancellation);
         try
         {
@@ -45,11 +47,13 @@ internal sealed class SurfaceTriangleIndex : IDisposable
         {
             return geometry.Triangle(index);
         }
-        var face = mesh.Faces[index];
-        return new SurfaceTriangle(new V3(mesh.Vertices[face[0]]), new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]]));
+        return reader.Triangle(reader.Face(index));
     }
 
     public void Dispose() => geometry.Dispose();
+
+    internal IReadOnlyList<SurfaceSearchNode> Nodes => nodes;
+    internal IReadOnlyList<int> Order => order;
 
     public void Add(SurfaceTriangle triangle) => additions.Add(triangle);
 
@@ -152,15 +156,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
         {
             return true;
         }
-        foreach (var other in additions)
-        {
-            if (Overlaps(triangle.Minimum, triangle.Maximum, other.Minimum, other.Maximum)
-                && SurfaceTriangleIntersection.Intersects(triangle, other))
-            {
-                return true;
-            }
-        }
-        return false;
+        return additions.Intersects(triangle);
     }
 
     private bool Intersects(int index, SurfaceTriangle triangle, V3 minimum, V3 maximum)
@@ -221,7 +217,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
                 var centre = value.A + value.B + value.C;
                 centres[order[index]] = axis == 0 ? centre.X : axis == 1 ? centre.Y : centre.Z;
             }
-            Array.Sort(order, start, count, Comparer<int>.Create((a, b) => centres[a].CompareTo(centres[b])));
+            SurfaceMedianPartition.Select(order, start, count, centres, cancellation);
             left = Build(start, count / 2, centres, cancellation);
             right = Build(start + count / 2, count - count / 2, centres, cancellation);
         }

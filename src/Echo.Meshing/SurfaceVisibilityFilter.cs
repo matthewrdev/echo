@@ -35,6 +35,8 @@ public static class SurfaceVisibilityFilter
             MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2)
         };
         var result = work?.Surface() ?? new Surface();
+        var writer = new SurfaceGeometryWriter(result);
+        Span<int> output = stackalloc int[3];
         IList<int> vertices = scratch?.Filled(surface.Vertices.Count, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, surface.Vertices.Count).ToArray();
         var assigned = surface.SourceImages.Count == surface.Faces.Count;
         for (var start = 0; start < surface.Faces.Count; start += faces.Length)
@@ -72,7 +74,7 @@ public static class SurfaceVisibilityFilter
                     continue;
                 }
                 var face = faces[index];
-                var output = new int[3];
+
                 for (var corner = 0; corner < 3; corner++)
                 {
                     var vertex = corner == 0 ? face.A : corner == 1 ? face.B : face.C;
@@ -81,12 +83,12 @@ public static class SurfaceVisibilityFilter
                     {
                         mapped = result.Vertices.Count;
                         var triangle = triangles[index];
-                        result.Vertices.Add((corner == 0 ? triangle.A : corner == 1 ? triangle.B : triangle.C).Array);
+                        writer.AddVertex(corner == 0 ? triangle.A : corner == 1 ? triangle.B : triangle.C);
                         vertices[vertex] = mapped;
                     }
                     output[corner] = mapped;
                 }
-                result.Faces.Add(output);
+                writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
                 if (assigned)
                 {
                     result.SourceImages.Add(surface.SourceImages[start + index]);

@@ -7,8 +7,9 @@ namespace Echo.Meshing;
 internal static class CurvedHoleTriangulation
 {
     public static List<int[]>? Fill(Surface mesh, List<int> loop, BinaryHashIndex<SurfaceEdge, BoundaryEdge> edges,
-        SurfaceTriangleIndex surface, CancellationToken cancellation)
+        SurfaceTriangleIndex surface, CancellationToken cancellation, WorkBuffers? work = null)
     {
+        using var scratch = work?.CreateScope(preferResident: true);
         var count = loop.Count;
         var before = Enumerable.Range(0, count).Select(index => (index + count - 1) % count).ToArray();
         var after = Enumerable.Range(0, count).Select(index => (index + 1) % count).ToArray();
@@ -23,7 +24,7 @@ internal static class CurvedHoleTriangulation
         var active = Enumerable.Repeat(true, count).ToArray();
         var pending = new PriorityQueue<int, double>();
         var patch = new List<int[]>();
-        var patchGeometry = new List<SurfaceTriangle>();
+        var patchGeometry = new DynamicTriangleIndex(scratch);
         var remaining = count;
         void Enqueue(int index)
         {
@@ -64,7 +65,7 @@ internal static class CurvedHoleTriangulation
             {
                 continue;
             }
-            var crosses = patchGeometry.Any(other => SurfaceTriangleIntersection.Intersects(triangle, other));
+            var crosses = patchGeometry.Intersects(triangle);
             for (var vertex = 0; vertex < count && !crosses; vertex++)
             {
                 var corner = vertex == first || vertex == index || vertex == last;
@@ -102,7 +103,7 @@ internal static class CurvedHoleTriangulation
         var final = new SurfaceTriangle(points[start], points[middle], points[end]);
         var finalNormal = (final.B - final.A).Cross(final.C - final.A);
         var degenerate = finalNormal.Length < 1e-10 || finalNormal.Unit.Dot(normals[start] + normals[middle] + normals[end]) <= .05;
-        if (degenerate || surface.Intersects(final) || patchGeometry.Any(other => SurfaceTriangleIntersection.Intersects(final, other)))
+        if (degenerate || surface.Intersects(final) || patchGeometry.Intersects(final))
         {
             return null;
         }

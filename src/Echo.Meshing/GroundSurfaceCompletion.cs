@@ -1,24 +1,35 @@
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 
 internal static class GroundSurfaceCompletion
 {
-    public static void Fill(Surface mesh, double voxelSize, Func<V3, bool> observed, CancellationToken cancellation)
+    public static void Fill(Surface mesh, double voxelSize, Func<V3, bool> observed, CancellationToken cancellation, WorkBuffers? work = null)
     {
         if (mesh.Vertices.Count == 0)
         {
             return;
         }
-        var points = mesh.Vertices.Select(point => new V3(point)).ToArray();
-        var minimum = points.Min(point => point.Y);
-        var maximum = points.Max(point => point.Y);
+        using var scratch = work?.CreateScope(preferResident: true);
+        var reader = new SurfaceGeometryReader(mesh);
+        IList<V3> points = scratch?.List(new V3RecordCodec()) ?? new List<V3>(mesh.Vertices.Count);
+        var minimum = double.PositiveInfinity;
+        var maximum = double.NegativeInfinity;
+        for (var vertex = 0; vertex < mesh.Vertices.Count; vertex++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var point = reader.Vertex(vertex);
+            points.Add(point);
+            minimum = Math.Min(minimum, point.Y);
+            maximum = Math.Max(maximum, point.Y);
+        }
         // Reconstruction coordinates are East/Up/South. Restrict stitching to
         // upward-facing terrain in the upper part of the scan, not cliff walls.
         var floor = minimum + (maximum - minimum) * .6;
         var span = voxelSize * 8;
-        var edges = new Dictionary<SurfaceEdge, BoundaryEdge>();
+        var edges = new BinaryHashIndex<SurfaceEdge, BoundaryEdge>(mesh.Faces.Count, new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec(), scratch, cancellation);
         var groundFaces = new Dictionary<Grid, List<int>>();
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
@@ -158,7 +169,7 @@ internal static class GroundSurfaceCompletion
         }
     }
 
-    private static int[]? Bridge(Surface mesh, V3[] points, Dictionary<SurfaceEdge, BoundaryEdge> edges,
+    private static int[]? Bridge(Surface mesh, IList<V3> points, BinaryHashIndex<SurfaceEdge, BoundaryEdge> edges,
         Dictionary<int, List<int>> incoming, Dictionary<Grid, List<int>> groundFaces, HashSet<int> nearby,
         int a, int b, int c, double span, Func<V3, bool> observed)
     {
@@ -203,7 +214,7 @@ internal static class GroundSurfaceCompletion
         return null;
     }
 
-    private static void QueueBoundary(Dictionary<SurfaceEdge, BoundaryEdge> edges, int[] face,
+    private static void QueueBoundary(BinaryHashIndex<SurfaceEdge, BoundaryEdge> edges, int[] face,
         Queue<SurfaceEdge> pending, Dictionary<int, List<int>> incoming)
     {
         for (var corner = 0; corner < 3; corner++)
@@ -232,7 +243,7 @@ internal static class GroundSurfaceCompletion
         }
     }
 
-    private static bool Empty(Surface mesh, V3[] points, ReadOnlySpan<V3> triangle,
+    private static bool Empty(Surface mesh, IList<V3> points, ReadOnlySpan<V3> triangle,
         int a, int b, int c, HashSet<int> nearby)
     {
         Span<V3> other = stackalloc V3[3];
@@ -257,7 +268,7 @@ internal static class GroundSurfaceCompletion
         return true;
     }
 
-    private static bool Available(Dictionary<SurfaceEdge, BoundaryEdge> edges, int from, int to)
+    private static bool Available(BinaryHashIndex<SurfaceEdge, BoundaryEdge> edges, int from, int to)
     {
         if (!edges.TryGetValue(Key(from, to), out var edge))
         {
@@ -266,7 +277,7 @@ internal static class GroundSurfaceCompletion
         return edge.Count == 1 && edge.From == to && edge.To == from;
     }
 
-    private static void AddEdges(Dictionary<SurfaceEdge, BoundaryEdge> edges, int[] face, V3 normal)
+    private static void AddEdges(BinaryHashIndex<SurfaceEdge, BoundaryEdge> edges, int[] face, V3 normal)
     {
         for (var corner = 0; corner < 3; corner++)
         {

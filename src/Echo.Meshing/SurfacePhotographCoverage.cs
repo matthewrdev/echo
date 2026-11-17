@@ -11,16 +11,17 @@ public static class SurfacePhotographCoverage
         {
             throw new ArgumentException("Expected one photograph assignment per face.", nameof(mesh));
         }
+        var reader = new SurfaceGeometryReader(mesh);
         var area = 0.0;
         var inferredArea = 0.0;
         var inferredFaces = 0;
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
-            var face = mesh.Faces[index];
-            var a = new V3(mesh.Vertices[face[0]]);
-            var b = new V3(mesh.Vertices[face[1]]);
-            var c = new V3(mesh.Vertices[face[2]]);
+            var face = reader.Face(index);
+            var a = reader.Vertex(face.A);
+            var b = reader.Vertex(face.B);
+            var c = reader.Vertex(face.C);
             var triangleArea = (b - a).Cross(c - a).Length * .5;
             area += triangleArea;
             if (string.IsNullOrEmpty(mesh.SourceImages[index]))

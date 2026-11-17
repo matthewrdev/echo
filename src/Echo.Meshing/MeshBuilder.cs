@@ -125,7 +125,7 @@ public sealed class MeshBuilder : IMeshBuilder
             }
             return false;
         }
-        GroundSurfaceCompletion.Fill(geometry, voxelSize, Observed, cancellation);
+        GroundSurfaceCompletion.Fill(geometry, voxelSize, Observed, cancellation, work);
         SurfaceHoleRepair.Fill(geometry, voxelSize, cancellation, Observed, work: work, progress: operationProgress);
     }
 

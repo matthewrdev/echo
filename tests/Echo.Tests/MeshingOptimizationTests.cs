@@ -66,6 +66,27 @@ public sealed class MeshingOptimizationTests
                 }
             }
         });
+        tests.Run("Incremental triangle bounds match exhaustive intersections on paged and resident storage", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory);
+            var index = new DynamicTriangleIndex(work);
+            var triangles = new List<SurfaceTriangle>();
+            var random = new Random(91);
+            V3 Point() => new(random.NextDouble() * 10, random.NextDouble() * 10, random.NextDouble() * 10);
+            for (var step = 0; step < 500; step++)
+            {
+                var centre = new V3(step * .05, step % 5, 0);
+                var triangle = new SurfaceTriangle(centre, centre + new V3(.5, 0, .3), centre + new V3(0, .5, -.3));
+                index.Add(triangle);
+                triangles.Add(triangle);
+                for (var query = 0; query < 3; query++)
+                {
+                    var test = new SurfaceTriangle(Point(), Point(), Point());
+                    Check(index.Intersects(test) == triangles.Any(other => SurfaceTriangleIntersection.Intersects(test, other)), "Incremental bounds missed an intersection");
+                }
+            }
+        }));
         tests.Run("Contiguous adjacency initialization retains mutation and encounter order", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);
@@ -156,6 +177,65 @@ public sealed class MeshingOptimizationTests
             File.AppendAllText(path, " ");
             Check(!scope.TryGetChecksum(path, out _), "Modified file retained a stale checksum");
         }));
+        tests.Run("Incremental ear clipping preserves the original triangulation order", () =>
+        {
+            var random = new Random(51);
+            for (var count = 4; count < 130; count += 3)
+            {
+                var points = new V3[count];
+                for (var index = 0; index < count; index++)
+                {
+                    var radius = 1 + random.NextDouble();
+                    var angle = index * 2 * Math.PI / count;
+                    points[index] = new V3(radius * Math.Cos(angle), radius * Math.Sin(angle), 0);
+                }
+                var boundary = Enumerable.Range(0, count).ToList();
+                var edges = new BinaryHashIndex<SurfaceEdge, BoundaryEdge>(count, new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec());
+                var actual = PlanarEarTriangulation.Fill(boundary, points, new V3(0, 0, 1), edges, default);
+                var expected = ReferenceEars(points);
+                Check(actual != null && actual.Count == expected.Count, "Ear count changed");
+                Check(actual!.SelectMany(face => face).SequenceEqual(expected.SelectMany(face => face)), "Ear encounter order changed");
+            }
+        });
+    }
+
+    private List<int[]> ReferenceEars(V3[] points)
+    {
+        var remaining = Enumerable.Range(0, points.Length).ToList();
+        var result = new List<int[]>();
+        var normal = new V3(0, 0, 1);
+        while (remaining.Count > 3)
+        {
+            var found = false;
+            for (var index = 0; index < remaining.Count; index++)
+            {
+                var before = remaining[(index + remaining.Count - 1) % remaining.Count];
+                var current = remaining[index];
+                var after = remaining[(index + 1) % remaining.Count];
+                var a = points[before];
+                var b = points[current];
+                var c = points[after];
+                if ((b - a).Cross(c - a).Dot(normal) <= 1e-12)
+                {
+                    continue;
+                }
+                var blocked = remaining.Any(vertex => vertex != before && vertex != current && vertex != after
+                    && (b - a).Cross(points[vertex] - a).Dot(normal) >= -1e-12
+                    && (c - b).Cross(points[vertex] - b).Dot(normal) >= -1e-12
+                    && (a - c).Cross(points[vertex] - c).Dot(normal) >= -1e-12);
+                if (blocked)
+                {
+                    continue;
+                }
+                result.Add([before, current, after]);
+                remaining.RemoveAt(index);
+                found = true;
+                break;
+            }
+            Check(found, "Invalid reference polygon");
+        }
+        result.Add(remaining.ToArray());
+        return result;
     }
 
     private void InDirectory(Action<string> action)

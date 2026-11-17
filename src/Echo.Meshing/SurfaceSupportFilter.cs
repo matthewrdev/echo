@@ -71,19 +71,22 @@ public static class SurfaceSupportFilter
             progress?.Invoke(new("Surface support", "Checking completion against the observed surface.", start + count, reconstruction.Vertices.Count, "vertices"));
         }
         var result = work?.Surface() ?? new Surface();
+        var writer = new SurfaceGeometryWriter(result);
+        Span<int> output = stackalloc int[3];
         IList<int> lookup = scratch?.Filled(reconstruction.Vertices.Count, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, reconstruction.Vertices.Count).ToArray();
-        foreach (var face in reconstruction.Faces)
+        for (var faceIndex = 0; faceIndex < reconstruction.Faces.Count; faceIndex++)
         {
             cancellation.ThrowIfCancellationRequested();
-            var a = new V3(reconstruction.Vertices[face[0]]);
-            var normal = (new V3(reconstruction.Vertices[face[1]]) - a).Cross(new V3(reconstruction.Vertices[face[2]]) - a).Unit;
+            var face = reader.Face(faceIndex);
+            var a = reader.Vertex(face.A);
+            var normal = (reader.Vertex(face.B) - a).Cross(reader.Vertex(face.C) - a).Unit;
             var validNormal = normal.Length > .5;
             var nearSurface = supported[face[0]] && supported[face[1]] && supported[face[2]];
             if (!validNormal || !nearSurface)
             {
                 continue;
             }
-            var output = new int[3];
+
             for (var corner = 0; corner < 3; corner++)
             {
                 var vertex = face[corner];
@@ -91,12 +94,12 @@ public static class SurfaceSupportFilter
                 if (mapped < 0)
                 {
                     mapped = result.Vertices.Count;
-                    result.Vertices.Add(reconstruction.Vertices[vertex]);
+                    writer.AddVertex(reader.Vertex(vertex));
                     lookup[vertex] = mapped;
                 }
                 output[corner] = mapped;
             }
-            result.Faces.Add(output);
+            writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
         }
         return result;
     }

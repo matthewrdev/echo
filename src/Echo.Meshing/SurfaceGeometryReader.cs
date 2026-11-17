@@ -55,5 +55,12 @@ internal sealed class SurfaceGeometryReader
         }
     }
 
+    public SurfaceTriangleVertices Face(int index)
+    {
+        Span<SurfaceTriangleVertices> face = stackalloc SurfaceTriangleVertices[1];
+        ReadFaces(index, face);
+        return face[0];
+    }
+
     public SurfaceTriangle Triangle(SurfaceTriangleVertices face) => new(Vertex(face.A), Vertex(face.B), Vertex(face.C));
 }

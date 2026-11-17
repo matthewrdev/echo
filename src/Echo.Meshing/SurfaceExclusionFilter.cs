@@ -18,30 +18,33 @@ public static class SurfaceExclusionFilter
         IList<int> vertices = scratch?.Filled(surface.Vertices.Count, -1, new IntRecordCodec(), cancellation)
             ?? Enumerable.Repeat(-1, surface.Vertices.Count).ToArray();
         var result = work?.Surface() ?? new Surface();
+        var writer = new SurfaceGeometryWriter(result);
+        Span<int> output = stackalloc int[3];
+        var reader = new SurfaceGeometryReader(surface);
         var assigned = surface.SourceImages.Count == surface.Faces.Count;
         for (var index = 0; index < surface.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
-            var face = surface.Faces[index];
-            var a = new V3(surface.Vertices[face[0]]);
-            var b = new V3(surface.Vertices[face[1]]);
-            var c = new V3(surface.Vertices[face[2]]);
+            var face = reader.Face(index);
+            var a = reader.Vertex(face.A);
+            var b = reader.Vertex(face.B);
+            var c = reader.Vertex(face.C);
             if (crop.ExcludesTriangle(a, b, c))
             {
                 continue;
             }
-            var output = new int[3];
+
             for (var corner = 0; corner < 3; corner++)
             {
                 var vertex = face[corner];
                 if (vertices[vertex] < 0)
                 {
                     vertices[vertex] = result.Vertices.Count;
-                    result.Vertices.Add(surface.Vertices[vertex]);
+                    writer.AddVertex(reader.Vertex(vertex));
                 }
                 output[corner] = vertices[vertex];
             }
-            result.Faces.Add(output);
+            writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
             if (assigned)
             {
                 result.SourceImages.Add(surface.SourceImages[index]);

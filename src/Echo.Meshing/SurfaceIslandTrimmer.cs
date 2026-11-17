@@ -31,16 +31,17 @@ public static class SurfaceIslandTrimmer
         }
 
         using var scratch = work?.CreateScope();
+        var reader = new SurfaceGeometryReader(source);
         var parents = BuildComponents(source, cancellation, scratch, progress);
         IList<double> areas = scratch?.Filled(source.Faces.Count, 0d, new DoubleRecordCodec()) ?? new double[source.Faces.Count];
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             parents[index] = Root(parents, index);
-            var face = source.Faces[index];
-            var origin = new V3(source.Vertices[face[0]]);
-            areas[parents[index]] += (new V3(source.Vertices[face[1]]) - origin)
-                .Cross(new V3(source.Vertices[face[2]]) - origin).Length * .5;
+            var face = reader.Face(index);
+            var origin = reader.Vertex(face.A);
+            areas[parents[index]] += (reader.Vertex(face.B) - origin)
+                .Cross(reader.Vertex(face.C) - origin).Length * .5;
         }
 
         var largest = parents[0];
@@ -86,6 +87,7 @@ public static class SurfaceIslandTrimmer
     private static IList<int> BuildComponents(Surface source, CancellationToken cancellation, WorkBuffers? work, Action<OperationProgress>? progress)
     {
         using var scratch = work?.CreateScope();
+        var reader = new SurfaceGeometryReader(source);
         // Weld only exact positions for connectivity. Keep the original vertices
         // and photograph seams in the output; never bridge a physical gap.
         var positions = new BinaryHashIndex<V3, int>(source.Vertices.Count, new PositionKeyCodec(), new IntRecordCodec(), scratch, cancellation);
@@ -93,7 +95,7 @@ public static class SurfaceIslandTrimmer
         for (var index = 0; index < welded.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
-            var point = new V3(source.Vertices[index]);
+            var point = reader.Vertex(index);
             if (!positions.TryGetValue(point, out var id))
             {
                 id = positions.Count;
@@ -116,7 +118,7 @@ public static class SurfaceIslandTrimmer
             {
                 progress?.Invoke(new OperationProgress("Island connectivity", "Connecting triangles across shared edges…", index, source.Faces.Count, "triangles"));
             }
-            var face = source.Faces[index];
+            var face = reader.Face(index);
             for (var corner = 0; corner < 3; corner++)
             {
                 var a = welded[face[corner]];
@@ -157,7 +159,10 @@ public static class SurfaceIslandTrimmer
     private static Surface CopyRetainedFaces(Surface source, IList<int> parents, IList<bool> remove, CancellationToken cancellation, WorkBuffers? work)
     {
         using var scratch = work?.CreateScope();
+        var reader = new SurfaceGeometryReader(source);
         var result = work?.Surface() ?? new Surface();
+        var writer = new SurfaceGeometryWriter(result);
+        Span<int> output = stackalloc int[3];
         IList<int> remap = scratch?.Filled(source.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, source.Vertices.Count).ToArray();
         for (var index = 0; index < source.Faces.Count; index++)
         {
@@ -166,8 +171,7 @@ public static class SurfaceIslandTrimmer
             {
                 continue;
             }
-            var face = source.Faces[index];
-            var output = new int[3];
+            var face = reader.Face(index);
             for (var corner = 0; corner < 3; corner++)
             {
                 var vertex = face[corner];
@@ -176,11 +180,11 @@ public static class SurfaceIslandTrimmer
                 {
                     mapped = result.Vertices.Count;
                     remap[vertex] = mapped;
-                    result.Vertices.Add(source.Vertices[vertex]);
+                    writer.AddVertex(reader.Vertex(vertex));
                 }
                 output[corner] = mapped;
             }
-            result.Faces.Add(output);
+            writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
             if (source.SourceImages.Count > 0)
             {
                 result.SourceImages.Add(source.SourceImages[index]);

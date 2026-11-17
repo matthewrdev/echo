@@ -10,14 +10,16 @@ internal static class SurfaceFragments
     {
         cancellation.ThrowIfCancellationRequested();
         using var scratch = work?.CreateScope();
+        var reader = new SurfaceGeometryReader(source);
         IList<int> parents = scratch?.List(new IntRecordCodec()) ?? new List<int>(source.Vertices.Count);
         for (var index = 0; index < source.Vertices.Count; index++)
         {
             parents.Add(index);
         }
-        foreach (var face in source.Faces)
+        for (var faceIndex = 0; faceIndex < source.Faces.Count; faceIndex++)
         {
             cancellation.ThrowIfCancellationRequested();
+            var face = reader.Face(faceIndex);
             for (var corner = 1; corner < 3; corner++)
             {
                 var a = Root(parents, face[0]);
@@ -29,12 +31,13 @@ internal static class SurfaceFragments
         IList<int> counts = scratch?.Filled(parents.Count, 0, new IntRecordCodec()) ?? new int[parents.Count];
         IList<double> areas = scratch?.Filled(parents.Count, 0d, new DoubleRecordCodec()) ?? new double[parents.Count];
         var largest = 0;
-        foreach (var face in source.Faces)
+        for (var faceIndex = 0; faceIndex < source.Faces.Count; faceIndex++)
         {
             cancellation.ThrowIfCancellationRequested();
+            var face = reader.Face(faceIndex);
             var root = Root(parents, face[0]);
-            var origin = new V3(source.Vertices[face[0]]);
-            areas[root] += (new V3(source.Vertices[face[1]]) - origin).Cross(new V3(source.Vertices[face[2]]) - origin).Length * .5;
+            var origin = reader.Vertex(face.A);
+            areas[root] += (reader.Vertex(face.B) - origin).Cross(reader.Vertex(face.C) - origin).Length * .5;
             counts[root]++;
             if (areas[root] > areas[largest])
             {
@@ -43,10 +46,13 @@ internal static class SurfaceFragments
         }
 
         var result = work?.Surface() ?? new Surface();
+        var writer = new SurfaceGeometryWriter(result);
+        Span<int> output = stackalloc int[3];
         IList<int> remap = scratch?.Filled(source.Vertices.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, source.Vertices.Count).ToArray();
-        foreach (var face in source.Faces)
+        for (var faceIndex = 0; faceIndex < source.Faces.Count; faceIndex++)
         {
             cancellation.ThrowIfCancellationRequested();
+            var face = reader.Face(faceIndex);
             var root = Root(parents, face[0]);
             var smallFragment = root != largest && counts[root] <= 64 && areas[root] < voxelSize * voxelSize * 4;
             if (smallFragment)
@@ -54,7 +60,6 @@ internal static class SurfaceFragments
                 continue;
             }
 
-            var output = new int[3];
             for (var corner = 0; corner < 3; corner++)
             {
                 var vertex = face[corner];
@@ -63,11 +68,11 @@ internal static class SurfaceFragments
                 {
                     index = result.Vertices.Count;
                     remap[vertex] = index;
-                    result.Vertices.Add(source.Vertices[vertex]);
+                    writer.AddVertex(reader.Vertex(vertex));
                 }
                 output[corner] = index;
             }
-            result.Faces.Add(output);
+            writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
         }
         return result;
     }

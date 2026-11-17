@@ -56,8 +56,8 @@ internal static class SurfaceHoleRepair
                 var patch = Triangulate(loop, points, patchNormal, edges, cancellation);
                 if (patch == null && supportsSurface != null)
                 {
-                    index ??= new SurfaceTriangleIndex(mesh, cancellation);
-                    patch = CurvedHoleTriangulation.Fill(mesh, loop, edges, index, cancellation);
+                    index ??= new SurfaceTriangleIndex(mesh, cancellation, work);
+                    patch = CurvedHoleTriangulation.Fill(mesh, loop, edges, index, cancellation, work);
                 }
                 if (patch == null)
                 {
@@ -69,7 +69,7 @@ internal static class SurfaceHoleRepair
                 }
                 if (acceptsTriangle != null)
                 {
-                    index ??= new SurfaceTriangleIndex(mesh, cancellation);
+                    index ??= new SurfaceTriangleIndex(mesh, cancellation, work);
                     if (!AcceptedPatch(mesh, patch, acceptsTriangle, index, cancellation))
                     {
                         continue;
@@ -196,99 +196,7 @@ internal static class SurfaceHoleRepair
     private static List<int[]>? Triangulate(List<int> boundary, ReadOnlySpan<V3> points, V3 normal,
         BinaryHashIndex<SurfaceEdge, BoundaryEdge> edges, CancellationToken cancellation)
     {
-        if (CrossesItself(points, normal))
-        {
-            return null;
-        }
-        var remaining = Enumerable.Range(0, boundary.Count).ToList();
-        var result = new List<int[]>(boundary.Count - 2);
-        while (remaining.Count > 3)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            var found = false;
-            for (var index = 0; index < remaining.Count; index++)
-            {
-                var before = remaining[(index + remaining.Count - 1) % remaining.Count];
-                var current = remaining[index];
-                var after = remaining[(index + 1) % remaining.Count];
-                var a = points[before];
-                var b = points[current];
-                var c = points[after];
-                var diagonal = new SurfaceEdge(Math.Min(boundary[before], boundary[after]), Math.Max(boundary[before], boundary[after]));
-                if ((b - a).Cross(c - a).Dot(normal) <= 1e-12 || edges.ContainsKey(diagonal))
-                {
-                    continue;
-                }
-
-                var containsVertex = false;
-                foreach (var vertex in remaining)
-                {
-                    var isCorner = vertex == before || vertex == current || vertex == after;
-                    if (isCorner)
-                    {
-                        continue;
-                    }
-                    var point = points[vertex];
-                    var inside = (b - a).Cross(point - a).Dot(normal) >= -1e-12
-                        && (c - b).Cross(point - b).Dot(normal) >= -1e-12
-                        && (a - c).Cross(point - c).Dot(normal) >= -1e-12;
-                    if (inside)
-                    {
-                        containsVertex = true;
-                        break;
-                    }
-                }
-                if (containsVertex)
-                {
-                    continue;
-                }
-
-                result.Add([boundary[before], boundary[current], boundary[after]]);
-                remaining.RemoveAt(index);
-                found = true;
-                break;
-            }
-            if (!found)
-            {
-                return null;
-            }
-        }
-
-        var first = points[remaining[0]];
-        var second = points[remaining[1]];
-        var third = points[remaining[2]];
-        if ((second - first).Cross(third - first).Dot(normal) <= 1e-12)
-        {
-            return null;
-        }
-        result.Add([boundary[remaining[0]], boundary[remaining[1]], boundary[remaining[2]]]);
-        return result;
+        return PlanarEarTriangulation.Fill(boundary, points, normal, edges, cancellation);
     }
 
-    private static bool CrossesItself(ReadOnlySpan<V3> points, V3 normal)
-    {
-        for (var first = 0; first < points.Length; first++)
-        {
-            var firstEnd = (first + 1) % points.Length;
-            var a = points[first];
-            var b = points[firstEnd];
-            for (var second = first + 2; second < points.Length; second++)
-            {
-                var secondEnd = (second + 1) % points.Length;
-                if (secondEnd == first)
-                {
-                    continue;
-                }
-                var c = points[second];
-                var d = points[secondEnd];
-                var oppositeFirst = (b - a).Cross(c - a).Dot(normal) * (b - a).Cross(d - a).Dot(normal) < -1e-12;
-                var oppositeSecond = (d - c).Cross(a - c).Dot(normal) * (d - c).Cross(b - c).Dot(normal) < -1e-12;
-                if (oppositeFirst && oppositeSecond)
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 }

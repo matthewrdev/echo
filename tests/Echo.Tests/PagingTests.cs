@@ -45,6 +45,41 @@ public sealed class PagingTests
             }
             Check(Directory.EnumerateFiles(directory, "*.bin").Count() == 2, "Old bucket files remained live");
         }));
+        tests.Run("Typed paged geometry appends preserve bits and avoid per-record arrays", () => InDirectory(directory =>
+        {
+            using var session = new BulkDataSession(65536 * 8, 0);
+            using var work = new WorkBuffers(session, directory);
+            var mesh = work.Surface();
+            var writer = new SurfaceGeometryWriter(mesh);
+            for (var index = 0; index < 1000; index++)
+            {
+                writer.AddVertex(new V3(-0d, double.Epsilon, index * Math.PI));
+                writer.AddFace(new SurfaceTriangleVertices(index, index, index));
+            }
+            var reader = new SurfaceGeometryReader(mesh);
+            Check(BitConverter.DoubleToInt64Bits(reader.Vertex(0).X) == long.MinValue, "Typed append lost signed zero");
+            for (var repeat = 0; repeat < 100; repeat++)
+            {
+                reader.Triangle(reader.Face(repeat));
+            }
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var sum = 0d;
+            for (var repeat = 0; repeat < 10000; repeat++)
+            {
+                sum += reader.Triangle(reader.Face(repeat % 1000)).A.Z;
+            }
+            Check(sum > 0 && GC.GetAllocatedBytesForCurrentThread() - before < 4096, "Paged geometry allocated small arrays per query");
+            var count = mesh.Faces.Count;
+            try
+            {
+                ((PagedList<int[]>)mesh.Faces).AddEncodedRecords(new byte[13]);
+                throw new InvalidOperationException("Partial record was accepted");
+            }
+            catch (ArgumentException)
+            {
+            }
+            Check(mesh.Faces.Count == count, "Rejected append changed the record count");
+        }));
         tests.Run("Parallel reduction preserves geometry across resident and paged budgets", () => InDirectory(directory =>
         {
             var source = new Surface();
