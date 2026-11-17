@@ -7,26 +7,25 @@ namespace Echo.Storage;
 // A caller supplies the expected size to avoid rebuilding large indexes.
 public sealed class BinaryHashIndex<TKey, TValue> : IReadOnlyDictionary<TKey, TValue> where TKey : notnull
 {
-    private readonly IList<int> buckets;
+    private IList<int> buckets;
     private readonly IList<HashIndexEntry<TKey, TValue>> entries;
     private readonly EqualityComparer<TKey> comparer = EqualityComparer<TKey>.Default;
+    private readonly WorkBuffers? work;
+    private readonly CancellationToken cancellation;
 
     public BinaryHashIndex(int expectedCount, RecordCodec<TKey> keys, RecordCodec<TValue> values,
         WorkBuffers? work = null, CancellationToken cancellation = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(expectedCount);
         cancellation.ThrowIfCancellationRequested();
+        this.work = work;
+        this.cancellation = cancellation;
         var count = 16;
         while (count < expectedCount && count < 1 << 26)
         {
             count *= 2;
         }
-        buckets = work?.List(new IntRecordCodec()) ?? new List<int>(count);
-        for (var index = 0; index < count; index++)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            buckets.Add(-1);
-        }
+        buckets = work?.Filled(count, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, count).ToArray();
         entries = work?.List(new HashIndexEntryCodec<TKey, TValue>(keys, values)) ?? new List<HashIndexEntry<TKey, TValue>>();
     }
 
@@ -118,9 +117,34 @@ public sealed class BinaryHashIndex<TKey, TValue> : IReadOnlyDictionary<TKey, TV
 
     private void Append(TKey key, TValue value, int bucket, int head)
     {
+        if (entries.Count >= buckets.Count * 2L && buckets.Count < 1 << 26)
+        {
+            Grow();
+            bucket = Bucket(key);
+            head = buckets[bucket];
+        }
         var index = entries.Count;
         entries.Add(new HashIndexEntry<TKey, TValue>(key, value, head));
         buckets[bucket] = index;
+    }
+
+    private void Grow()
+    {
+        var previous = buckets;
+        var count = checked(previous.Count * 2);
+        buckets = work?.Filled(count, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, count).ToArray();
+        for (var index = 0; index < entries.Count; index++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var entry = entries[index];
+            var bucket = Bucket(entry.Key);
+            entries[index] = entry with
+            {
+                Next = buckets[bucket]
+            };
+            buckets[bucket] = index;
+        }
+        (previous as IDisposable)?.Dispose();
     }
 
     private int Find(TKey key, int index, out HashIndexEntry<TKey, TValue> entry)

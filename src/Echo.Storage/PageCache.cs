@@ -223,9 +223,9 @@ public sealed class PageCache : IDisposable
             GrowLocked(file, checked(offset + source.Length));
             while (!source.IsEmpty)
             {
-                var page = Get(file, offset / pageSize);
                 var start = (int)(offset % pageSize);
                 var count = Math.Min(source.Length, pageSize - start);
+                var page = Get(file, offset / pageSize, start == 0 && count == pageSize);
                 source[..count].CopyTo(page.Bytes.AsSpan(start, count));
                 page.Dirty = true;
                 source = source[count..];
@@ -291,7 +291,7 @@ public sealed class PageCache : IDisposable
         }
     }
 
-    private CachedPage Get(PageFile file, long index)
+    private CachedPage Get(PageFile file, long index, bool overwrite = false)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         var address = new PageAddress(file, index);
@@ -319,9 +319,12 @@ public sealed class PageCache : IDisposable
             bytes = new byte[pageSize];
         }
         var offset = index * pageSize;
-        var count = (int)Math.Min(pageSize, Math.Max(0, file.Length - offset));
-        file.Read(offset, bytes.AsSpan(0, count));
-        reads += count;
+        var count = overwrite ? 0 : (int)Math.Min(pageSize, Math.Max(0, file.MaterializedLength - offset));
+        if (count > 0)
+        {
+            file.Read(offset, bytes.AsSpan(0, count));
+            reads += count;
+        }
         var page = new CachedPage { Address = address, Bytes = bytes };
         pages.Add(address, recent.AddFirst(page));
         peak = Math.Max(peak, pages.Count * (long)pageSize + reservedMemory);

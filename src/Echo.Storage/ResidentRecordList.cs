@@ -5,7 +5,7 @@ namespace Echo.Storage;
 
 // Typed scratch records share the page-cache budget. If that budget is exhausted,
 // spill this list once and keep using the bounded paging backend thereafter.
-internal sealed class ResidentRecordList<T> : IList<T>, IReadOnlyList<T>, IDisposable
+internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
 {
     private const int blockSize = 4096;
     private readonly BulkDataSession session;
@@ -51,6 +51,48 @@ internal sealed class ResidentRecordList<T> : IList<T>, IReadOnlyList<T>, IDispo
             {
                 blocks[index / blockSize][index % blockSize] = value;
             }
+        }
+    }
+
+    public void ReadRange(int start, Span<T> destination)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (start < 0 || start > Count - destination.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start));
+        }
+        if (paged != null)
+        {
+            paged.ReadRange(start, destination);
+            return;
+        }
+        while (!destination.IsEmpty)
+        {
+            var length = Math.Min(destination.Length, blockSize - start % blockSize);
+            blocks[start / blockSize].AsSpan(start % blockSize, length).CopyTo(destination);
+            start += length;
+            destination = destination[length..];
+        }
+    }
+
+    public void WriteRange(int start, ReadOnlySpan<T> source)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (start < 0 || start > Count - source.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start));
+        }
+        if (paged != null)
+        {
+            paged.WriteRange(start, source);
+            return;
+        }
+        while (!source.IsEmpty)
+        {
+            var length = Math.Min(source.Length, blockSize - start % blockSize);
+            source[..length].CopyTo(blocks[start / blockSize].AsSpan(start % blockSize, length));
+            start += length;
+            source = source[length..];
         }
     }
 

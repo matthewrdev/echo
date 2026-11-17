@@ -7,6 +7,7 @@ public sealed class PageFile : IDisposable
     private readonly string path;
     private readonly PageCache cache;
     private bool disposed;
+    private bool changed;
     private readonly long originalLength;
 
     public PageFile(string path, PageCache cache, bool writable, PageFileLifetime lifetime = PageFileLifetime.Persistent)
@@ -23,12 +24,18 @@ public sealed class PageFile : IDisposable
             writable ? FileAccess.ReadWrite : FileAccess.Read, FileShare.Read);
         Length = RandomAccess.GetLength(handle);
         originalLength = Length;
+        MaterializedLength = Length;
     }
 
     public PageFileLifetime Lifetime
     {
         get;
     }
+    internal long MaterializedLength
+    {
+        get; private set;
+    }
+
     internal long AllocatedBytes => Length - originalLength;
 
     public long Length
@@ -63,16 +70,18 @@ public sealed class PageFile : IDisposable
         {
             throw new InvalidOperationException("Cannot modify this paged file.");
         }
+        changed = true;
         cache.Write(this, offset, bytes);
     }
 
     public void Flush()
     {
         cache.Release(this);
-        if (Writable)
+        if (Writable && changed)
         {
             using var handle = Open();
             RandomAccess.FlushToDisk(handle);
+            changed = false;
         }
     }
 
@@ -127,6 +136,7 @@ public sealed class PageFile : IDisposable
     {
         var handle = cache.Handle(this);
         RandomAccess.Write(handle, bytes, offset);
+        MaterializedLength = Math.Max(MaterializedLength, offset + bytes.Length);
     }
 
     internal SafeFileHandle Open() => File.OpenHandle(path, FileMode.Open,

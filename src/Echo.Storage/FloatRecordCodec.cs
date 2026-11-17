@@ -30,6 +30,8 @@ public sealed class FloatRecordCodec : RecordCodec<float>
         }
     }
 
+    public override bool CanCopyFrom(RecordCodec<float> source) => source is FloatRecordCodec;
+
     public override int Size => 4;
     public override float Decode(ReadOnlySpan<byte> bytes) => BinaryPrimitives.ReadSingleLittleEndian(bytes);
     public override void Encode(float value, Span<byte> bytes)

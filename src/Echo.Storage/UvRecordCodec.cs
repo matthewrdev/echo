@@ -4,6 +4,8 @@ namespace Echo.Storage;
 
 public sealed class UvRecordCodec : RecordCodec<double[]>
 {
+    public override bool CanCopyFrom(RecordCodec<double[]> source) => source is UvRecordCodec;
+
     public override int Size => 16;
     public override double[] Decode(ReadOnlySpan<byte> bytes) => [BinaryPrimitives.ReadDoubleLittleEndian(bytes), BinaryPrimitives.ReadDoubleLittleEndian(bytes[8..])];
     public override void Encode(double[] value, Span<byte> bytes)

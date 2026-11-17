@@ -22,6 +22,8 @@ public abstract class RecordCodec<T>
         }
     }
 
+    public virtual bool CanCopyFrom(RecordCodec<T> source) => ReferenceEquals(this, source);
+
     public abstract T Decode(ReadOnlySpan<byte> bytes);
     public abstract void Encode(T value, Span<byte> bytes);
 }

@@ -6,6 +6,7 @@ using Echo.Geometry;
 using Echo.Meshing;
 using Echo.Storage;
 using Echo.Simplification;
+using Echo.Pipeline;
 
 namespace Echo.Tests;
 
@@ -28,6 +29,22 @@ public sealed class PagingTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Growing paged indexes retain insertion order and release superseded bucket files", () => InDirectory(directory =>
+        {
+            using var session = new BulkDataSession(65536 * 4, 0);
+            using var work = new WorkBuffers(session, directory);
+            var index = new BinaryHashIndex<int, int>(0, new IntRecordCodec(), new IntRecordCodec(), work);
+            for (var value = 0; value < 5000; value++)
+            {
+                index.Add(value * -7919, value);
+            }
+            Check(index.Keys.SequenceEqual(Enumerable.Range(0, 5000).Select(value => value * -7919)), "Growing changed encounter order");
+            for (var value = 0; value < 5000; value++)
+            {
+                Check(index[value * -7919] == value, "Growing lost a collision chain");
+            }
+            Check(Directory.EnumerateFiles(directory, "*.bin").Count() == 2, "Old bucket files remained live");
+        }));
         tests.Run("Parallel reduction preserves geometry across resident and paged budgets", () => InDirectory(directory =>
         {
             var source = new Surface();

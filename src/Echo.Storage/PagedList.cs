@@ -4,13 +4,14 @@ using System.Collections;
 
 namespace Echo.Storage;
 
-public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
+public sealed class PagedList<T> : IRecordList<T>, IDisposable
 {
     private readonly PageFile file;
     private readonly RecordCodec<T> codec;
     private readonly long offset;
     private readonly bool header;
     private bool disposed;
+    private int committedCount = -1;
 
     public PagedList(PageFile file, RecordCodec<T> codec, long rawOffset = -1, int rawCount = 0)
     {
@@ -38,6 +39,7 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
                 throw new InvalidDataException("Unsupported binary record header.");
             }
             Count = BinaryPrimitives.ReadInt32LittleEndian(bytes[12..]);
+            committedCount = Count;
         }
         if (Count < 0 || offset + (long)Count * codec.Size > file.Length)
         {
@@ -76,19 +78,27 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
     // Copies the native record encoding, without the container header or page
     // padding. The destination must use this codec's layout. Reads include dirty
     // cached pages, so publication does not require an intermediate disk flush.
-    public void CopyEncodedRecordsTo(Stream destination)
+    public void CopyEncodedRecordsTo(Stream destination, CancellationToken cancellation = default)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        var buffer = new byte[65536];
-        var remaining = (long)Count * codec.Size;
-        var position = offset;
-        while (remaining > 0)
+        var buffer = ArrayPool<byte>.Shared.Rent(65536);
+        try
         {
-            var count = (int)Math.Min(buffer.Length, remaining);
-            file.ReadBytes(position, buffer.AsSpan(0, count));
-            destination.Write(buffer, 0, count);
-            position += count;
-            remaining -= count;
+            var remaining = (long)Count * codec.Size;
+            var position = offset;
+            while (remaining > 0)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                var count = (int)Math.Min(buffer.Length, remaining);
+                file.ReadBytes(position, buffer.AsSpan(0, count));
+                destination.Write(buffer.AsSpan(0, count));
+                position += count;
+                remaining -= count;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 
@@ -122,6 +132,37 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
         }
         Write(Count, value);
         Count++;
+    }
+
+    public void AddRecord<TRecord>(TRecord value, RecordCodec<TRecord> recordCodec)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (recordCodec.Size != codec.Size)
+        {
+            throw new ArgumentException("The record layout must have the same size.", nameof(recordCodec));
+        }
+        Span<byte> bytes = stackalloc byte[codec.Size];
+        recordCodec.Encode(value, bytes);
+        AddEncodedRecords(bytes);
+    }
+
+    public void AddEncodedRecords(ReadOnlySpan<byte> bytes)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (bytes.Length % codec.Size != 0)
+        {
+            throw new ArgumentException("The buffer must contain whole records.", nameof(bytes));
+        }
+        var count = bytes.Length / codec.Size;
+        if (count > int.MaxValue - Count)
+        {
+            throw new InvalidDataException("Record count exceeds the supported index range.");
+        }
+        if (count > 0)
+        {
+            file.WriteBytes(offset + (long)Count * codec.Size, bytes);
+            Count += count;
+        }
     }
 
     public void ReadRange(int start, Span<T> destination)
@@ -163,6 +204,31 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
                 recordCodec.DecodeBlock(bytes.AsSpan(0, count * codec.Size), destination[..count]);
                 destination = destination[count..];
                 start += count;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(bytes);
+        }
+    }
+
+    public void WriteRange(int start, ReadOnlySpan<T> source)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (start < 0 || start > Count - source.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start));
+        }
+        var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(codec.Size, 65536));
+        try
+        {
+            while (!source.IsEmpty)
+            {
+                var count = Math.Min(source.Length, bytes.Length / codec.Size);
+                codec.EncodeBlock(source[..count], bytes.AsSpan(0, count * codec.Size));
+                file.WriteBytes(offset + (long)start * codec.Size, bytes.AsSpan(0, count * codec.Size));
+                start += count;
+                source = source[count..];
             }
         }
         finally
@@ -245,7 +311,7 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
 
     private void WriteHeader()
     {
-        if (file.Writable && header)
+        if (file.Writable && header && committedCount != Count)
         {
             Span<byte> bytes = stackalloc byte[16];
             BinaryPrimitives.WriteInt32LittleEndian(bytes, 0x31504345);
@@ -253,6 +319,7 @@ public sealed class PagedList<T> : IList<T>, IReadOnlyList<T>, IDisposable
             BinaryPrimitives.WriteInt32LittleEndian(bytes[8..], codec.Size);
             BinaryPrimitives.WriteInt32LittleEndian(bytes[12..], Count);
             file.WriteBytes(0, bytes);
+            committedCount = Count;
         }
     }
 

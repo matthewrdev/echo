@@ -5,13 +5,13 @@ namespace Echo.Storage;
 public sealed class PagedMinHeap<T>
 {
     private readonly IList<HeapEntry<T>> entries;
-    private readonly PagedList<HeapEntry<T>>? pagedEntries;
+    private readonly IRecordList<HeapEntry<T>>? pagedEntries;
     private readonly HeapEntry<T>[] children = new HeapEntry<T>[4];
 
     public PagedMinHeap(IList<HeapEntry<T>> entries)
     {
         this.entries = entries;
-        pagedEntries = entries as PagedList<HeapEntry<T>>;
+        pagedEntries = entries as IRecordList<HeapEntry<T>>;
     }
 
     public int Count => entries.Count;
