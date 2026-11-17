@@ -10,6 +10,7 @@ struct SceneViewport: NSViewRepresentable {
     var exclusionRegions: [ExclusionRegion] = []
     var selectedExclusionID: String?
     var placeExclusion: ((SCNVector3) -> Void)?
+    var changeExclusion: ((ExclusionRegion) -> Void)?
 
     func makeNSView(context: Context) -> ArtifactSceneView {
         let view = ArtifactSceneView(
@@ -51,6 +52,9 @@ struct SceneViewport: NSViewRepresentable {
         view.selection = selection
         view.placeExclusion = placeExclusion
         view.exclusionOverlay.update(scene: view.scene, regions: exclusionRegions, selectedID: selectedExclusionID)
+        view.cropHandles.update(
+            in: view, regions: exclusionRegions, selectedID: selectedExclusionID,
+            changed: placeExclusion == nil ? changeExclusion : nil)
         view.highlight(selected)
     }
 }

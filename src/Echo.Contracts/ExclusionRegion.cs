@@ -5,6 +5,11 @@ public sealed class ExclusionRegion
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public bool Enabled { get; set; } = true;
     public ExclusionShape Shape { get; set; } = ExclusionShape.Box;
+    public CropRegionMode Mode { get; set; } = CropRegionMode.Exclude;
+    public double RotationY
+    {
+        get; set;
+    }
     public double CentreX
     {
         get; set;
@@ -24,12 +29,14 @@ public sealed class ExclusionRegion
 
     public void Validate()
     {
-        var validIdentity = !string.IsNullOrWhiteSpace(Id) && Enum.IsDefined(Shape);
+        var validIdentity = !string.IsNullOrWhiteSpace(Id) && Enum.IsDefined(Shape) && Enum.IsDefined(Mode);
         var validCentre = double.IsFinite(CentreX) && double.IsFinite(CentreY) && double.IsFinite(CentreZ);
+        var validRotation = double.IsFinite(RotationY);
         var validSize = Positive(Width) && Positive(Height) && Positive(Depth) && Positive(Radius);
-        if (!validIdentity || !validCentre || !validSize)
+        var validGeometry = validCentre && validRotation && validSize;
+        if (!validIdentity || !validGeometry)
         {
-            throw new EchoException("Exclusion regions need an ID, a box or cylinder shape, finite coordinates and positive dimensions.", 2);
+            throw new EchoException("Crop regions need an ID, a box or cylinder shape, an include or exclude mode, finite coordinates and rotation, and positive dimensions.", 2);
         }
     }
 

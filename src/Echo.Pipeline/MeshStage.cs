@@ -57,7 +57,7 @@ public sealed class MeshStage : IPipelineStage
             fusionPath,
             depthUnits,
             alignment,
-            completionVersion = 6,
+            completionVersion = 8,
             project.Settings.ExclusionRegions,
             simplificationVersion = 4,
             project.Settings.ComputeBackend,
@@ -147,7 +147,7 @@ public sealed class MeshStage : IPipelineStage
                     var excludedFaces = facesBeforeExclusions - reduced.Faces.Count;
                     if (project.Settings.ExclusionRegions.Any(region => region.Enabled))
                     {
-                        context.ReportProgress(Name, $"Removed {excludedFaces:N0} triangles intersecting exclusion regions after surface completion.");
+                        context.ReportProgress(Name, $"Removed {excludedFaces:N0} triangles outside the crop selection after surface completion.");
                     }
                     if (project.Settings.MeshIslandMode != IslandTrimMode.Off)
                     {

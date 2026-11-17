@@ -7,21 +7,21 @@ import XCTest
 @testable import EchoDesktop
 
 final class ExclusionRegionTests: XCTestCase {
-    func testSettingsRoundTripAndInvalidateCloud() throws {
+    func testSettingsRoundTripAndInvalidateFusion() throws {
         let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
         XCTAssertTrue(original.exclusionRegions.isEmpty)
         var settings = original
         settings.exclusionRegions = [ExclusionRegion(), ExclusionRegion(shape: .cylinder)]
         let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(settings))
         XCTAssertEqual(restored.exclusionRegions, settings.exclusionRegions)
-        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: restored), .cloud)
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: restored), .fusion)
         var moved = settings
         moved.exclusionRegions[0].centreX = 2
-        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: settings, to: moved), .cloud)
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: settings, to: moved), .fusion)
         moved = settings
         moved.exclusionRegions[1].enabled = false
-        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: settings, to: moved), .cloud)
-        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: settings, to: original), .cloud)
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: settings, to: moved), .fusion)
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: settings, to: original), .fusion)
     }
 
     func testRegionPlacementDimensionsAndValidation() {
@@ -115,17 +115,24 @@ final class ExclusionRegionTests: XCTestCase {
         let bounds = SceneBounds(positions: [[box.min.x, box.min.y, box.min.z], [box.max.x, box.max.y, box.max.z]])
         var cylinder = ExclusionRegion(shape: .cylinder, bounds: bounds)
         cylinder.centreX += bounds.span / 5
-        let region = ExclusionRegion(bounds: bounds)
+        var region = ExclusionRegion(bounds: bounds)
+        region.mode = .include
+        region.rotationY = 30
         let controller = SceneViewportController()
         let host = NSHostingView(
             rootView: HStack {
                 Artifact3DViewer(
                     presentation: presentation, openFeatures: { _ in }, controller: controller,
                     showGround: .constant(false),
-                    exclusionRegions: [region, cylinder], selectedExclusionID: region.id)
-                ExclusionRegionEditor(region: .constant(region), bounds: bounds, metricScale: presentation.metricScale)
-                    .padding().frame(width: 280)
-            })
+                    exclusionRegions: [region, cylinder], selectedExclusionID: region.id, changeExclusion: { _ in })
+                VStack(alignment: .leading) {
+                    CropPointCountView(scene: scene, regions: [region, cylinder])
+                    ScrollView {
+                        ExclusionRegionEditor(
+                            region: .constant(region), bounds: bounds, metricScale: presentation.metricScale)
+                    }
+                }.padding().frame(width: 300)
+            }.background(Color(nsColor: .windowBackgroundColor)))
         let window = NSWindow(
             contentRect: CGRect(x: 0, y: 0, width: 1200, height: 800), styleMask: [.titled], backing: .buffered,
             defer: false)
@@ -133,9 +140,12 @@ final class ExclusionRegionTests: XCTestCase {
         window.orderFront(nil)
         defer { window.orderOut(nil) }
         host.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(300))
+        try await Task.sleep(for: .milliseconds(700))
         XCTAssertEqual(scene.rootNode.childNode(withName: "exclusion-regions", recursively: false)?.childNodes.count, 4)
+        XCTAssertNotNil(scene.rootNode.childNode(withName: "crop-handles", recursively: false))
         if let output = environment["ECHO_TEST_CROP_RENDER"] {
+            // Let the asynchronous preview count settle before capturing the editor.
+            try await Task.sleep(for: .seconds(3))
             let folder = URL(fileURLWithPath: output)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))

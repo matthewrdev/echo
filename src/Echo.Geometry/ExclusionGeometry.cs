@@ -4,22 +4,10 @@ namespace Echo.Geometry;
 
 public static class ExclusionGeometry
 {
-    public static bool Contains(IReadOnlyList<ExclusionRegion> regions, V3 point)
-    {
-        for (var index = 0; index < regions.Count; index++)
-        {
-            var region = regions[index];
-            if (region.Enabled && Contains(region, point))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
+    public static bool Contains(ExclusionRegion region, V3 point) => new PreparedCropRegion(region).Contains(point);
 
-    public static bool Contains(ExclusionRegion region, V3 point)
+    internal static bool ContainsLocal(ExclusionRegion region, V3 local)
     {
-        var local = point - new V3(region.CentreX, region.CentreY, region.CentreZ);
         if (Math.Abs(local.Y) > region.Height / 2)
         {
             return false;
@@ -33,29 +21,17 @@ public static class ExclusionGeometry
         return x * x + z * z <= 1;
     }
 
-    public static bool Intersects(IReadOnlyList<ExclusionRegion> regions, V3 a, V3 b, V3 c)
-    {
-        for (var index = 0; index < regions.Count; index++)
-        {
-            var region = regions[index];
-            if (region.Enabled && Intersects(region, a, b, c))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
+    public static bool Intersects(ExclusionRegion region, V3 a, V3 b, V3 c) => new PreparedCropRegion(region).Intersects(a, b, c);
 
     // Clip to the height slab, then the box sides or the cylinder's circular
     // cross-section. Vertex-only checks miss triangles spanning a cutout.
-    public static bool Intersects(ExclusionRegion region, V3 a, V3 b, V3 c)
+    internal static bool IntersectsLocal(ExclusionRegion region, V3 a, V3 b, V3 c)
     {
-        var centre = new V3(region.CentreX, region.CentreY, region.CentreZ);
         Span<V3> polygon = stackalloc V3[12];
         Span<V3> scratch = stackalloc V3[12];
-        polygon[0] = a - centre;
-        polygon[1] = b - centre;
-        polygon[2] = c - centre;
+        polygon[0] = a;
+        polygon[1] = b;
+        polygon[2] = c;
         var count = Clip(polygon[..3], scratch, new V3(0, 1, 0), region.Height / 2);
         count = Clip(scratch[..count], polygon, new V3(0, -1, 0), region.Height / 2);
         if (region.Shape == ExclusionShape.Box)

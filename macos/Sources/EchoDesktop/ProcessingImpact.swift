@@ -31,14 +31,14 @@ struct ProcessingImpact {
             || old.depthNear != new.depthNear || old.depthFar != new.depthFar
         if depth { return .depth }
         let cloud =
-            old.exclusionRegions != new.exclusionRegions
-            || old.cloudNeighbours != new.cloudNeighbours || old.cloudMinimumSupport != new.cloudMinimumSupport
+            old.cloudNeighbours != new.cloudNeighbours || old.cloudMinimumSupport != new.cloudMinimumSupport
             || old.cloudDepthTolerance != new.cloudDepthTolerance
             || old.cloudReprojectionTolerancePixels != new.cloudReprojectionTolerancePixels
             || old.cloudMinimumParallaxDegrees != new.cloudMinimumParallaxDegrees
         if cloud { return .cloud }
         let fusion =
-            old.fusionDetailMultiplier != new.fusionDetailMultiplier
+            old.exclusionRegions != new.exclusionRegions
+            || old.fusionDetailMultiplier != new.fusionDetailMultiplier
             || old.fusionMemoryBudgetMb != new.fusionMemoryBudgetMb
             || old.fusionVoxelSize != new.fusionVoxelSize
             || old.fusionAllowCoarserResolution != new.fusionAllowCoarserResolution

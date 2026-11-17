@@ -12,5 +12,6 @@ public interface ICheckpointStore
         CancellationToken cancellation,
         Action<string, object> progress,
         Func<ProcessingMetadata>? processing = null,
-        string? algorithmVersion = null);
+        string? algorithmVersion = null,
+        IReadOnlyList<object>? compatibleInputs = null);
 }

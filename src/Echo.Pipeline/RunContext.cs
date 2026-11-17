@@ -279,7 +279,7 @@ public sealed class RunContext : IDisposable
     }
 
     public string Build(string stage, object inputs, Action<string> action, Func<ProcessingMetadata>? metadata = null,
-        string? algorithmVersion = null)
+        string? algorithmVersion = null, IReadOnlyList<object>? compatibleInputs = null)
     {
         var owner = stage switch
         {
@@ -306,6 +306,11 @@ public sealed class RunContext : IDisposable
                 resetRevision,
                 inputs
             };
+            compatibleInputs = compatibleInputs?.Select(compatible => (object)new
+            {
+                resetRevision,
+                inputs = compatible
+            }).ToArray();
         }
 
         using var performance = Trace.Begin(stage, PerformanceSpanKind.Checkpoint, PerformanceBackend.Mixed, owner);
@@ -339,7 +344,7 @@ public sealed class RunContext : IDisposable
             {
                 reused = false;
                 action(directory);
-            }, Cancellation, Report, metadata, algorithmVersion);
+            }, Cancellation, Report, metadata, algorithmVersion, compatibleInputs);
             performance?.Complete(reused ? PerformanceStatus.Reused : PerformanceStatus.Completed);
         }
         catch (OperationCanceledException)

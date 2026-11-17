@@ -28,6 +28,30 @@ final class SavedArtifactPresentationTests: XCTestCase {
         XCTAssertTrue(SavedArtifactPresentation(current: reset, candidates: [saved]).run.artifacts.isEmpty)
     }
 
+    func testCropRunKeepsTheFullCloudVisibleWhileFusionIsRebuilt() throws {
+        let saved = try run(
+            id: "saved", status: "completed",
+            artifacts: [
+                "alignment": "alignment/old", "cloud": "cloud/full", "fusion": "fusion/old", "texture": "texture/old",
+            ])
+        let cropped = try run(
+            id: "cropped", status: "running",
+            settings: [
+                "exclusionRegions": [
+                    [
+                        "id": "crop", "enabled": true, "shape": "box", "mode": "include",
+                        "centreX": 0, "centreY": 0, "centreZ": 0, "width": 1, "height": 1, "depth": 1, "radius": 0.5,
+                    ]
+                ]
+            ])
+        let displayed = SavedArtifactPresentation(current: cropped, candidates: [saved])
+        XCTAssertEqual(displayed.run.artifacts["cloud"], "cloud/full")
+        XCTAssertEqual(displayed.run.artifacts["alignment"], "alignment/old")
+        XCTAssertNil(displayed.run.artifacts["fusion"])
+        XCTAssertNil(displayed.run.artifacts["texture"])
+        XCTAssertEqual(displayed.retainedStages, [.alignment, .cloud])
+    }
+
     func testStoppedAttemptsRetainCompletedResultsOverPartialPreviews() throws {
         let saved = try run(
             id: "saved", status: "completed", artifacts: ["features": "features/old", "depth": "depth/old"])

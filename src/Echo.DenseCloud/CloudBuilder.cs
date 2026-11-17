@@ -54,8 +54,7 @@ public sealed class CloudBuilder : ICloudBuilder
         var maximumHeight = 1;
         for (var index = 0; index < maps.Count; index++)
         {
-            var source = maps[index];
-            var map = DepthExclusions.Apply(photos[source.ImageId], cameras[source.ImageId], source, project.Settings.ExclusionRegions);
+            var map = maps[index];
             views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
             cloud.ImageIds.Add(map.ImageId);
             totalRows += map.Height;
@@ -199,10 +198,6 @@ public sealed class CloudBuilder : ICloudBuilder
                 }
                 input++;
                 var point = view.Point(x, y, depth);
-                if (ExclusionGeometry.Contains(settings.ExclusionRegions, point))
-                {
-                    continue;
-                }
                 var referenceRay = point - view.Centre;
                 var referenceLengthSquared = referenceRay.Dot(referenceRay);
                 var support = acceleratedSupport?[offset + x] ?? 0;

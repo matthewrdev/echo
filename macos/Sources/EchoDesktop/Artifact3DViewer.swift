@@ -9,6 +9,7 @@ struct Artifact3DViewer: View {
     var exclusionRegions: [ExclusionRegion] = []
     var selectedExclusionID: String?
     var placeExclusion: ((SCNVector3) -> Void)?
+    var changeExclusion: ((ExclusionRegion) -> Void)?
     @State private var selected: SparseSelection?
     @State private var observationIndex = 0.0
 
@@ -22,7 +23,7 @@ struct Artifact3DViewer: View {
                         selected = $0
                         observationIndex = 0
                     }, exclusionRegions: exclusionRegions, selectedExclusionID: selectedExclusionID,
-                    placeExclusion: placeExclusion
+                    placeExclusion: placeExclusion, changeExclusion: changeExclusion
                 )
                 .overlay(alignment: .bottomLeading) {
                     if let data = presentation.cameraInspection, let scene = presentation.scene,

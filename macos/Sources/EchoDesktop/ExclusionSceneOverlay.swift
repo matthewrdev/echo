@@ -20,7 +20,7 @@ final class ExclusionSceneOverlay {
                 ? SCNBox(width: region.width, height: region.height, length: region.depth, chamferRadius: 0)
                 : SCNCylinder(radius: region.radius, height: region.height)
             let material = SCNMaterial()
-            material.diffuse.contents = region.id == selectedID ? NSColor.systemOrange : NSColor.systemRed
+            material.diffuse.contents = region.mode == .include ? NSColor.systemGreen : NSColor.systemRed
             material.lightingModel = .constant
             material.isDoubleSided = true
             material.writesToDepthBuffer = false
@@ -29,12 +29,14 @@ final class ExclusionSceneOverlay {
             let node = SCNNode(geometry: geometry)
             node.name = region.id
             node.position = SCNVector3(region.centreX, region.centreY, region.centreZ)
-            node.opacity = 0.18
+            node.simdOrientation = simd_quatf(vector: SIMD4<Float>(region.orientation.vector))
+            node.opacity = region.id == selectedID ? 0.24 : 0.12
             node.renderingOrder = 20
             root.addChildNode(node)
             let outline = SCNNode(geometry: outlineGeometry(region))
             outline.geometry?.materials = [material]
             outline.position = node.position
+            outline.simdOrientation = node.simdOrientation
             outline.renderingOrder = 21
             root.addChildNode(outline)
         }

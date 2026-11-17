@@ -25,6 +25,8 @@ public sealed class ExclusionRegionTests
     internal void Run(TestSuite tests)
     {
         tests.Run("Box and cylinder exclusions include boundaries and respect height", Geometry);
+        tests.Run("Include regions form a union with exclusions taking precedence", Inclusion);
+        tests.Run("Rotated regions share local coordinates for points and triangles", Rotation);
         tests.Run("Exclusion settings survive snapshots and reject invalid input", SettingsRoundTrip);
         tests.Run("Depth exclusions mask scalar and bulk reads without modifying saved depths", DepthMask);
         tests.Run("Fusion excludes raw depth evidence and volume samples on CPU", () => Fusion(ComputeBackend.Cpu));
@@ -43,14 +45,14 @@ public sealed class ExclusionRegionTests
     private void Geometry()
     {
         var box = new ExclusionRegion { CentreX = 5, CentreY = 2, CentreZ = -3, Width = 4, Height = 2, Depth = 6 };
-        Check(ExclusionGeometry.Contains([box], new V3(7, 3, 0)), "Box boundary must be excluded");
-        Check(!ExclusionGeometry.Contains([box], new V3(7.001, 3, 0)), "Outside point was excluded");
+        Check(new RegionCropFilter([box]).IsExcluded(new V3(7, 3, 0)), "Box boundary must be excluded");
+        Check(!new RegionCropFilter([box]).IsExcluded(new V3(7.001, 3, 0)), "Outside point was excluded");
         box.Enabled = false;
-        Check(!ExclusionGeometry.Contains([box], new V3(5, 2, -3)), "Disabled region must be ignored");
+        Check(!new RegionCropFilter([box]).IsExcluded(new V3(5, 2, -3)), "Disabled region must be ignored");
         var cylinder = new ExclusionRegion { Shape = ExclusionShape.Cylinder, Radius = 2, Height = 4 };
-        Check(ExclusionGeometry.Contains([cylinder], new V3(0, 2, 2)), "Cylinder cap and radial boundary must be excluded");
-        Check(!ExclusionGeometry.Contains([cylinder], new V3(1.5, 0, 1.5)), "Cylinder must not behave like its bounding box");
-        Check(!ExclusionGeometry.Contains([cylinder], new V3(0, 2.001, 0)), "Cylinder height must be finite");
+        Check(new RegionCropFilter([cylinder]).IsExcluded(new V3(0, 2, 2)), "Cylinder cap and radial boundary must be excluded");
+        Check(!new RegionCropFilter([cylinder]).IsExcluded(new V3(1.5, 0, 1.5)), "Cylinder must not behave like its bounding box");
+        Check(!new RegionCropFilter([cylinder]).IsExcluded(new V3(0, 2.001, 0)), "Cylinder height must be finite");
         Check(ExclusionGeometry.Intersects(cylinder, new V3(-4, 0, -4), new V3(4, 0, -4), new V3(0, 0, 4)),
             "A large triangle covering the cylinder must be removed");
         Check(!ExclusionGeometry.Intersects(cylinder, new V3(-4, 3, -4), new V3(4, 3, -4), new V3(0, 3, 4)),
@@ -61,13 +63,56 @@ public sealed class ExclusionRegionTests
             "Triangle outside the curved wall must remain");
     }
 
+    private void Inclusion()
+    {
+        var include = new ExclusionRegion { Mode = CropRegionMode.Include, Width = 4, Height = 4, Depth = 4 };
+        var second = new ExclusionRegion { Mode = CropRegionMode.Include, CentreX = 5, Width = 2, Height = 2, Depth = 2 };
+        var exclude = new ExclusionRegion { Width = 1, Height = 1, Depth = 1 };
+        var filter = new RegionCropFilter([include, second, exclude]);
+        Check(!filter.IsExcluded(new V3(2, 2, 2)), "Inclusion boundary must be retained");
+        Check(!filter.IsExcluded(new V3(5, 0, 0)), "Include regions must combine as a union");
+        Check(filter.IsExcluded(new V3(3, 0, 0)), "Space between include regions must be excluded");
+        Check(filter.IsExcluded(new V3(0, 0, 0)), "Exclusions must override inclusions");
+        Check(!filter.ExcludesTriangle(new V3(1, 0, 0), new V3(1, 1, 0), new V3(1, 0, 1)), "Interior triangle must survive");
+        Check(filter.ExcludesTriangle(new V3(1, 0, 0), new V3(5, 0, 0), new V3(5, 1, 0)), "Triangles must not bridge separated include regions");
+        Check(filter.ExcludesTriangle(new V3(-1, -1, 0), new V3(1, -1, 0), new V3(0, 1, 0)), "Exclusion cutouts must survive inside include regions");
+        include.Enabled = false;
+        second.Enabled = false;
+        filter = new RegionCropFilter([include, second, exclude]);
+        Check(!filter.IsExcluded(new V3(20, 0, 0)), "Disabling all inclusions must restore outside points");
+        Check(!new RegionCropFilter([]).IsExcluded(new V3(0, 0, 0)), "Empty selection must retain all points");
+    }
+
+    private void Rotation()
+    {
+        var box = new ExclusionRegion { Width = 4, Height = .5, Depth = .5, RotationY = 90, CentreX = 5 };
+        Check(ExclusionGeometry.Contains(box, new V3(5, 0, -1.5)), "Box must rotate around its vertical centre axis");
+        Check(!ExclusionGeometry.Contains(box, new V3(6.5, 0, 0)), "Rotated box retained the original orientation");
+        Check(!ExclusionGeometry.Contains(box, new V3(5, .251, -1.5)), "Vertical rotation must preserve the height limits");
+        Check(ExclusionGeometry.Intersects(box, new V3(4, -1, -1.5), new V3(6, -1, -1.5), new V3(5, 1, -1.5)),
+            "Triangle intersection must use the box rotation");
+        box.RotationY = 45;
+        Check(ExclusionGeometry.Contains(box, new V3(6.060660171779821, 0, -1.0606601717798212)),
+            "Vertical rotation differs from the native viewer");
+        var cylinder = new ExclusionRegion { Shape = ExclusionShape.Cylinder, Radius = .25, Height = 4, RotationY = 90 };
+        Check(ExclusionGeometry.Contains(cylinder, new V3(0, 1.5, 0)), "Cylinder must stay upright regardless of a saved box rotation");
+        Check(!ExclusionGeometry.Contains(cylinder, new V3(1.5, 0, 0)), "Cylinder must retain its radial limits");
+        Check(ExclusionGeometry.Intersects(cylinder, new V3(-1, 1, -1), new V3(1, 1, -1), new V3(0, 1, 1)),
+            "Cylinder triangle intersection must retain its vertical axis");
+    }
+
     private void SettingsRoundTrip()
     {
-        var settings = new Settings { ExclusionRegions = [new ExclusionRegion(), new ExclusionRegion { Shape = ExclusionShape.Cylinder }] };
+        var settings = new Settings { ExclusionRegions = [new ExclusionRegion(), new ExclusionRegion { Shape = ExclusionShape.Cylinder, Mode = CropRegionMode.Include, RotationY = 34 }] };
         var restored = json.Clone(settings);
         restored.Validate();
         Check(restored.ExclusionRegions.Count == 2 && restored.ExclusionRegions[1].Shape == ExclusionShape.Cylinder,
             "Regions did not survive the serialized run snapshot");
+        var region = restored.ExclusionRegions[1];
+        Check(region.Mode == CropRegionMode.Include && region.RotationY == 34,
+            "Mode and rotation did not survive the snapshot");
+        var legacy = System.Text.Json.JsonSerializer.Deserialize<ExclusionRegion>("{}");
+        Check(legacy?.Mode == CropRegionMode.Exclude && legacy.RotationY == 0, "Old regions must remain unrotated exclusions");
         Check(json.Clone(new Settings()).ExclusionRegions.Count == 0, "No regions must remain the default");
         foreach (var invalid in new[] { 0, -1, double.NaN, double.PositiveInfinity })
         {
@@ -79,6 +124,12 @@ public sealed class ExclusionRegionTests
         Reject(restored);
         restored = json.Clone(settings);
         restored.ExclusionRegions[0].CentreX = double.NaN;
+        Reject(restored);
+        restored = json.Clone(settings);
+        restored.ExclusionRegions[0].RotationY = double.PositiveInfinity;
+        Reject(restored);
+        restored = json.Clone(settings);
+        restored.ExclusionRegions[0].Mode = (CropRegionMode)42;
         Reject(restored);
     }
 
@@ -93,6 +144,12 @@ public sealed class ExclusionRegionTests
         var bulk = new float[source.SampleCount];
         masked.ReadDepth(0, bulk);
         Check(bulk[centre] == 0 && bulk[0] == 10, "GPU upload and CPU samples must see the same masked values");
+        region.Mode = CropRegionMode.Include;
+        region.RotationY = 30;
+        var included = DepthExclusions.Apply(fixture.Project.Images[0], fixture.Scene.Cameras[0], source, [region]);
+        included.ReadDepth(0, bulk);
+        Check(included.DepthAt(centre) == 10 && included.DepthAt(0) == 0 && bulk[centre] == 10 && bulk[0] == 0,
+            "Inverted depth mask must retain the inside on both CPU and GPU reads");
         Check(source.DepthAt(centre) == 10, "Saved depth artifacts must remain reusable");
         Check(ReferenceEquals(source, DepthExclusions.Apply(fixture.Project.Images[0], fixture.Scene.Cameras[0], source, [])),
             "Projects without exclusions must keep the existing path");
@@ -102,20 +159,23 @@ public sealed class ExclusionRegionTests
     {
         foreach (var shape in Enum.GetValues<ExclusionShape>())
         {
-            var fixture = new FusionFixture();
-            var region = new ExclusionRegion { Shape = shape, CentreZ = 10, Width = 1, Height = 1, Depth = 1, Radius = .5 };
-            fixture.Project.Settings.ExclusionRegions = [region];
-            fixture.Project.Settings.ComputeBackend = backend;
-            fixture.Project.Settings.FusionVoxelSize = .125;
-            var fusion = new DepthFusion(compute);
-            var volume = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud,
-                new FusionResourcePlan(25600000, 100000), default);
-            Check(volume.Samples.Count >= 100 && volume.ConsistentSamples < fixture.Cloud.Samples.Count,
-                "Excluded cloud points still affected fusion planning");
-            Check(volume.Samples.All(sample => !ExclusionGeometry.Contains([region],
-                new V3(sample.X * volume.VoxelSize, sample.Y * volume.VoxelSize, sample.Z * volume.VoxelSize))),
-                "Excluded volume samples survived integration");
-            Check(fixture.Maps.All(map => map.Depth.All(value => value == 10)), "Fusion mutated source depths");
+            foreach (var mode in Enum.GetValues<CropRegionMode>())
+            {
+                var fixture = new FusionFixture();
+                var region = new ExclusionRegion { Shape = shape, Mode = mode, RotationY = 30, CentreZ = 10, Width = 2, Height = 2, Depth = 1, Radius = 1 };
+                fixture.Project.Settings.ExclusionRegions = [region];
+                fixture.Project.Settings.ComputeBackend = backend;
+                fixture.Project.Settings.FusionVoxelSize = .125;
+                var fusion = new DepthFusion(compute);
+                var volume = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud,
+                    new FusionResourcePlan(25600000, 100000), default);
+                Check(volume.Samples.Count >= 100 && volume.ConsistentSamples < fixture.Cloud.Samples.Count,
+                    "Excluded cloud points still affected fusion planning");
+                Check(volume.Samples.All(sample => !new RegionCropFilter([region]).IsExcluded(
+                    new V3(sample.X * volume.VoxelSize, sample.Y * volume.VoxelSize, sample.Z * volume.VoxelSize))),
+                    "Excluded volume samples survived integration");
+                Check(fixture.Maps.All(map => map.Depth.All(value => value == 10)), "Fusion mutated source depths");
+            }
         }
     }
 
@@ -142,6 +202,16 @@ public sealed class ExclusionRegionTests
                     Check(filtered.Faces.Count == 1 && filtered.Vertices.Count == 3, "Crossing triangle or unused vertices survived");
                     Check(filtered.SourceImages.SequenceEqual(["retained"]), "Source photograph mapping shifted");
                     Check(filtered.Faces[0].SequenceEqual([0, 1, 2]), "Compacted vertex indices are invalid");
+                    region.Mode = CropRegionMode.Include;
+                    region.CentreX = 11;
+                    region.CentreZ = 11;
+                    region.Width = 4;
+                    region.Depth = 4;
+                    region.Radius = 2;
+                    region.RotationY = 45;
+                    var included = SurfaceExclusionFilter.Filter(surface, [region], default, buffers);
+                    Check(included.Faces.Count == 1 && included.Vertices.Count == 3, "Include region did not remove exterior faces");
+                    Check(included.SourceImages.SequenceEqual(["retained"]), "Include region lost source image mapping");
                 }
             }
         }

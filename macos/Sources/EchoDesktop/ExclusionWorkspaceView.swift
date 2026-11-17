@@ -21,7 +21,7 @@ struct ExclusionWorkspaceView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Button(editing ? "Close crop editor" : "Exclusion regions", systemImage: "crop") {
+                Button(editing ? "Close crop editor" : "Crop regions", systemImage: "crop") {
                     if !editing {
                         regions = workspace.inspection?.project.settings.exclusionRegions ?? []
                         selectedID = regions.first?.id
@@ -31,7 +31,7 @@ struct ExclusionWorkspaceView: View {
                 }
                 .disabled(workspace.inspection == nil)
                 if editing {
-                    Text("Inside the red volumes will be excluded from new processing.")
+                    Text("Green volumes include points; red volumes exclude them.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -40,7 +40,8 @@ struct ExclusionWorkspaceView: View {
                     presentation: presentation, openFeatures: openFeatures,
                     controller: controller, showGround: $showGround,
                     exclusionRegions: editing ? regions : [], selectedExclusionID: selectedID,
-                    placeExclusion: placing ? place : nil)
+                    placeExclusion: placing ? place : nil,
+                    changeExclusion: editing ? change : nil)
                 if editing {
                     Divider()
                     editor.frame(width: 280)
@@ -56,7 +57,7 @@ struct ExclusionWorkspaceView: View {
     private var editor: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Exclude regions").font(.headline)
+                Text("Crop regions").font(.headline)
                 Spacer()
                 Menu("Add", systemImage: "plus") {
                     ForEach(ExclusionShape.allCases, id: \.self) { shape in
@@ -71,11 +72,14 @@ struct ExclusionWorkspaceView: View {
             if !regions.isEmpty {
                 Picker("Region", selection: $selectedID) {
                     ForEach(Array(regions.enumerated()), id: \.element.id) { index, region in
-                        Text("\(index + 1). \(region.shape.title)\(region.enabled ? "" : " (off)")")
-                            .tag(Optional(region.id))
+                        Text(
+                            "\(index + 1). \(region.mode.title) \(region.shape.title)\(region.enabled ? "" : " (off)")"
+                        )
+                        .tag(Optional(region.id))
                     }
                 }
             }
+            CropPointCountView(scene: presentation.scene, regions: regions).id(presentation.id)
             ScrollView {
                 if let index = regions.firstIndex(where: { $0.id == selectedID }) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -95,13 +99,15 @@ struct ExclusionWorkspaceView: View {
                         }
                     }
                 } else {
-                    Text("Add a box or vertical cylinder, then place and resize it around unwanted points.")
-                        .font(.callout).foregroundStyle(.secondary)
+                    Text(
+                        "Add a box or cylinder, then choose Include or Exclude and adjust its position and size. Boxes can rotate around the vertical axis."
+                    )
+                    .font(.callout).foregroundStyle(.secondary)
                 }
             }
-            Text("Save, then process again from Dense cloud. Existing runs keep their original regions.")
+            Text("Save, then process again from Fusion. The point cloud stays reusable.")
                 .font(.caption).foregroundStyle(.secondary)
-            Button(workspace.busy ? "Saving…" : "Save exclusions") {
+            Button(workspace.busy ? "Saving…" : "Save crop regions") {
                 guard var settings = workspace.inspection?.project.settings else { return }
                 settings.exclusionRegions = regions
                 workspace.save(settings: settings)
@@ -118,5 +124,10 @@ struct ExclusionWorkspaceView: View {
         guard let index = regions.firstIndex(where: { $0.id == selectedID }) else { return }
         regions[index].place(at: point)
         placing = false
+    }
+
+    private func change(_ region: ExclusionRegion) {
+        guard let index = regions.firstIndex(where: { $0.id == region.id }) else { return }
+        regions[index] = region
     }
 }

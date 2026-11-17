@@ -9,7 +9,8 @@ internal static class FusionExclusions
     public static DenseCloudData Filter(DenseCloudData cloud, IReadOnlyList<ExclusionRegion> regions,
         CancellationToken cancellation, WorkBuffers? work)
     {
-        if (!regions.Any(region => region.Enabled))
+        var crop = new RegionCropFilter(regions);
+        if (!crop.HasRegions)
         {
             return cloud;
         }
@@ -18,7 +19,7 @@ internal static class FusionExclusions
         {
             cancellation.ThrowIfCancellationRequested();
             var sample = cloud.Samples[index];
-            if (ExclusionGeometry.Contains(regions, new V3(sample.X, sample.Y, sample.Z)))
+            if (crop.IsExcluded(new V3(sample.X, sample.Y, sample.Z)))
             {
                 firstExcluded = index;
                 break;
@@ -39,14 +40,14 @@ internal static class FusionExclusions
         foreach (var sample in cloud.Samples)
         {
             cancellation.ThrowIfCancellationRequested();
-            if (!ExclusionGeometry.Contains(regions, new V3(sample.X, sample.Y, sample.Z)))
+            if (!crop.IsExcluded(new V3(sample.X, sample.Y, sample.Z)))
             {
                 result.Samples.Add(sample);
             }
         }
         if (result.Samples.Count < 30)
         {
-            throw new EchoException("Fewer than 30 dense points remain outside the exclusion regions. Reduce or disable a region before fusion.", 5);
+            throw new EchoException("Fewer than 30 dense points remain after cropping. Adjust or disable a crop region before fusion.", 5);
         }
         return result;
     }

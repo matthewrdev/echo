@@ -5,12 +5,12 @@ namespace Echo.Geometry;
 public sealed class ExcludedDepthSamples : IDepthSamples
 {
     private readonly DepthView source;
-    private readonly IReadOnlyList<ExclusionRegion> regions;
+    private readonly RegionCropFilter crop;
 
     public ExcludedDepthSamples(DepthView source, IReadOnlyList<ExclusionRegion> regions)
     {
         this.source = source;
-        this.regions = regions;
+        crop = new RegionCropFilter(regions);
     }
 
     public int Count => source.Map.SampleCount;
@@ -35,6 +35,6 @@ public sealed class ExcludedDepthSamples : IDepthSamples
             return depth;
         }
         var point = source.Point(index % source.Map.Width, index / source.Map.Width, depth);
-        return ExclusionGeometry.Contains(regions, point) ? 0 : depth;
+        return crop.IsExcluded(point) ? 0 : depth;
     }
 }

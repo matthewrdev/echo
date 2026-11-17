@@ -27,7 +27,7 @@ public sealed class CloudProcessingTests
 
     internal void Run(TestSuite tests)
     {
-        tests.Run("Dense cloud excludes box and cylinder samples before previews and output", () =>
+        tests.Run("Dense cloud and previews remain complete when include or exclude regions change", () =>
         {
             var root = Path.Combine(Path.GetTempPath(), "echo-crop-cloud-" + Guid.NewGuid().ToString("N"));
             var store = stores.Open(root);
@@ -40,14 +40,15 @@ public sealed class CloudProcessingTests
                 var original = builder.Build(store, project, scene, maps, default);
                 foreach (var shape in Enum.GetValues<ExclusionShape>())
                 {
-                    var region = new ExclusionRegion { Shape = shape, CentreZ = 10, Width = 3, Height = 3, Depth = 3, Radius = 1.5 };
-                    project.Settings.ExclusionRegions = [region];
-                    var cloud = builder.Build(store, project, scene, maps, default);
-                    Check(cloud.Samples.Count < original.Samples.Count, "Exclusion did not reduce the cloud");
-                    Check(cloud.Samples.All(point => !ExclusionGeometry.Contains([region], new V3(point.X, point.Y, point.Z))),
-                        "Excluded samples survived cloud validation");
-                    Check(builder.Report(cloud).Preview.All(point => !ExclusionGeometry.Contains([region], new V3(point.Position))),
-                        "Excluded points survived the preview");
+                    foreach (var mode in Enum.GetValues<CropRegionMode>())
+                    {
+                        var region = new ExclusionRegion { Shape = shape, Mode = mode, RotationY = 30, CentreZ = 10, Width = 3, Height = 3, Depth = 3, Radius = 1.5 };
+                        project.Settings.ExclusionRegions = [region];
+                        var cloud = builder.Build(store, project, scene, maps, default);
+                        Check(cloud.Samples.SequenceEqual(original.Samples), "Cropping must not change cloud samples or validation support");
+                        Check(builder.Report(cloud).RetainedSamples == original.Samples.Count,
+                            "Cloud previews must describe the complete reusable cloud");
+                    }
                 }
                 project.Settings.ExclusionRegions.Clear();
                 Check(builder.Build(store, project, scene, maps, default).Samples.SequenceEqual(original.Samples),

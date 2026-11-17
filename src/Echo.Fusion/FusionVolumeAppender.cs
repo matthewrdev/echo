@@ -8,7 +8,7 @@ internal sealed class FusionVolumeAppender
 {
     private readonly IList<VolumeSample> output;
     private readonly FusionPreviewSampler? preview;
-    private readonly IReadOnlyList<ExclusionRegion> regions;
+    private readonly RegionCropFilter crop;
     private readonly double voxelSize;
     private readonly VolumeSample[] buffer = new VolumeSample[4096];
 
@@ -17,13 +17,13 @@ internal sealed class FusionVolumeAppender
     {
         this.output = output;
         this.preview = preview;
-        this.regions = regions.Where(region => region.Enabled).ToArray();
+        crop = new RegionCropFilter(regions);
         this.voxelSize = voxelSize;
     }
 
     public void Append(IEnumerable<VolumeSample> samples)
     {
-        if (regions.Count == 0 && samples is ArraySegment<VolumeSample> segment)
+        if (!crop.HasRegions && samples is ArraySegment<VolumeSample> segment)
         {
             Write(segment.AsSpan());
             return;
@@ -31,7 +31,7 @@ internal sealed class FusionVolumeAppender
         var count = 0;
         foreach (var sample in samples)
         {
-            if (ExclusionGeometry.Contains(regions, new V3(sample.X * voxelSize, sample.Y * voxelSize, sample.Z * voxelSize)))
+            if (crop.IsExcluded(new V3(sample.X * voxelSize, sample.Y * voxelSize, sample.Z * voxelSize)))
             {
                 continue;
             }

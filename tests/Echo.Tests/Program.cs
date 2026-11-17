@@ -5,8 +5,13 @@ using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(ReconstructionTests).Assembly, typeof(Processor).Assembly, typeof(CommandApplication).Assembly,
     typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly, typeof(Echo.Texturing.Metal.MetalTexturePlacementAccelerator).Assembly);
+if (args.Contains("--reconstruction", StringComparer.Ordinal))
+{
+    return composition.Resolve<ReconstructionTests>().Run();
+}
 var scaleTests = new TestSuite();
 composition.Resolve<ExclusionRegionTests>().Run(scaleTests);
+composition.Resolve<CropPipelineTests>().Run(scaleTests);
 if (args.Contains("--exclusions", StringComparer.Ordinal))
 {
     return scaleTests.Finish();

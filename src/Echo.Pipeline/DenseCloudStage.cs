@@ -30,20 +30,10 @@ public sealed class DenseCloudStage : IPipelineStage
         var alignment = context.Artifact("alignment");
         var depthUnits = context.DepthUnits();
         var settings = context.Run.Snapshot.Settings;
-        var inputs = new
-        {
-            depthUnits,
-            alignment,
-            cloudVersion = 5,
-            settings.ExclusionRegions,
-            settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Cloud),
-            settings.CloudNeighbours,
-            settings.CloudMinimumSupport,
-            settings.CloudDepthTolerance,
-            settings.CloudReprojectionTolerancePixels,
-            settings.CloudMinimumParallaxDegrees
-        };
+        var implementation = context.ComputeImplementation(ComputeOperation.Cloud);
+        var inputs = new DenseCloudInputs(depthUnits, alignment, settings, implementation);
+        var compatibleInputs = new[] { 7, 6, 5, 4 }
+            .Select(version => (object)new DenseCloudInputs(depthUnits, alignment, settings, implementation, version)).ToArray();
         var cloudPath = context.Build(Name, inputs, directory =>
         {
             var maps = LoadDepthMaps(context, depthUnits);
@@ -60,7 +50,7 @@ public sealed class DenseCloudStage : IPipelineStage
             cloudBuilder.Write(Path.Combine(directory, "cloud.ply"), cloud);
             fileOperations.AtomicJson(Path.Combine(directory, "cloud.json"), cloudBuilder.Report(cloud));
             context.ReportProgress(Name, $"Saved {cloud.Samples.Count:N0} points from {maps.Count:N0} images.", maps.Count, maps.Count);
-        });
+        }, compatibleInputs: compatibleInputs);
         context.Publish(Name, cloudPath);
     }
 

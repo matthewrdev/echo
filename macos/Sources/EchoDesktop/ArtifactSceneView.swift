@@ -3,6 +3,8 @@ import SceneKit
 final class ArtifactSceneView: SCNView {
     let renderObserver = SceneViewportRenderer()
     let exclusionOverlay = ExclusionSceneOverlay()
+    let cropHandles = CropHandleInteraction()
+    private var brushTracking: NSTrackingArea?
     var placeExclusion: ((SCNVector3) -> Void)?
     var artifactIdentity = ""
     var needsInitialFit = true
@@ -10,6 +12,10 @@ final class ArtifactSceneView: SCNView {
     var cameraInspection: CameraInspectionData?
     var selection: ((SparseSelection?) -> Void)?
     private let cloudHighlight = CloudCameraHighlight()
+    private let optionCamera = OptionCameraInteraction()
+    private var pointerInteraction = ScenePointerInteraction.idle
+    private var pointerLocation = NSPoint.zero
+    private var optionHeld = false
     private var mouseStart: NSPoint?
     private var highlighted: SparseSelection?
     private weak var highlightedScene: SCNScene?
@@ -36,13 +42,130 @@ final class ArtifactSceneView: SCNView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        mouseStart = convert(event.locationInWindow, from: nil)
+        let location = convert(event.locationInWindow, from: nil)
+        updateModifiers(event.modifierFlags)
+        pointerLocation = location
+        mouseStart = nil
+        if optionHeld {
+            pointerInteraction = .optionCamera
+            optionCamera.begin(at: location, modifiers: event.modifierFlags, in: self)
+            return
+        }
+        if cropHandles.begin(at: location, in: self) {
+            pointerInteraction = .tool
+            return
+        }
+        pointerInteraction = .nativeCamera
+        mouseStart = location
         super.mouseDown(with: event)
     }
 
+    override func mouseDragged(with event: NSEvent) {
+        updateModifiers(event.modifierFlags)
+        pointerLocation = convert(event.locationInWindow, from: nil)
+        switch pointerInteraction {
+        case .tool:
+            _ = cropHandles.move(to: pointerLocation, in: self)
+        case .optionCamera:
+            optionCamera.drag(to: pointerLocation, in: self)
+        case .nativeCamera:
+            super.mouseDragged(with: event)
+        case .idle, .finished:
+            break
+        }
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        updateModifiers(event.modifierFlags)
+        super.flagsChanged(with: event)
+    }
+
+    private func updateModifiers(_ modifiers: NSEvent.ModifierFlags) {
+        let held = modifiers.contains(.option)
+        guard held != optionHeld else { return }
+        optionHeld = held
+        if held {
+            mouseStart = nil
+            if pointerInteraction == .tool || pointerInteraction == .finished {
+                if pointerInteraction == .tool { finishTool(at: pointerLocation) }
+                pointerInteraction = .optionCamera
+                optionCamera.begin(at: pointerLocation, modifiers: modifiers, in: self)
+            }
+        } else if pointerInteraction == .optionCamera {
+            optionCamera.end(at: pointerLocation, in: self)
+            // A new click starts painting, so releasing Option during a drag never leaves an accidental mark.
+            pointerInteraction = .finished
+        }
+        updatePointerCursor()
+    }
+
+    private func finishTool(at location: NSPoint) {
+        _ = cropHandles.end(at: location, in: self)
+    }
+
+    private func updatePointerCursor() {
+        guard bounds.contains(pointerLocation) else { return }
+        if optionHeld {
+            toolTip = nil
+            if pointerInteraction == .optionCamera { NSCursor.closedHand.set() } else { NSCursor.openHand.set() }
+        } else {
+            cropHandles.hover(at: pointerLocation, in: self)
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let brushTracking { removeTrackingArea(brushTracking) }
+        let tracking = NSTrackingArea(
+            rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self
+        )
+        addTrackingArea(tracking)
+        brushTracking = tracking
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        updateModifiers(event.modifierFlags)
+        pointerLocation = convert(event.locationInWindow, from: nil)
+        updatePointerCursor()
+        super.mouseMoved(with: event)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        updateModifiers(event.modifierFlags)
+        pointerLocation = convert(event.locationInWindow, from: nil)
+        updatePointerCursor()
+        super.mouseEntered(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        pointerLocation = convert(event.locationInWindow, from: nil)
+        toolTip = nil
+        super.mouseExited(with: event)
+    }
+
     override func mouseUp(with event: NSEvent) {
-        super.mouseUp(with: event)
+        updateModifiers(event.modifierFlags)
         let location = convert(event.locationInWindow, from: nil)
+        pointerLocation = location
+        let interaction = pointerInteraction
+        pointerInteraction = .idle
+        defer {
+            mouseStart = nil
+            updatePointerCursor()
+        }
+        switch interaction {
+        case .tool:
+            finishTool(at: location)
+            return
+        case .optionCamera:
+            optionCamera.end(at: location, in: self)
+            return
+        case .idle, .finished:
+            return
+        case .nativeCamera:
+            break
+        }
+        super.mouseUp(with: event)
         guard let start = mouseStart, hypot(location.x - start.x, location.y - start.y) < 4
         else { return }
         if let placeExclusion {
@@ -72,6 +195,7 @@ final class ArtifactSceneView: SCNView {
     }
 
     func handleCameraKey(_ event: NSEvent) -> Bool {
+        if event.keyCode == 53, cropHandles.cancel(in: self) { return true }
         if event.keyCode == 53, highlighted != nil {
             selection?(nil)
             highlight(nil)

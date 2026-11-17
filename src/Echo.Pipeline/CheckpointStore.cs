@@ -27,7 +27,8 @@ public sealed class CheckpointStore : ICheckpointStore
         CancellationToken cancellation,
         Action<string, object> progress,
         Func<ProcessingMetadata>? processing = null,
-        string? algorithmVersion = null)
+        string? algorithmVersion = null,
+        IReadOnlyList<object>? compatibleInputs = null)
     {
         cancellation.ThrowIfCancellationRequested();
         var version = algorithmVersion ?? stage switch
@@ -51,26 +52,28 @@ public sealed class CheckpointStore : ICheckpointStore
         });
         var relative = $"artifacts/{stage}/{key}";
         var final = store.PathFor(relative);
-        var manifestPath = Path.Combine(final, "manifest.json");
-        if (File.Exists(manifestPath))
+        var reused = TryReuse(store, stage, key, progress);
+        if (reused != null)
         {
-            var manifest = jsonCodec.Read<Artifact>(manifestPath);
-            if (manifest.Key != key || manifest.Files.Any(f => !File.Exists(Path.Combine(final, f.Key)) || fileOperations.HashFile(Path.Combine(final, f.Key)) != f.Value))
-            {
-                throw new EchoException($"Corrupt checkpoint: {relative}. Preserve it for diagnosis and remove this artifact directory before retrying.");
-            }
-
-            progress("artifactReused", new
-            {
-                stage,
-                artifact = relative
-            });
-            return relative;
+            return reused;
         }
-
-        if (Directory.Exists(final))
+        // Only the owning algorithm can declare older inputs equivalent. Validate
+        // those artifacts exactly like a current checkpoint, without rewriting them.
+        foreach (var compatible in compatibleInputs ?? [])
         {
-            throw new EchoException("Uncommitted artifact directory: " + final);
+            cancellation.ThrowIfCancellationRequested();
+            var compatibleKey = fileOperations.Hash(new
+            {
+                storageVersion = 3,
+                version,
+                stage,
+                inputs = compatible
+            });
+            reused = TryReuse(store, stage, compatibleKey, progress);
+            if (reused != null)
+            {
+                return reused;
+            }
         }
 
         var temp = store.PathFor($"work/{Guid.NewGuid():N}");
@@ -118,5 +121,35 @@ public sealed class CheckpointStore : ICheckpointStore
                 Directory.Delete(temp, true);
             }
         }
+    }
+
+    private string? TryReuse(IProjectStore store, string stage, string key, Action<string, object> progress)
+    {
+        var relative = $"artifacts/{stage}/{key}";
+        var final = store.PathFor(relative);
+        var manifestPath = Path.Combine(final, "manifest.json");
+        if (File.Exists(manifestPath))
+        {
+            var manifest = jsonCodec.Read<Artifact>(manifestPath);
+            if (manifest.Key != key || manifest.Files.Any(file => !File.Exists(Path.Combine(final, file.Key))
+                || fileOperations.HashFile(Path.Combine(final, file.Key)) != file.Value))
+            {
+                throw new EchoException($"Corrupt checkpoint: {relative}. Preserve it for diagnosis and remove this artifact directory before retrying.");
+            }
+
+            progress("artifactReused", new
+            {
+                stage,
+                artifact = relative
+            });
+            return relative;
+        }
+
+        if (Directory.Exists(final))
+        {
+            throw new EchoException("Uncommitted artifact directory: " + final);
+        }
+
+        return null;
     }
 }

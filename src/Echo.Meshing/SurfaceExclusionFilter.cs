@@ -9,8 +9,8 @@ public static class SurfaceExclusionFilter
     public static Surface Filter(Surface surface, IReadOnlyList<ExclusionRegion> regions,
         CancellationToken cancellation, WorkBuffers? work = null)
     {
-        var enabled = regions.Where(region => region.Enabled).ToArray();
-        if (enabled.Length == 0)
+        var crop = new RegionCropFilter(regions);
+        if (!crop.HasRegions)
         {
             return surface;
         }
@@ -26,7 +26,7 @@ public static class SurfaceExclusionFilter
             var a = new V3(surface.Vertices[face[0]]);
             var b = new V3(surface.Vertices[face[1]]);
             var c = new V3(surface.Vertices[face[2]]);
-            if (ExclusionGeometry.Intersects(enabled, a, b, c))
+            if (crop.ExcludesTriangle(a, b, c))
             {
                 continue;
             }

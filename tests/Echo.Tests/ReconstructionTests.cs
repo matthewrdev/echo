@@ -530,7 +530,7 @@ public sealed class ReconstructionTests
                 var resumed = processor.Execute(store, "export", default, first.Id);
                 Check(resumed.Snapshot.Settings.TextureSize == 256 && resumed.Artifacts["texture"] == first.Artifacts["texture"], "Resume uses immutable snapshot");
             });
-            tests.Run("Exclusion edits rebuild cloud and downstream stages while saved runs retain their original regions", () =>
+            tests.Run("Exclusion edits reuse cloud and rebuild downstream stages while saved runs retain their original regions", () =>
             {
                 var before = store.GetRun();
                 var mesh = jsonCodec.Read<Surface>(store.PathFor(before.Artifacts["mesh"] + "/mesh.json"));
@@ -551,11 +551,11 @@ public sealed class ReconstructionTests
                     };
                     store.Edit(project => project.Settings.ExclusionRegions = [region]);
                     var cropped = processor.Execute(store, "export", default);
-                    foreach (var stage in new[] { "features", "matching", "alignment", "depth" })
+                    foreach (var stage in new[] { "features", "matching", "alignment", "depth", "cloud" })
                     {
                         Check(cropped.Artifacts[stage] == before.Artifacts[stage], "Exclusions must preserve " + stage);
                     }
-                    foreach (var stage in new[] { "cloud", "fusion", "mesh", "texture", "export" })
+                    foreach (var stage in new[] { "fusion", "mesh", "texture", "export" })
                     {
                         Check(cropped.Artifacts[stage] != before.Artifacts[stage], "Exclusions must rebuild " + stage);
                     }
