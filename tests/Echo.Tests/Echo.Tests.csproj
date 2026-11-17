@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup>
+    <None Update="Fixtures/reference-datasets.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../src/Echo.Cli/Echo.Cli.csproj" />
     <ProjectReference Include="../../src/Echo.Pipeline/Echo.Pipeline.csproj" />
     <ProjectReference Include="../../src/Echo.Composition/Echo.Composition.csproj" />

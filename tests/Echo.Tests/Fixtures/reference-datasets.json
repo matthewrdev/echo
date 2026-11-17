@@ -1,0 +1,72 @@
+[
+  {
+    "name": "Siuranella Centre",
+    "folder": "siurana/siuranella-centre",
+    "areaId": "b829cfc1-d3cf-41d3-aca3-6bbff7e655bb",
+    "metadataPath": "world/europe/spain/catalunya/siurana/siruanella-centre",
+    "modelFile": "siuranella-centre_hd.glb",
+    "modelUrl": "https://redpointaus.blob.core.windows.net/assets/b829cfc1-d3cf-41d3-aca3-6bbff7e655bb/siuranella-centre_hd.glb",
+    "modelBytes": 10925640,
+    "modelSha256": "f9c8b1b66f64206c83976cef7094edcfab27ee57e415e78cb1e4e799538cf2e3",
+    "modelMd5": "ac7442f8414f808c014d9de38ed734f3",
+    "polycamCaptureId": "26b713d6-08c4-43e1-a17e-8cfefc992dd6",
+    "photoCount": 1082,
+    "photoManifestSha256": "7a3cf08f9ad7000f14cbc53eef840510ba9fc8da1810a7efc9f15a579d98b419"
+  },
+  {
+    "name": "Can Lolo",
+    "folder": "margalef/can-lolo",
+    "areaId": "a8055543-e0e5-440f-b814-efea51b65df6",
+    "metadataPath": "world/europe/spain/catalunya/margalef/can-lolo",
+    "modelFile": "can-lolo_hd.glb",
+    "modelUrl": "https://redpointaus.blob.core.windows.net/assets/a8055543-e0e5-440f-b814-efea51b65df6/can-lolo_hd.glb",
+    "modelBytes": 6368988,
+    "modelSha256": "9f097ba3844897a0431e8e40f7267df8d3d45dc71b963dcabf923fce5aeacf24",
+    "modelMd5": "fa73955c30e7c771d84c0283bd0a9ea7",
+    "polycamCaptureId": "bd8b8765-3a64-40d1-a145-d35fe1902923",
+    "photoCount": 50,
+    "photoManifestSha256": "9aac141cbc20befebc7062043ec4b7988ca89f9fd5c8788e58476b4c476a0e10"
+  },
+  {
+    "name": "Elephant Buttress",
+    "folder": "blue-lake/elephant-buttress",
+    "areaId": "a7a5c33c-6012-4c63-864c-15bda1352b6c",
+    "metadataPath": "world/oceania/australia/new-south-wales/snowy-mountains/blue-lake/elephant-buttress",
+    "modelFile": "elephant-buttress_hd.glb",
+    "modelUrl": "https://redpointaus.blob.core.windows.net/assets/a7a5c33c-6012-4c63-864c-15bda1352b6c/elephant-buttress_hd.glb",
+    "modelBytes": 10026004,
+    "modelSha256": "969e0fbdc59fad6ddff09122cdd6e608f15bf8259ec98e20a949e72a7b2bb221",
+    "modelMd5": "3615cc27a3e7efebd8356a2efbe08004",
+    "polycamCaptureId": "30ad48fb-8c6b-459c-9048-19e91d9844db",
+    "photoCount": 126,
+    "photoManifestSha256": "c38ee3fef21c884387c6807f841be2153d70a17f24e5324989151ac463a3d3af"
+  },
+  {
+    "name": "Je t'aime",
+    "folder": "kalymnos/je-taime",
+    "areaId": "1beaf025-6dc9-44bc-b0c9-5aa3b9e112ab",
+    "metadataPath": "world/europe/greece/aegean-islands/kalymnos/vathy-valley/je-taime",
+    "modelFile": "je-taime_hd.glb",
+    "modelUrl": "https://redpointaus.blob.core.windows.net/assets/1beaf025-6dc9-44bc-b0c9-5aa3b9e112ab/je-taime_hd.glb",
+    "modelBytes": 9244960,
+    "modelMd5": "bba91069d3467004ee87d16337ecaa3e",
+    "polycamCaptureId": "b6c16453-06ad-4c76-a2eb-00e367ed066a",
+    "modelSha256": "b01cd6718ebb3f762f71b77c555a5375e04a33ffbaa420eb58e7757d95075754",
+    "photoCount": 513,
+    "photoManifestSha256": "abe7cdd2c34bb06646429a17e864353ba8290f4afb9f239067044836039634f0"
+  },
+  {
+    "name": "The Shooting Gallery",
+    "folder": "rogers-canyon/the-shooting-gallery",
+    "areaId": "787640e9-2502-42f0-8d06-c897ec0e31c9",
+    "metadataPath": "world/north-america/united-states/wyoming/laramie/rogers-canyon/the-shooting-gallery",
+    "modelFile": "rogers-canyon-the-shooting-gallery_hd.glb",
+    "modelUrl": "https://redpointaus.blob.core.windows.net/assets/787640e9-2502-42f0-8d06-c897ec0e31c9/rogers-canyon-the-shooting-gallery_hd.glb",
+    "modelBytes": 11453084,
+    "modelMd5": "fcb81dc90f4df6c269ea773ac71d04ed",
+    "modelSha256": "991722fd86c6a71f0f3dccb8d3b5446db916a0c0fb745722478c7d7c5cb6c16e",
+    "polycamCaptureId": "95521cd2-5362-492d-940a-693cc242083c",
+    "photoCount": 304,
+    "photoManifestSha256": "6d9d72e349e4b40ab02ce936503ca39a52dbe10a78f603c04202cced4d26f465"
+  }
+]

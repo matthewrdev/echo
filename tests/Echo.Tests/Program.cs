@@ -5,6 +5,19 @@ using Echo.Pipeline;
 
 using var composition = new MefComposition(typeof(ReconstructionTests).Assembly, typeof(Processor).Assembly, typeof(CommandApplication).Assembly,
     typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly, typeof(Echo.Texturing.Metal.MetalTexturePlacementAccelerator).Assembly);
+var referenceAssetsIndex = Array.IndexOf(args, "--reference-assets");
+if (referenceAssetsIndex >= 0)
+{
+    var assetsRoot = referenceAssetsIndex + 1 < args.Length ? args[referenceAssetsIndex + 1] : Environment.GetEnvironmentVariable("ECHO_REFERENCE_ASSETS_ROOT");
+    if (string.IsNullOrWhiteSpace(assetsRoot))
+    {
+        Console.Error.WriteLine("Pass --reference-assets PATH or set ECHO_REFERENCE_ASSETS_ROOT to the downloaded 3d-assets directory.");
+        return 2;
+    }
+    var referenceTests = new TestSuite();
+    composition.Resolve<ReferenceDatasetTests>().Run(referenceTests, assetsRoot);
+    return referenceTests.Finish();
+}
 if (args.Contains("--reconstruction", StringComparer.Ordinal))
 {
     return composition.Resolve<ReconstructionTests>().Run();
