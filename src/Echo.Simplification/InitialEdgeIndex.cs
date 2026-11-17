@@ -17,12 +17,7 @@ internal sealed class InitialEdgeIndex
         {
             bucketCount *= 2;
         }
-        buckets = work?.List(new IntRecordCodec()) ?? new List<int>(bucketCount);
-        for (var index = 0; index < bucketCount; index++)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            buckets.Add(-1);
-        }
+        buckets = work?.Filled(bucketCount, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, bucketCount).ToArray();
         records = work?.List(new InitialEdgeRecordCodec()) ?? new List<InitialEdgeRecord>();
     }
 

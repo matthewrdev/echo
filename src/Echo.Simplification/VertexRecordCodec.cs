@@ -6,7 +6,7 @@ namespace Echo.Simplification;
 
 internal sealed class VertexRecordCodec : RecordCodec<Vertex>
 {
-    public override int Size => 165;
+    public override int Size => 117;
 
     public override Vertex Decode(ReadOnlySpan<byte> bytes)
     {
@@ -15,13 +15,18 @@ internal sealed class VertexRecordCodec : RecordCodec<Vertex>
         {
             Id = id,
             Position = new V3(BinaryPrimitives.ReadDoubleLittleEndian(bytes[4..]), BinaryPrimitives.ReadDoubleLittleEndian(bytes[12..]), BinaryPrimitives.ReadDoubleLittleEndian(bytes[20..])),
-            PlaneCount = BinaryPrimitives.ReadInt32LittleEndian(bytes[156..]),
-            Revision = BinaryPrimitives.ReadInt32LittleEndian(bytes[160..]),
-            Removed = bytes[164] != 0
+            PlaneCount = BinaryPrimitives.ReadInt32LittleEndian(bytes[108..]),
+            Revision = BinaryPrimitives.ReadInt32LittleEndian(bytes[112..]),
+            Removed = bytes[116] != 0
         };
-        for (var index = 0; index < 16; index++)
+        var offset = 28;
+        for (var row = 0; row < 4; row++)
         {
-            vertex[index] = BinaryPrimitives.ReadDoubleLittleEndian(bytes[(28 + index * 8)..]);
+            for (var column = row; column < 4; column++)
+            {
+                vertex[row * 4 + column] = BinaryPrimitives.ReadDoubleLittleEndian(bytes[offset..]);
+                offset += sizeof(double);
+            }
         }
         return vertex;
     }
@@ -32,12 +37,17 @@ internal sealed class VertexRecordCodec : RecordCodec<Vertex>
         BinaryPrimitives.WriteDoubleLittleEndian(bytes[4..], value.Position.X);
         BinaryPrimitives.WriteDoubleLittleEndian(bytes[12..], value.Position.Y);
         BinaryPrimitives.WriteDoubleLittleEndian(bytes[20..], value.Position.Z);
-        for (var index = 0; index < 16; index++)
+        var offset = 28;
+        for (var row = 0; row < 4; row++)
         {
-            BinaryPrimitives.WriteDoubleLittleEndian(bytes[(28 + index * 8)..], value[index]);
+            for (var column = row; column < 4; column++)
+            {
+                BinaryPrimitives.WriteDoubleLittleEndian(bytes[offset..], value[row * 4 + column]);
+                offset += sizeof(double);
+            }
         }
-        BinaryPrimitives.WriteInt32LittleEndian(bytes[156..], value.PlaneCount);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes[160..], value.Revision);
-        bytes[164] = value.Removed ? (byte)1 : (byte)0;
+        BinaryPrimitives.WriteInt32LittleEndian(bytes[108..], value.PlaneCount);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes[112..], value.Revision);
+        bytes[116] = value.Removed ? (byte)1 : (byte)0;
     }
 }

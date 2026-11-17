@@ -10,7 +10,7 @@ internal sealed class CollapseCandidateQueue
     private readonly IList<int> buckets;
     private readonly IList<CandidateQueueLink> links;
     private readonly IList<IndexedCandidate> entries;
-    private readonly PagedList<IndexedCandidate>? pagedEntries;
+    private readonly IRecordList<IndexedCandidate>? pagedEntries;
     private int free = -1;
 
     public CollapseCandidateQueue(int expectedEdges, WorkBuffers? work, CancellationToken cancellation)
@@ -20,15 +20,10 @@ internal sealed class CollapseCandidateQueue
         {
             capacity *= 2;
         }
-        buckets = work?.List(new IntRecordCodec()) ?? new List<int>(capacity);
-        for (var index = 0; index < capacity; index++)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            buckets.Add(-1);
-        }
+        buckets = work?.Filled(capacity, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, capacity).ToArray();
         links = work?.List(new CandidateQueueLinkCodec()) ?? new List<CandidateQueueLink>();
         entries = work?.List(new IndexedCandidateCodec()) ?? new List<IndexedCandidate>();
-        pagedEntries = entries as PagedList<IndexedCandidate>;
+        pagedEntries = entries as IRecordList<IndexedCandidate>;
     }
 
     public int Count => entries.Count;

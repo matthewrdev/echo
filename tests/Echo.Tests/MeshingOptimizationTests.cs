@@ -24,6 +24,84 @@ public sealed class MeshingOptimizationTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Paired SIMD quadrics preserve scalar accumulation bits", () =>
+        {
+            var random = new Random(731);
+            var points = new V3[3];
+            var errors = new double[3];
+            for (var iteration = 0; iteration < 4096; iteration++)
+            {
+                var first = new Vertex();
+                var second = new Vertex();
+                var scale = Math.Pow(10, iteration % 51 - 25);
+                for (var row = 0; row < 4; row++)
+                {
+                    for (var column = row; column < 4; column++)
+                    {
+                        first[row * 4 + column] = (random.NextDouble() - .5) * scale;
+                        second[row * 4 + column] = (random.NextDouble() - .5) * scale;
+                    }
+                }
+                for (var point = 0; point < points.Length; point++)
+                {
+                    points[point] = new V3(random.NextDouble() - .5, random.NextDouble() - .5, random.NextDouble() - .5);
+                }
+                if (iteration % 7 == 0)
+                {
+                    points[0] = new V3(-0d, double.Epsilon, 0);
+                }
+                new EdgeQuadric(first, second).Evaluate(points, errors);
+                for (var point = 0; point < points.Length; point++)
+                {
+                    double[] values = [points[point].X, points[point].Y, points[point].Z, 1];
+                    var expected = 0d;
+                    for (var row = 0; row < 4; row++)
+                    {
+                        for (var column = 0; column < 4; column++)
+                        {
+                            expected += values[row] * values[column] * (first[row * 4 + column] + second[row * 4 + column]);
+                        }
+                    }
+                    Check(BitConverter.DoubleToInt64Bits(expected) == BitConverter.DoubleToInt64Bits(errors[point]), "SIMD changed a collapse error");
+                }
+            }
+        });
+        tests.Run("Contiguous adjacency initialization retains mutation and encounter order", () => InDirectory(directory =>
+        {
+            using var session = artifacts.OpenSession(65536, 0);
+            using var work = new WorkBuffers(session, directory);
+            var faces = new List<FaceVertices>();
+            var random = new Random(31);
+            for (var face = 0; face < 1000; face++)
+            {
+                faces.Add(new FaceVertices(random.Next(100), random.Next(100), random.Next(100)));
+            }
+            var expected = new VertexFacesStore(100, null);
+            var actual = new VertexFacesStore(100, work);
+            for (var face = 0; face < faces.Count; face++)
+            {
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    expected.Add(faces[face][corner], face);
+                }
+            }
+            actual.Initialize(faces, default);
+            for (var mutation = 0; mutation < 3000; mutation++)
+            {
+                var vertex = random.Next(100);
+                var face = random.Next(1000);
+                if (mutation % 2 == 0)
+                {
+                    Check(actual.Remove(vertex, face) == expected.Remove(vertex, face), "Adjacency removal changed");
+                }
+                else
+                {
+                    actual.Add(vertex, face);
+                    expected.Add(vertex, face);
+                }
+                Check(actual.Faces(vertex).ToArray().SequenceEqual(expected.Faces(vertex).ToArray()), "Adjacency order changed");
+            }
+        }));
         tests.Run("New paging files avoid zero reads and retain dirty cross-page writes", () => InDirectory(directory =>
         {
             using var session = artifacts.OpenSession(65536, 0);

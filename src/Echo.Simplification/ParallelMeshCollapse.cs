@@ -32,14 +32,14 @@ internal static class ParallelMeshCollapse
         IList<V3> positions = scratch?.List(new PositionRecordCodec()) ?? new List<V3>(source.Vertices.Count);
         var minimum = new double[] { double.PositiveInfinity, double.PositiveInfinity, double.PositiveInfinity };
         var maximum = new double[] { double.NegativeInfinity, double.NegativeInfinity, double.NegativeInfinity };
-        foreach (var position in source.Vertices)
+        foreach (var position in SimplificationGeometry.Vertices(source))
         {
             cancellation.ThrowIfCancellationRequested();
-            positions.Add(new V3(position));
+            positions.Add(position);
             for (var axis = 0; axis < 3; axis++)
             {
-                minimum[axis] = Math.Min(minimum[axis], position[axis]);
-                maximum[axis] = Math.Max(maximum[axis], position[axis]);
+                minimum[axis] = Math.Min(minimum[axis], Coordinate(position, axis));
+                maximum[axis] = Math.Max(maximum[axis], Coordinate(position, axis));
             }
         }
         var longest = 0;
@@ -61,14 +61,15 @@ internal static class ParallelMeshCollapse
         IList<int> owners = scratch?.Filled(source.Vertices.Count, -1, new IntRecordCodec(), cancellation)
             ?? Enumerable.Repeat(-1, source.Vertices.Count).ToArray();
         var indexed = 0;
-        foreach (var face in source.Faces)
+        foreach (var face in SimplificationGeometry.Faces(source))
         {
             cancellation.ThrowIfCancellationRequested();
             var centre = (Coordinate(positions[face[0]], longest) + Coordinate(positions[face[1]], longest) + Coordinate(positions[face[2]], longest)) / 3;
             var region = Math.Clamp((int)((centre - minimum[longest]) / extent * regionCount), 0, regionCount - 1);
-            regions[region].Faces.Add(new FaceVertices(face[0], face[1], face[2]));
-            foreach (var vertex in face)
+            regions[region].Faces.Add(face);
+            for (var corner = 0; corner < 3; corner++)
             {
+                var vertex = face[corner];
                 var owner = owners[vertex];
                 owners[vertex] = owner == -1 ? region : owner == region ? owner : -2;
             }
@@ -159,9 +160,12 @@ internal static class ParallelMeshCollapse
                     var state = joinedStates[mapped];
                     var contribution = region.OutputStates[index];
                     state.PlaneCount += contribution.PlaneCount;
-                    for (var coefficient = 0; coefficient < 16; coefficient++)
+                    for (var row = 0; row < 4; row++)
                     {
-                        state[coefficient] += contribution[coefficient];
+                        for (var column = row; column < 4; column++)
+                        {
+                            state[row * 4 + column] += contribution[row * 4 + column];
+                        }
                     }
                     joinedStates[mapped] = state;
                 }
@@ -175,6 +179,10 @@ internal static class ParallelMeshCollapse
             region.Work?.Dispose();
         }
         (remap as IDisposable)?.Dispose();
+        if (joined.Faces.Count <= target && detailTolerance == 0 && joinedTolerances == null)
+        {
+            return SimplificationGeometry.Copy(joined, work, cancellation);
+        }
         // The returned mesh must belong to the caller, not this private scope.
         // Request an output map to force compaction even if the ceiling is met.
         IList<int> outputVertices = scratch?.List(new IntRecordCodec()) ?? new List<int>();

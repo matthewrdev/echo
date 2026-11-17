@@ -64,11 +64,13 @@ public sealed class EdgeCollapse : IEdgeCollapse
         IList<Vertex> vertices = work?.List(new VertexRecordCodec()) ?? new List<Vertex>(sourceMesh.Vertices.Count);
         IList<int> revisions = work?.List(new IntRecordCodec()) ?? new List<int>(sourceMesh.Vertices.Count);
         IList<BoundaryState> boundaries = work?.List(new BoundaryStateRecordCodec()) ?? new List<BoundaryState>(sourceMesh.Vertices.Count);
-        for (var index = 0; index < sourceMesh.Vertices.Count; index++)
+        var vertexIndex = 0;
+        foreach (var position in SimplificationGeometry.Vertices(sourceMesh))
         {
             cancellation.ThrowIfCancellationRequested();
+            var index = vertexIndex++;
             var vertex = initialVertices == null
-                ? new Vertex { Id = index, Position = new V3(sourceMesh.Vertices[index]) }
+                ? new Vertex { Id = index, Position = position }
                 : initialVertices[index] with
                 {
                     Id = index,
@@ -84,10 +86,10 @@ public sealed class EdgeCollapse : IEdgeCollapse
         updates.Start(SimplificationPhase.Triangles, sourceMesh.Faces.Count, "triangles");
         IList<FaceVertices> faces = work?.List(new FaceVerticesCodec()) ?? new List<FaceVertices>(sourceMesh.Faces.Count);
         IList<bool> removed = work?.List(new BoolRecordCodec()) ?? new bool[sourceMesh.Faces.Count];
-        foreach (var face in sourceMesh.Faces)
+        foreach (var face in SimplificationGeometry.Faces(sourceMesh))
         {
             cancellation.ThrowIfCancellationRequested();
-            faces.Add(new FaceVertices(face[0], face[1], face[2]));
+            faces.Add(face);
             if (work != null)
             {
                 removed.Add(false);
@@ -96,6 +98,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
         }
         updates.Complete();
         updates.Start(SimplificationPhase.Quadrics, faces.Count, "triangles");
+        adjacency.Initialize(faces, cancellation);
         var remaining = faces.Count;
         Span<double> plane = stackalloc double[4];
         for (var i = 0; i < faces.Count; i++)
@@ -103,11 +106,6 @@ public sealed class EdgeCollapse : IEdgeCollapse
             cancellation.ThrowIfCancellationRequested();
             updates.Advance(i);
             var f = faces[i];
-            for (var corner = 0; corner < 3; corner++)
-            {
-                adjacency.Add(f[corner], i);
-            }
-
             if (initialVertices != null)
             {
                 continue;
@@ -126,7 +124,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 vertex.PlaneCount++;
                 for (var r = 0; r < 4; r++)
                 {
-                    for (var c = 0; c < 4; c++)
+                    for (var c = r; c < 4; c++)
                     {
                         vertex[r * 4 + c] += plane[r] * plane[c];
                     }
@@ -229,22 +227,13 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
             var best = double.PositiveInfinity;
             var bestPoint = options[0];
-            Span<double> p = stackalloc double[4];
-            p[3] = 1;
-            foreach (var option in options[..optionCount])
+            var quadric = new EdgeQuadric(va, vb);
+            Span<double> errors = stackalloc double[3];
+            quadric.Evaluate(options[..optionCount], errors);
+            for (var optionIndex = 0; optionIndex < optionCount; optionIndex++)
             {
-                p[0] = option.X;
-                p[1] = option.Y;
-                p[2] = option.Z;
-                double error = 0;
-                for (var r = 0; r < 4; r++)
-                {
-                    for (var c = 0; c < 4; c++)
-                    {
-                        error += p[r] * p[c] * (va[r * 4 + c] + vb[r * 4 + c]);
-                    }
-                }
-
+                var option = options[optionIndex];
+                var error = errors[optionIndex];
                 error = Math.Max(0, error) / (va.PlaneCount + vb.PlaneCount);
                 if (error < best)
                 {
@@ -330,7 +319,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 var vertex = endpoint == 0 ? vertexA : vertexB;
                 for (var r = 0; r < 4; r++)
                 {
-                    for (var c = 0; c < 4; c++)
+                    for (var c = r; c < 4; c++)
                     {
                         vertex[r * 4 + c] += 100 * plane[r] * plane[c];
                     }
@@ -528,9 +517,12 @@ public sealed class EdgeCollapse : IEdgeCollapse
             }
             a.Position = edge.Position;
             a.PlaneCount += b.PlaneCount;
-            for (var i = 0; i < 16; i++)
+            for (var row = 0; row < 4; row++)
             {
-                a[i] += b[i];
+                for (var column = row; column < 4; column++)
+                {
+                    a[row * 4 + column] += b[row * 4 + column];
+                }
             }
 
             b.Removed = true;

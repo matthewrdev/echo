@@ -24,6 +24,73 @@ internal sealed class VertexFacesStore
     public int Count(int vertex) => heads[vertex].Count;
     public bool Contains(int vertex, int face) => Find(vertex, face) >= 0;
 
+    public void Initialize(IList<FaceVertices> faces, CancellationToken cancellation)
+    {
+        if (slots.Count != 0)
+        {
+            throw new InvalidOperationException("Adjacency is already initialized.");
+        }
+        for (var index = 0; index < faces.Count; index++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var face = faces[index];
+            for (var corner = 0; corner < 3; corner++)
+            {
+                var vertex = face[corner];
+                var repeatsFirst = corner > 0 && face[0] == vertex;
+                var repeatsSecond = corner > 1 && face[1] == vertex;
+                var duplicate = repeatsFirst || repeatsSecond;
+                if (!duplicate)
+                {
+                    heads[vertex] = heads[vertex] with
+                    {
+                        Count = checked(heads[vertex].Count + 1)
+                    };
+                }
+            }
+        }
+        for (var vertex = 0; vertex < heads.Count; vertex++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var count = heads[vertex].Count;
+            if (count == 0)
+            {
+                continue;
+            }
+            var start = slots.Count;
+            for (var slot = 0; slot < count; slot++)
+            {
+                slots.Add(default);
+            }
+            heads[vertex] = new AdjacencyHead(start, slots.Count - 1, start, count);
+        }
+        // Each vertex's initial chain occupies a contiguous range, retaining
+        // face encounter order without searches or scattered tail rewrites.
+        for (var index = 0; index < faces.Count; index++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var face = faces[index];
+            for (var corner = 0; corner < 3; corner++)
+            {
+                var vertex = face[corner];
+                var repeatsFirst = corner > 0 && face[0] == vertex;
+                var repeatsSecond = corner > 1 && face[1] == vertex;
+                var duplicate = repeatsFirst || repeatsSecond;
+                if (duplicate)
+                {
+                    continue;
+                }
+                var head = heads[vertex];
+                var slot = head.Free;
+                slots[slot] = new AdjacencySlot(index, slot == head.Last ? -1 : slot + 1, -1, slot == head.First ? -1 : slot - 1);
+                heads[vertex] = head with
+                {
+                    Free = slot == head.Last ? -1 : slot + 1
+                };
+            }
+        }
+    }
+
     public void Add(int vertex, int face)
     {
         if (Find(vertex, face) >= 0)
