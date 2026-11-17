@@ -5,7 +5,7 @@ namespace Echo.Texturing;
 internal static class TextureChartRegions
 {
     public static List<List<int>> Build(TextureChartGeometry geometry, int maximumFaces, double angle,
-        IReadOnlyList<bool>? materials, CancellationToken cancellation)
+        IReadOnlyList<int>? materials, CancellationToken cancellation)
     {
         var owner = new int[geometry.Surface.Faces.Count];
         Array.Fill(owner, -1);
@@ -27,7 +27,7 @@ internal static class TextureChartRegions
     }
 
     private static List<int> Grow(TextureChartGeometry geometry, int[] owner, int id, int seed,
-        int maximumFaces, double angle, IReadOnlyList<bool>? materials, CancellationToken cancellation)
+        int maximumFaces, double angle, IReadOnlyList<int>? materials, CancellationToken cancellation)
     {
         var region = new List<int>();
         var vertices = new HashSet<int>();
@@ -93,7 +93,7 @@ internal static class TextureChartRegions
     }
 
     private static void MergeSmall(TextureChartGeometry geometry, List<List<int>> regions, int[] owner,
-        int maximumFaces, IReadOnlyList<bool>? materials, CancellationToken cancellation)
+        int maximumFaces, IReadOnlyList<int>? materials, CancellationToken cancellation)
     {
         for (var pass = 0; pass < 3; pass++)
         {

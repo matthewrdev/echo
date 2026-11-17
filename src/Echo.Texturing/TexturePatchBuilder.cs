@@ -19,7 +19,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
     }
 
     public IReadOnlyList<TexturePatch> Build(ProjectData project, ReconstructionScene scene, Surface mesh,
-        CancellationToken cancellation, IReadOnlyList<bool>? vegetationFaces = null, Action<string>? progress = null, WorkBuffers? work = null)
+        CancellationToken cancellation, IReadOnlyList<bool>? vegetationFaces = null, Action<string>? progress = null, WorkBuffers? work = null, IReadOnlyList<int>? priorityBands = null)
     {
         if (vegetationFaces != null && vegetationFaces.Count != mesh.Faces.Count)
         {
@@ -29,9 +29,16 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         {
             throw new ArgumentOutOfRangeException(nameof(project), "A chart must allow at least one triangle.");
         }
+        if (priorityBands != null && priorityBands.Count != mesh.Faces.Count)
+        {
+            throw new ArgumentException("Expected one priority band per surface face.", nameof(priorityBands));
+        }
+        var groups = vegetationFaces == null && priorityBands == null ? null
+            : Enumerable.Range(0, mesh.Faces.Count).Select(face =>
+                (priorityBands?[face] ?? 0) * 2 + (vegetationFaces?[face] == true ? 1 : 0)).ToArray();
         var geometry = new TextureChartGeometry(mesh, cancellation, work);
         var regions = TextureChartRegions.Build(geometry, project.Settings.TextureChartFaces,
-            project.Settings.TextureChartAngle, vegetationFaces, cancellation);
+            project.Settings.TextureChartAngle, groups, cancellation);
         var patches = new List<TexturePatch>();
         progress?.Invoke($"Parameterizing {regions.Count:N0} connected surface regions…");
         var completed = 0;
@@ -45,7 +52,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
             }
         }
 
-        patches = TextureChartMerger.Merge(geometry, patches, project.Settings.TextureChartFaces, vegetationFaces, cancellation, progress, compute, project.Settings.ComputeBackend);
+        patches = TextureChartMerger.Merge(geometry, patches, project.Settings.TextureChartFaces, groups, cancellation, progress, compute, project.Settings.ComputeBackend);
         foreach (var patch in patches)
         {
             orienter.Orient(patch);

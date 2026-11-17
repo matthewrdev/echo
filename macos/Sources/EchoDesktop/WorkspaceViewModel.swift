@@ -19,6 +19,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published private(set) var retainedStages: Set<PipelineStage> = []
     let projectThumbnails: ProjectThumbnailLoader?
     let telemetry = TelemetryHistory()
+    let texturePriorityEditor = TexturePriorityEditorModel()
     let performance: PerformanceTraceViewModel
 
     @Published var recentProjects: [RecentProject]
@@ -28,6 +29,10 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var root: String
     @Published var inspection: Inspection? {
         didSet {
+            if let project = inspection?.project, project.id != oldValue?.project.id {
+                texturePriorityEditor.load(
+                    project.settings.texturePriority, alignment: displayedRun?.artifacts["alignment"] ?? "")
+            }
             if let project = inspection?.project, let saved = inspection?.run?.snapshot {
                 firstOutdatedStage = ProcessingImpact().firstChangedStage(from: saved, to: project)
             } else {

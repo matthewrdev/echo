@@ -42,11 +42,12 @@ public sealed class CropPipelineTests
 
     internal void Run(TestSuite tests)
     {
-        tests.Run("Crop edits reuse the full cloud and rebuild fusion", () => WithProject(store =>
+        tests.Run("Crop edits reuse the full cloud, rebuild fusion and preserve texture painting", () => WithProject(store =>
         {
             var original = Process(store, fusion: true);
             var cloudPath = original.Artifacts["cloud"];
             var cloudHash = files.HashFile(store.PathFor(cloudPath + "/cloud.ply"));
+            var paintingHash = files.Hash(original.Snapshot.Settings.TexturePriority!);
             var region = new ExclusionRegion { Mode = CropRegionMode.Include, CentreZ = 10, Width = 2, Height = 2, Depth = 1 };
             store.Edit(project => project.Settings.ExclusionRegions = [region]);
             var included = Process(store, fusion: true);
@@ -57,6 +58,8 @@ public sealed class CropPipelineTests
             Check(volume.Samples.Count > 0 && volume.Samples.All(sample => !crop.IsExcluded(
                 new V3(sample.X * volume.VoxelSize, sample.Y * volume.VoxelSize, sample.Z * volume.VoxelSize))),
                 "Fusion ignored the downstream crop");
+            Check(files.Hash(included.Snapshot.Settings.TexturePriority!) == paintingHash, "Cropping discarded painted priorities");
+            included.Snapshot.Settings.TexturePriority!.ValidateAlignment(included.Artifacts["alignment"]);
             store.Edit(project => project.Settings.ExclusionRegions[0].Mode = CropRegionMode.Exclude);
             var excluded = Process(store, fusion: true);
             Check(excluded.Artifacts["cloud"] == cloudPath && excluded.Artifacts["fusion"] != included.Artifacts["fusion"],
@@ -166,6 +169,11 @@ public sealed class CropPipelineTests
             fixture.Project.Settings.ComputeBackend = ComputeBackend.Cpu;
             fixture.Project.Settings.CloudMinimumSupport = 1;
             fixture.Project.Settings.FusionVoxelSize = .25;
+            fixture.Project.Settings.TexturePriority = new TexturePriorityPainting
+            {
+                AlignmentArtifact = "artifacts/alignment/test",
+                Strokes = [new TexturePriorityStroke { Weight = 4, Samples = [new TextureBrushSample { Centre = [0, 0, 10], Radius = 2, Depth = .5 }] }]
+            };
             store.Edit(project =>
             {
                 project.Images = fixture.Project.Images;

@@ -5,6 +5,10 @@ public sealed class Settings
     public const double MinimumFusionVoxelSize = .025;
 
     public List<ExclusionRegion> ExclusionRegions { get; set; } = [];
+    public TexturePriorityPainting? TexturePriority
+    {
+        get; set;
+    }
 
     public ProcessingMemoryMode ProcessingMemoryMode { get; set; } = ProcessingMemoryMode.Paged;
     public int ProcessingMemoryBudgetMb { get; set; } = 0;
@@ -73,6 +77,7 @@ public sealed class Settings
 
     public void Validate()
     {
+        TexturePriority?.Validate();
         if (ExclusionRegions == null || ExclusionRegions.Any(region => region == null))
         {
             throw new EchoException("Exclusion regions must be an array of regions.", 2);

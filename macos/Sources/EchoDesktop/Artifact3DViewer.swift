@@ -10,6 +10,10 @@ struct Artifact3DViewer: View {
     var selectedExclusionID: String?
     var placeExclusion: ((SCNVector3) -> Void)?
     var changeExclusion: ((ExclusionRegion) -> Void)?
+    var texturePainting: TexturePriorityPainting?
+    var textureBrush: TextureBrushConfiguration?
+    var showTexturePriority = false
+    var finishTextureStroke: ((TexturePriorityStroke) -> Void)?
     @State private var selected: SparseSelection?
     @State private var observationIndex = 0.0
 
@@ -23,7 +27,9 @@ struct Artifact3DViewer: View {
                         selected = $0
                         observationIndex = 0
                     }, exclusionRegions: exclusionRegions, selectedExclusionID: selectedExclusionID,
-                    placeExclusion: placeExclusion, changeExclusion: changeExclusion
+                    placeExclusion: placeExclusion, changeExclusion: changeExclusion,
+                    texturePainting: texturePainting, textureBrush: textureBrush,
+                    showTexturePriority: showTexturePriority, finishTextureStroke: finishTextureStroke
                 )
                 .overlay(alignment: .bottomLeading) {
                     if let data = presentation.cameraInspection, let scene = presentation.scene,
@@ -103,6 +109,9 @@ struct Artifact3DViewer: View {
                     }.frame(width: 340).frame(maxHeight: .infinity, alignment: .top)
                 }
             }
+        }
+        .onChange(of: texturePainting != nil) { _, active in
+            if active { selected = nil }
         }
         .onChange(of: presentation.id) { _, _ in
             if presentation.cameraInspection != nil { return }

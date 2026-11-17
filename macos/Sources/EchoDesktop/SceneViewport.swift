@@ -11,6 +11,10 @@ struct SceneViewport: NSViewRepresentable {
     var selectedExclusionID: String?
     var placeExclusion: ((SCNVector3) -> Void)?
     var changeExclusion: ((ExclusionRegion) -> Void)?
+    var texturePainting: TexturePriorityPainting?
+    var textureBrush: TextureBrushConfiguration?
+    var showTexturePriority = false
+    var finishTextureStroke: ((TexturePriorityStroke) -> Void)?
 
     func makeNSView(context: Context) -> ArtifactSceneView {
         let view = ArtifactSceneView(
@@ -55,6 +59,11 @@ struct SceneViewport: NSViewRepresentable {
         view.cropHandles.update(
             in: view, regions: exclusionRegions, selectedID: selectedExclusionID,
             changed: placeExclusion == nil ? changeExclusion : nil)
-        view.highlight(selected)
+        view.highlight(texturePainting == nil ? selected : nil)
+        view.textureBrush.configuration = textureBrush
+        view.textureBrush.painting = texturePainting
+        view.textureBrush.showHeatmap = showTexturePriority
+        view.textureBrush.finished = finishTextureStroke
+        view.textureBrush.refresh(in: view)
     }
 }

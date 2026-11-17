@@ -4,6 +4,7 @@ final class ArtifactSceneView: SCNView {
     let renderObserver = SceneViewportRenderer()
     let exclusionOverlay = ExclusionSceneOverlay()
     let cropHandles = CropHandleInteraction()
+    let textureBrush = TextureBrushInteraction()
     private var brushTracking: NSTrackingArea?
     var placeExclusion: ((SCNVector3) -> Void)?
     var artifactIdentity = ""
@@ -51,7 +52,7 @@ final class ArtifactSceneView: SCNView {
             optionCamera.begin(at: location, modifiers: event.modifierFlags, in: self)
             return
         }
-        if cropHandles.begin(at: location, in: self) {
+        if cropHandles.begin(at: location, in: self) || textureBrush.begin(at: location, in: self) {
             pointerInteraction = .tool
             return
         }
@@ -65,7 +66,9 @@ final class ArtifactSceneView: SCNView {
         pointerLocation = convert(event.locationInWindow, from: nil)
         switch pointerInteraction {
         case .tool:
-            _ = cropHandles.move(to: pointerLocation, in: self)
+            if !cropHandles.move(to: pointerLocation, in: self) {
+                _ = textureBrush.drag(to: pointerLocation, in: self)
+            }
         case .optionCamera:
             optionCamera.drag(to: pointerLocation, in: self)
         case .nativeCamera:
@@ -100,16 +103,20 @@ final class ArtifactSceneView: SCNView {
     }
 
     private func finishTool(at location: NSPoint) {
-        _ = cropHandles.end(at: location, in: self)
+        if !cropHandles.end(at: location, in: self) {
+            _ = textureBrush.end(in: self)
+        }
     }
 
     private func updatePointerCursor() {
         guard bounds.contains(pointerLocation) else { return }
         if optionHeld {
             toolTip = nil
+            textureBrush.hideCursor()
             if pointerInteraction == .optionCamera { NSCursor.closedHand.set() } else { NSCursor.openHand.set() }
         } else {
             cropHandles.hover(at: pointerLocation, in: self)
+            textureBrush.moveCursor(to: pointerLocation, in: self)
         }
     }
 
@@ -140,6 +147,7 @@ final class ArtifactSceneView: SCNView {
     override func mouseExited(with event: NSEvent) {
         pointerLocation = convert(event.locationInWindow, from: nil)
         toolTip = nil
+        textureBrush.hideCursor()
         super.mouseExited(with: event)
     }
 
@@ -196,6 +204,7 @@ final class ArtifactSceneView: SCNView {
 
     func handleCameraKey(_ event: NSEvent) -> Bool {
         if event.keyCode == 53, cropHandles.cancel(in: self) { return true }
+        if event.keyCode == 53, textureBrush.cancel(in: self) { return true }
         if event.keyCode == 53, highlighted != nil {
             selection?(nil)
             highlight(nil)

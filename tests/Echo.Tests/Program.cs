@@ -37,6 +37,8 @@ if (args.Contains("--compute", StringComparer.Ordinal))
 }
 if (args.Contains("--texture", StringComparer.Ordinal))
 {
+    composition.Resolve<TexturePriorityTests>().Run(scaleTests);
+    composition.Resolve<TexturePriorityPipelineTests>().Run(scaleTests);
     composition.Resolve<TexturePackingTests>().Run(scaleTests, args.Contains("--require-metal", StringComparer.Ordinal));
     composition.Resolve<TextureParameterizationTests>().Run(scaleTests);
     composition.Resolve<TextureTests>().Run(scaleTests);
@@ -138,6 +140,8 @@ composition.Resolve<FusionQualityTests>().Run(scaleTests);
 composition.Resolve<FusionSettingsTests>().Run(scaleTests);
 composition.Resolve<TextureParameterizationTests>().Run(scaleTests);
 composition.Resolve<TexturePackingTests>().Run(scaleTests);
+composition.Resolve<TexturePriorityTests>().Run(scaleTests);
+composition.Resolve<TexturePriorityPipelineTests>().Run(scaleTests);
 composition.Resolve<ComputeContractTests>().Run(scaleTests);
 composition.Resolve<ComputeTests>().Run(scaleTests, false);
 composition.Resolve<ComputePassTests>().Run(scaleTests);

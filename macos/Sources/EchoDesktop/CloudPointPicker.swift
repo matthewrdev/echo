@@ -2,7 +2,9 @@ import SceneKit
 import simd
 
 struct CloudPointPicker {
-    func pick(at location: NSPoint, in view: SCNView, node: SCNNode) -> SCNVector3? {
+    func pick(
+        at location: NSPoint, in view: SCNView, node: SCNNode, pixelRadius: Double = 12, preferFrontmost: Bool = false
+    ) -> SCNVector3? {
         guard let source = node.geometry?.sources(for: .vertex).first,
             source.usesFloatComponents, source.componentsPerVector >= 3,
             source.bytesPerComponent == 4 || source.bytesPerComponent == 8
@@ -13,11 +15,11 @@ struct CloudPointPicker {
         let rayLength = simd_length(far - near)
         guard rayLength.isFinite, rayLength > 0 else { return nil }
         let direction = (far - near) / rayLength
-        let nearRadius = simd_length(vector(view.unprojectPoint(SCNVector3(location.x + 12, y, 0))) - near)
-        let farRadius = simd_length(vector(view.unprojectPoint(SCNVector3(location.x + 12, y, 1))) - far)
+        let nearRadius = simd_length(vector(view.unprojectPoint(SCNVector3(location.x + pixelRadius, y, 0))) - near)
+        let farRadius = simd_length(vector(view.unprojectPoint(SCNVector3(location.x + pixelRadius, y, 1))) - far)
         let transform = node.presentation.worldTransform
         var best: SCNVector3?
-        var bestDistance = 12.0
+        var bestDistance = pixelRadius
         var bestDepth = Double.infinity
         source.data.withUnsafeBytes { bytes in
             for index in 0..<source.vectorCount {
@@ -41,9 +43,11 @@ struct CloudPointPicker {
                 guard projected.z >= 0, projected.z <= 1 else { continue }
                 let projectedY = view.isFlipped ? view.bounds.height - projected.y : projected.y
                 let distance = hypot(projected.x - location.x, projectedY - location.y)
+                guard distance <= pixelRadius else { continue }
                 let closer = distance < bestDistance - 0.1
                 let samePixel = abs(distance - bestDistance) <= 0.1 && projected.z < bestDepth
-                if closer || samePixel {
+                let preferred = preferFrontmost ? projected.z < bestDepth : closer || samePixel
+                if preferred {
                     best = point
                     bestDistance = distance
                     bestDepth = projected.z

@@ -32,6 +32,7 @@ public sealed class TextureStage : IPipelineStage
         var store = context.Store;
         var cancellation = context.Cancellation;
         var alignment = context.Artifact("alignment");
+        project.Settings.TexturePriority?.ValidateAlignment(alignment);
         var scene = context.Scene();
         var meshPath = context.Artifact("mesh");
         var texture = context.Build("texture", new
@@ -39,7 +40,8 @@ public sealed class TextureStage : IPipelineStage
             meshPath,
             alignment,
             project.Settings.TextureSize,
-            textureVersion = 17,
+            textureVersion = 18,
+            project.Settings.TexturePriority,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Texture),
             packingImplementation = project.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : string.Join(";", packingAccelerators.Select(accelerator => accelerator.Implementation)),

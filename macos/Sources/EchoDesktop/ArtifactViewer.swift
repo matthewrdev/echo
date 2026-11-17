@@ -163,7 +163,7 @@ struct ArtifactViewer: View {
                     MatchingViewer(data: matches, selected: $model.selectedMatchIndex)
                 } else if value.scene != nil {
                     ExclusionWorkspaceView(
-                        workspace: workspace, presentation: value,
+                        workspace: workspace, textureModel: workspace.texturePriorityEditor, presentation: value,
                         openFeatures: { photoID in
                             workspace.selectedPhotoID = photoID
                             workspace.selectedStage = .features

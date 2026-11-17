@@ -3,11 +3,19 @@ import SwiftUI
 
 struct ExclusionWorkspaceView: View {
     @ObservedObject var workspace: WorkspaceViewModel
+    @ObservedObject var textureModel: TexturePriorityEditorModel
     let presentation: ArtifactPresentation
     let openFeatures: (String) -> Void
     @ObservedObject var controller: SceneViewportController
     @Binding var showGround: Bool
     @State private var editing = false
+    @State private var editingTexture = false
+
+    private var alignment: String { workspace.displayedRun?.artifacts["alignment"] ?? "" }
+    private var supportsPainting: Bool {
+        let geometry = presentation.scene?.rootNode.childNode(withName: "artifact", recursively: false)?.geometry
+        return !alignment.isEmpty && geometry?.elements.contains { $0.primitiveType == .point } == true
+    }
     @State private var regions: [ExclusionRegion] = []
     @State private var selectedID: String?
     @State private var placing = false
@@ -22,14 +30,19 @@ struct ExclusionWorkspaceView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Button(editing ? "Close crop editor" : "Crop regions", systemImage: "crop") {
-                    if !editing {
-                        regions = workspace.inspection?.project.settings.exclusionRegions ?? []
-                        selectedID = regions.first?.id
-                    }
                     editing.toggle()
-                    placing = false
+                    editingTexture = false
                 }
                 .disabled(workspace.inspection == nil)
+                if supportsPainting {
+                    Button(
+                        editingTexture ? "Close texture brush" : "Texture priority", systemImage: "paintbrush.pointed"
+                    ) {
+                        editingTexture.toggle()
+                        editing = false
+                    }
+                    .disabled(workspace.inspection == nil)
+                }
                 if editing {
                     Text("Green volumes include points; red volumes exclude them.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -41,17 +54,50 @@ struct ExclusionWorkspaceView: View {
                     controller: controller, showGround: $showGround,
                     exclusionRegions: editing ? regions : [], selectedExclusionID: selectedID,
                     placeExclusion: placing ? place : nil,
-                    changeExclusion: editing ? change : nil)
+                    changeExclusion: editing ? change : nil,
+                    texturePainting: editingTexture && !textureModel.incompatible ? textureModel.painting : nil,
+                    textureBrush: editingTexture && textureModel.paintingEnabled && !textureModel.incompatible
+                        ? textureModel.brush : nil,
+                    showTexturePriority: editingTexture && textureModel.showHeatmap,
+                    finishTextureStroke: textureModel.append)
                 if editing {
                     Divider()
                     editor.frame(width: 280)
+                } else if editingTexture {
+                    Divider()
+                    TexturePriorityEditor(workspace: workspace, model: textureModel).frame(width: 280)
                 }
             }
         }
-        .onChange(of: workspace.displayedRun?.id) { _, _ in
-            editing = false
+        .onChange(of: editing) { _, active in
+            if active { loadCropRegions() }
             placing = false
         }
+        .onChange(of: editingTexture) { _, active in
+            if active {
+                textureModel.followRun(workspace.inspection?.project.settings.texturePriority, alignment: alignment)
+            }
+            placing = false
+        }
+        .onChange(of: alignment) { _, _ in
+            editingTexture = false
+            textureModel.followRun(workspace.inspection?.project.settings.texturePriority, alignment: alignment)
+        }
+        .onChange(of: workspace.displayedRun?.id) { _, _ in
+            editing = false
+            editingTexture = false
+            textureModel.followRun(workspace.inspection?.project.settings.texturePriority, alignment: alignment)
+            placing = false
+        }
+        .onAppear {
+            if editing { loadCropRegions() }
+            textureModel.followRun(workspace.inspection?.project.settings.texturePriority, alignment: alignment)
+        }
+    }
+
+    private func loadCropRegions() {
+        regions = workspace.inspection?.project.settings.exclusionRegions ?? []
+        selectedID = regions.first?.id
     }
 
     private var editor: some View {
@@ -105,7 +151,7 @@ struct ExclusionWorkspaceView: View {
                     .font(.callout).foregroundStyle(.secondary)
                 }
             }
-            Text("Save, then process again from Fusion. The point cloud stays reusable.")
+            Text("Save, then process again from Fusion. The point cloud and texture priorities stay reusable.")
                 .font(.caption).foregroundStyle(.secondary)
             Button(workspace.busy ? "Saving…" : "Save crop regions") {
                 guard var settings = workspace.inspection?.project.settings else { return }

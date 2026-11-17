@@ -233,6 +233,12 @@ struct StageSettingsEditor: View {
                     "Runs after hole closing. Small islands are measured by surface area, independent of triangle density. Main surface only removes every disconnected patch, including detached rocks. Connected protrusions are retained. Changing this setting rebuilds Mesh, Texture and Export."
                 ).font(.caption).foregroundStyle(.secondary)
             case .texture:
+                Text(
+                    settings.texturePriority == nil
+                        ? "Paint texture priorities with the Texture priority tool in the point cloud viewer."
+                        : "Painted texture priorities: \(settings.texturePriority?.strokes.count ?? 0) strokes. Edit them in the point cloud viewer."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 if settings.optimiseVegetation {
                     DecimalSettingSlider(
                         title: "Vegetation texture scale", value: $settings.vegetationTextureScale, range: 0.25...1,

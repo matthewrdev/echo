@@ -6,7 +6,7 @@ namespace Echo.Texturing;
 internal static class TextureChartMerger
 {
     public static List<TexturePatch> Merge(TextureChartGeometry geometry, List<TexturePatch> patches, int maximumFaces,
-        IReadOnlyList<bool>? materials, CancellationToken cancellation, Action<string>? progress, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
+        IReadOnlyList<int>? materials, CancellationToken cancellation, Action<string>? progress, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
         var owner = new int[geometry.Surface.Faces.Count];
         for (var index = 0; index < patches.Count; index++)
