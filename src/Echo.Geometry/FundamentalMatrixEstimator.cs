@@ -247,11 +247,12 @@ public static class FundamentalMatrixEstimator
 
     private static Matrix<double> Transform(PixelNormalization normalization)
     {
-        return DenseMatrix.OfArray(new[,]
-        {
-            { normalization.Scale, 0, -normalization.CentreX * normalization.Scale },
-            { 0, normalization.Scale, -normalization.CentreY * normalization.Scale },
-            { 0, 0, 1.0 }
-        });
+        var matrix = DenseMatrix.Create(3, 3, 0);
+        matrix[0, 0] = normalization.Scale;
+        matrix[0, 2] = -normalization.CentreX * normalization.Scale;
+        matrix[1, 1] = normalization.Scale;
+        matrix[1, 2] = -normalization.CentreY * normalization.Scale;
+        matrix[2, 2] = 1;
+        return matrix;
     }
 }
