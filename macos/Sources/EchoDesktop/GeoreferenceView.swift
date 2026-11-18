@@ -31,8 +31,8 @@ struct GeoreferenceView: View {
                     Text("Details").tag("Details")
                 }.labelsHidden().pickerStyle(.segmented).frame(width: 260)
                 Spacer()
-                Button("Export for QGIS…", systemImage: "square.and.arrow.up") { export() }
-                    .labelStyle(.iconOnly).help("Export geographic data for QGIS")
+                Button("Export geographic data…", systemImage: "square.and.arrow.up") { export() }
+                    .labelStyle(.iconOnly).help("Export geographic data for GIS and Redpoint")
                     .disabled(model.artifact == nil || model.loading || model.exporting)
                 Button(
                     expanded ? "Restore viewer size" : "Fill window",
@@ -131,10 +131,10 @@ struct GeoreferenceView: View {
     private func export() {
         guard let run = workspace.geographicRun, let artifact = model.artifact else { return }
         let panel = NSSavePanel()
-        panel.title = "Export geographic data for QGIS"
+        panel.title = "Export geographic data for GIS and Redpoint"
         panel.prompt = "Export"
         panel.nameFieldStringValue = "Echo-GIS-\(run.id.prefix(8))"
-        panel.message = "Creates a new folder with GeoJSON, coordinates, reference data and the model projection."
+        panel.message = "Exports GeoPackage, GeoJSON, GeoTIFF and available Redpoint, 3D Tiles and LAS data."
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let destination = panel.url else { return }
         model.exporting = true
@@ -154,7 +154,8 @@ struct GeoreferenceView: View {
                         return
                     }
                 }
-                model.exportMessage = "Exported to \(destination.path). Open QGIS.txt for import instructions."
+                model.exportMessage =
+                    "Exported to \(destination.path). Open QGIS.txt for instructions and export-manifest.json for available formats."
                 NSWorkspace.shared.open(destination)
             } catch {
                 model.exportMessage = "Export failed: \(error.localizedDescription)"

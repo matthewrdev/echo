@@ -7,6 +7,8 @@ struct GeographicRasterWriter {
             let png = bitmap.representation(using: .png, properties: [:])
         else { throw CLIError(message: "Cannot encode the geographic model image.") }
         let coefficients = worldFile(rect: model.boundingMapRect, width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
+        try GeoTiffWriter().encode(bitmap, worldFile: coefficients).write(
+            to: directory.appendingPathComponent("model-map.tif"), options: .atomic)
         let text =
             coefficients.map { String(format: "%.12f", locale: Locale(identifier: "en_US_POSIX"), $0) }.joined(
                 separator: "\n") + "\n"
@@ -27,6 +29,23 @@ struct GeographicRasterWriter {
             """
         try auxiliary.write(
             to: directory.appendingPathComponent("model-map.png.aux.xml"), atomically: true, encoding: .utf8)
+        try updateManifest(directory)
+    }
+
+    private func updateManifest(_ directory: URL) throws {
+        let file = directory.appendingPathComponent("export-manifest.json")
+        guard FileManager.default.fileExists(atPath: file.path) else { return }
+        guard var manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any] else {
+            throw CLIError(message: "Cannot update the export manifest.")
+        }
+        let existing = manifest["files"] as? [String] ?? []
+        manifest["files"] = Set(
+            existing + [
+                "model-map.tif", "model-map.png", "model-map.pgw", "model-map.prj", "model-map.png.aux.xml",
+            ]
+        ).sorted()
+        try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys]).write(
+            to: file, options: .atomic)
     }
 
     func worldFile(rect: MKMapRect, width: Int, height: Int) -> [Double] {
