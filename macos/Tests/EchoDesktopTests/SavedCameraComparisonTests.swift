@@ -7,7 +7,7 @@ import XCTest
 
 final class SavedCameraComparisonTests: XCTestCase {
     @MainActor
-    func testSavedMeshAndTextureCameraComparisonAndKeyboardFocus() async throws {
+    func testSavedCloudMeshAndTextureCameraComparisonAndKeyboardFocus() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let project = environment["ECHO_TEST_CAMERA_PROJECT"], let runID = environment["ECHO_TEST_CAMERA_RUN"]
         else {
@@ -21,7 +21,7 @@ final class SavedCameraComparisonTests: XCTestCase {
             featureMatches: FeatureMatchIndexer(json: json),
             depths: SavedDepthArtifactReader(maps: DepthMapReader(), images: ArtifactImageRenderer(), json: json),
             fusion: SavedFusionArtifactReader(json: json, scenes: NativeSceneFactory()), json: json)
-        for stage in [PipelineStage.mesh, .texture] {
+        for stage in [PipelineStage.cloud, .mesh, .texture] {
             let presentation = try await reader.load(
                 root: root, run: run, stage: stage, unit: nil, mode: "Textured", slice: 0.5)
             let data = try XCTUnwrap(presentation.cameraInspection)
@@ -46,6 +46,10 @@ final class SavedCameraComparisonTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(300))
             let preview = try XCTUnwrap(cameraPreview(in: host))
             assertCamera(preview, matches: try XCTUnwrap(data.frustums[selectedID]))
+            let selectedFrustum = try XCTUnwrap(
+                main.scene?.rootNode.childNode(withName: "selected-camera-frustum", recursively: true))
+            XCTAssertEqual(selectedFrustum.geometry?.elements.first?.primitiveCount, 8)
+            XCTAssertNil(preview.scene?.rootNode.childNode(withName: "selected-camera-frustum", recursively: true))
             if let output = environment["ECHO_TEST_CAMERA_RENDER"] {
                 let folder = URL(fileURLWithPath: output)
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -53,11 +57,17 @@ final class SavedCameraComparisonTests: XCTestCase {
                 host.cacheDisplay(in: host.bounds, to: bitmap)
                 try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
                     to: folder.appendingPathComponent("\(stage.rawValue)-camera-comparison.png"))
+                let sceneBitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(main.snapshot().tiffRepresentation)))
+                try XCTUnwrap(sceneBitmap.representation(using: .png, properties: [:])).write(
+                    to: folder.appendingPathComponent("\(stage.rawValue)-selected-frustum.png"))
             }
             XCTAssertTrue(window.makeFirstResponder(preview))
             preview.keyDown(with: try key(124, window: window))
             try await Task.sleep(for: .milliseconds(100))
             assertCamera(preview, matches: try XCTUnwrap(data.frustums[data.cameraOrder[index + 1]]))
+            XCTAssertTrue(
+                main.scene?.rootNode.childNode(withName: "selected-camera-frustum", recursively: true)
+                    === selectedFrustum)
             main.keyDown(with: try key(123, window: window))
             try await Task.sleep(for: .milliseconds(100))
             assertCamera(preview, matches: try XCTUnwrap(data.frustums[selectedID]))
@@ -65,6 +75,7 @@ final class SavedCameraComparisonTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(100))
             XCTAssertNil(
                 cameraPreview(in: host), "Escape must close the comparison while the virtual viewport has focus")
+            XCTAssertNil(main.scene?.rootNode.childNode(withName: "selected-camera-frustum", recursively: true))
         }
     }
 

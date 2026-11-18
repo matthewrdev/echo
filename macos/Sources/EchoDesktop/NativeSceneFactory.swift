@@ -50,7 +50,7 @@ final class NativeSceneFactory {
         for camera in reconstruction?.cameras ?? [] {
             guard let photo = photos.first(where: { $0.id == camera.imageId }) else { continue }
             let focal = camera.focalPixels > 0 ? camera.focalPixels : photo.focalPixels
-            let depth = 0.6
+            let depth = CameraFrustumDisplay.normalDepth
             let halfWidth = Double(photo.width) / focal * depth / 2
             let halfHeight = Double(photo.height) / focal * depth / 2
             let corners = [

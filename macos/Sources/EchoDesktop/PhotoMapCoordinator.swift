@@ -7,6 +7,7 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     private var signature = ""
     private var colors: [ObjectIdentifier: NSColor] = [:]
     private var cameraIDs: [ObjectIdentifier: String] = [:]
+    private var cameraOverlays: [String: [MKOverlay]] = [:]
     private var selectedPhotoID: String?
     private var updating = false
     private var model: ModelMapOverlay?
@@ -37,6 +38,7 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         let camerasChanged = self.signature != signature || self.identity != identity
         guard camerasChanged || selectedPhotoID != selected else { return }
         let shouldFit = self.identity != identity
+        let previousSelection = selectedPhotoID
         selectedPhotoID = selected
         self.identity = identity
         self.signature = signature
@@ -44,6 +46,17 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         defer { updating = false }
         if camerasChanged {
             rebuild(map: map, cameras: cameras, fit: shouldFit)
+        } else {
+            for id in [previousSelection, selected].compactMap({ $0 }) {
+                guard let camera = cameras.first(where: { $0.id == id }) else { continue }
+                let overlays = cameraOverlays.removeValue(forKey: id) ?? []
+                map.removeOverlays(overlays)
+                for overlay in overlays {
+                    colors.removeValue(forKey: ObjectIdentifier(overlay))
+                    cameraIDs.removeValue(forKey: ObjectIdentifier(overlay))
+                }
+                addFrustum(camera, map: map)
+            }
         }
         updateEmphasis(map: map)
     }
@@ -53,6 +66,7 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         map.removeOverlays(map.overlays.filter { !($0 is ModelMapOverlay) })
         colors.removeAll()
         cameraIDs.removeAll()
+        cameraOverlays.removeAll()
         var extent = model?.boundingMapRect ?? MKMapRect.null
         for camera in cameras {
             let annotation = PhotoMapAnnotation(camera: camera)
@@ -60,19 +74,13 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
             let origin = annotation.coordinate
             let location = MKMapPoint(origin)
             extent = extent.union(MKMapRect(x: location.x, y: location.y, width: 1, height: 1))
-            let color = palette.color(pitch: camera.pitchDegrees)
             if !camera.corners.isEmpty {
                 let corners = camera.corners.map {
                     CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
                 }
-                let polygon = MKPolygon(coordinates: corners, count: corners.count)
-                add(polygon, color: color, cameraID: camera.id, map: map)
-                extent = extent.union(polygon.boundingMapRect)
-                for corner in corners {
-                    let ray = MKPolyline(coordinates: [origin, corner], count: 2)
-                    add(ray, color: color.withAlphaComponent(0.6), cameraID: camera.id, map: map)
-                }
+                extent = extent.union(MKPolygon(coordinates: corners, count: corners.count).boundingMapRect)
             }
+            addFrustum(camera, map: map)
         }
         if fit, !extent.isNull {
             let minimum = 40 / MKMetersPerMapPointAtLatitude(cameras.first?.position.latitude ?? 0)
@@ -81,9 +89,24 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         }
     }
 
+    private func addFrustum(_ camera: MapCamera, map: MKMapView) {
+        let corners = camera.displayCorners(selected: camera.id == selectedPhotoID).map {
+            CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+        }
+        guard !corners.isEmpty else { return }
+        let origin = CLLocationCoordinate2D(latitude: camera.position.latitude, longitude: camera.position.longitude)
+        let color = palette.color(pitch: camera.pitchDegrees)
+        add(MKPolygon(coordinates: corners, count: corners.count), color: color, cameraID: camera.id, map: map)
+        for corner in corners {
+            let ray = MKPolyline(coordinates: [origin, corner], count: 2)
+            add(ray, color: color.withAlphaComponent(0.6), cameraID: camera.id, map: map)
+        }
+    }
+
     private func add(_ overlay: MKOverlay, color: NSColor, cameraID: String, map: MKMapView) {
         colors[ObjectIdentifier(overlay)] = color
         cameraIDs[ObjectIdentifier(overlay)] = cameraID
+        cameraOverlays[cameraID, default: []].append(overlay)
         map.addOverlay(overlay)
     }
 

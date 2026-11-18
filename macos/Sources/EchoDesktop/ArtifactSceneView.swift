@@ -290,10 +290,10 @@ final class ArtifactSceneView: SCNView {
         selectionOverlay = nil
         scene?.rootNode.childNode(withName: "artifact", recursively: false)?.opacity = 1
         if case .camera(let imageID) = selected,
-            let frustum = cameraInspection?.frustums[imageID] ?? inspection?.frustums[imageID], let scene,
-            let artifact = scene.rootNode.childNode(withName: "artifact", recursively: false)
+            let frustum = cameraInspection?.frustums[imageID] ?? inspection?.frustums[imageID], let scene
         {
-            if artifact.geometry?.elements.first?.primitiveType == .point {
+            let artifact = scene.rootNode.childNode(withName: "artifact", recursively: false)
+            if let artifact, artifact.geometry?.elements.first?.primitiveType == .point {
                 cloudHighlight.show(frustum, on: artifact)
             } else {
                 cloudHighlight.clear()
@@ -302,11 +302,15 @@ final class ArtifactSceneView: SCNView {
                 cameraMarker?.removeFromParentNode()
                 let marker = markers([SCNVector3Zero], color: .systemYellow, radius: 8)
                 marker.name = "sparse-selection"
+                marker.addChildNode(CameraFrustumDisplay().makeSelectedNode())
                 scene.rootNode.addChildNode(marker)
                 cameraMarker = marker
             }
             // Repeated arrow keys move one retained marker instead of churning the live node hierarchy.
             cameraMarker?.position = SCNVector3(frustum.centre.x, frustum.centre.y, frustum.centre.z)
+            if let node = cameraMarker?.childNode(withName: "selected-camera-frustum", recursively: false) {
+                CameraFrustumDisplay().update(node, frustum: frustum, artifact: artifact)
+            }
             return
         }
         cameraMarker?.removeFromParentNode()

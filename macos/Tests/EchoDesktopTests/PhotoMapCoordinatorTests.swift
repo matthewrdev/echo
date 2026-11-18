@@ -5,20 +5,25 @@ import XCTest
 
 final class PhotoMapCoordinatorTests: XCTestCase {
     @MainActor
-    func testSelectionKeepsCameraGeometryAndFadesOtherCameras() throws {
+    func testSelectionEnlargesOnlyItsFrustumAndKeepsCameraPositions() throws {
         let cameras = try cameras()
         let coordinator = PhotoMapCoordinator(selection: { _ in })
         let map = MKMapView()
         coordinator.update(map: map, cameras: cameras, identity: "project", selected: nil)
         let annotations = map.annotations.compactMap { $0 as? PhotoMapAnnotation }
         let overlays = map.overlays
+        let normalPolygons = overlays.compactMap { $0 as? MKPolygon }
+        let normalWidth = try XCTUnwrap(normalPolygons.first).boundingMapRect.width
 
         coordinator.update(map: map, cameras: cameras, identity: "project", selected: cameras[0].id)
 
         XCTAssertEqual(map.annotations.count, 2)
         XCTAssertEqual(map.overlays.count, 10)
         XCTAssertTrue(annotations.allSatisfy { original in map.annotations.contains { $0 === original } })
-        XCTAssertTrue(overlays.allSatisfy { original in map.overlays.contains { $0 === original } })
+        XCTAssertEqual(overlays.filter { original in map.overlays.contains { $0 === original } }.count, 5)
+        let polygons = map.overlays.compactMap { $0 as? MKPolygon }
+        XCTAssertEqual(polygons.map { $0.boundingMapRect.width }.max() ?? 0, normalWidth * 8, accuracy: 0.01)
+        XCTAssertEqual(polygons.map { $0.boundingMapRect.width }.min() ?? 0, normalWidth, accuracy: 0.01)
         for annotation in annotations {
             let view = try XCTUnwrap(coordinator.mapView(map, viewFor: annotation))
             XCTAssertEqual(view.alphaValue, annotation.camera.id == cameras[0].id ? 1 : 0.18, accuracy: 0.001)
@@ -35,6 +40,8 @@ final class PhotoMapCoordinatorTests: XCTestCase {
         let cameras = try cameras()
         let coordinator = PhotoMapCoordinator(selection: { _ in })
         let map = MKMapView()
+        coordinator.update(map: map, cameras: cameras, identity: "project", selected: nil)
+        let normalWidth = try XCTUnwrap(map.overlays.compactMap { $0 as? MKPolygon }.first).boundingMapRect.width
         coordinator.update(map: map, cameras: cameras, identity: "project", selected: cameras[0].id)
 
         for selection in [nil, "filtered-out-photo"] as [String?] {
@@ -44,7 +51,24 @@ final class PhotoMapCoordinatorTests: XCTestCase {
                 XCTAssertEqual(view.alphaValue, 1)
             }
             XCTAssertTrue(map.overlays.allSatisfy { coordinator.mapView(map, rendererFor: $0).alpha == 1 })
+            for polygon in map.overlays.compactMap({ $0 as? MKPolygon }) {
+                XCTAssertEqual(polygon.boundingMapRect.width, normalWidth, accuracy: 0.01)
+            }
         }
+    }
+
+    func testMapDisplayScalePreservesTheApexAndOriginalCameraCorners() throws {
+        let camera = try XCTUnwrap(cameras().first)
+        let enlarged = camera.displayCorners(selected: true)
+        for (original, displayed) in zip(camera.corners, enlarged) {
+            XCTAssertEqual(
+                displayed.latitude - camera.position.latitude,
+                (original.latitude - camera.position.latitude) * 8, accuracy: 1e-10)
+            XCTAssertEqual(
+                displayed.longitude - camera.position.longitude,
+                (original.longitude - camera.position.longitude) * 8, accuracy: 1e-10)
+        }
+        XCTAssertEqual(camera.displayCorners(selected: false).map(\.latitude), camera.corners.map(\.latitude))
     }
 
     private func cameras() throws -> [MapCamera] {

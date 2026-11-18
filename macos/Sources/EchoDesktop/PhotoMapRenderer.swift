@@ -65,7 +65,7 @@ final class PhotoMapRenderer: CanvasRenderer {
             let highlighted = camera.id == selected
             context.setAlpha(selected != nil && !highlighted ? 0.18 : 1)
             let color = CameraTiltPalette().color(pitch: camera.pitchDegrees)
-            let corners = camera.corners.map(point)
+            let corners = camera.displayCorners(selected: highlighted).map(point)
             if !corners.isEmpty {
                 context.setStrokeColor(color.withAlphaComponent(highlighted ? 1 : 0.42).cgColor)
                 context.setFillColor(color.withAlphaComponent(highlighted ? 0.22 : 0.055).cgColor)
