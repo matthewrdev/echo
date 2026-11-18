@@ -23,6 +23,10 @@ final class ArtifactSceneView: SCNView {
     private var cameraMarker: SCNNode?
     private var selectionOverlay: SCNNode?
 
+    override func rotate(with event: NSEvent) {
+        // Consume trackpad twist gestures so SceneKit cannot roll the viewing camera.
+    }
+
     override func layout() {
         super.layout()
         if needsInitialFit, bounds.width > 1, bounds.height > 1, scene != nil {

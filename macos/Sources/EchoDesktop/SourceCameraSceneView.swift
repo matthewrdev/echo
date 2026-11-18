@@ -8,6 +8,10 @@ final class SourceCameraSceneView: SCNView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func rotate(with event: NSEvent) {
+        // Keep the source camera orientation fixed and prevent rotation bubbling to the main viewer.
+    }
+
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         super.mouseDown(with: event)
