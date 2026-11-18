@@ -23,6 +23,13 @@ if (args.Contains("--reconstruction", StringComparer.Ordinal))
     return composition.Resolve<ReconstructionTests>().Run();
 }
 var scaleTests = new TestSuite();
+if (args.Contains("--gis", StringComparer.Ordinal))
+{
+    composition.Resolve<GisExportTests>().Run(scaleTests);
+    composition.Resolve<GisCommandTests>().Run(scaleTests);
+    composition.Resolve<GeographicFormatTests>().Run(scaleTests);
+    return scaleTests.Finish();
+}
 composition.Resolve<MatchingStorageTests>().Run(scaleTests);
 composition.Resolve<MatchingMigrationTests>().Run(scaleTests);
 if (args.Contains("--matching-storage", StringComparer.Ordinal))
@@ -122,6 +129,7 @@ if (args.Contains("--disk-io", StringComparer.Ordinal))
     return scaleTests.Finish();
 }
 composition.Resolve<GisExportTests>().Run(scaleTests);
+composition.Resolve<GeographicFormatTests>().Run(scaleTests);
 composition.Resolve<GisCommandTests>().Run(scaleTests);
 composition.Resolve<RenderCommandTests>().Run(scaleTests);
 composition.Resolve<PagingTests>().Run(scaleTests);

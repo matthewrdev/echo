@@ -6,6 +6,8 @@ DJI debug payloads are retained as original bytes. Their private histogram/debug
 
 Other .NET dependencies retain their upstream licenses; see the project files and NuGet package metadata for versions and terms.
 
+GeoPackage export uses Microsoft.Data.Sqlite.Core (MIT) and SQLitePCLRaw (Apache-2.0), with native SQLite bundled by SourceGear's SQLite NuGet package. SQLite is public domain; the distribution notice is included in `licenses/SQLite.txt`. No external GIS installation is required for export.
+
 # Local scene classification
 
 Sky exclusion, vegetation budgets and cliff recovery use a pretrained image-segmentation model, executed locally by ONNX Runtime. Hugging Face hosts the model download; Echo does not use its hosted inference API or upload photographs for classification.

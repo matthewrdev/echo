@@ -51,6 +51,21 @@ public sealed class GisWriter : IGisWriter
         File.WriteAllText(Path.Combine(directory, "QGIS.txt"), """
             Echo geographic export
 
+            Open geography.gpkg for the camera, photo-location, vertex and triangle layers
+            in a single GeoPackage. Its geometry is horizontal WGS84; local coordinates and
+            source elevations remain separate attributes with their vertical datum.
+            export-manifest.json lists the files and explains unavailable outputs.
+
+            In Redpoint's contributor portal, load this cliff.glb, open Location and choose
+            Import Echo georeference. Select redpoint.georeference.json. The importer applies
+            the loaded model's transform to the calibration samples. Save the scene normally.
+            These generated samples preserve the alignment; they are not surveyed GCPs.
+
+            tileset.json is an OGC 3D Tiles 1.1 tileset referencing cliff.glb. Keep them together.
+            cloud.las (dense) or sparse.las (alignment only) is LAS 1.4 with RGB, millimetre
+            quantisation and embedded EPSG:4978 WKT (Earth-centred XYZ metres).
+            Both formats require explicit WGS84 ellipsoidal height; otherwise they are omitted.
+
             In QGIS, drag cameras.geojson and model.geojson into the map. Their horizontal
             coordinates are WGS84 longitude/latitude (EPSG:4326 in QGIS). Each model feature
             is one mesh triangle; this is geometry, not a textured raster or an orthophoto.
@@ -62,7 +77,8 @@ public sealed class GisWriter : IGisWriter
             altitude_source, vertical_datum and altitude_reference_evidence explain the
             reference inference. These observations are distinct from reconstructed cameras.
 
-            When exported from Echo's geographic viewer, model-map.png, model-map.pgw,
+            When exported from Echo's geographic viewer, model-map.tif is a self-contained
+            GeoTIFF in EPSG:3857 with transparency. Alternatively model-map.png, model-map.pgw,
             model-map.prj and model-map.png.aux.xml provide a transparent, top-down textured model rendering. Keep
             these files together, add the PNG as a raster and assign EPSG:3857 if prompted.
             This is a model projection, not a surveyed orthophoto. Apple imagery is not exported.

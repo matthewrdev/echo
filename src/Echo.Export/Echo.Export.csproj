@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.10" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" />
     <ProjectReference Include="../Echo.Metadata/Echo.Metadata.csproj" />
     <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
