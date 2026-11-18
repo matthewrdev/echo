@@ -8,12 +8,29 @@
 <style>
 :root{color-scheme:dark;--bg:#10151e;--panel:#19212e;--line:#303c4f;--text:#e7edf7;--muted:#a7b5c9;--accent:#70dbb8}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1600px;margin:auto;padding:30px}h1{font-size:26px;letter-spacing:-.7px;margin:0}h2{font-size:16px;margin:0 0 12px}p{margin:7px 0}.muted{color:var(--muted)}header{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:20px}.badge{border:1px solid var(--accent);color:var(--accent);border-radius:30px;padding:5px 14px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.card,section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}.card strong{display:block;font-size:24px;font-variant-numeric:tabular-nums}.card span{color:var(--muted);font-size:12px}section{margin-top:16px}.filters,.heading{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.heading{justify-content:space-between;margin-bottom:10px}.heading h2{margin:0}label{font-size:12px;color:var(--muted)}select,input,button{font:inherit;background:#101722;color:var(--text);border:1px solid #43526a;border-radius:6px;padding:7px 10px}select,input{display:block;min-width:160px}input{min-width:250px}button{cursor:pointer}button:hover,button:focus-visible{border-color:var(--accent);color:var(--accent)}.table-scroll{overflow:auto;max-height:470px}table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}th,td{text-align:right;padding:9px 11px;border-bottom:1px solid var(--line)}th{position:sticky;top:0;background:var(--panel);z-index:1;color:var(--muted)}th:first-child,td:first-child{text-align:left}th button{border:0;background:none;padding:0;font-size:12px;color:var(--muted)}td:first-child{white-space:normal;min-width:210px}tbody tr:hover{background:#253348}.note{font-size:12px;color:var(--muted);margin-top:12px}.warning{color:#ffd58b}.timeline-scroll{height:420px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;background:#101722}.timeline-space{position:relative;min-height:420px}canvas{position:sticky;top:0;display:block;width:100%;height:420px;touch-action:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 ui-monospace,monospace;background:#101722;border-radius:6px;padding:12px;margin-bottom:0}.legend{display:flex;gap:15px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}footer{color:var(--muted);font-size:12px;margin-top:20px}@media(max-width:700px){main{padding:14px}.cards{grid-template-columns:1fr 1fr}header{align-items:flex-start}.card strong{font-size:20px}}@media print{body{background:white;color:black}section,.card{break-inside:avoid}.table-scroll{max-height:none}.filters,button{display:none}}
+
+.overview-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,1fr);gap:24px;margin-top:18px;align-items:start}
+.stage-axis-row{display:grid;grid-template-columns:180px minmax(0,1fr) 95px;padding:0 10px 10px;gap:12px;color:var(--muted);font-size:11px}.stage-axis{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums}.stage-axis span:first-child{transform:translateX(-2px)}.stage-axis span:last-child{transform:translateX(2px)}
+.stage-row{width:100%;display:grid;grid-template-columns:180px minmax(0,1fr) 95px;gap:12px;align-items:center;padding:7px 10px;margin:0 0 4px;text-align:left;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--text)}.stage-row:hover{background:#243143}.stage-row[aria-pressed=true]{background:#26394a;border-color:var(--accent);color:var(--text)}.stage-row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.stage-label{display:flex;align-items:center;gap:10px;line-height:1.25}.stage-number{font:11px ui-monospace,monospace;color:var(--muted)}.stage-track{height:24px;position:relative;display:block;background:repeating-linear-gradient(to right,var(--line) 0,var(--line) 1px,transparent 1px,transparent 25%);border-right:1px solid var(--line)}.stage-bar{position:absolute;top:4px;height:16px;min-width:3px;max-width:100%;border-radius:3px;background:var(--stage-colour)}.stage-timing{text-align:right;font-variant-numeric:tabular-nums;line-height:1.3}.stage-timing strong{display:block;font-size:13px}.stage-timing small{display:block;color:var(--muted);font-size:11px}
+.stage-detail{padding:20px;background:#111b28;border:1px solid var(--line);border-radius:10px;min-height:360px}.eyebrow{font-size:11px;letter-spacing:1px;color:var(--accent);margin:0 0 7px}.stage-detail h3{font-size:23px;letter-spacing:-.5px;margin:0}.detail-duration{font-size:35px;font-weight:650;letter-spacing:-1px;margin:10px 0 0;font-variant-numeric:tabular-nums}.stage-detail>.muted{font-size:12px}.stage-resources{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.stage-resources small,.stage-resources strong{display:block}.stage-resources small{font-size:10px;color:var(--muted)}.stage-resources strong{font-size:12px;font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}.stage-detail h4{font-size:13px;margin:18px 0 0}.stage-detail .note{margin:5px 0 10px;font-size:11px}.operation-list{display:grid;gap:5px}.operation-row{width:100%;display:block;text-align:left;background:transparent;border:1px solid transparent;padding:7px 8px;border-radius:6px}.operation-row:hover{background:#253348}.operation-label{display:flex;justify-content:space-between;gap:10px;font-size:12px;line-height:1.3}.operation-label strong{white-space:nowrap;font-weight:500;font-variant-numeric:tabular-nums}.operation-track{display:block;margin:6px 0 3px;height:4px;background:#2c3a4f;border-radius:3px}.operation-track>span{display:block;height:4px;background:var(--accent);border-radius:3px}.operation-row small{font-size:10px;color:var(--muted)}.inspect-button{margin-top:16px;border-color:#527568;color:var(--accent);font-size:12px}.overview-note{margin-top:14px;font-size:11px;color:var(--muted)}
+.advanced{margin-top:20px}.advanced>summary{cursor:pointer;padding:16px 20px;border:1px solid var(--line);border-radius:10px;font-weight:600;background:var(--panel)}.advanced>summary:hover{color:var(--accent)}.advanced>summary:focus-visible{outline:2px solid var(--accent)}
+@media(max-width:1100px){.overview-layout{grid-template-columns:1fr}.stage-detail{min-height:0}.stage-resources{max-width:600px}.operation-list{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.stage-axis-row,.stage-row{grid-template-columns:140px minmax(0,1fr) 80px;gap:8px;padding-left:3px;padding-right:3px}.stage-label{font-size:12px;gap:5px}.stage-axis{font-size:9px}.stage-axis span:nth-child(even){visibility:hidden}.stage-timing strong{font-size:11px}.operation-list{grid-template-columns:1fr}.stage-detail{padding:14px}.stage-number{font-size:10px}}
+@media print{.stage-row{display:grid}.stage-detail{break-inside:avoid}.overview-layout{grid-template-columns:1fr}}
 </style>
 </head>
 <body><main>
 <header><div><h1>Echo performance trace</h1><p class="muted" id="identity"></p></div><span class="badge" id="status"></span></header>
 <p class="muted" id="environment"></p>
 <div class="cards" id="summary"></div>
+<section id="overview" aria-labelledby="overview-title">
+<div class="heading"><div><h2 id="overview-title">Run overview</h2><p class="muted">Select a step to inspect its timing and operations.</p></div><button id="clear-stage">All steps</button></div>
+<div class="overview-layout">
+<div><div class="stage-axis-row"><span>Processing step</span><div class="stage-axis" id="stage-axis"></div><span style="text-align:right">Wall time</span></div><div id="stage-graph" aria-label="Processing steps in execution order"></div>
+<p class="overview-note">Bars show when each step ran. Durations count overlapping intervals once and exclude gaps. Reused checkpoints are labelled; short steps have a minimum visible bar width.</p></div>
+<aside class="stage-detail" id="stage-detail" aria-label="Selected step details" aria-live="polite"></aside>
+</div></section>
+<details class="advanced" id="advanced"><summary>Detailed timeline and counters</summary>
 <section><div class="filters">
 <label>Stage<select id="stage"><option value="">All stages</option></select></label>
 <label>Detail<select id="kind"><option value="">All intervals</option><option value="stage">Stages</option><option value="operation" selected>Operations</option><option value="checkpoint">Checkpoints</option><option value="compute">Compute</option><option value="transfer">Transfers</option><option value="wait">Waits</option></select></label>
@@ -31,9 +48,53 @@
 <p class="note">Covered is wall time with at least one call active; Sum includes overlapping calls and child work. P50/P95 are upper bounds from power-of-two duration buckets, not exact percentiles. Aggregates include intervals omitted from the timeline. Older traces show — for diagnostics that were not recorded.</p>
 <p class="note">Stage allocation, CPU and GC values cover the processor process. Other allocation values cover the calling thread, including children; cross-thread completion has no thread-allocation sample. Allocated bytes are not retained memory. GPU times belong to completed command buffers collected by that call, not necessarily the kernel named on the row.</p></section>
 <section><h2>Workload and scheduling measurements</h2><div class="table-scroll"><table id="measurements"><thead><tr><th>Measurement / stage</th><th>Samples</th><th>Unit</th><th>Total</th><th>Mean</th><th>Minimum</th><th>Maximum</th></tr></thead><tbody></tbody></table></div><p class="note" id="measurement-note">These samples are aggregated without individual timeline records. Time samples can overlap across workers.</p></section>
+</details>
 <footer>Self-contained export: no network requests or external assets. This is an instrumented elapsed-time trace, not a sampled CPU call-stack profile. Original trace data is embedded in this file.</footer>
 </main>
 <script type="application/json" id="trace-data">__ECHO_TRACE_DATA__</script>
+<script id="overview-model">
+function buildStageOverview(trace) {
+    const spans = trace.spans || [];
+    const statistics = trace.statistics || [];
+    const byId = new Map(spans.map(span => [span.id, span]));
+    const groups = new Map();
+    for (const span of spans) {
+        if (!Number.isFinite(span.startMilliseconds) || !Number.isFinite(span.durationMilliseconds)
+            || span.startMilliseconds < 0 || span.durationMilliseconds < 0) continue;
+        const key = span.stage || 'preparation';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(span);
+    }
+    const stages = [];
+    for (const [key, members] of groups) {
+        const boundaries = members.filter(span => span.kind === 'stage');
+        const roots = boundaries.length ? boundaries : members.filter(span => {
+            const parent = byId.get(span.parentId);
+            return !parent || parent.stage !== span.stage;
+        });
+        if (!roots.length) continue;
+        const intervals = roots.map(span => ({start: span.startMilliseconds, end: span.startMilliseconds + span.durationMilliseconds}))
+            .sort((a, b) => a.start - b.start);
+        const segments = [];
+        for (const interval of intervals) {
+            const previous = segments[segments.length - 1];
+            if (previous && interval.start <= previous.end) previous.end = Math.max(previous.end, interval.end);
+            else segments.push({...interval});
+        }
+        const totals = statistics.filter(row => row.stage === key);
+        const checkpoints = totals.filter(row => row.kind === 'checkpoint');
+        const calls = checkpoints.reduce((sum, row) => sum + row.count, 0);
+        const reused = calls > 0 && checkpoints.reduce((sum, row) => sum + row.reusedCount, 0) === calls;
+        const statuses = new Set(roots.map(span => span.status));
+        const terminal = ['failed', 'cancelled', 'interrupted', 'running'].find(status => statuses.has(status));
+        const status = terminal || (reused || roots.every(span => span.status === 'reused') ? 'reused' : 'completed');
+        stages.push({key, segments, status, statistics: totals, spanCount: members.length,
+            start: segments[0].start, end: segments[segments.length - 1].end,
+            duration: segments.reduce((sum, interval) => sum + interval.end - interval.start, 0)});
+    }
+    return stages.sort((a, b) => a.start - b.start);
+}
+</script>
 <script>
 'use strict';
 const trace=JSON.parse(document.getElementById('trace-data').textContent);
@@ -59,6 +120,7 @@ function depth(span){if(depthCache.has(span.id))return depthCache.get(span.id);l
 function matches(row,withKind=true){return (!$('stage').value||row.stage===$('stage').value)&&(!withKind||!$('kind').value||row.kind===$('kind').value)&&row.name.toLowerCase().includes($('search').value.toLowerCase());}
 function cells(row,values){for(const value of values)element('td',value,row);}
 function refresh(){
+ updateOverview();
  const tbody=$('timings').tBodies[0];tbody.replaceChildren();
  const rows=statistics.filter(row=>matches(row)).sort((a,b)=>(b[sort]||0)-(a[sort]||0));
  for(const row of rows){const tr=element('tr',null,tbody);cells(tr,[row.name+' / '+row.stage,number(row.count),duration(row.busyMilliseconds),duration(row.totalMilliseconds),duration(row.medianUpperMilliseconds),duration(row.p95UpperMilliseconds),duration(row.maximumMilliseconds),number(row.maximumConcurrency),duration(row.gpuMilliseconds),bytes(row.processAllocatedBytes??row.threadAllocatedBytes),duration(row.processCpuMilliseconds),duration(row.gcPauseMilliseconds),number(row.reusedCount)+' / '+number(row.failedCount),number(row.items)+' / '+bytes(row.bytes)]);tr.title='Allocation samples: '+(row.threadAllocationSamples??'not recorded')+'; GC collections: '+[row.gen0Collections,row.gen1Collections,row.gen2Collections].map(number).join(' / ');}
@@ -96,5 +158,145 @@ canvas.addEventListener('pointercancel',()=>{drag=null;draw();});
 $('fit').addEventListener('click',fit);$('reset').addEventListener('click',()=>{start=0;end=Math.max(1,summary.durationMilliseconds);draw();});
 for(const id of ['stage','kind','search'])$(id).addEventListener(id==='search'?'input':'change',refresh);
 for(const button of document.querySelectorAll('[data-sort]'))button.addEventListener('click',()=>{sort=button.dataset.sort;refresh();});
+const stageNames = {
+    preparation: 'Prepare photos', features: 'Extract features', matching: 'Match photos',
+    alignment: 'Align cameras', depth: 'Estimate depth', cloud: 'Build dense cloud',
+    fusion: 'Fuse surface', mesh: 'Build mesh', texture: 'Texture model', export: 'Export model'
+};
+const stageColours = ['#93a4bc','#91b7ff','#77dfc0','#b8a1f5','#79cce8','#b1d68b','#d7c182','#f0b987','#eaa2c6','#a6b9ed'];
+const stages = buildStageOverview(trace);
+const stageButtons = new Map();
+let runEnd = Math.max(1, summary.durationMilliseconds);
+for (const step of stages) runEnd = Math.max(runEnd, step.end);
+function stageName(key) { return stageNames[key] || key; }
+function briefDuration(value) {
+    if (value < 1000) return duration(value);
+    if (value < 60000) return number(Math.round(value / 100) / 10) + ' s';
+    const seconds = Math.round(value / 1000);
+    return Math.floor(seconds / 60) + 'm ' + seconds % 60 + 's';
+}
+function share(value) {
+    const percent = 100 * value / runEnd;
+    return percent > 0 && percent < .1 ? '<0.1%' : number(Math.round(percent * 10) / 10) + '%';
+}
+function buildOverview() {
+    const axis = $('stage-axis');
+    for (let index = 0; index <= 4; index++) element('span', briefDuration(runEnd * index / 4), axis);
+    stages.forEach((step, index) => {
+        const button = element('button', null, $('stage-graph'));
+        button.className = 'stage-row';
+        button.type = 'button';
+        button.setAttribute('aria-controls', 'stage-detail');
+        button.setAttribute('aria-pressed', 'false');
+        button.setAttribute('aria-label', stageName(step.key) + ', ' + briefDuration(step.duration) + ', ' + share(step.duration) + ' of run');
+        button.style.setProperty('--stage-colour', stageColours[index % stageColours.length]);
+        const label = element('span', null, button);
+        label.className = 'stage-label';
+        element('span', String(index + 1).padStart(2, '0'), label).className = 'stage-number';
+        element('span', stageName(step.key), label);
+        const track = element('span', null, button);
+        track.className = 'stage-track';
+        for (const segment of step.segments) {
+            const bar = element('span', null, track);
+            bar.className = 'stage-bar';
+            bar.style.left = 100 * segment.start / runEnd + '%';
+            bar.style.width = Math.max(0, 100 * (segment.end - segment.start) / runEnd) + '%';
+        }
+        const timing = element('span', null, button);
+        timing.className = 'stage-timing';
+        element('strong', briefDuration(step.duration), timing);
+        element('small', step.status === 'reused' ? 'Reused' : share(step.duration), timing);
+        button.title = stageName(step.key) + ' · ' + duration(step.duration) + ' · ' + step.status;
+        button.addEventListener('click', () => selectStage(step));
+        stageButtons.set(step.key, button);
+    });
+    if (!stages.length) element('p', 'No retained stage intervals are available. Use the detailed aggregates below.', $('stage-graph'));
+}
+function selectStage(step) {
+    $('stage').value = step ? step.key : '';
+    $('kind').value = step ? 'operation' : 'stage';
+    $('search').value = '';
+    start = step ? step.start : 0;
+    end = step ? Math.max(step.start + 1, step.end) : runEnd;
+    $('selection').textContent = 'Select an interval to inspect its duration, GPU time and allocation measurements.';
+    refresh();
+}
+function openTimeline() {
+    $('advanced').open = true;
+    draw();
+    $('advanced').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function updateOverview() {
+    const step = stages.find(item => item.key === $('stage').value);
+    for (const [key, button] of stageButtons) button.setAttribute('aria-pressed', String(key === step?.key));
+    const panel = $('stage-detail');
+    panel.replaceChildren();
+    if (!step) {
+        element('p', 'EXPLORE THE RUN', panel).className = 'eyebrow';
+        element('h3', 'Select a processing step', panel);
+        element('p', 'Choose a row to see its timing, resource use and most expensive operations.', panel).className = 'muted';
+        element('div', briefDuration(summary.durationMilliseconds), panel).className = 'detail-duration';
+        element('p', 'Total elapsed time · ' + stages.length + ' recorded steps', panel).className = 'muted';
+        const slowest = [...stages].sort((a, b) => b.duration - a.duration)[0];
+        if (slowest) {
+            const button = element('button', 'Inspect longest step: ' + stageName(slowest.key), panel);
+            button.className = 'inspect-button';
+            button.addEventListener('click', () => selectStage(slowest));
+        }
+        return;
+    }
+    element('p', 'STEP ' + String(stages.indexOf(step) + 1).padStart(2, '0') + ' · ' + step.status.toUpperCase(), panel).className = 'eyebrow';
+    element('h3', stageName(step.key), panel);
+    element('div', briefDuration(step.duration), panel).className = 'detail-duration';
+    element('p', share(step.duration) + ' of run · ' + briefDuration(step.start) + ' → ' + briefDuration(step.end), panel).className = 'muted';
+    const resources = element('div', null, panel);
+    resources.className = 'stage-resources';
+    const stageStats = step.statistics.filter(row => row.kind === 'stage');
+    const sumOptional = (rows, key) => rows.some(row => row[key] != null) ? rows.reduce((sum, row) => sum + (row[key] || 0), 0) : null;
+    for (const [label, value] of [
+        ['Process CPU', duration(sumOptional(stageStats, 'processCpuMilliseconds'))],
+        ['GPU batches', duration(sumOptional(step.statistics, 'gpuMilliseconds'))],
+        ['Allocated', bytes(sumOptional(stageStats, 'processAllocatedBytes'))],
+        ['GC pause', duration(sumOptional(stageStats, 'gcPauseMilliseconds'))]
+    ]) {
+        const item = element('div', null, resources);
+        element('small', label, item);
+        element('strong', value, item);
+    }
+    const operations = step.statistics.filter(row => row.kind === 'operation').sort((a, b) => b.totalMilliseconds - a.totalMilliseconds);
+    element('h4', 'Most expensive operations', panel);
+    element('p', 'Sum across calls. Parallel and nested operations overlap; these times are not additive.', panel).className = 'note';
+    const list = element('div', null, panel);
+    list.className = 'operation-list';
+    const maximum = operations[0]?.totalMilliseconds || 1;
+    for (const operation of operations.slice(0, 6)) {
+        const button = element('button', null, list);
+        button.className = 'operation-row';
+        const label = element('span', null, button);
+        label.className = 'operation-label';
+        element('span', operation.name, label);
+        element('strong', briefDuration(operation.totalMilliseconds), label);
+        const track = element('span', null, button);
+        track.className = 'operation-track';
+        const bar = element('span', null, track);
+        bar.style.width = 100 * operation.totalMilliseconds / maximum + '%';
+        element('small', number(operation.count) + (operation.count === 1 ? ' call' : ' calls') + (operation.busyMilliseconds == null ? '' : ' · ' + briefDuration(operation.busyMilliseconds) + ' covered'), button);
+        button.addEventListener('click', () => {
+            $('kind').value = 'operation';
+            $('search').value = operation.name;
+            refresh();
+            fit();
+            openTimeline();
+        });
+    }
+    if (!operations.length) element('p', 'No operation timings were recorded for this step.', list).className = 'muted';
+    const inspect = element('button', 'Open step timeline →', panel);
+    inspect.className = 'inspect-button';
+    inspect.addEventListener('click', () => { selectStage(step); openTimeline(); });
+}
+buildOverview();
+$('clear-stage').addEventListener('click', () => selectStage(null));
+$('advanced').addEventListener('toggle', draw);
+
 $('timeline-scroll').addEventListener('scroll',draw);window.addEventListener('resize',draw);refresh();
 </script></body></html>
