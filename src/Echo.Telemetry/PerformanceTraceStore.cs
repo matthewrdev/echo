@@ -76,7 +76,8 @@ public sealed class PerformanceTraceStore : IPerformanceTraceStore
                 Summary = trace.Summary,
                 SpanBytes = length,
                 ActiveSpans = trace.Spans.Where(span => span.Status == PerformanceStatus.Running).ToList(),
-                Statistics = trace.Statistics
+                Statistics = trace.Statistics,
+                Measurements = trace.Measurements
             };
             files.AtomicWrite(path, stream => JsonSerializer.Serialize(stream, header, metadata.PerformanceTraceHeader));
             var summaries = List(runDirectory).Where(item => item.Id != trace.Summary.Id).ToList();
@@ -91,17 +92,26 @@ public sealed class PerformanceTraceStore : IPerformanceTraceStore
         return File.Exists(path) ? json.Read<List<PerformanceTraceSummary>>(path).OrderByDescending(item => item.StartedAt).ToArray() : [];
     }
 
-    public PerformanceTraceDocument Read(string runDirectory, string attemptId)
+    public PerformanceTraceDocument Read(string runDirectory, string attemptId, bool includeSpans = true)
     {
         var path = TracePath(runDirectory, attemptId);
         var header = json.Read<PerformanceTraceHeader>(path);
         if (header.SchemaVersion == 1)
         {
-            return json.Read<PerformanceTraceDocument>(path);
+            var legacy = json.Read<PerformanceTraceDocument>(path);
+            if (!includeSpans)
+            {
+                legacy.Spans.Clear();
+            }
+            return legacy;
         }
         if (header.SchemaVersion != 2 || header.SpanBytes < 0)
         {
             throw new InvalidDataException("Unsupported performance trace storage.");
+        }
+        if (!includeSpans)
+        {
+            return new PerformanceTraceDocument { Summary = header.Summary, Statistics = header.Statistics, Measurements = header.Measurements };
         }
         var spans = new Dictionary<long, PerformanceSpan>();
         using var stream = new FileStream(Path.ChangeExtension(path, ".spans.ndjson"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -132,7 +142,8 @@ public sealed class PerformanceTraceStore : IPerformanceTraceStore
         {
             Summary = header.Summary,
             Spans = spans.Values.OrderBy(span => span.Id).ToList(),
-            Statistics = header.Statistics
+            Statistics = header.Statistics,
+            Measurements = header.Measurements
         };
     }
 

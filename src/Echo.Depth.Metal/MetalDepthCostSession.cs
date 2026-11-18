@@ -3,6 +3,7 @@ using Echo.Telemetry;
 using Echo.Contracts;
 using System.Buffers;
 using Echo.Geometry;
+using System.Diagnostics;
 
 namespace Echo.Depth.Metal;
 
@@ -40,6 +41,10 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
             return 0;
         }
         using var span = trace.Begin("Stereo depth cost batch", PerformanceSpanKind.Compute, PerformanceBackend.Metal);
+        var packingStarted = span == null ? 0 : Stopwatch.GetTimestamp();
+        var packedAt = 0L;
+        var acquiredAt = 0L;
+        var finishedAt = 0L;
         var gpu = 0.0;
         var planeCount = samples[0].Hypotheses.Length;
         var costCount = checked(samples.Count * planeCount);
@@ -77,8 +82,10 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                     depths[index * planeCount + plane] = (float)hypotheses[plane];
                 }
             }
+            packedAt = span == null ? 0 : Stopwatch.GetTimestamp();
             lock (gate)
             {
+                acquiredAt = span == null ? 0 : Stopwatch.GetTimestamp();
                 cancellation.ThrowIfCancellationRequested();
                 var before = MetalDepthNative.GpuTime(handle);
                 error.Clear();
@@ -87,6 +94,7 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                     throw new DepthAccelerationException(error.ToString());
                 }
                 gpu = MetalDepthNative.GpuTime(handle) - before;
+                finishedAt = span == null ? 0 : Stopwatch.GetTimestamp();
             }
             cancellation.ThrowIfCancellationRequested();
             return costCount;
@@ -104,6 +112,15 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
         finally
         {
             span?.Measure(costCount, gpuMilliseconds: gpu);
+            if (span != null && finishedAt > 0)
+            {
+                // Aggregate only: retaining three extra spans for every batch would
+                // add substantial allocation and journal overhead to the depth loop.
+                trace.Measurement("Depth batch input packing", Stopwatch.GetElapsedTime(packingStarted, packedAt).TotalMilliseconds, "ms");
+                trace.Measurement("Depth session lock wait", Stopwatch.GetElapsedTime(packedAt, acquiredAt).TotalMilliseconds, "ms");
+                trace.Measurement("Depth native execution and readback", Stopwatch.GetElapsedTime(acquiredAt, finishedAt).TotalMilliseconds, "ms");
+                trace.Measurement("Depth samples per batch", samples.Count, "samples");
+            }
             ArrayPool<float>.Shared.Return(jobs);
             ArrayPool<float>.Shared.Return(depths);
         }

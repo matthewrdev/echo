@@ -44,4 +44,7 @@ public sealed class PerformanceTraceService : IPerformanceTrace
     }
 
     public void Operation(OperationProgress progress, PerformanceBackend? backend = null) => scope.Value?.Operation(progress, backend);
+
+    public void Measurement(string name, double value, string unit = "items")
+        => session.Value?.Measurement(scope.Value?.Span.Stage ?? "preparation", name, value, unit);
 }

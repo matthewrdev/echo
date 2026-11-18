@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Storage;
+using Echo.Telemetry;
 
 namespace Echo.Texturing;
 
@@ -9,12 +10,15 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
 {
     private readonly ITexturePatchBuilder builder;
     private readonly ITexturePatchPacker packer;
+    private readonly IPerformanceTrace? trace;
 
     [ImportingConstructor]
-    public TextureLayoutPlanner(ITexturePatchBuilder builder, ITexturePatchPacker packer)
+    public TextureLayoutPlanner(ITexturePatchBuilder builder, ITexturePatchPacker packer,
+        [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
     {
         this.builder = builder;
         this.packer = packer;
+        this.trace = trace;
     }
 
     public TextureLayout Plan(ProjectData project, ReconstructionScene scene, Surface mesh,
@@ -33,7 +37,12 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
         }
         var patches = builder.Build(project, scene, mesh, cancellation, progress: progress, work: work, priorityBands: priorities);
         TexturePriorityBudget.Apply(patches, priorities);
-        var baseline = packer.Pack(patches, resolution.MinimumSize, resolution.MinimumGutter, cancellation, progress, project.Settings.ComputeBackend);
+        double baseline;
+        using (var packing = trace?.Begin("Pack baseline texture charts", PerformanceSpanKind.Operation, PerformanceBackend.Mixed))
+        {
+            baseline = packer.Pack(patches, resolution.MinimumSize, resolution.MinimumGutter, cancellation, progress, project.Settings.ComputeBackend);
+            packing?.Measure(patches.Count);
+        }
         var best = new TextureLayout { Patches = patches, TexelsPerWorldUnit = baseline, BaselineTexelsPerWorldUnit = baseline };
         var optimise = vegetationFaces != null && vegetationFaces.Any(value => value) && project.Settings.VegetationTextureScale < 1;
         if (!optimise)
@@ -58,7 +67,12 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
             {
                 continue;
             }
-            var scale = packer.TryPack(candidate, resolution.MinimumSize, resolution.MinimumGutter, cancellation, progress, project.Settings.ComputeBackend);
+            double? scale;
+            using (var packing = trace?.Begin("Pack vegetation texture candidate", PerformanceSpanKind.Operation, PerformanceBackend.Mixed))
+            {
+                scale = packer.TryPack(candidate, resolution.MinimumSize, resolution.MinimumGutter, cancellation, progress, project.Settings.ComputeBackend);
+                packing?.Measure(candidate.Count);
+            }
             if (scale.HasValue && scale.Value >= best.TexelsPerWorldUnit)
             {
                 best = new TextureLayout

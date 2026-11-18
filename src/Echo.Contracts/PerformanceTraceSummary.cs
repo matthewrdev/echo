@@ -2,6 +2,14 @@ namespace Echo.Contracts;
 
 public sealed record PerformanceTraceSummary
 {
+    public long DroppedMeasurements
+    {
+        get; set;
+    }
+    public PerformanceTraceEnvironment? Environment
+    {
+        get; set;
+    }
     public string Id { get; set; } = "";
     public string RunId { get; set; } = "";
     public string Target { get; set; } = "";

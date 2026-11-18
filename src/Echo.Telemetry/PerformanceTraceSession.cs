@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime;
+using System.Runtime.InteropServices;
 using Echo.Contracts;
 
 namespace Echo.Telemetry;
@@ -16,7 +18,8 @@ public sealed class PerformanceTraceSession : IDisposable
     private readonly List<PerformanceSpan> pending = [];
     private readonly HashSet<long> retained = [];
     private readonly Dictionary<string, int> detailCounts = [];
-    private readonly Dictionary<PerformanceStatisticKey, PerformanceStatistic> statistics = [];
+    private readonly Dictionary<PerformanceStatisticKey, PerformanceStatisticAccumulator> statistics = [];
+    private readonly Dictionary<PerformanceMeasurementKey, PerformanceMeasurement> measurements = [];
     private readonly PerformanceTraceSummary summary;
     private long nextId;
     private bool disposed;
@@ -32,7 +35,10 @@ public sealed class PerformanceTraceSession : IDisposable
             RunId = runId,
             Target = target,
             StartedAt = DateTimeOffset.UtcNow,
-            Status = PerformanceStatus.Running
+            Status = PerformanceStatus.Running,
+            Environment = new PerformanceTraceEnvironment(RuntimeInformation.FrameworkDescription,
+                RuntimeInformation.OSDescription, RuntimeInformation.ProcessArchitecture.ToString(),
+                Environment.ProcessorCount, GCSettings.IsServerGC)
         };
     }
 
@@ -56,6 +62,13 @@ public sealed class PerformanceTraceSession : IDisposable
             };
             var scope = new PerformanceTraceScope(this, span, restoreScope);
             active.Add(span.Id, scope);
+            var key = new PerformanceStatisticKey(stage, name, kind, backend);
+            if (!statistics.TryGetValue(key, out var accumulator))
+            {
+                accumulator = new PerformanceStatisticAccumulator(key);
+                statistics.Add(key, accumulator);
+            }
+            accumulator.Begin(span.StartMilliseconds);
             return scope;
         }
     }
@@ -68,7 +81,8 @@ public sealed class PerformanceTraceSession : IDisposable
             {
                 return;
             }
-            span.DurationMilliseconds = Math.Max(0, clock.Elapsed.TotalMilliseconds - span.StartMilliseconds);
+            var now = clock.Elapsed.TotalMilliseconds;
+            span.DurationMilliseconds = Math.Max(0, now - span.StartMilliseconds);
             span.Status = status;
             // Preserve every operation/checkpoint and budget dispatch detail separately
             // for each stage, so feature extraction cannot consume the entire timeline.
@@ -91,22 +105,8 @@ public sealed class PerformanceTraceSession : IDisposable
                 summary.DroppedSpans++;
             }
             var key = new PerformanceStatisticKey(span.Stage, span.Name, span.Kind, span.Backend);
-            if (!statistics.TryGetValue(key, out var statistic))
-            {
-                statistic = new PerformanceStatistic { Stage = span.Stage, Name = span.Name, Kind = span.Kind, Backend = span.Backend };
-                statistics.Add(key, statistic);
-            }
-            statistic.Count++;
-            statistic.ReusedCount += status == PerformanceStatus.Reused ? 1 : 0;
-            statistic.FailedCount += status is PerformanceStatus.Failed or PerformanceStatus.Cancelled or PerformanceStatus.Interrupted ? 1 : 0;
-            statistic.TotalMilliseconds += span.DurationMilliseconds;
-            statistic.MaximumMilliseconds = Math.Max(statistic.MaximumMilliseconds, span.DurationMilliseconds);
-            statistic.Items += span.Items ?? 0;
-            statistic.Bytes += span.Bytes;
-            if (span.GpuMilliseconds.HasValue)
-            {
-                statistic.GpuMilliseconds = (statistic.GpuMilliseconds ?? 0) + span.GpuMilliseconds.Value;
-            }
+            var accumulator = statistics[key];
+            accumulator.End(span, now);
         }
     }
 
@@ -116,7 +116,7 @@ public sealed class PerformanceTraceSession : IDisposable
         {
             if (span.Status != PerformanceStatus.Running)
             {
-                var statistic = statistics[new PerformanceStatisticKey(span.Stage, span.Name, span.Kind, span.Backend)];
+                var statistic = statistics[new PerformanceStatisticKey(span.Stage, span.Name, span.Kind, span.Backend)].Statistic;
                 statistic.Items += (items ?? 0) - (span.Items ?? 0);
                 statistic.Bytes += bytes - span.Bytes;
                 if (gpuMilliseconds.HasValue)
@@ -134,6 +134,42 @@ public sealed class PerformanceTraceSession : IDisposable
                 {
                 });
             }
+        }
+    }
+
+    internal PerformanceResourceSample? CaptureResources(PerformanceSpanKind kind)
+        => kind is PerformanceSpanKind.Stage or PerformanceSpanKind.Operation or PerformanceSpanKind.Checkpoint
+            ? new PerformanceResourceSample(kind == PerformanceSpanKind.Stage, process) : null;
+
+    internal void CompleteResources(PerformanceResourceSample? resources, PerformanceSpan span) => resources?.Complete(span, process);
+
+    internal void Measurement(string stage, string name, double value, string unit)
+    {
+        if (!double.IsFinite(value))
+        {
+            return;
+        }
+        lock (gate)
+        {
+            if (summary.Status != PerformanceStatus.Running)
+            {
+                return;
+            }
+            var key = new PerformanceMeasurementKey(stage, name, unit);
+            if (!measurements.TryGetValue(key, out var measurement))
+            {
+                if (measurements.Count >= 256)
+                {
+                    summary.DroppedMeasurements++;
+                    return;
+                }
+                measurement = new PerformanceMeasurement { Stage = stage, Name = name, Unit = unit, Minimum = value, Maximum = value };
+                measurements.Add(key, measurement);
+            }
+            measurement.Count++;
+            measurement.Total += value;
+            measurement.Minimum = Math.Min(measurement.Minimum, value);
+            measurement.Maximum = Math.Max(measurement.Maximum, value);
         }
     }
 
@@ -155,7 +191,8 @@ public sealed class PerformanceTraceSession : IDisposable
                     {
                         DurationMilliseconds = Math.Max(0, clock.Elapsed.TotalMilliseconds - scope.Span.StartMilliseconds)
                     })).ToList(),
-                    Statistics = statistics.Values.Select(value => value with { }).ToList()
+                    Statistics = statistics.Values.Select(value => value.Snapshot(clock.Elapsed.TotalMilliseconds)).ToList(),
+                    Measurements = measurements.Values.Select(value => value with { }).ToList()
                 }
             };
         }
@@ -184,7 +221,8 @@ public sealed class PerformanceTraceSession : IDisposable
                 {
                     DurationMilliseconds = Math.Max(0, clock.Elapsed.TotalMilliseconds - scope.Span.StartMilliseconds)
                 })).OrderBy(span => span.Id).ToList(),
-                Statistics = statistics.Values.Select(value => value with { }).ToList()
+                Statistics = statistics.Values.Select(value => value.Snapshot(clock.Elapsed.TotalMilliseconds)).ToList(),
+                Measurements = measurements.Values.Select(value => value with { }).ToList()
             };
         }
     }

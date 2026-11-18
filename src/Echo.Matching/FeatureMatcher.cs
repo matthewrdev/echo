@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Compute;
+using Echo.Telemetry;
 
 namespace Echo.Matching;
 
@@ -9,17 +10,27 @@ namespace Echo.Matching;
 public sealed class FeatureMatcher : IFeatureMatcher
 {
     private readonly IComputeService? compute;
+    private readonly IPerformanceTrace? trace;
 
     [ImportingConstructor]
-    public FeatureMatcher([Import(AllowDefault = true)] IComputeService? compute = null)
+    public FeatureMatcher([Import(AllowDefault = true)] IComputeService? compute = null,
+        [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
     {
         this.compute = compute;
+        this.trace = trace;
     }
 
     public ImagePair Match(FeatureSet leftFeatures, FeatureSet rightFeatures, Settings settings, CancellationToken cancellation)
     {
-        var points = DescriptorMatcher.Match<Feature>(CollectionsMarshal.AsSpan(leftFeatures.Features),
-            CollectionsMarshal.AsSpan(rightFeatures.Features), settings, cancellation, compute: compute);
+        trace?.Measurement("Point descriptors per input", leftFeatures.Features.Count, "descriptors");
+        trace?.Measurement("Point descriptors per input", rightFeatures.Features.Count, "descriptors");
+        DescriptorMatches points;
+        using (var matching = trace?.Begin("Match point descriptors", PerformanceSpanKind.Operation, PerformanceBackend.Mixed))
+        {
+            points = DescriptorMatcher.Match<Feature>(CollectionsMarshal.AsSpan(leftFeatures.Features),
+                CollectionsMarshal.AsSpan(rightFeatures.Features), settings, cancellation, compute: compute);
+            matching?.Measure(points.Matches.Count);
+        }
         var result = new ImagePair { A = leftFeatures.ImageId, B = rightFeatures.ImageId, Diagnostics = points.Diagnostics };
         foreach (var match in points.Matches)
         {
@@ -34,8 +45,13 @@ public sealed class FeatureMatcher : IFeatureMatcher
             });
         }
 
-        var lines = DescriptorMatcher.Match<LineFeature>(CollectionsMarshal.AsSpan(leftFeatures.Lines),
-            CollectionsMarshal.AsSpan(rightFeatures.Lines), settings, cancellation, allowReversedDescriptor: true, compute: compute);
+        DescriptorMatches lines;
+        using (var matching = trace?.Begin("Match line descriptors", PerformanceSpanKind.Operation, PerformanceBackend.Mixed))
+        {
+            lines = DescriptorMatcher.Match<LineFeature>(CollectionsMarshal.AsSpan(leftFeatures.Lines),
+                CollectionsMarshal.AsSpan(rightFeatures.Lines), settings, cancellation, allowReversedDescriptor: true, compute: compute);
+            matching?.Measure(lines.Matches.Count);
+        }
         foreach (var match in lines.Matches)
         {
             var first = leftFeatures.Lines[match.A];

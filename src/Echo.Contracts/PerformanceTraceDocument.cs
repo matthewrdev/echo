@@ -6,4 +6,5 @@ public sealed class PerformanceTraceDocument
     public PerformanceTraceSummary Summary { get; set; } = new();
     public List<PerformanceSpan> Spans { get; set; } = [];
     public List<PerformanceStatistic> Statistics { get; set; } = [];
+    public List<PerformanceMeasurement> Measurements { get; set; } = [];
 }

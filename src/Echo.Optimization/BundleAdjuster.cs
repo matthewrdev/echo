@@ -158,6 +158,11 @@ public sealed class BundleAdjuster : IBundleAdjuster
         var h = new double[checked(parameter * parameter)];
         var b = new double[parameter];
         var blocks = new PointBlock[tracks.Count];
+        trace?.Measurement("Bundle cameras per solve", cameras.Count, "cameras");
+        trace?.Measurement("Bundle tracks per solve", tracks.Count, "tracks");
+        trace?.Measurement("Bundle observations per solve", tracks.Sum(track => (long)track.Observations.Count), "observations");
+        trace?.Measurement("Bundle camera system dimension", parameter, "parameters");
+        trace?.Measurement("Bundle dense matrix size", (long)parameter * parameter * sizeof(double), "bytes");
         for (var i = 0; i < blocks.Length; i++)
         {
             blocks[i] = new PointBlock();
@@ -165,6 +170,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
 
         for (var iteration = 0; iteration < project.Settings.BundleIterations; iteration++)
         {
+            trace?.Measurement("Bundle attempted iterations", 1, "iterations");
             trace?.Operation(new OperationProgress("Assemble bundle system", "Accumulating camera and point constraints"), PerformanceBackend.Cpu);
             cancellation.ThrowIfCancellationRequested();
             h.AsSpan().Clear();
@@ -289,20 +295,34 @@ public sealed class BundleAdjuster : IBundleAdjuster
             }
 
             trace?.Operation(new OperationProgress("Solve bundle camera system", "Solving camera increments"), PerformanceBackend.Cpu);
-            var matrix = DenseMatrix.Create(parameter, parameter, (r, c) => h[r * parameter + c]);
+            DenseMatrix matrix;
+            using (trace?.Begin("Copy bundle camera matrix", PerformanceSpanKind.Operation))
+            {
+                matrix = DenseMatrix.Create(parameter, parameter, (r, c) => h[r * parameter + c]);
+            }
             Vector<double> delta;
             try
             {
-                delta = matrix.Cholesky().Solve(DenseVector.OfArray(b));
+                MathNet.Numerics.LinearAlgebra.Factorization.Cholesky<double> factor;
+                using (trace?.Begin("Factor bundle camera matrix", PerformanceSpanKind.Operation))
+                {
+                    factor = matrix.Cholesky();
+                }
+                using (trace?.Begin("Back-substitute bundle update", PerformanceSpanKind.Operation))
+                {
+                    delta = factor.Solve(DenseVector.OfArray(b));
+                }
             }
             catch (ArgumentException)
             {
+                trace?.Measurement("Bundle factorisation failures", 1, "iterations");
                 lambda *= 10;
                 continue;
             }
 
             if (!delta.All(double.IsFinite))
             {
+                trace?.Measurement("Bundle non-finite updates", 1, "iterations");
                 lambda *= 10;
                 continue;
             }
@@ -371,6 +391,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 cost = nextCost;
                 lambda = Math.Max(1e-7, lambda * .4);
                 report.AcceptedIterations++;
+                trace?.Measurement("Bundle accepted updates", 1, "iterations");
                 if (iteration % 5 == 4)
                 {
                     UpdateScene(scene, tracks, photos);
@@ -384,6 +405,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             }
             else
             {
+                trace?.Measurement("Bundle rejected updates", 1, "iterations");
                 for (var i = 0; i < cameras.Count; i++)
                 {
                     oldCameras[i].Restore(cameras[i]);

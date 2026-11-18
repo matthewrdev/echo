@@ -10,4 +10,5 @@ public sealed class PerformanceTraceHeader
     }
     public List<PerformanceSpan> ActiveSpans { get; set; } = [];
     public List<PerformanceStatistic> Statistics { get; set; } = [];
+    public List<PerformanceMeasurement> Measurements { get; set; } = [];
 }

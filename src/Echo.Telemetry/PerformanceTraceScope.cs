@@ -6,6 +6,7 @@ public sealed class PerformanceTraceScope : IDisposable
 {
     private readonly PerformanceTraceSession session;
     private readonly Action restore;
+    private readonly PerformanceResourceSample? resources;
     private PerformanceTraceScope? operation;
     private bool completed;
     private bool disposed;
@@ -15,6 +16,7 @@ public sealed class PerformanceTraceScope : IDisposable
         this.session = session;
         Span = span;
         this.restore = restore;
+        resources = session.CaptureResources(span.Kind);
     }
 
     internal PerformanceSpan Span
@@ -67,6 +69,7 @@ public sealed class PerformanceTraceScope : IDisposable
             operation?.Complete(status);
             operation = null;
             completed = true;
+            session.CompleteResources(resources, Span);
             session.End(Span, status);
         }
     }
