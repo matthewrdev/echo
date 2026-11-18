@@ -78,4 +78,46 @@ if sys.argv[2]:
 print(f'Original binary metadata payload preserved: {len(payload)} bytes.')
 PY
 fi
+python3 - "$scratch" <<'PY'
+import json, pathlib, struct, sys
+
+root = pathlib.Path(sys.argv[1])
+# A tiny textured triangle exercises the native renderer in the relocated bundle.
+image = next((root / 'photos').iterdir()).read_bytes()
+if image[:8] != b'\x89PNG\r\n\x1a\n':
+    # Optional metadata fixtures can be JPEGs; create a separate known PNG.
+    import zlib
+    def chunk(kind, data):
+        return struct.pack('!I', len(data)) + kind + data + struct.pack('!I', zlib.crc32(kind + data))
+    image = (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('!2I5B', 1, 1, 8, 2, 0, 0, 0))
+             + chunk(b'IDAT', zlib.compress(b'\0\xff\0\0')) + chunk(b'IEND', b''))
+binary = struct.pack('<15f3I', -1, -1, 0, 1, -1, 0, 0, 1, 0, 0, 0, 1, 0, .5, 1, 0, 1, 2) + image
+binary += bytes((-len(binary)) % 4)
+document = {
+    'asset': {'version': '2.0'}, 'buffers': [{'byteLength': len(binary)}],
+    'bufferViews': [{'buffer': 0, 'byteOffset': offset, 'byteLength': length}
+                    for offset, length in [(0, 36), (36, 24), (60, 12), (72, len(image))]],
+    'accessors': [{'bufferView': 0, 'componentType': 5126, 'count': 3, 'type': 'VEC3'},
+                  {'bufferView': 1, 'componentType': 5126, 'count': 3, 'type': 'VEC2'},
+                  {'bufferView': 2, 'componentType': 5125, 'count': 3, 'type': 'SCALAR'}],
+    'meshes': [{'primitives': [{'attributes': {'POSITION': 0, 'TEXCOORD_0': 1}, 'indices': 2, 'material': 0}]}],
+    'materials': [{'pbrMetallicRoughness': {'baseColorTexture': {'index': 0}}}],
+    'textures': [{'source': 0}], 'images': [{'bufferView': 3, 'mimeType': 'image/png'}],
+}
+encoded = json.dumps(document).encode()
+encoded += b' ' * ((-len(encoded)) % 4)
+glb = (struct.pack('<5I', 0x46546c67, 2, 28 + len(encoded) + len(binary), len(encoded), 0x4e4f534a)
+       + encoded + struct.pack('<2I', len(binary), 0x004e4942) + binary)
+(root / 'render model.glb').write_bytes(glb)
+PY
+run_cli render "$scratch/render model.glb" --output "$scratch/render preview.png" --width 320 --height 200 > "$scratch/render.json"
+python3 - "$scratch" <<'PY'
+import json, pathlib, struct, sys
+root = pathlib.Path(sys.argv[1])
+result = json.loads((root / 'render.json').read_text())
+assert result['triangles'] == 1 and result['vertices'] == 3, result
+png = (root / 'render preview.png').read_bytes()
+assert png[:8] == b'\x89PNG\r\n\x1a\n' and struct.unpack('!2I', png[16:24]) == (320, 200)
+print('Rendered a PNG through the bundled native renderer without external tools.')
+PY
 echo 'Relocated self-contained package check passed.'

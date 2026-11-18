@@ -52,6 +52,10 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH export-gis --output NEW_DIRECTORY [--run RUN_ID]
     echo-photo inspect-glb FILE
     echo-photo compare-glb FILE REFERENCE
+    echo-photo render FILE.glb --output NEW_FILE.png
+    echo-photo --project PATH render --output NEW_FILE.png [--run RUN_ID]
+        [--width 1600 --height 1000] [--view front|back|left|right|top|oblique]
+        [--mode textured|solid|wireframe|normals]
     echo-photo doctor
     echo-photo runtime-info
 
@@ -62,6 +66,8 @@ public sealed class CommandApplication : ICommandApplication
     Run options override only the new run; saved project settings are unchanged.
     Cancellation: Ctrl-C or run cancel RUN_ID. Resume preserves the original inputs.
     Outputs live in immutable project artifacts; input photos are never modified.
+    Rendering requires macOS/Metal and an exported Echo GLB; the project default is its latest run.
+    Render writes a new PNG without opening a window. Maximum size: 8192 per side, 16,777,216 pixels total.
     """;
 
     [ImportingConstructor]

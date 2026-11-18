@@ -1,4 +1,5 @@
 import SceneKit
+import simd
 
 struct SceneBounds {
     let minimum: SCNVector3
@@ -28,11 +29,19 @@ struct SceneBounds {
     }
 
     func fit(camera: SCNNode, size: CGSize, direction: SceneViewDirection = .north) {
+        fit(camera: camera, size: size, offset: direction.offset, up: direction.up)
+    }
+
+    func fit(camera: SCNNode, size: CGSize, offset: SCNVector3, up: SCNVector3) {
         let aspect = max(0.1, Double(size.width / max(1, size.height)))
         let tangent = tan(25 * Double.pi / 180)
-        let offset = direction.offset
         camera.position = SCNVector3(centre.x + offset.x, centre.y + offset.y, centre.z + offset.z)
-        camera.look(at: centre, up: direction.up, localFront: SCNVector3(0, 0, -1))
+        // An explicit camera basis also handles the exact 180-degree back view,
+        // where SceneKit's look-at rotation can leave an identity orientation.
+        let backward = simd_normalize(SIMD3<Float>(Float(offset.x), Float(offset.y), Float(offset.z)))
+        let horizontal = simd_normalize(simd_cross(SIMD3<Float>(Float(up.x), Float(up.y), Float(up.z)), backward))
+        let vertical = simd_cross(backward, horizontal)
+        camera.simdOrientation = simd_quatf(simd_float3x3(columns: (horizontal, vertical, backward)))
         var distance = 0.01
         // Fit every corner in the chosen camera basis, including depth and aspect.
         for x in [minimum.x, maximum.x] {

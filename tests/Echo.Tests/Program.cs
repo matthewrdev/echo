@@ -121,6 +121,7 @@ if (args.Contains("--disk-io", StringComparer.Ordinal))
 }
 composition.Resolve<GisExportTests>().Run(scaleTests);
 composition.Resolve<GisCommandTests>().Run(scaleTests);
+composition.Resolve<RenderCommandTests>().Run(scaleTests);
 composition.Resolve<PagingTests>().Run(scaleTests);
 composition.Resolve<PagingSerializationTests>().Run(scaleTests);
 if (args.Contains("--paging", StringComparer.Ordinal))
