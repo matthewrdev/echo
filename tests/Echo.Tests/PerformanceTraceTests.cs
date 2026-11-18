@@ -76,10 +76,44 @@ public sealed class PerformanceTraceTests
             }
             session.Finish(PerformanceStatus.Completed);
             var saved = session.Snapshot();
-            Check(saved.Spans.Count == 20001 && saved.Summary.DroppedSpans == 100, "Timeline is not bounded");
+            Check(saved.Spans.Count == 2001 && saved.Summary.DroppedSpans == 18100, "Timeline is not bounded");
             Check(saved.Spans.Any(span => span.Kind == PerformanceSpanKind.Stage), "Stage boundary was dropped");
             Check(saved.Statistics.Single(value => value.Name == "batch").Items == 20100, "Truncation lost aggregate work");
         });
+        tests.Run("Trace journals append new work, recover torn tails, and retain later stages", () => WithProject(store =>
+        {
+            using var session = trace.BeginRun(Guid.NewGuid().ToString("N"), "matching");
+            using (trace.Begin("features", PerformanceSpanKind.Stage, stage: "features"))
+            {
+                for (var index = 0; index < 2100; index++)
+                {
+                    using var item = trace.Begin("kernel", PerformanceSpanKind.Compute);
+                }
+            }
+            var first = session.CaptureCheckpoint();
+            var directory = store.PathFor($"runs/{first.Document.Summary.RunId}");
+            traces.Save(directory, first.Document);
+            session.Acknowledge(first);
+            var path = Path.Combine(directory, "traces", first.Document.Summary.Id + ".spans.ndjson");
+            var original = File.ReadAllBytes(path);
+            File.AppendAllText(path, "unfinished record");
+            using (trace.Begin("matching", PerformanceSpanKind.Stage, stage: "matching"))
+            {
+                using var operation = trace.Begin("verify pair", PerformanceSpanKind.Operation);
+                using var kernel = trace.Begin("later kernel", PerformanceSpanKind.Compute);
+            }
+            var next = session.CaptureCheckpoint();
+            Check(next.Document.Spans.Count == 3, "An incremental snapshot repeated completed history");
+            traces.Save(directory, next.Document);
+            session.Acknowledge(next);
+            var appended = File.ReadAllBytes(path);
+            Check(appended.AsSpan(0, original.Length).SequenceEqual(original), "Previously committed bytes changed");
+            var saved = traces.Read(directory, first.Document.Summary.Id);
+            Check(saved.Spans.Count == 2004 && saved.Spans.Any(span => span.Name == "later kernel"), "Later-stage detail was lost");
+            var length = appended.Length;
+            traces.Save(directory, session.CaptureCheckpoint().Document);
+            Check(new FileInfo(path).Length == length, "Heartbeat appended old history");
+        }));
         tests.Run("Saved traces retain separate attempts, reuse and cancellation", () => WithProject(store =>
         {
             var run = new RunData { Id = Guid.NewGuid().ToString("N"), StorageVersion = 3, Target = "features", Snapshot = store.Load() };

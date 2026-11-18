@@ -17,6 +17,7 @@ public sealed class RunContext : IDisposable
     private readonly Action<object>? output;
     private readonly JsonSerializerOptions eventOptions;
     private readonly object reportGate = new();
+    private readonly object traceSaveGate = new();
     private readonly OperationProgressFilter progressFilter = new();
     private readonly Stopwatch progressClock = Stopwatch.StartNew();
     private readonly HashSet<string> processingStages = new(StringComparer.Ordinal);
@@ -645,7 +646,12 @@ public sealed class RunContext : IDisposable
         }
         try
         {
-            traces.Save(Store.PathFor($"runs/{Run.Id}"), traceSession.Snapshot());
+            lock (traceSaveGate)
+            {
+                var checkpoint = traceSession.CaptureCheckpoint();
+                traces.Save(Store.PathFor($"runs/{Run.Id}"), checkpoint.Document);
+                traceSession.Acknowledge(checkpoint);
+            }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {

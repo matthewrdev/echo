@@ -7,6 +7,7 @@ namespace Echo.Infrastructure;
 [JsonSerializable(typeof(AlignmentPreview))]
 [JsonSerializable(typeof(FusionPreview))]
 [JsonSerializable(typeof(PerformanceTraceDocument))]
+[JsonSerializable(typeof(PerformanceTraceHeader))]
 [JsonSerializable(typeof(List<PerformanceTraceSummary>))]
 [JsonSerializable(typeof(ProjectData))]
 [JsonSerializable(typeof(RunData))]

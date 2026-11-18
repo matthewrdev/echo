@@ -13,12 +13,15 @@ public sealed class PerformanceTraceSession : IDisposable
     private readonly int capacity;
     private readonly Dictionary<long, PerformanceTraceScope> active = [];
     private readonly List<PerformanceSpan> completed = [];
+    private readonly List<PerformanceSpan> pending = [];
+    private readonly HashSet<long> retained = [];
+    private readonly Dictionary<string, int> detailCounts = [];
     private readonly Dictionary<PerformanceStatisticKey, PerformanceStatistic> statistics = [];
     private readonly PerformanceTraceSummary summary;
     private long nextId;
     private bool disposed;
 
-    public PerformanceTraceSession(string runId, string target, Action restore, int capacity = 20000)
+    public PerformanceTraceSession(string runId, string target, Action restore, int capacity = 2000)
     {
         this.restore = restore;
         this.capacity = Math.Max(1, capacity);
@@ -67,10 +70,21 @@ public sealed class PerformanceTraceSession : IDisposable
             }
             span.DurationMilliseconds = Math.Max(0, clock.Elapsed.TotalMilliseconds - span.StartMilliseconds);
             span.Status = status;
-            // Always retain stage boundaries, even when detailed dispatch history is full.
-            if (completed.Count < capacity || span.Kind == PerformanceSpanKind.Stage)
+            // Preserve every operation/checkpoint and budget dispatch detail separately
+            // for each stage, so feature extraction cannot consume the entire timeline.
+            var detailed = span.Kind is PerformanceSpanKind.Compute or PerformanceSpanKind.Transfer or PerformanceSpanKind.Wait;
+            var detailCount = detailCounts.GetValueOrDefault(span.Stage);
+            if (!detailed || detailCount < capacity)
             {
                 completed.Add(span);
+                retained.Add(span.Id);
+                pending.Add(span with
+                {
+                });
+                if (detailed)
+                {
+                    detailCounts[span.Stage] = detailCount + 1;
+                }
             }
             else
             {
@@ -113,6 +127,45 @@ public sealed class PerformanceTraceSession : IDisposable
             span.Items = items;
             span.Bytes = bytes;
             span.GpuMilliseconds = gpuMilliseconds;
+            if (span.Status != PerformanceStatus.Running && retained.Contains(span.Id))
+            {
+                // A failed GPU call can report its final counters after closing.
+                pending.Add(span with
+                {
+                });
+            }
+        }
+    }
+
+    public PerformanceTraceCheckpoint CaptureCheckpoint()
+    {
+        lock (gate)
+        {
+            if (summary.Status == PerformanceStatus.Running)
+            {
+                UpdateSummary();
+            }
+            return new PerformanceTraceCheckpoint
+            {
+                CompletedCount = pending.Count,
+                Document = new PerformanceTraceDocument
+                {
+                    Summary = summary with { },
+                    Spans = pending.Select(span => span with { }).Concat(active.Values.Select(scope => scope.Span with
+                    {
+                        DurationMilliseconds = Math.Max(0, clock.Elapsed.TotalMilliseconds - scope.Span.StartMilliseconds)
+                    })).ToList(),
+                    Statistics = statistics.Values.Select(value => value with { }).ToList()
+                }
+            };
+        }
+    }
+
+    public void Acknowledge(PerformanceTraceCheckpoint checkpoint)
+    {
+        lock (gate)
+        {
+            pending.RemoveRange(0, checkpoint.CompletedCount);
         }
     }
 
