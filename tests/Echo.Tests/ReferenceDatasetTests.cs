@@ -23,10 +23,12 @@ public sealed class ReferenceDatasetTests
         var datasets = JsonSerializer.Deserialize<List<ReferenceDataset>>(File.ReadAllText(path), options)
             ?? throw new InvalidDataException("Missing reference dataset catalogue.");
 
-        tests.Run("Reference catalogue contains one matched area in each requested region", () =>
+        tests.Run("Reference catalogue covers all requested regions and both Blue Lake areas", () =>
         {
             var regions = new[] { "siurana", "margalef", "blue-lake", "kalymnos", "rogers-canyon" };
-            Check(datasets.Select(dataset => dataset.Folder.Split('/')[0]).Order().SequenceEqual(regions.Order()), "Expected five distinct regions");
+            Check(datasets.Select(dataset => dataset.Folder.Split('/')[0]).Distinct().Order().SequenceEqual(regions.Order()), "Expected five distinct regions");
+            var blueLake = new[] { "blue-lake/elephant-buttress", "blue-lake/northern-buttress" };
+            Check(datasets.Where(dataset => dataset.Folder.StartsWith("blue-lake/", StringComparison.Ordinal)).Select(dataset => dataset.Folder).Order().SequenceEqual(blueLake.Order()), "Expected both Blue Lake source captures");
             Check(datasets.Select(dataset => dataset.AreaId).Distinct().Count() == datasets.Count, "Duplicate Red-Point area");
             foreach (var dataset in datasets)
             {
@@ -41,6 +43,55 @@ public sealed class ReferenceDatasetTests
         {
             tests.Run($"{dataset.Name}: complete original photo set and exact Red-Point model", () => ValidateFiles(assetsRoot, dataset, options));
             tests.Run($"{dataset.Name}: Echo imports representative original photographs", () => ImportPhotos(assetsRoot, dataset, options));
+        }
+
+        tests.Run("Blue Lake: both captures merge while retaining originals and avoiding repeat imports", () => ImportBlueLake(assetsRoot, datasets, options));
+    }
+
+    private void ImportBlueLake(string root, List<ReferenceDataset> datasets, JsonSerializerOptions options)
+    {
+        var temporary = Path.Combine(Path.GetTempPath(), "echo-blue-lake-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = stores.Open(Path.Combine(temporary, "combined.echo"));
+            store.Init("Blue Lake combined");
+            var expected = new Dictionary<string, ReferencePhoto>(StringComparer.Ordinal);
+            foreach (var dataset in datasets.Where(dataset => dataset.Folder.StartsWith("blue-lake/", StringComparison.Ordinal)))
+            {
+                var directory = SafePath(root, dataset.Folder);
+                var manifest = ReadPhotos(directory, options);
+                var selected = new[] { manifest.Photos[0], manifest.Photos[manifest.Photos.Count / 2], manifest.Photos[^1] };
+                var inputs = Path.Combine(temporary, dataset.AreaId);
+                Directory.CreateDirectory(inputs);
+                for (var index = 0; index < selected.Length; index++)
+                {
+                    var photo = selected[index];
+                    var source = SafePath(Path.Combine(directory, "photos"), photo.File);
+                    File.Copy(source, Path.Combine(inputs, index + Path.GetExtension(source)));
+                    expected[photo.Sha256] = photo;
+                }
+
+                var imported = store.Import(inputs, dataset.Folder, int.MaxValue);
+                Check(imported.All(photo => photo.Sets.Contains(dataset.Folder)), "Capture provenance must survive import");
+                store.Import(inputs, dataset.Folder, int.MaxValue);
+            }
+
+            var project = store.Load();
+            Check(project.Images.Count == expected.Count, "Repeated imports must not duplicate photographs");
+            Check(project.Images.Select(photo => photo.Hash).ToHashSet().SetEquals(expected.Keys), "Combined project must contain both capture sets");
+            foreach (var photo in project.Images)
+            {
+                var original = expected[photo.Hash];
+                var retained = store.PathFor($"sources/{photo.Id}.original{Path.GetExtension(original.File).ToLowerInvariant()}");
+                Check(Hash(retained) == original.Sha256, "Merging captures must preserve original photo bytes");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(temporary))
+            {
+                Directory.Delete(temporary, true);
+            }
         }
     }
 

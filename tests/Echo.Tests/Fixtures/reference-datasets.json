@@ -68,5 +68,19 @@
     "polycamCaptureId": "95521cd2-5362-492d-940a-693cc242083c",
     "photoCount": 304,
     "photoManifestSha256": "6d9d72e349e4b40ab02ce936503ca39a52dbe10a78f603c04202cced4d26f465"
+  },
+  {
+    "name": "Northern Buttress",
+    "folder": "blue-lake/northern-buttress",
+    "areaId": "740e614c-4a88-4b47-af6a-5047c2e4121d",
+    "metadataPath": "world/oceania/australia/new-south-wales/snowy-mountains/blue-lake/northern-buttress",
+    "modelFile": "northern-buttress_hd.glb",
+    "modelUrl": "https://redpointaus.blob.core.windows.net/assets/740e614c-4a88-4b47-af6a-5047c2e4121d/northern-buttress_hd.glb",
+    "modelBytes": 3756524,
+    "modelSha256": "76924a510327d08e8ddf973e79029d30d97da97605b0399961f00bbf9d7331b9",
+    "modelMd5": "bdac22169feb07a480528fe80eeb0df4",
+    "polycamCaptureId": "60551f58-6953-42b2-b458-1c46f74c8e96",
+    "photoCount": 141,
+    "photoManifestSha256": "73a12d4d2d0985d14fe8f59bd38ae94be33aee5cfe061eeb1670a178571a83c7"
   }
 ]
