@@ -25,74 +25,17 @@ public static class FusionIslandTrimmer
             return new FusionIslandTrimResult { Volume = volume, InputRegions = 0 };
         }
 
-        var lookup = new BinaryHashIndex<Grid, int>(volume.Samples.Count, new GridRecordCodec(), new IntRecordCodec(), work, cancellation);
-        for (var index = 0; index < volume.Samples.Count; index++)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            var sample = volume.Samples[index];
-            lookup.Add(new Grid(sample.X, sample.Y, sample.Z), index);
-        }
-        IList<int> labels = work?.Filled(volume.Samples.Count, -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, volume.Samples.Count).ToArray();
-        IList<int> sizes = work?.List(new IntRecordCodec()) ?? new List<int>();
-        IList<int> pending = work?.List(new IntRecordCodec()) ?? new List<int>();
-        for (var seed = 0; seed < labels.Count; seed++)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            if (labels[seed] >= 0)
-            {
-                continue;
-            }
-            var label = sizes.Count;
-            var count = 0;
-            labels[seed] = label;
-            pending.Clear();
-            pending.Add(seed);
-            for (var next = 0; next < pending.Count; next++)
-            {
-                var index = pending[next];
-                cancellation.ThrowIfCancellationRequested();
-                count++;
-                if (count % 50000 == 0)
-                {
-                    progress?.Invoke($"Tracing fusion island {label + 1:N0}: {count:N0} samples");
-                }
-                var sample = volume.Samples[index];
-                // Corner neighbours belong to the same observed region too.
-                // Removing only whole 26-connected regions preserves every
-                // extraction cell and signed distance of the retained region.
-                for (var z = -1; z <= 1; z++)
-                {
-                    for (var y = -1; y <= 1; y++)
-                    {
-                        for (var x = -1; x <= 1; x++)
-                        {
-                            var key = new Grid(sample.X + x, sample.Y + y, sample.Z + z);
-                            if (lookup.TryGetValue(key, out var other) && labels[other] < 0)
-                            {
-                                labels[other] = label;
-                                pending.Add(other);
-                            }
-                        }
-                    }
-                }
-            }
-            sizes.Add(count);
-        }
-
-        var largest = 0;
-        for (var index = 1; index < sizes.Count; index++)
-        {
-            if (sizes[index] > sizes[largest])
-            {
-                largest = index;
-            }
-        }
+        using var scratch = work?.CreateScope(preferResident: true);
+        var components = FusionComponentLabeller.Build(volume.Samples, cancellation, scratch, progress);
+        var labels = components.Labels;
+        var sizes = components.Sizes;
+        var largest = components.Largest;
         var threshold = sizes[largest] * minimumSizePercent / 100;
         bool Remove(int label) => label != largest && (mode == IslandTrimMode.Main || sizes[label] < threshold);
-        var removedRegions = Enumerable.Range(0, sizes.Count).Count(Remove);
+        var removedRegions = Enumerable.Range(0, sizes.Count).Count(label => sizes[label] > 0 && Remove(label));
         if (removedRegions == 0)
         {
-            return new FusionIslandTrimResult { Volume = volume, InputRegions = sizes.Count };
+            return new FusionIslandTrimResult { Volume = volume, InputRegions = components.RegionCount };
         }
         var result = new FusedVolume
         {
@@ -113,7 +56,7 @@ public static class FusionIslandTrimmer
         return new FusionIslandTrimResult
         {
             Volume = result,
-            InputRegions = sizes.Count,
+            InputRegions = components.RegionCount,
             RemovedRegions = removedRegions,
             RemovedSamples = volume.Samples.Count - result.Samples.Count
         };

@@ -3,6 +3,7 @@ using Echo.Contracts;
 using Echo.Fusion;
 using Echo.Geometry;
 using Echo.Meshing;
+using Echo.Storage;
 using Grid = Echo.Fusion.Grid;
 
 namespace Echo.Tests;
@@ -122,6 +123,34 @@ public sealed class FusionQualityTests
             }
             catch (OperationCanceledException)
             {
+            }
+        });
+        tests.Run("Fusion labels preserve first-seen ties and connectivity when scratch buffers spill", () =>
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "echo-fusion-labels-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var volume = new FusedVolume { VoxelSize = .1 };
+                for (var index = 4999; index >= 0; index--)
+                {
+                    volume.Samples.Add(new VolumeSample { X = index, Y = index, Z = index, Distance = index * .01f, Views = 3 });
+                    volume.Samples.Add(new VolumeSample { X = index, Y = index, Z = index + 10000, Distance = index * -.01f, Views = 4 });
+                }
+                var expected = FusionIslandTrimmer.Trim(volume, IslandTrimMode.Main, 0, default);
+                Check(expected.InputRegions == 2 && expected.RemovedSamples == 5000 && expected.Volume.Samples[0].Z == 4999,
+                    "Equal-sized regions retain the first input region, including reverse input order and diagonal connectivity");
+                using var session = new BulkDataSession(65536 * 4, 0);
+                using var work = new WorkBuffers(session, directory);
+                var actual = FusionIslandTrimmer.Trim(volume, IslandTrimMode.Main, 0, default, work);
+                Check(actual.Volume.Samples.SequenceEqual(expected.Volume.Samples) && actual.RemovedRegions == expected.RemovedRegions,
+                    "Spilling connectivity buffers changed retained sample values or ordering");
+            }
+            finally
+            {
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, true);
+                }
             }
         });
         tests.Run("Fusion resolution is independent of the final triangle budget", () =>
