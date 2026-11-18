@@ -14,9 +14,15 @@
 .stage-row{width:100%;display:grid;grid-template-columns:180px minmax(0,1fr) 95px;gap:12px;align-items:center;padding:7px 10px;margin:0 0 4px;text-align:left;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--text)}.stage-row:hover{background:#243143}.stage-row[aria-pressed=true]{background:#26394a;border-color:var(--accent);color:var(--text)}.stage-row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.stage-label{display:flex;align-items:center;gap:10px;line-height:1.25}.stage-number{font:11px ui-monospace,monospace;color:var(--muted)}.stage-track{height:24px;position:relative;display:block;background:repeating-linear-gradient(to right,var(--line) 0,var(--line) 1px,transparent 1px,transparent 25%);border-right:1px solid var(--line)}.stage-bar{position:absolute;top:4px;height:16px;min-width:3px;max-width:100%;border-radius:3px;background:var(--stage-colour)}.stage-timing{text-align:right;font-variant-numeric:tabular-nums;line-height:1.3}.stage-timing strong{display:block;font-size:13px}.stage-timing small{display:block;color:var(--muted);font-size:11px}
 .stage-detail{padding:20px;background:#111b28;border:1px solid var(--line);border-radius:10px;min-height:360px}.eyebrow{font-size:11px;letter-spacing:1px;color:var(--accent);margin:0 0 7px}.stage-detail h3{font-size:23px;letter-spacing:-.5px;margin:0}.detail-duration{font-size:35px;font-weight:650;letter-spacing:-1px;margin:10px 0 0;font-variant-numeric:tabular-nums}.stage-detail>.muted{font-size:12px}.stage-resources{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.stage-resources small,.stage-resources strong{display:block}.stage-resources small{font-size:10px;color:var(--muted)}.stage-resources strong{font-size:12px;font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}.stage-detail h4{font-size:13px;margin:18px 0 0}.stage-detail .note{margin:5px 0 10px;font-size:11px}.operation-list{display:grid;gap:5px}.operation-row{width:100%;display:block;text-align:left;background:transparent;border:1px solid transparent;padding:7px 8px;border-radius:6px}.operation-row:hover{background:#253348}.operation-label{display:flex;justify-content:space-between;gap:10px;font-size:12px;line-height:1.3}.operation-label strong{white-space:nowrap;font-weight:500;font-variant-numeric:tabular-nums}.operation-track{display:block;margin:6px 0 3px;height:4px;background:#2c3a4f;border-radius:3px}.operation-track>span{display:block;height:4px;background:var(--accent);border-radius:3px}.operation-row small{font-size:10px;color:var(--muted)}.inspect-button{margin-top:16px;border-color:#527568;color:var(--accent);font-size:12px}.overview-note{margin-top:14px;font-size:11px;color:var(--muted)}
 .advanced{margin-top:20px}.advanced>summary{cursor:pointer;padding:16px 20px;border:1px solid var(--line);border-radius:10px;font-weight:600;background:var(--panel)}.advanced>summary:hover{color:var(--accent)}.advanced>summary:focus-visible{outline:2px solid var(--accent)}
-@media(max-width:1100px){.overview-layout{grid-template-columns:1fr}.stage-detail{min-height:0}.stage-resources{max-width:600px}.operation-list{grid-template-columns:1fr 1fr}}
-@media(max-width:700px){.stage-axis-row,.stage-row{grid-template-columns:140px minmax(0,1fr) 80px;gap:8px;padding-left:3px;padding-right:3px}.stage-label{font-size:12px;gap:5px}.stage-axis{font-size:9px}.stage-axis span:nth-child(even){visibility:hidden}.stage-timing strong{font-size:11px}.operation-list{grid-template-columns:1fr}.stage-detail{padding:14px}.stage-number{font-size:10px}}
+@media(max-width:1100px){.overview-layout{grid-template-columns:1fr}.stage-detail{min-height:0}.stage-resources{max-width:600px}}
+@media(max-width:700px){.stage-axis-row,.stage-row{grid-template-columns:140px minmax(0,1fr) 80px;gap:8px;padding-left:3px;padding-right:3px}.stage-label{font-size:12px;gap:5px}.stage-axis{font-size:9px}.stage-axis span:nth-child(even){visibility:hidden}.stage-timing strong{font-size:11px}.stage-detail{padding:14px}.stage-number{font-size:10px}}
 @media print{.stage-row{display:grid}.stage-detail{break-inside:avoid}.overview-layout{grid-template-columns:1fr}}
+
+.substep-axis,.operation-row{display:grid;grid-template-columns:minmax(125px,1.05fr) minmax(80px,1.6fr) 72px;gap:10px;align-items:center}
+.substep-axis{font-size:10px;color:var(--muted);padding:9px 8px 7px;border-bottom:1px solid var(--line)}.substep-axis-labels{display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}.substep-axis>span:last-child{text-align:right}
+.operation-list{display:block;max-height:360px;overflow-y:auto;scrollbar-gutter:stable}.operation-row{min-height:53px;margin-top:3px}.operation-label{display:block;font-size:12px;overflow-wrap:anywhere}.operation-label small{display:block;margin-top:4px;font-size:10px}.operation-time{font-size:12px;font-weight:500;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.operation-track{height:23px;margin:0;background:repeating-linear-gradient(to right,#344258 0,#344258 1px,transparent 1px,transparent 50%);border-right:1px solid #344258;border-radius:0;display:flex;align-items:center}.operation-track>span{height:17px;min-width:2px;background:#78d5ba;border-radius:3px}.operation-row:hover .operation-track>span{background:#a1f5d9}.operation-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+@media(max-width:700px){.substep-axis,.operation-row{grid-template-columns:110px minmax(50px,1fr) 65px;gap:7px}.substep-axis-labels span:nth-child(2){display:none}.operation-label,.operation-time{font-size:11px}}
+.back-to-steps{float:right;border:0;background:none;padding:0 0 8px 10px;font-size:11px;color:var(--muted)}.stage-detail{scroll-margin-top:20px}
 </style>
 </head>
 <body><main>
@@ -212,7 +218,7 @@ function buildOverview() {
     });
     if (!stages.length) element('p', 'No retained stage intervals are available. Use the detailed aggregates below.', $('stage-graph'));
 }
-function selectStage(step) {
+function selectStage(step, reveal = true) {
     $('stage').value = step ? step.key : '';
     $('kind').value = step ? 'operation' : 'stage';
     $('search').value = '';
@@ -220,6 +226,9 @@ function selectStage(step) {
     end = step ? Math.max(step.start + 1, step.end) : runEnd;
     $('selection').textContent = 'Select an interval to inspect its duration, GPU time and allocation measurements.';
     refresh();
+    if (step && reveal && window.matchMedia('(max-width:1100px)').matches) {
+        $('stage-detail').scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
 }
 function openTimeline() {
     $('advanced').open = true;
@@ -245,6 +254,9 @@ function updateOverview() {
         }
         return;
     }
+    const back = element('button', '← Back to steps', panel);
+    back.className = 'back-to-steps';
+    back.addEventListener('click', () => { selectStage(null); $('overview').scrollIntoView({behavior: 'smooth', block: 'start'}); });
     element('p', 'STEP ' + String(stages.indexOf(step) + 1).padStart(2, '0') + ' · ' + step.status.toUpperCase(), panel).className = 'eyebrow';
     element('h3', stageName(step.key), panel);
     element('div', briefDuration(step.duration), panel).className = 'detail-duration';
@@ -264,23 +276,31 @@ function updateOverview() {
         element('strong', value, item);
     }
     const operations = step.statistics.filter(row => row.kind === 'operation').sort((a, b) => b.totalMilliseconds - a.totalMilliseconds);
-    element('h4', 'Most expensive operations', panel);
-    element('p', 'Sum across calls. Parallel and nested operations overlap; these times are not additive.', panel).className = 'note';
+    element('h4', 'Sub-step timings · ' + operations.length + ' operations', panel);
+    element('p', 'Total across all calls, including parallel workers. These totals can exceed the step’s wall time and are not additive. Select a bar to inspect its calls.', panel).className = 'note';
+    const maximum = operations[0]?.totalMilliseconds || 1;
+    const axis = element('div', null, panel);
+    axis.className = 'substep-axis';
+    element('span', 'Sub-step', axis);
+    const ticks = element('span', null, axis);
+    ticks.className = 'substep-axis-labels';
+    for (const fraction of [0, .5, 1]) element('span', briefDuration(maximum * fraction), ticks);
+    element('span', 'Total', axis);
     const list = element('div', null, panel);
     list.className = 'operation-list';
-    const maximum = operations[0]?.totalMilliseconds || 1;
-    for (const operation of operations.slice(0, 6)) {
+    list.setAttribute('aria-label', stageName(step.key) + ' sub-step timing chart');
+    for (const operation of operations) {
         const button = element('button', null, list);
         button.className = 'operation-row';
         const label = element('span', null, button);
         label.className = 'operation-label';
         element('span', operation.name, label);
-        element('strong', briefDuration(operation.totalMilliseconds), label);
+        element('small', number(operation.count) + (operation.count === 1 ? ' call' : ' calls') + (operation.busyMilliseconds == null ? '' : ' · ' + briefDuration(operation.busyMilliseconds) + ' covered'), label);
         const track = element('span', null, button);
         track.className = 'operation-track';
         const bar = element('span', null, track);
         bar.style.width = 100 * operation.totalMilliseconds / maximum + '%';
-        element('small', number(operation.count) + (operation.count === 1 ? ' call' : ' calls') + (operation.busyMilliseconds == null ? '' : ' · ' + briefDuration(operation.busyMilliseconds) + ' covered'), button);
+        element('strong', briefDuration(operation.totalMilliseconds), button).className = 'operation-time';
         button.addEventListener('click', () => {
             $('kind').value = 'operation';
             $('search').value = operation.name;
@@ -292,7 +312,7 @@ function updateOverview() {
     if (!operations.length) element('p', 'No operation timings were recorded for this step.', list).className = 'muted';
     const inspect = element('button', 'Open step timeline →', panel);
     inspect.className = 'inspect-button';
-    inspect.addEventListener('click', () => { selectStage(step); openTimeline(); });
+    inspect.addEventListener('click', () => { selectStage(step, false); openTimeline(); });
 }
 buildOverview();
 $('clear-stage').addEventListener('click', () => selectStage(null));
