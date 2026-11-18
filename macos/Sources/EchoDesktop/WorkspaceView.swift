@@ -4,6 +4,7 @@ struct WorkspaceView: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @ObservedObject var artifacts: ArtifactViewModel
     var showRuntimeInfo: () -> Void
+    @AppStorage("workspace.sidebarWidth") private var sidebarWidth = 280.0
 
     var body: some View {
         Group {
@@ -50,9 +51,9 @@ struct WorkspaceView: View {
     }
 
     private var projectWorkspace: some View {
-        HSplitView {
+        PersistentSplitView(layout: .sidebar, paneLength: $sidebarWidth) {
             ProjectSidebar(workspace: workspace)
-                .frame(minWidth: 250, idealWidth: 310, maxWidth: 500, maxHeight: .infinity)
+        } second: {
             VStack(spacing: 0) {
                 if let warnings = workspace.inspection?.warnings, !warnings.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -81,6 +82,7 @@ struct WorkspaceView: View {
             }
             .frame(minWidth: 740, maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar {
             WorkspaceToolbar(workspace: workspace, showRuntimeInfo: showRuntimeInfo)
         }

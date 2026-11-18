@@ -46,6 +46,8 @@ final class SavedWorkspaceViewerTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(300))
         let split = try XCTUnwrap(horizontalSplit(in: host))
         XCTAssertEqual(split.arrangedSubviews.count, 2)
+        XCTAssertEqual(split.arrangedSubviews[1].frame.height, 160, accuracy: 2)
+        try snapshot(host, to: folder.appendingPathComponent("features-default-activity.png"))
         split.setPosition(600, ofDividerAt: 0)
         host.layoutSubtreeIfNeeded()
         let firstHeight = split.arrangedSubviews[0].frame.height
@@ -77,6 +79,7 @@ final class SavedWorkspaceViewerTests: XCTestCase {
         defaults.set(1.0, forKey: "features.overlayOpacity")
         split.setPosition(640, ofDividerAt: 0)
         try await Task.sleep(for: .milliseconds(150))
+        let expandedHeight = split.arrangedSubviews[1].frame.height
         try snapshot(host, to: folder.appendingPathComponent("features-lines.png"))
         try clickActivityHeader(split.arrangedSubviews[1], in: window)
         try await Task.sleep(for: .milliseconds(150))
@@ -86,7 +89,7 @@ final class SavedWorkspaceViewerTests: XCTestCase {
         try clickActivityHeader(split.arrangedSubviews[1], in: window)
         try await Task.sleep(for: .milliseconds(150))
         host.layoutSubtreeIfNeeded()
-        XCTAssertGreaterThanOrEqual(split.arrangedSubviews[1].frame.height, 140)
+        XCTAssertEqual(split.arrangedSubviews[1].frame.height, expandedHeight, accuracy: 2)
         if run.artifacts["matching"] != nil {
             let height = split.arrangedSubviews[1].frame.height
             workspace.selectedStage = .matching
@@ -110,6 +113,28 @@ final class SavedWorkspaceViewerTests: XCTestCase {
             XCTAssertNil(model.selectedMatchIndex, "Hiding the selected match closes its inspector")
             try snapshot(host, to: folder.appendingPathComponent("matching-lines.png"))
         }
+        let reopened = NSHostingView(
+            rootView: StageWorkspaceView(workspace: workspace, artifacts: model)
+                .defaultAppStorage(defaults).environment(\.colorScheme, .light).background(Color.white))
+        window.contentView = reopened
+        reopened.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(150))
+        let restoredSplit = try XCTUnwrap(horizontalSplit(in: reopened))
+        XCTAssertEqual(restoredSplit.arrangedSubviews[1].frame.height, expandedHeight, accuracy: 2)
+        try clickActivityHeader(restoredSplit.arrangedSubviews[1], in: window)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertFalse(defaults.bool(forKey: "workspace.activityExpanded"))
+        let collapsed = NSHostingView(
+            rootView: StageWorkspaceView(workspace: workspace, artifacts: model)
+                .defaultAppStorage(defaults).environment(\.colorScheme, .light).background(Color.white))
+        window.contentView = collapsed
+        collapsed.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(150))
+        let collapsedSplit = try XCTUnwrap(horizontalSplit(in: collapsed))
+        XCTAssertEqual(collapsedSplit.arrangedSubviews[1].frame.height, 36, accuracy: 2)
+        try clickActivityHeader(collapsedSplit.arrangedSubviews[1], in: window)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(collapsedSplit.arrangedSubviews[1].frame.height, expandedHeight, accuracy: 2)
     }
 
     @MainActor
