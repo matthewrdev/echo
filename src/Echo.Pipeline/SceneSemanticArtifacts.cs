@@ -11,13 +11,15 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
     private readonly ISemanticModelProvider modelProvider;
     private readonly ISceneSegmenter segmenter;
     private readonly IFileOperations files;
+    private readonly IOrderedWorkExecutor workExecutor;
 
     [ImportingConstructor]
-    public SceneSemanticArtifacts(ISemanticModelProvider modelProvider, ISceneSegmenter segmenter, IFileOperations files)
+    public SceneSemanticArtifacts(ISemanticModelProvider modelProvider, ISceneSegmenter segmenter, IFileOperations files, IOrderedWorkExecutor workExecutor)
     {
         this.modelProvider = modelProvider;
         this.segmenter = segmenter;
         this.files = files;
+        this.workExecutor = workExecutor;
     }
 
     public IReadOnlyDictionary<string, SemanticMap> Build(RunContext context)
@@ -25,39 +27,59 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
         var maps = new Dictionary<string, SemanticMap>();
         var units = new Dictionary<string, string>();
         var classified = 0;
+        var backend = context.Run.Snapshot.Settings.ComputeBackend;
+        var implementation = segmenter.GetImplementation(backend);
         ReportPurpose(context);
         ISceneSegmentationSession? session = null;
+        var sessionGate = new object();
+        var memoryWorkers = Math.Max(1, context.WorkingMemoryBytes / (512L * 1024 * 1024));
+        var workers = (int)Math.Clamp(Math.Min(memoryWorkers, Math.Max(1, (Environment.ProcessorCount - 2) / 4)), 1, 2);
         try
         {
-            foreach (var photo in context.Images)
+            workExecutor.Run(context.Images.Count, workers, index =>
             {
+                var photo = context.Images[index];
                 context.Cancellation.ThrowIfCancellationRequested();
                 var reused = true;
+                SemanticMap? detected = null;
                 var unit = context.Build("semantic-image", new
                 {
                     photo.Id,
                     photo.Hash,
                     photo.SourceHash,
-                    modelProvider.Fingerprint
+                    modelProvider.Fingerprint,
+                    Implementation = implementation
                 }, directory =>
                 {
-                    if (session == null)
+                    lock (sessionGate)
                     {
-                        var model = modelProvider.EnsureAvailable(context.Store.PathFor("models"), context.Cancellation,
-                            message => context.ReportProgress("depth", message));
-                        session = segmenter.Open(model);
+                        if (session == null)
+                        {
+                            var model = modelProvider.EnsureAvailable(context.Store.PathFor("models"), context.Cancellation,
+                                message => context.ReportProgress("depth", message));
+                            session = segmenter.Open(model, backend);
+                        }
                     }
-                    context.ReportProgress("depth", $"Detecting sky, vegetation and rock locally · {photo.Name} · {maps.Count + 1}/{context.Images.Count}");
-                    var map = session.Segment(context.Store.PathFor(photo.Source), photo.Id, context.Cancellation);
-                    files.AtomicData(Path.Combine(directory, "semantics.json"), map, context.Cancellation);
+                    context.ReportProgress("depth", $"Detecting sky, vegetation and rock locally · {photo.Name}");
+                    detected = session.Segment(context.Store.PathFor(photo.Source), photo.Id, context.Cancellation);
+                    files.AtomicData(Path.Combine(directory, "semantics.json"), detected, context.Cancellation);
                     reused = false;
-                    classified++;
                 }, algorithmVersion: "echo-semantic-upernet2-sky");
-                units.Add(photo.Id, unit);
-                maps.Add(photo.Id, context.ReadData<SemanticMap>(context.Store.PathFor(unit + "/semantics.json")));
-                var action = reused ? "Reused saved sky, vegetation and rock classification" : "Saved new sky, vegetation and rock classification";
+                return new SemanticArtifactCheckpoint
+                {
+                    Unit = unit,
+                    Map = detected ?? context.ReadData<SemanticMap>(context.Store.PathFor(unit + "/semantics.json")),
+                    Reused = reused
+                };
+            }, (index, checkpoint) =>
+            {
+                var photo = context.Images[index];
+                units.Add(photo.Id, checkpoint.Unit);
+                maps.Add(photo.Id, checkpoint.Map);
+                classified += checkpoint.Reused ? 0 : 1;
+                var action = checkpoint.Reused ? "Reused saved sky, vegetation and rock classification" : "Saved new sky, vegetation and rock classification";
                 context.ReportProgress("depth", $"{action} · {photo.Name} · {maps.Count}/{context.Images.Count}", maps.Count, context.Images.Count);
-            }
+            }, context.Cancellation);
         }
         finally
         {

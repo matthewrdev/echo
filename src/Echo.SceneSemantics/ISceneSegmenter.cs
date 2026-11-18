@@ -1,6 +1,9 @@
+using Echo.Contracts;
+
 namespace Echo.SceneSemantics;
 
 public interface ISceneSegmenter
 {
-    ISceneSegmentationSession Open(string modelPath);
+    string GetImplementation(ComputeBackend backend);
+    ISceneSegmentationSession Open(string modelPath, ComputeBackend backend = ComputeBackend.Auto);
 }

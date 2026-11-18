@@ -37,7 +37,7 @@ public sealed class SemanticArtifactReuseTests
                     project.Images.Add(new Photo { Id = "two", Name = "two.jpg", Hash = "two", SourceHash = "original", Source = "two.jpg" });
                 });
                 var classifier = new TestSceneClassifier();
-                var artifacts = new SceneSemanticArtifacts(classifier, classifier, files);
+                var artifacts = new SceneSemanticArtifacts(classifier, classifier, files, new OrderedWorkExecutor());
                 Run(store, artifacts);
                 Check(classifier.Classifications == 2 && classifier.ModelRequests == 1, "One session classifies both photos");
                 classifier.AllowProcessing = false;
@@ -49,6 +49,13 @@ public sealed class SemanticArtifactReuseTests
                 store.Edit(project => project.Images[0].SourceHash = "changed");
                 Run(store, artifacts);
                 Check(classifier.Classifications == 3, "Only changed photos need fresh inference");
+                classifier.Implementation = "test-coreml-1";
+                Run(store, artifacts);
+                Check(classifier.Classifications == 5, "Changing the inference implementation must invalidate cached probabilities");
+                classifier.Implementation = "test-cpu-1";
+                classifier.AllowProcessing = false;
+                Run(store, artifacts);
+                Check(classifier.Classifications == 5, "Switching back to CPU reuses its compatible probability maps");
             }
             finally
             {

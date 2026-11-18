@@ -35,6 +35,36 @@ public sealed class SemanticQualityTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Blocked semantic decoding preserves scalar probabilities across block tails", () =>
+        {
+            const int pixels = 513;
+            var random = new Random(734);
+            var logits = Enumerable.Range(0, 150 * pixels).Select(_ => (float)(random.NextDouble() * 12 - 6)).ToArray();
+            var map = SemanticProbabilities.Decode("image", pixels, 1, logits);
+            for (var pixel = 0; pixel < pixels; pixel++)
+            {
+                var maximum = Enumerable.Range(0, 150).Max(label => logits[label * pixels + pixel]);
+                double total = 0;
+                double vegetation = 0;
+                double rock = 0;
+                for (var label = 0; label < 150; label++)
+                {
+                    var probability = Math.Exp(logits[label * pixels + pixel] - maximum);
+                    total += probability;
+                    if (label is 4 or 9 or 17 or 66 or 72)
+                    {
+                        vegetation += probability;
+                    }
+                    if (label is 16 or 34)
+                    {
+                        rock += probability;
+                    }
+                }
+                Check(map.Vegetation[pixel] == (byte)Math.Round(255 * vegetation / total), "Vegetation rounding changed");
+                Check(map.Rock[pixel] == (byte)Math.Round(255 * rock / total), "Rock rounding changed");
+                Check(map.Sky[pixel] == (byte)Math.Round(255 * Math.Exp(logits[2 * pixels + pixel] - maximum) / total), "Sky rounding changed");
+            }
+        });
         tests.Run("Semantic probabilities separate vegetation, rock and sky and preserve uncertain boundaries", () =>
         {
             var logits = Enumerable.Repeat(-20f, 150 * 4).ToArray();
