@@ -37,7 +37,12 @@ internal static class AcceleratedDescriptorMatcher
                 return null;
             }
         }
-        if (!compute.CanAllocate((long)(left.Length + right.Length) * length * sizeof(float) + (long)Math.Min(64, left.Length) * right.Length * sizeof(float) + (long)left.Length * 32 + (long)right.Length * 16, settings.ComputeBackend))
+        var fixedBytes = (long)(left.Length + right.Length) * length * sizeof(float)
+            + (long)left.Length * 32 + (long)right.Length * 16
+            + (lines.Length + (long)pixels.Length) * sizeof(float) + 4096;
+        var availableRows = Math.Max(1, (compute.MemoryBudgetBytes - fixedBytes) / (right.Length * sizeof(float)));
+        var rows = (int)Math.Min(Math.Min(512, left.Length), availableRows);
+        if (!compute.CanAllocate(fixedBytes + (long)rows * right.Length * sizeof(float), settings.ComputeBackend))
         {
             return null;
         }
@@ -46,24 +51,18 @@ internal static class AcceleratedDescriptorMatcher
         {
             return null;
         }
-        var packed = ArrayPool<float>.Shared.Rent(checked(Math.Max(left.Length, right.Length) * length));
+        var leftPacked = ContiguousDescriptors.Find(left, length);
+        var rightPacked = ContiguousDescriptors.Find(right, length);
+        var packed = leftPacked.IsEmpty || rightPacked.IsEmpty
+            ? ArrayPool<float>.Shared.Rent(checked(Math.Max(left.Length, right.Length) * length)) : null;
         var minima = ArrayPool<float>.Shared.Rent(checked(left.Length * 4 + right.Length * 2));
         try
         {
-            for (var i = 0; i < left.Length; i++)
-            {
-                left[i].DescriptorData.Span.CopyTo(packed.AsSpan(i * length, length));
-            }
-            session.Upload<float>(0, packed.AsSpan(0, left.Length * length));
-            for (var i = 0; i < right.Length; i++)
-            {
-                right[i].DescriptorData.Span.CopyTo(packed.AsSpan(i * length, length));
-            }
-            session.Upload<float>(1, packed.AsSpan(0, right.Length * length));
+            Upload(session, 0, left, length, leftPacked, packed);
+            Upload(session, 1, right, length, rightPacked, packed);
             var guided = !lines.IsEmpty;
             session.Upload<float>(5, guided ? lines : [0, 0, 0, 0]);
             session.Upload<float>(6, guided ? pixels : [0, 0]);
-            const int rows = 64;
             session.Allocate(2, checked(Math.Min(rows, left.Length) * right.Length * sizeof(float)));
             session.Allocate(3, checked(left.Length * 4 * sizeof(float)));
             session.Allocate(4, checked(right.Length * 2 * sizeof(float)));
@@ -77,6 +76,12 @@ internal static class AcceleratedDescriptorMatcher
                 session.Dispatch(ComputeKernel.DescriptorPairs, checked(count * right.Length), parameters);
                 session.Dispatch(ComputeKernel.DescriptorLeft, count, parameters);
                 session.Dispatch(ComputeKernel.DescriptorRight, right.Length, parameters);
+                // Submit before the generic safety drain. Two queued submissions retain
+                // bounded memory/cancellation latency while the CPU encodes the next block.
+                if ((first / rows + 1) % 8 == 0 && session is IComputeStreamingSession { SupportsStreaming: true } streaming)
+                {
+                    streaming.Submit();
+                }
             }
             var leftBest = minima.AsSpan(0, left.Length * 4);
             var rightBest = minima.AsSpan(leftBest.Length, right.Length * 2);
@@ -135,9 +140,27 @@ internal static class AcceleratedDescriptorMatcher
         }
         finally
         {
-            ArrayPool<float>.Shared.Return(packed);
+            if (packed != null)
+            {
+                ArrayPool<float>.Shared.Return(packed);
+            }
             ArrayPool<float>.Shared.Return(minima);
         }
+    }
+
+    private static void Upload<T>(IComputeSession session, int slot, ReadOnlySpan<T> features, int length,
+        ReadOnlyMemory<float> contiguous, float[]? packed) where T : IFeatureDescriptor
+    {
+        if (!contiguous.IsEmpty)
+        {
+            session.Upload<float>(slot, contiguous.Span);
+            return;
+        }
+        for (var index = 0; index < features.Length; index++)
+        {
+            features[index].DescriptorData.Span.CopyTo(packed.AsSpan(index * length, length));
+        }
+        session.Upload<float>(slot, packed.AsSpan(0, checked(features.Length * length)));
     }
 
     private static double Distance(ReadOnlySpan<float> left, ReadOnlySpan<float> right, bool reverse)

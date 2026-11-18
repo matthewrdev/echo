@@ -118,7 +118,11 @@ public sealed class OrderedWorkTests
             Check(large.Workers == 1, "Oversized jobs must run alone");
             Check(planner.Features(settings, [new Photo(), new Photo()]).Workers == 1, "Unknown source dimensions must run alone");
             var matching = planner.Matching(settings, 3);
-            Check(matching.Workers is >= 1 and <= 3 && matching.FeatureCacheBytes <= 64L * 1024 * 1024, "Bound matching workers and retained cache");
+            Check(matching.Workers is >= 1 and <= 3 && matching.FeatureCacheBytes <= 512L * 1024 * 1024, "Bound matching workers and retained cache");
+            settings.ProcessingMemoryBudgetMb = 256;
+            var limited = planner.Matching(settings, 3);
+            Check(limited.FeatureCacheBytes <= 32L * 1024 * 1024, "Small processing budgets must reduce descriptor retention");
+            Check(limited.Workers <= matching.Workers, "Reducing RAM cannot increase matching concurrency");
         });
         tests.Run("Cancellation inside a worker joins the wave without publishing partial results", () =>
         {

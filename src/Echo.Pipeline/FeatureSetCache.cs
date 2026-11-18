@@ -10,6 +10,7 @@ public sealed class FeatureSetCache : IDisposable
     private readonly object gate = new();
     private readonly Dictionary<string, LinkedListNode<CachedFeatureSet>> entries = new(StringComparer.Ordinal);
     private readonly LinkedList<CachedFeatureSet> recent = new();
+    private readonly Dictionary<string, Lazy<FeatureSet>> loading = new(StringComparer.Ordinal);
     private long retainedBytes;
 
     public FeatureSetCache(IJsonCodec json, long capacityBytes)
@@ -24,6 +25,7 @@ public sealed class FeatureSetCache : IDisposable
     // The cache belongs to one stage execution, never to a shared service instance.
     public FeatureSet Read(string path, CancellationToken cancellation)
     {
+        Lazy<FeatureSet> pending;
         lock (gate)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -34,10 +36,43 @@ public sealed class FeatureSetCache : IDisposable
                 return node.Value.Features;
             }
 
-            // Serialize misses to avoid decoding the same feature set concurrently.
-            // Workers release this lock before numerical matching starts.
-            var features = json.Read<FeatureSet>(path);
+            if (!loading.TryGetValue(path, out pending!))
+            {
+                pending = new Lazy<FeatureSet>(() => json.Read<FeatureSet>(path), LazyThreadSafetyMode.ExecutionAndPublication);
+                loading.Add(path, pending);
+            }
+        }
+
+        FeatureSet features;
+        try
+        {
+            // Different immutable images can load concurrently; a shared image is decoded once.
+            features = pending.Value;
+        }
+        catch
+        {
+            lock (gate)
+            {
+                if (loading.GetValueOrDefault(path) == pending)
+                {
+                    loading.Remove(path);
+                }
+            }
+            throw;
+        }
+        lock (gate)
+        {
+            if (loading.GetValueOrDefault(path) == pending)
+            {
+                loading.Remove(path);
+            }
             cancellation.ThrowIfCancellationRequested();
+            if (entries.TryGetValue(path, out var existing))
+            {
+                recent.Remove(existing);
+                recent.AddLast(existing);
+                return existing.Value.Features;
+            }
             var bytes = EstimateBytes(features);
             if (bytes > capacityBytes)
             {
@@ -80,6 +115,7 @@ public sealed class FeatureSetCache : IDisposable
         lock (gate)
         {
             entries.Clear();
+            loading.Clear();
             recent.Clear();
             retainedBytes = 0;
         }

@@ -39,15 +39,18 @@ public sealed class ImageWorkPlanner : IImageWorkPlanner
     {
         // Include two decoded inputs, correspondence objects and verification scratch.
         var bytesPerPair = DescriptorBytes(settings) * 4 + 16L * 1024 * 1024;
-        var cacheBytes = Math.Min(64L * 1024 * 1024, MemoryBudget() / 4);
-        return Plan(pairCount, bytesPerPair, 1, cacheBytes);
+        var available = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+        var requested = (long)settings.ProcessingMemoryBudgetMb * 1024 * 1024;
+        var budget = requested > 0 ? Math.Min(available, requested) : available / 4;
+        var cacheBytes = Math.Clamp(budget / 8, 16L * 1024 * 1024, 512L * 1024 * 1024);
+        return Plan(pairCount, bytesPerPair, 1, cacheBytes, Math.Max(bytesPerPair + cacheBytes, Math.Min(budget, cacheBytes + MemoryBudget())));
     }
 
-    private ImageWorkPlan Plan(int count, long bytesPerWorker, int threadsPerWorker, long cacheBytes)
+    private ImageWorkPlan Plan(int count, long bytesPerWorker, int threadsPerWorker, long cacheBytes, long memoryBudget = 0)
     {
         var processors = Math.Max(1, Environment.ProcessorCount - 2);
         var cpuWorkers = Math.Max(1, processors / threadsPerWorker);
-        var memoryWorkers = Math.Max(1, (MemoryBudget() - cacheBytes) / bytesPerWorker);
+        var memoryWorkers = Math.Max(1, ((memoryBudget > 0 ? memoryBudget : MemoryBudget()) - cacheBytes) / bytesPerWorker);
         var workers = (int)Math.Max(1, Math.Min(Math.Min(count, cpuWorkers), memoryWorkers));
         return new ImageWorkPlan(workers, bytesPerWorker, cacheBytes);
     }
