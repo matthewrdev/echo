@@ -17,7 +17,7 @@ public static class SurfaceVegetationClassifier
         var views = depthContext.Views.Where(view => semantics.ContainsKey(view.Map.ImageId)).ToArray();
         using var visibility = new SurfaceTriangleIndex(surface, cancellation, work);
         var reader = new SurfaceGeometryReader(surface);
-        using var scratch = work?.CreateScope();
+        using var scratch = work?.CreateScope(preferResident: true);
         IList<V3> normals = scratch?.Filled(surface.Vertices.Count, new V3(), new V3RecordCodec()) ?? new V3[surface.Vertices.Count];
         for (var faceIndex = 0; faceIndex < surface.Faces.Count; faceIndex++)
         {
@@ -41,18 +41,25 @@ public static class SurfaceVegetationClassifier
         var raySlots = rays == null ? null : new int[rays.Length];
         var hidden = rays == null ? null : new bool[rays.Length];
         var projectionBuffer = acceleration == null ? null : ArrayPool<float>.Shared.Rent(checked(1024 * views.Length * 4));
+        var points = new V3[1024];
+        var batchNormals = new V3[1024];
+        var labels = new bool[1024];
         try
         {
             var failed = false;
             for (var start = 0; start < result.Count; start += 1024)
             {
                 var end = Math.Min(result.Count, start + 1024);
+                var batchCount = end - start;
+                reader.ReadVertices(start, points.AsSpan(0, batchCount));
+                RecordListOperations.Read(normals, start, batchNormals.AsSpan(0, batchCount));
                 float[]? projectedVotes = null;
                 if (acceleration != null && !failed)
                 {
                     try
                     {
-                        SemanticProjectionCompute.Evaluate(acceleration, surface, normals, start, end - start, origin, views.Length, projectionBuffer);
+                        SemanticProjectionCompute.Evaluate(acceleration, points.AsSpan(0, batchCount), batchNormals.AsSpan(0, batchCount),
+                            surface.Faces.Count, origin, views.Length, projectionBuffer);
                         projectedVotes = projectionBuffer;
                     }
                     catch (ComputeException) when (project.Settings.ComputeBackend == ComputeBackend.Auto)
@@ -65,7 +72,7 @@ public static class SurfaceVegetationClassifier
                     var count = 0;
                     for (var vertex = start; vertex < end; vertex++)
                     {
-                        var point = reader.Vertex(vertex);
+                        var point = points[vertex - start];
                         for (var view = 0; view < views.Length; view++)
                         {
                             var slot = ((vertex - start) * views.Length + view) * 4;
@@ -87,7 +94,8 @@ public static class SurfaceVegetationClassifier
                 }
                 Parallel.For(start, end, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = Math.Min(8, Environment.ProcessorCount) }, index =>
             {
-                var point = reader.Vertex(index);
+                var point = points[index - start];
+                var normal = batchNormals[index - start];
                 Span<VegetationViewVote> votes = stackalloc VegetationViewVote[8];
                 var count = 0;
                 for (var viewIndex = 0; viewIndex < views.Length; viewIndex++)
@@ -136,7 +144,7 @@ public static class SurfaceVegetationClassifier
                         continue;
                     }
                     var direction = view.Centre - point;
-                    var facing = normals[index].Length > 0 ? Math.Abs(normals[index].Unit.Dot(direction.Unit)) : 1;
+                    var facing = normal.Length > 0 ? Math.Abs(normal.Unit.Dot(direction.Unit)) : 1;
                     var weight = facing * view.Focal / Math.Max(1e-8, direction.Length);
                     var weakest = 0;
                     for (var vote = 1; vote < count; vote++)
@@ -178,8 +186,9 @@ public static class SurfaceVegetationClassifier
                         confirmed++;
                     }
                 }
-                result[index] = confirmed >= 2 && plant >= total * .65 && stone < total * .2;
+                labels[index - start] = confirmed >= 2 && plant >= total * .65 && stone < total * .2;
             });
+                RecordListOperations.Write(result, start, labels.AsSpan(0, batchCount));
                 progress?.Invoke(new("Vegetation classification", "Combining vegetation evidence from visible photographs.", end, result.Count, "vertices"));
             }
         }

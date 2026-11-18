@@ -60,17 +60,18 @@ internal static class SemanticProjectionCompute
         }
     }
 
-    public static void Evaluate(IComputeSession session, Surface surface, IList<V3> normals, int first, int count, V3 origin, int views, Span<float> result)
+    public static void Evaluate(IComputeSession session, ReadOnlySpan<V3> vertices, ReadOnlySpan<V3> normals,
+        int faceCount, V3 origin, int views, Span<float> result)
     {
+        var count = vertices.Length;
         result = result[..checked(count * views * 4)];
         var points = ArrayPool<float>.Shared.Rent(count * 8);
-        var reader = new SurfaceGeometryReader(surface);
         try
         {
             for (var i = 0; i < count; i++)
             {
-                var point = reader.Vertex(first + i) - origin;
-                var normal = normals[first + i];
+                var point = vertices[i] - origin;
+                var normal = normals[i];
                 points[i * 8] = (float)point.X;
                 points[i * 8 + 1] = (float)point.Y;
                 points[i * 8 + 2] = (float)point.Z;
@@ -82,7 +83,7 @@ internal static class SemanticProjectionCompute
             }
             session.Upload<float>(2, points.AsSpan(0, count * 8));
             session.Allocate(3, checked(result.Length * sizeof(float)));
-            session.Dispatch(ComputeKernel.SemanticProject, count * views, [views, surface.Faces.Count]);
+            session.Dispatch(ComputeKernel.SemanticProject, count * views, [views, faceCount]);
             session.Read<float>(3, result);
         }
         finally

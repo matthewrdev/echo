@@ -80,7 +80,7 @@ public sealed class MeshStage : IPipelineStage
                     var semantics = semanticUnits.ToDictionary(pair => pair.Key,
                         pair => context.ReadData<SemanticMap>(store.PathFor(pair.Value + "/semantics.json")));
                     var maps = context.DepthMaps();
-                    var depthContext = new MeshDepthContext(project, scene, maps);
+                    using var depthContext = new MeshDepthContext(project, scene, maps, context.Work, cancellation);
                     var volume = context.ReadData<FusedVolume>(store.PathFor(fusionPath + "/volume.json"));
                     progress.Begin(MeshPhase.ExtractSurface);
                     using var geometryBuffers = new MeshGeometryBuffers(context.Work);

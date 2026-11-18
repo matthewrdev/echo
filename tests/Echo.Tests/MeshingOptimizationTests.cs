@@ -24,6 +24,60 @@ public sealed class MeshingOptimizationTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Resident mesh depths preserve excluded samples and fall back within the shared budget", () => InDirectory(directory =>
+        {
+            foreach (var budget in new[] { 65536, 4 * 1024 * 1024 })
+            {
+                using var data = new BulkDataSession(budget, 0);
+                using var work = new WorkBuffers(data, Path.Combine(directory, budget.ToString()));
+                var fixture = new FusionFixture();
+                foreach (var map in fixture.Maps)
+                {
+                    var depths = work.List(new FloatRecordCodec());
+                    for (var index = 0; index < map.Depth.Length; index++)
+                    {
+                        depths.Add(index % 31 == 0 ? 0 : map.Depth[index] + index % 7 * .01f);
+                    }
+                    map.Samples = new PagedDepthSamples((IReadOnlyList<float>)depths, []);
+                    map.Depth = [];
+                }
+                fixture.Project.Settings.ExclusionRegions.Add(new ExclusionRegion { Width = 1, Height = 1, Depth = 1 });
+                using var expected = new MeshDepthContext(fixture.Project, fixture.Scene, fixture.Maps);
+                using (var actual = new MeshDepthContext(fixture.Project, fixture.Scene, fixture.Maps, work))
+                {
+                    Check(actual.Views.All(view => (view.Map.Samples is MeshDepthSamples) == (budget > 65536)),
+                        "Resident depth preparation did not respect the available budget");
+                    for (var view = 0; view < actual.Views.Length; view++)
+                    {
+                        var before = expected.Views[view];
+                        var after = actual.Views[view];
+                        var copy = new float[before.Map.SampleCount];
+                        after.Map.ReadDepth(0, copy);
+                        for (var index = 0; index < copy.Length; index++)
+                        {
+                            Check(BitConverter.SingleToInt32Bits(copy[index]) == BitConverter.SingleToInt32Bits(before.Map.DepthAt(index)),
+                                "Snapshot changed a depth sample or exclusion");
+                            Check(after.Map.ConfidenceAt(index) == before.Map.ConfidenceAt(index), "Snapshot lost confidence");
+                        }
+                        Parallel.For(0, 512, query =>
+                        {
+                            var point = new V3((query % 31 - 15) * .1, (query % 23 - 11) * .1, 10);
+                            Check(before.Difference(point).Equals(after.Difference(point)), "Resident depth changed a difference query");
+                            Check(before.Observe(point, .01).Equals(after.Observe(point, .01)), "Resident depth changed visibility evidence");
+                            var expectedSurface = before.TrySurfacePoint(point, .01, out var first);
+                            var actualSurface = after.TrySurfacePoint(point, .01, out var second);
+                            Check(expectedSurface == actualSurface && first == second, "Resident depth changed a surface query");
+                        });
+                    }
+                    Check(data.Statistics.PeakResidentBytes <= budget, "Depth snapshots escaped the shared memory budget");
+                }
+                if (budget > 65536)
+                {
+                    using var released = work.TryReserveMemory(budget / 4 * 3);
+                    Check(released != null, "Disposing prepared depths did not release the reservation");
+                }
+            }
+        }));
         tests.Run("Triangle indexes account for all buffers and spill without changing queries", () => InDirectory(directory =>
         {
             var mesh = new Surface();
