@@ -13,6 +13,14 @@ struct ArtifactViewer: View {
         let stage = workspace.selectedStage.rawValue
         let matching = stage == "features" ? workspace.displayedRun?.artifacts["matching"] ?? "" : ""
         var previewVersion = ""
+        if workspace.selectedStage == .matching, let run = workspace.displayedRun,
+            run.artifacts[stage] == nil, let path = run.artifacts[stage + "Preview"]
+        {
+            let file = URL(fileURLWithPath: workspace.root).appendingPathComponent(path).appendingPathComponent(
+                "pairs.ndjson")
+            let version = ArtifactFileVersion(file: file)
+            previewVersion = "\(version.modified?.timeIntervalSince1970 ?? 0)/\(version.size ?? 0)/\(run.status)"
+        }
         if [.alignment, .fusion].contains(workspace.selectedStage), let run = workspace.displayedRun,
             run.artifacts[stage] == nil, let path = run.artifacts[stage + "Preview"]
         {

@@ -19,7 +19,9 @@ final class ArtifactJSONReader {
         }
         let data = try Data(contentsOf: file, options: .mappedIfSafe)
         var value: T
-        if T.self == Surface.self || T.self == FusedVolume.self || T.self == DepthMap.self
+        if T.self == FeatureSet.self || T.self == ImagePair.self || T.self == ImagePairSummary.self {
+            value = try MatchingArtifactReader().read(file, metadata: data)
+        } else if T.self == Surface.self || T.self == FusedVolume.self || T.self == DepthMap.self
             || T.self == SkyProbabilityMap.self
             || T.self == ReconstructionScene.self || T.self == ReconstructionMetadata.self
         {

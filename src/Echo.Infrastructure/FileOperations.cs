@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Echo.Storage;
+using Echo.Contracts;
 
 namespace Echo.Infrastructure;
 
@@ -48,7 +49,14 @@ public sealed class FileOperations : IFileOperations
     }
 
     public void AtomicJson<T>(string path, T value)
-        => AtomicWrite(path, stream => jsonCodec.Write(stream, value));
+    {
+        if (value is FeatureSet or ImagePair)
+        {
+            bulk.Write(path, value);
+            return;
+        }
+        AtomicWrite(path, stream => jsonCodec.Write(stream, value));
+    }
 
     public void AtomicBytes(string path, byte[] bytes) => AtomicWrite(path, stream => stream.Write(bytes));
 

@@ -7,6 +7,7 @@ using Echo.Infrastructure;
 using Echo.Matching;
 using Echo.Pipeline;
 using Echo.Projects;
+using Echo.Storage;
 using SkiaSharp;
 
 namespace Echo.Tests;
@@ -23,11 +24,12 @@ public sealed class ImageStageConcurrencyTests
     private readonly IFeatureMatcher matcher;
     private readonly IImagePairSelector selector;
     private readonly IOrderedWorkExecutor executor;
+    private readonly IMatchingIndexStore indexes;
 
     [ImportingConstructor]
     public ImageStageConcurrencyTests(IProjectStoreFactory stores, IRunContextFactory contexts, IFileOperations files,
         IJsonCodec json, IRasterImageService images, IFeatureExtractor extractor, IFeatureMatcher matcher,
-        IImagePairSelector selector, IOrderedWorkExecutor executor)
+        IImagePairSelector selector, IOrderedWorkExecutor executor, IMatchingIndexStore indexes)
     {
         this.stores = stores;
         this.contexts = contexts;
@@ -38,6 +40,7 @@ public sealed class ImageStageConcurrencyTests
         this.matcher = matcher;
         this.selector = selector;
         this.executor = executor;
+        this.indexes = indexes;
     }
 
     internal void Run(TestSuite tests)
@@ -53,7 +56,7 @@ public sealed class ImageStageConcurrencyTests
                     Directory.Delete(store.PathFor("artifacts"), true);
                     var counting = new CountingFeatureJsonCodec(json);
                     var parallel = RunStages(store, 3, 16 * 1024 * 1024, counting);
-                    Check(json.Encode(serial.Artifacts) == json.Encode(parallel.Artifacts), "Artifact fingerprints changed with concurrency/cache");
+                    Check(json.Encode(serial.Artifacts.Where(entry => entry.Key != "matchingPreview")) == json.Encode(parallel.Artifacts.Where(entry => entry.Key != "matchingPreview")), "Artifact fingerprints changed with concurrency/cache");
                     Check(json.Encode(expected) == json.Encode(ArtifactHashes(store)), "Serialized artifacts differ from serial execution");
                     Check(counting.FeatureReadCount == 4, "Six pairs should decode four images once, rather than twelve times");
                     CheckEvents(store, parallel);
@@ -86,7 +89,7 @@ public sealed class ImageStageConcurrencyTests
             Check(savedFeatures.Count == 2, "Both completed workers should be reusable after cancellation");
             var resumed = contexts.Create(store, run, default, null);
             features.Execute(resumed);
-            var matching = new MatchingStage(selector, files, matcher, plan, executor, new FeatureSetCacheFactory(json));
+            var matching = new MatchingStage(selector, files, matcher, plan, executor, new FeatureSetCacheFactory(json), indexes);
             using (var cancelled = new CancellationTokenSource())
             {
                 var context = contexts.Create(store, run, cancelled.Token, record =>
@@ -99,7 +102,7 @@ public sealed class ImageStageConcurrencyTests
                 ExpectCancellation(() => matching.Execute(context));
             }
             Check(!run.Artifacts.ContainsKey("matching"), "Cancelled matching must not publish its final index");
-            var partialPairs = json.Read<List<string>>(store.PathFor(run.Artifacts["matchingPreview"] + "/units.json"));
+            var partialPairs = indexes.Read(store.PathFor(run.Artifacts["matchingPreview"] + "/pairs.ndjson"));
             Check(partialPairs.Count == 1, "Cancelled matching retains its committed, viewable pair index");
             Check(Directory.GetDirectories(store.PathFor("artifacts/match-pair")).Length == 2, "Keep completed pair checkpoints for resume");
             var previewCount = partialPairs.Count;
@@ -108,13 +111,13 @@ public sealed class ImageStageConcurrencyTests
                 if (EventType(record) == "pairCheckpoint")
                 {
                     var current = store.GetRun(run.Id);
-                    var index = json.Read<List<string>>(store.PathFor(current.Artifacts["matchingPreview"] + "/units.json"));
+                    var index = indexes.Read(store.PathFor(current.Artifacts["matchingPreview"] + "/pairs.ndjson"));
                     Check(index.Count >= previewCount, "Resuming matching must not shrink the live pair browser");
                     Check(!current.Artifacts.ContainsKey("matching"), "Pair previews must be visible before matching completes");
                     previewCount = index.Count;
                 }
             }));
-            Check(json.Encode(expected.Artifacts) == json.Encode(run.Artifacts), "Resume changed final artifact fingerprints");
+            Check(json.Encode(expected.Artifacts.Where(entry => entry.Key != "matchingPreview")) == json.Encode(run.Artifacts.Where(entry => entry.Key != "matchingPreview")), "Resume changed final artifact fingerprints");
             Check(json.Encode(expectedHashes) == json.Encode(ArtifactHashes(store)), "Resume changed saved output");
             Check(!Directory.EnumerateFileSystemEntries(store.PathFor("work")).Any(), "No temporary worker directories may remain");
             var events = ReadEvents(store, run);
@@ -138,7 +141,7 @@ public sealed class ImageStageConcurrencyTests
         context.Start();
         var plan = new FixedImageWorkPlanner(workers, cacheBytes);
         new FeatureStage(files, extractor, json, plan, executor).Execute(context);
-        new MatchingStage(selector, files, matcher, plan, executor, new FeatureSetCacheFactory(cacheJson ?? json)).Execute(context);
+        new MatchingStage(selector, files, matcher, plan, executor, new FeatureSetCacheFactory(cacheJson ?? json), indexes).Execute(context);
         return run;
     }
 
@@ -186,14 +189,10 @@ public sealed class ImageStageConcurrencyTests
         var pairPreviews = events.Where(record => record.GetProperty("type").GetString() == "checkpoint")
             .Select(record => record.GetProperty("payload")).Where(payload => payload.GetProperty("stage").GetString() == "matchingPreview").ToArray();
         var finalPairs = json.Read<List<string>>(store.PathFor(run.Artifacts["matching"] + "/units.json"));
-        Check(pairPreviews.Length == finalPairs.Count, "Publish each completed pair preview");
-        for (var index = 0; index < pairPreviews.Length; index++)
-        {
-            var path = pairPreviews[index].GetProperty("artifact").GetString();
-            var units = json.Read<List<string>>(store.PathFor(path + "/units.json"));
-            Check(units.SequenceEqual(finalPairs.Take(index + 1)), "Pair preview must contain an immutable prefix of committed pairs");
-            Check(units.All(unit => File.Exists(store.PathFor(unit + "/pair.json"))), "Publish only readable pair artifacts");
-        }
+        Check(pairPreviews.Length == 1, "Publish one stable live journal per run");
+        var live = indexes.Read(store.PathFor(run.Artifacts["matchingPreview"] + "/pairs.ndjson"));
+        Check(live.Select(entry => entry.Artifact).SequenceEqual(finalPairs), "Journal must contain each committed pair in order");
+        Check(live.All(entry => File.Exists(store.PathFor(entry.Artifact + "/pair.json"))), "Publish only readable pair artifacts");
         Check(events.Select(record => record.GetProperty("sequence").GetInt64()).SequenceEqual(Enumerable.Range(1, events.Length).Select(i => (long)i)), "Concurrent reports must retain contiguous event sequences");
     }
 

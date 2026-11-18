@@ -4,6 +4,7 @@ using Echo.Compute;
 using Echo.Infrastructure;
 using Echo.Matching;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.Pipeline;
 
@@ -17,9 +18,10 @@ public sealed class MatchingStage : IPipelineStage
     private readonly IOrderedWorkExecutor workExecutor;
     private readonly IFeatureSetCacheFactory cacheFactory;
     private readonly IComputeService? compute;
+    private readonly IMatchingIndexStore indexes;
 
     [ImportingConstructor]
-    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IFeatureMatcher featureMatcher, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IFeatureMatcher featureMatcher, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory, IMatchingIndexStore indexes, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.fileOperations = fileOperations;
         this.featureMatcher = featureMatcher;
@@ -28,6 +30,7 @@ public sealed class MatchingStage : IPipelineStage
         this.workExecutor = workExecutor;
         this.cacheFactory = cacheFactory;
         this.compute = compute;
+        this.indexes = indexes;
     }
 
     public string Name => "matching";
@@ -48,20 +51,23 @@ public sealed class MatchingStage : IPipelineStage
         context.ReportProgress("matching", $"Selected {wanted.Count:N0} image pairs using viewing overlap, spatial neighbours, capture sequence and hints.");
 
         var pairUnits = new List<string>();
-        var previewCount = context.Run.Artifacts.ContainsKey("matchingPreview")
-            ? context.ReadArtifact<List<string>>("matchingPreview", "units.json").Count
-            : 0;
+        var preview = $"runs/{context.Run.Id}/previews/matching";
+        using var journal = indexes.Open(context.Store.PathFor(preview + "/pairs.ndjson"));
+        if (journal.Count > wanted.Count)
+        {
+            throw new InvalidDataException("Matching journal contains pairs outside these run inputs.");
+        }
+        if (context.Run.Artifacts.GetValueOrDefault("matchingPreview") != preview)
+        {
+            context.Publish("matchingPreview", preview);
+        }
         var plan = workPlanner.Matching(project.Settings, wanted.Count);
         using var cache = cacheFactory.Create(plan.FeatureCacheBytes);
         workExecutor.Run(wanted.Count, plan.Workers, index => BuildPair(context, wanted[index], photos, featureUnits, cache), (index, unit) =>
         {
             var pair = wanted[index];
             pairUnits.Add(unit);
-            if (pairUnits.Count > previewCount)
-            {
-                PublishPreview(context, pairUnits);
-                previewCount = pairUnits.Count;
-            }
+            journal.Append(indexes.Describe(context.Store.Root, unit, index));
 
             context.Report("pairCheckpoint", new
             {
@@ -80,6 +86,7 @@ public sealed class MatchingStage : IPipelineStage
         }, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), pairUnits);
+            journal.CopyTo(Path.Combine(directory, "pairs.ndjson"));
             fileOperations.AtomicJson(Path.Combine(directory, "selection.json"), new
             {
                 selectionVersion = 2,
@@ -88,17 +95,6 @@ public sealed class MatchingStage : IPipelineStage
                 pairs = wanted
             });
         }));
-    }
-
-    private void PublishPreview(RunContext context, List<string> pairUnits)
-    {
-        // Index only committed pairs, keeping earlier previews safe to read
-        // while matching continues or a cancelled run resumes.
-        var artifact = context.Build("matching-preview", pairUnits, directory =>
-        {
-            fileOperations.AtomicJson(Path.Combine(directory, "units.json"), pairUnits);
-        });
-        context.Publish("matchingPreview", artifact);
     }
 
     private string BuildPair(RunContext context, PairIdentity pair, IReadOnlyDictionary<string, Photo> photos, IReadOnlyDictionary<string, string> featureUnits, FeatureSetCache cache)

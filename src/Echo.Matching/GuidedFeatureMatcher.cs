@@ -93,7 +93,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
                     {
                         continue;
                     }
-                    var distance = Distance(feature.Descriptor, other.Descriptor);
+                    var distance = Distance(feature.DescriptorData.Span, other.DescriptorData.Span);
                     if (distance < rightBest[rightIndex])
                     {
                         rightBest[rightIndex] = distance;

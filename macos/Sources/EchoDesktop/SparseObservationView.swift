@@ -19,7 +19,7 @@ struct SparseObservationView: View {
                         .font(.caption).textSelection(.enabled)
                 }
                 if let feature {
-                    Text("\(feature.kind ?? "point") feature · \(feature.descriptor.count)-value descriptor")
+                    Text("\(feature.kind ?? "point") feature · \(feature.descriptorCount)-value descriptor")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if let image {

@@ -21,17 +21,21 @@ final class LiveMatchingPreviewTests: XCTestCase {
                 height: 100, capturedAt: nil, camera: "", focalPixels: 100, enabled: true, sets: [], gps: nil,
                 attitude: nil, metadata: [:])
         }
+        let fixture = MatchingArtifactFixture()
+        var entries: [MatchingIndexEntry] = []
+        let preview = root.appendingPathComponent("preview")
+        try FileManager.default.createDirectory(at: preview, withIntermediateDirectories: true)
+        let journal = preview.appendingPathComponent("pairs.ndjson")
         for index in 1...2 {
-            let folder = root.appendingPathComponent("pair-\(index)")
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try JSONSerialization.data(withJSONObject: [
-                "a": "0", "b": "\(index)", "matches": [["a": [20, 20], "b": [30, 30], "manual": false]],
-            ]).write(to: folder.appendingPathComponent("pair.json"))
-            let preview = root.appendingPathComponent("preview-\(index)")
-            try FileManager.default.createDirectory(at: preview, withIntermediateDirectories: true)
-            try JSONEncoder().encode((1...index).map { "pair-\($0)" }).write(
-                to: preview.appendingPathComponent("units.json"))
+            let artifact = "artifacts/match-pair/pair-\(index)"
+            try fixture.writePair(root: root, artifact: artifact, a: "0", b: "\(index)")
+            entries.append(
+                MatchingIndexEntry(
+                    sequence: index - 1, artifact: artifact, a: "0", b: "\(index)", pointCount: 1, lineCount: 0))
         }
+        var firstEntry = try JSONEncoder().encode(entries[0])
+        firstEntry.append(10)
+        try firstEntry.write(to: journal)
         let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
@@ -48,18 +52,28 @@ final class LiveMatchingPreviewTests: XCTestCase {
         }
         await model.configure(root: root.path, run: run([:]), stage: .matching)
         XCTAssertTrue(model.units.isEmpty)
-        await model.configure(root: root.path, run: run(["matchingPreview": "preview-1"]), stage: .matching)
+        await model.configure(root: root.path, run: run(["matchingPreview": "preview"]), stage: .matching)
         XCTAssertNil(model.error)
         XCTAssertEqual(model.units.count, 1)
         XCTAssertEqual(model.presentation?.matches?.second.id, "1")
         model.selectedMatchIndex = 0
         let first = try XCTUnwrap(model.presentation?.id)
-        let expanded = run(["matchingPreview": "preview-2"])
+        let expanded = run(["matchingPreview": "preview"])
+        let writer = try FileHandle(forWritingTo: journal)
+        defer { try? writer.close() }
+        try writer.seekToEnd()
+        let secondEntry = try JSONEncoder().encode(entries[1])
+        try writer.write(contentsOf: secondEntry.prefix(secondEntry.count / 2))
+        await model.configure(root: root.path, run: expanded, stage: .matching)
+        XCTAssertNil(model.error)
+        XCTAssertEqual(model.units.count, 1)
+        try writer.write(contentsOf: secondEntry.suffix(secondEntry.count - secondEntry.count / 2))
+        try writer.write(contentsOf: Data([10]))
         await model.configure(root: root.path, run: expanded, stage: .matching)
         XCTAssertEqual(model.units.count, 2)
         XCTAssertEqual(model.presentation?.id, first)
         XCTAssertEqual(model.selectedMatchIndex, 0)
-        model.selectUnit("pair-2")
+        model.selectUnit("artifacts/match-pair/pair-2")
         await model.configure(root: root.path, run: expanded, stage: .matching)
         for _ in 0..<100 {
             if !model.loading, model.presentation?.matches?.second.id == "2" { break }
@@ -69,7 +83,7 @@ final class LiveMatchingPreviewTests: XCTestCase {
         model.selectedMatchIndex = 0
         let second = try XCTUnwrap(model.presentation?.id)
         await model.configure(
-            root: root.path, run: run(["matching": "preview-2"], status: "completed"), stage: .matching)
+            root: root.path, run: run(["matching": "preview"], status: "completed"), stage: .matching)
         XCTAssertEqual(model.presentation?.id, second)
         XCTAssertEqual(model.selectedMatchIndex, 0)
         XCTAssertNil(model.error)

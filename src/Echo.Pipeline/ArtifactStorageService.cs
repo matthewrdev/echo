@@ -5,6 +5,7 @@ using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
+using Echo.Storage;
 
 namespace Echo.Pipeline;
 
@@ -13,13 +14,15 @@ public sealed class ArtifactStorageService : IArtifactStorageService
 {
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
+    private readonly IMatchingIndexStore matchingIndexes;
     private readonly string[] stages;
 
     [ImportingConstructor]
-    public ArtifactStorageService(IJsonCodec json, IFileOperations files, [ImportMany] IEnumerable<IPipelineStage> stages)
+    public ArtifactStorageService(IJsonCodec json, IFileOperations files, IMatchingIndexStore matchingIndexes, [ImportMany] IEnumerable<IPipelineStage> stages)
     {
         this.json = json;
         this.files = files;
+        this.matchingIndexes = matchingIndexes;
         this.stages = stages.OrderBy(stage => stage.Order).Select(stage => stage.Name).ToArray();
     }
 
@@ -332,6 +335,15 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         foreach (var path in run.Artifacts.Values)
         {
             yield return path;
+        }
+        var preview = $"runs/{run.Id}/previews/matching";
+        var matchingJournal = store.PathFor(preview + "/pairs.ndjson");
+        if (run.Artifacts.GetValueOrDefault("matchingPreview") == preview && File.Exists(matchingJournal))
+        {
+            foreach (var entry in matchingIndexes.Read(matchingJournal))
+            {
+                yield return entry.Artifact;
+            }
         }
         // Completed child checkpoints can be resumable before their parent
         // stage has published an output, especially after cancellation.

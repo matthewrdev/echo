@@ -9,6 +9,7 @@ final class SavedArtifactReader: ArtifactReader {
     private let json: ArtifactJSONReader
     private let depths: SavedDepthArtifactReader
     private let fusion: SavedFusionArtifactReader
+    private let matchingIndex = MatchingIndexReader()
 
     init(
         scenes: NativeSceneFactory, images: ArtifactImageRenderer, glb: GlbAssetReader,
@@ -50,11 +51,11 @@ final class SavedArtifactReader: ArtifactReader {
             }.sorted { $0.title < $1.title }
         }
         if stage == .matching {
-            let paths: [String] = try read(folder.appendingPathComponent("units.json"))
-            return try paths.map { path in
-                let file = root.appendingPathComponent(path).appendingPathComponent("pair.json")
-                let pair: ImagePairSummary = try read(file)
-                return unit(path, file: file, imageIDs: [pair.a, pair.b], detail: "\(pair.count) candidates")
+            let entries = try matchingIndex.read(folder.appendingPathComponent("pairs.ndjson"))
+            return entries.map { entry in
+                let file = root.appendingPathComponent(entry.artifact).appendingPathComponent("pair.json")
+                return unit(
+                    entry.artifact, file: file, imageIDs: [entry.a, entry.b], detail: "\(entry.pointCount) candidates")
             }
         }
         if stage == .depth, let alignment = run.artifacts["alignment"] {

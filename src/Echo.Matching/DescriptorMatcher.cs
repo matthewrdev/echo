@@ -55,12 +55,12 @@ public static class DescriptorMatcher
             for (var leftIndex = 0; leftIndex < leftFeatures.Length; leftIndex++)
             {
                 cancellation.ThrowIfCancellationRequested();
-                var leftDescriptor = leftFeatures[leftIndex].Descriptor;
+                var leftDescriptor = leftFeatures[leftIndex].DescriptorData.Span;
                 var bestDistance = double.PositiveInfinity;
                 var secondBestDistance = bestDistance;
                 for (var rightIndex = 0; rightIndex < rightFeatures.Length; rightIndex++)
                 {
-                    var rightDescriptor = rightFeatures[rightIndex].Descriptor;
+                    var rightDescriptor = rightFeatures[rightIndex].DescriptorData.Span;
                     var distance = Distance(leftDescriptor, rightDescriptor, false);
                     if (allowReversedDescriptor)
                     {

@@ -18,21 +18,21 @@ internal static class AcceleratedDescriptorMatcher
         {
             return null;
         }
-        var length = left[0].Descriptor.Length;
+        var length = left[0].DescriptorData.Span.Length;
         if (length == 0 || length > 1024)
         {
             return null;
         }
         foreach (var feature in left)
         {
-            if (feature.Descriptor.Length != length)
+            if (feature.DescriptorData.Span.Length != length)
             {
                 return null;
             }
         }
         foreach (var feature in right)
         {
-            if (feature.Descriptor.Length != length)
+            if (feature.DescriptorData.Span.Length != length)
             {
                 return null;
             }
@@ -52,12 +52,12 @@ internal static class AcceleratedDescriptorMatcher
         {
             for (var i = 0; i < left.Length; i++)
             {
-                left[i].Descriptor.CopyTo(packed.AsSpan(i * length, length));
+                left[i].DescriptorData.Span.CopyTo(packed.AsSpan(i * length, length));
             }
             session.Upload<float>(0, packed.AsSpan(0, left.Length * length));
             for (var i = 0; i < right.Length; i++)
             {
-                right[i].Descriptor.CopyTo(packed.AsSpan(i * length, length));
+                right[i].DescriptorData.Span.CopyTo(packed.AsSpan(i * length, length));
             }
             session.Upload<float>(1, packed.AsSpan(0, right.Length * length));
             var guided = !lines.IsEmpty;
@@ -105,9 +105,9 @@ internal static class AcceleratedDescriptorMatcher
                 }
                 // Preserve double-precision scores and threshold decisions for the
                 // selected neighbours. Ranking uses compensated float arithmetic.
-                var best = Distance(left[a].Descriptor, right[b].Descriptor, reverse);
+                var best = Distance(left[a].DescriptorData.Span, right[b].DescriptorData.Span, reverse);
                 var second = float.IsFinite(leftBest[a * 4 + 2])
-                    ? Distance(left[a].Descriptor, right[(int)leftBest[a * 4 + 3]].Descriptor, reverse) : double.PositiveInfinity;
+                    ? Distance(left[a].DescriptorData.Span, right[(int)leftBest[a * 4 + 3]].DescriptorData.Span, reverse) : double.PositiveInfinity;
                 var weakSingleCandidate = guided && !double.IsFinite(second) && best > settings.MatchDistanceThreshold * .25;
                 if (weakSingleCandidate)
                 {

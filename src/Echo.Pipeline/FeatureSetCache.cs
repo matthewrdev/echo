@@ -66,11 +66,11 @@ public sealed class FeatureSetCache : IDisposable
         bytes += (features.Features.Capacity + (long)features.Lines.Capacity) * IntPtr.Size;
         foreach (var feature in features.Features)
         {
-            bytes += 128 + feature.Descriptor.Length * 4L + feature.Kind.Length * 2L;
+            bytes += 128 + feature.DescriptorData.Length * 4L + feature.Kind.Length * 2L;
         }
         foreach (var line in features.Lines)
         {
-            bytes += 192 + line.Descriptor.Length * 4L + (line.Start.Length + (long)line.End.Length) * 8;
+            bytes += 192 + line.DescriptorData.Length * 4L + (line.Start.Length + (long)line.End.Length) * 8;
         }
         return bytes;
     }

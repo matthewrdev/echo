@@ -34,6 +34,7 @@
     <Project Path="tests/Echo.Tests/Echo.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/Echo.Migrate/Echo.Migrate.csproj" />
     <Project Path="tools/Echo.Benchmarks/Echo.Benchmarks.csproj" />
     <Project Path="tools/Echo.CodeStyle/Echo.CodeStyle.csproj" />
   </Folder>

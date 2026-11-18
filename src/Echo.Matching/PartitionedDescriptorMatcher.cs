@@ -15,15 +15,15 @@ internal static class PartitionedDescriptorMatcher
         {
             return null;
         }
-        var length = left[0].Descriptor.Length;
+        var length = left[0].DescriptorData.Span.Length;
         var mixed = false;
         foreach (var feature in left)
         {
-            mixed |= feature.Descriptor.Length != length;
+            mixed |= feature.DescriptorData.Span.Length != length;
         }
         foreach (var feature in right)
         {
-            mixed |= feature.Descriptor.Length != length;
+            mixed |= feature.DescriptorData.Span.Length != length;
         }
         if (!mixed)
         {
@@ -33,13 +33,13 @@ internal static class PartitionedDescriptorMatcher
         var groups = new Dictionary<int, DescriptorGroup<T>>();
         for (var index = 0; index < left.Length; index++)
         {
-            var group = Group(groups, left[index].Descriptor.Length);
+            var group = Group(groups, left[index].DescriptorData.Span.Length);
             group.Left.Add(left[index]);
             group.LeftIndices.Add(index);
         }
         for (var index = 0; index < right.Length; index++)
         {
-            var group = Group(groups, right[index].Descriptor.Length);
+            var group = Group(groups, right[index].DescriptorData.Span.Length);
             group.Right.Add(right[index]);
             group.RightIndices.Add(index);
         }
@@ -53,7 +53,7 @@ internal static class PartitionedDescriptorMatcher
         var result = new DescriptorMatches([], diagnostics);
         // Unmatched descriptors retain the CPU path's default index and rejection
         // classification, even when the first right-hand descriptor has a match.
-        var firstRightBest = FirstRightBest(left, right[0].Descriptor, reverse);
+        var firstRightBest = FirstRightBest(left, right[0].DescriptorData.Span, reverse);
         foreach (var entry in groups)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -106,10 +106,10 @@ internal static class PartitionedDescriptorMatcher
         var index = 0;
         for (var candidate = 0; candidate < left.Length; candidate++)
         {
-            var distance = DescriptorMatcher.Distance(left[candidate].Descriptor, right, false);
+            var distance = DescriptorMatcher.Distance(left[candidate].DescriptorData.Span, right, false);
             if (reverse)
             {
-                distance = Math.Min(distance, DescriptorMatcher.Distance(left[candidate].Descriptor, right, true));
+                distance = Math.Min(distance, DescriptorMatcher.Distance(left[candidate].DescriptorData.Span, right, true));
             }
             if (distance < best)
             {

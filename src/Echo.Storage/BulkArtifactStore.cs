@@ -10,23 +10,38 @@ namespace Echo.Storage;
 public sealed class BulkArtifactStore : IBulkArtifactStore
 {
     private readonly IArtifactWriteObserver writes;
+    private readonly IFeatureArtifactStore features;
+    private readonly IMatchArtifactStore matches;
 
     [ImportingConstructor]
-    public BulkArtifactStore(IArtifactWriteObserver writes)
+    public BulkArtifactStore(IArtifactWriteObserver writes, IFeatureArtifactStore features, IMatchArtifactStore matches)
     {
         this.writes = writes;
+        this.features = features;
+        this.matches = matches;
     }
 
-    public bool CanStore<T>(T value) => value is DepthMap or FusedVolume or Surface or TextureCoordinates or SemanticMap or ReconstructionScene;
+    public bool CanStore<T>(T value) => value is DepthMap or FusedVolume or Surface or TextureCoordinates or SemanticMap or ReconstructionScene or FeatureSet or ImagePair;
 
     public BulkDataSession OpenSession(long memoryBytes, long diskBytes) => new(memoryBytes, diskBytes);
 
     public bool Supports(Type type) => type == typeof(DepthMap) || type == typeof(FusedVolume)
         || type == typeof(Surface) || type == typeof(TextureCoordinates) || type == typeof(SemanticMap)
-        || type == typeof(ReconstructionScene) || type == typeof(ReconstructionOverview);
+        || type == typeof(ReconstructionScene) || type == typeof(ReconstructionOverview)
+        || type == typeof(FeatureSet) || type == typeof(ImagePair);
+
+    public bool SupportsPaging(Type type) => Supports(type) && type != typeof(FeatureSet) && type != typeof(ImagePair);
 
     public T Read<T>(string path)
     {
+        if (typeof(T) == typeof(FeatureSet))
+        {
+            return (T)(object)features.Read(path);
+        }
+        if (typeof(T) == typeof(ImagePair))
+        {
+            return (T)(object)matches.Read(path);
+        }
         using var session = OpenSession(8 * 1024 * 1024, 0);
         var value = session.Read<T>(path);
         // In-memory callers own their records. Paged processing uses a scoped
@@ -75,6 +90,16 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
 
     public void Write<T>(string path, T value, CancellationToken cancellation = default)
     {
+        if (value is FeatureSet featureSet)
+        {
+            features.Write(path, featureSet, cancellation);
+            return;
+        }
+        if (value is ImagePair pair)
+        {
+            matches.Write(path, pair, cancellation);
+            return;
+        }
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var header = new BulkArtifactHeader { Storage = "echo-binary-v1" };
         var created = new List<string>();

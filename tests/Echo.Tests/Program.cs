@@ -23,6 +23,14 @@ if (args.Contains("--reconstruction", StringComparer.Ordinal))
     return composition.Resolve<ReconstructionTests>().Run();
 }
 var scaleTests = new TestSuite();
+composition.Resolve<MatchingStorageTests>().Run(scaleTests);
+composition.Resolve<MatchingMigrationTests>().Run(scaleTests);
+if (args.Contains("--matching-storage", StringComparer.Ordinal))
+{
+    composition.Resolve<FeatureSetCacheTests>().Run(scaleTests);
+    composition.Resolve<ImageStageConcurrencyTests>().Run(scaleTests);
+    return scaleTests.Finish();
+}
 composition.Resolve<ExclusionRegionTests>().Run(scaleTests);
 composition.Resolve<CropPipelineTests>().Run(scaleTests);
 if (args.Contains("--exclusions", StringComparer.Ordinal))

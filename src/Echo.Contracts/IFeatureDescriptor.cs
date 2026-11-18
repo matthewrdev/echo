@@ -2,7 +2,7 @@ namespace Echo.Contracts;
 
 public interface IFeatureDescriptor
 {
-    float[] Descriptor
+    ReadOnlyMemory<float> DescriptorData
     {
         get;
     }

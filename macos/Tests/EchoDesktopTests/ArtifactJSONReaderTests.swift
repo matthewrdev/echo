@@ -73,12 +73,18 @@ final class ArtifactJSONReaderTests: XCTestCase {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         defer { try? FileManager.default.removeItem(at: file) }
         let json = ArtifactJSONReader()
-        try Data(#"{"a":"p","b":"q","matches":[{"unused":[1,2,3]},null],"lineMatches":[]}"#.utf8).write(to: file)
+        try Data(
+            #"{"storage":"echo-matches-v1","a":"p","b":"q","payload":"missing.bin","pointCount":2,"lineCount":0,"kinds":[]}"#
+                .utf8
+        ).write(to: file)
         let first: ImagePairSummary = try json.read(file)
         XCTAssertEqual(first.a, "p")
         XCTAssertEqual(first.count, 2)
         XCTAssertThrowsError(try json.read(file) as ImagePair)
-        try Data(#"{"a":"replacement","b":"q","matches":[]}"#.utf8).write(to: file, options: .atomic)
+        try Data(
+            #"{"storage":"echo-matches-v1","a":"replacement","b":"q","payload":"missing.bin","pointCount":0,"lineCount":0,"kinds":[]}"#
+                .utf8
+        ).write(to: file, options: .atomic)
         let second: ImagePairSummary = try json.read(file)
         XCTAssertEqual(second.a, "replacement")
         XCTAssertEqual(second.count, 0)
@@ -114,16 +120,12 @@ final class ArtifactJSONReaderTests: XCTestCase {
         let units: [String: String] = try json.read(featuresFolder.appendingPathComponent("units.json"))
         let file = root.appendingPathComponent(try XCTUnwrap(units.sorted { $0.key < $1.key }.first?.value))
             .appendingPathComponent("features.json")
-        let featureBytes = try Data(contentsOf: file)
-        let beforeLegacy = Date()
-        let oldFeatures = try JSONDecoder().decode(FeatureSet.self, from: featureBytes)
         let beforeFast = Date()
         let features: FeatureSet = try json.read(file)
-        print(
-            "FEATURE DECODE legacy \(beforeFast.timeIntervalSince(beforeLegacy)) s, direct \(Date().timeIntervalSince(beforeFast)) s"
-        )
-        XCTAssertEqual(features.features.map(\.descriptor), oldFeatures.features.map(\.descriptor))
-        XCTAssertEqual(features.features.map(\.x), oldFeatures.features.map(\.x))
+        print("FEATURE DECODE binary \(Date().timeIntervalSince(beforeFast)) s")
+        XCTAssertFalse(features.features.isEmpty)
+        XCTAssertTrue(features.features.allSatisfy { $0.descriptorSource != nil })
+        XCTAssertEqual(features.features.first?.descriptorCount, features.features.first?.descriptor.count)
         let indexer = FeatureMatchIndexer(json: json)
         let firstStart = Date()
         let first = try indexer.read(root: root, run: run, features: features)

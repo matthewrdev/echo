@@ -173,7 +173,7 @@ public sealed class RunContext : IDisposable
     public T ReadData<T>(string path)
     {
         Cancellation.ThrowIfCancellationRequested();
-        return Paged && bulk.Supports(typeof(T)) ? Data.Read<T>(path) : jsonCodec.Read<T>(path);
+        return Paged && bulk.SupportsPaging(typeof(T)) ? Data.Read<T>(path) : jsonCodec.Read<T>(path);
     }
 
     public IEnumerable<VolumeSample> ReadArtifactChunk(string artifact)
