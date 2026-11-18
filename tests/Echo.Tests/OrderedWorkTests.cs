@@ -46,7 +46,7 @@ public sealed class OrderedWorkTests
                 }
             }, (index, result) =>
             {
-                Check(Environment.CurrentManagedThreadId == caller && active == 0, "Only the coordinator publishes after joining workers");
+                Check(Environment.CurrentManagedThreadId == caller, "Only the coordinator publishes");
                 Check(index == result, "Result must stay attached to its input");
                 published.Add(result);
             }, default);
@@ -103,7 +103,7 @@ public sealed class OrderedWorkTests
             catch (OperationCanceledException)
             {
             }
-            Check(executed == 2 && published == 1, "Do not start the next wave or publish after cancellation");
+            Check(executed <= 4 && published == 1, "Cancellation must stop publication and bounded look-ahead");
         });
         tests.Run("Image work plans respect CPU nesting, unit counts and large image memory", () =>
         {
@@ -114,6 +114,7 @@ public sealed class OrderedWorkTests
             Check(features.Workers >= 1 && features.Workers <= cpuBound, "Respect existing point/line parallel branches");
             Check(planner.Features(settings, images.Take(1).ToArray()).Workers == 1, "Do not schedule more workers than images");
             settings.FeatureWidth = 8192;
+            settings.ProcessingMemoryBudgetMb = 512;
             var large = planner.Features(settings, [new Photo { Width = 8192, Height = 8192 }, new Photo { Width = 8192, Height = 8192 }]);
             Check(large.Workers == 1, "Oversized jobs must run alone");
             Check(planner.Features(settings, [new Photo(), new Photo()]).Workers == 1, "Unknown source dimensions must run alone");
@@ -123,6 +124,24 @@ public sealed class OrderedWorkTests
             var limited = planner.Matching(settings, 3);
             Check(limited.FeatureCacheBytes <= 32L * 1024 * 1024, "Small processing budgets must reduce descriptor retention");
             Check(limited.Workers <= matching.Workers, "Reducing RAM cannot increase matching concurrency");
+        });
+        tests.Run("Rolling workers start later jobs while the first result is still pending", () =>
+        {
+            using var later = new ManualResetEventSlim();
+            var published = new List<int>();
+            executor.Run(6, 2, index =>
+            {
+                if (index == 0)
+                {
+                    Check(later.Wait(TimeSpan.FromSeconds(10)), "An early straggler blocked the next job");
+                }
+                if (index == 2)
+                {
+                    later.Set();
+                }
+                return index;
+            }, (_, result) => published.Add(result), default);
+            Check(published.SequenceEqual(Enumerable.Range(0, 6)), "Rolling work changed publication order");
         });
         tests.Run("Cancellation inside a worker joins the wave without publishing partial results", () =>
         {

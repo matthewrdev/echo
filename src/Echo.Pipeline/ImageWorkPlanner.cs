@@ -13,13 +13,17 @@ public sealed class ImageWorkPlanner : IImageWorkPlanner
 
     public ImageWorkPlan Features(Settings settings, IReadOnlyList<Photo> images)
     {
+        var available = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+        var requested = (long)settings.ProcessingMemoryBudgetMb * 1024 * 1024;
+        // Leave headroom for the runtime, checkpoints and the viewer/native workers.
+        var budget = Math.Max(1, Math.Min(available / 2, requested > 0 ? requested * 3 / 4 : available / 4));
         long largest = 1;
         foreach (var image in images)
         {
             if (image.Width <= 0 || image.Height <= 0)
             {
                 // Missing dimensions cannot justify running several decoders at once.
-                largest = Math.Max(largest, MemoryBudget());
+                largest = Math.Max(largest, budget);
                 continue;
             }
             var sourcePixels = (long)image.Width * image.Height;
@@ -32,7 +36,7 @@ public sealed class ImageWorkPlanner : IImageWorkPlanner
 
         // Point and line extraction already use two concurrent branches per image.
         var threadsPerImage = settings.DetectLines ? Math.Min(2, Environment.ProcessorCount) : 1;
-        return Plan(images.Count, largest, threadsPerImage, 0);
+        return Plan(images.Count, largest, threadsPerImage, 0, budget);
     }
 
     public ImageWorkPlan Matching(Settings settings, int pairCount)
