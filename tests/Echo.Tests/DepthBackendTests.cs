@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Depth;
+using Echo.Geometry;
 using Echo.Imaging;
 using Echo.Projects;
 using Echo.Pipeline;
@@ -22,10 +23,12 @@ public sealed class DepthBackendTests
     private readonly IDepthExecutionPlanner planner;
     private readonly ISceneSemanticArtifacts semantics;
     private readonly ICliffRecoveryArtifacts recovery;
+    private readonly IDepthCostAccelerator[] accelerators;
 
     [ImportingConstructor]
     public DepthBackendTests(IRasterImageService images, IProjectStoreFactory stores, IDepthEstimator composedEstimator,
-        IRunContextFactory contexts, IFileOperations files, IJsonCodec json, IDepthExecutionPlanner planner, ISceneSemanticArtifacts semantics, ICliffRecoveryArtifacts recovery)
+        IRunContextFactory contexts, IFileOperations files, IJsonCodec json, IDepthExecutionPlanner planner, ISceneSemanticArtifacts semantics,
+        ICliffRecoveryArtifacts recovery, [ImportMany] IEnumerable<IDepthCostAccelerator> accelerators)
     {
         this.images = images;
         this.stores = stores;
@@ -36,10 +39,41 @@ public sealed class DepthBackendTests
         this.planner = planner;
         this.semantics = semantics;
         this.recovery = recovery;
+        this.accelerators = accelerators.ToArray();
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Depth batches keep independent patches and hypotheses until selection completes", () =>
+        {
+            using var batch = new DepthBatchScratch(3, 5, 7);
+            var patch = Enumerable.Range(0, 25).Select(value => value * .125).ToArray();
+            double[] refinement = [3, 4, 5, 6, 7];
+            double[] planes = [2, 3, 4, 5, 6, 7, 8];
+            var first = batch.Sample(19, new V3(1, 2, 3), 4, patch, refinement, planes);
+            var expectedPatch = patch.ToArray();
+            var expectedRefinement = refinement.ToArray();
+            Array.Fill(patch, -1);
+            Array.Fill(refinement, -2);
+            var second = batch.Sample(20, default, 1, patch, refinement, planes);
+            Check(first.Patch.Span.SequenceEqual(expectedPatch) && first.Hypotheses.Span.SequenceEqual(expectedRefinement),
+                "Preparing another pixel changed retained search inputs");
+            var recovered = first with
+            {
+                Hypotheses = planes
+            };
+            Check(recovered.Patch.Span.SequenceEqual(expectedPatch) && recovered.Hypotheses.Span.SequenceEqual(planes),
+                "Global recovery lost the original patch");
+            Check(second.Patch.Span.SequenceEqual(patch) && second.Hypotheses.Span.SequenceEqual(refinement),
+                "Samples shared their patch or refinement slots");
+            batch.Local.Add(first);
+            batch.Global.Add(recovered);
+            batch.Reset();
+            var reused = batch.Sample(7, default, 2, patch, ReadOnlySpan<double>.Empty, planes);
+            var empty = batch.Local.Count == 0 && batch.Global.Count == 0;
+            Check(empty && reused.Hypotheses.Span.SequenceEqual(planes),
+                "A reused worker batch retained an earlier pixel");
+        });
         tests.Run("Replaceable depth accelerator preserves CPU output on differences, unavailability and command failure", () =>
             WithScene((store, project, scene) =>
             {
@@ -139,6 +173,7 @@ public sealed class DepthBackendTests
 
         if (Environment.GetEnvironmentVariable("ECHO_TEST_METAL") == "1")
         {
+            tests.Run("Native depth costs preserve every bit across batch boundaries and concurrent callers", VerifyNativeBatches);
             tests.Run("Native Metal depth module executes on GPU and produces bit-identical complete pyramid maps", () =>
                 WithScene((store, project, scene) =>
                 {
@@ -174,7 +209,7 @@ public sealed class DepthBackendTests
                     var fastUnit = accelerated.DepthUnits()[0];
                     Check(fastUnit != unit, "Fast Metal cannot reuse CPU/validated depth checkpoints");
                     var fastMetadata = json.Read<ProcessingMetadata>(store.PathFor(fastUnit + "/processing.json"));
-                    Check(fastMetadata.AlgorithmVersion == "echo-depth-pyramid11-metal-overlap1-sky1", "Version the direct Metal numerical contract");
+                    Check(fastMetadata.AlgorithmVersion == "echo-depth-pyramid12-metal-overlap1-sky1-subject2", "Version the direct Metal numerical contract");
                     var fastExecution = fastMetadata.Executions.Where(item => item.Component == "stereo-depth-search").ToList();
                     Check(fastExecution.Count == 2 && fastExecution.All(item => item.ActualBackend == "metal" && item.CpuSearches == 0), "Persist actual direct GPU execution without duplicate CPU work");
                     var fastRunMetadata = json.Read<RunProcessingMetadata>(store.PathFor($"runs/{accelerated.Run.Id}/processing.json"));
@@ -206,6 +241,69 @@ public sealed class DepthBackendTests
         new DepthStage(files, json, composedEstimator, planner, semantics, recovery).Execute(context);
         context.Complete();
         return context;
+    }
+
+    private void VerifyNativeBatches()
+    {
+        var random = new Random(517);
+        var gray = Enumerable.Range(0, 32 * 32).Select(_ => (float)random.NextDouble()).ToArray();
+        var views = new[] { -.1, .1 }.Select(x => new StereoView
+        {
+            Centre = new V3(x, 0, 0),
+            Focal = 32,
+            Width = 32,
+            Height = 32,
+            WorldToCamera = [1, 0, 0, 0, 1, 0, 0, 0, 1],
+            PatchRight = new V3(1.0 / 32, 0, 0),
+            PatchDown = new V3(0, 1.0 / 32, 0),
+            Gray = gray
+        }).ToArray();
+        var samples = new DepthSearchSample[259];
+        double[] hypotheses = [8, 9, 10, 11, 12];
+        for (var index = 0; index < samples.Length; index++)
+        {
+            var x = 5 + index % 19;
+            var y = 5 + index / 19;
+            var patch = new double[25];
+            for (var pixel = 0; pixel < patch.Length; pixel++)
+            {
+                patch[pixel] = gray[(y + pixel / 5 - 2) * 32 + x + pixel % 5 - 2];
+            }
+            var mean = patch.Average();
+            for (var pixel = 0; pixel < patch.Length; pixel++)
+            {
+                patch[pixel] -= mean;
+            }
+            samples[index] = new DepthSearchSample
+            {
+                PixelIndex = y * 32 + x,
+                Ray = new V3((x - 16.0) / 32, (y - 16.0) / 32, 1),
+                Patch = patch,
+                Norm = patch.Sum(value => value * value),
+                Hypotheses = hypotheses
+            };
+        }
+        using var session = accelerators.Single(accelerator => accelerator.Backend == "metal").Open(views, default);
+        var expected = new float[samples.Length * hypotheses.Length];
+        Check(session.Calculate(default, samples, expected, default) == expected.Length, "Incomplete reference batch");
+        Check(expected.Count(float.IsFinite) > expected.Length / 2, "Batch fixture needs valid costs");
+        Parallel.ForEach(new[] { 1, 7, 31, 256, 259 }, size =>
+        {
+            for (var start = 0; start < samples.Length; start += size)
+            {
+                var count = Math.Min(size, samples.Length - start);
+                var batch = samples.AsSpan(start, count).ToArray();
+                var costs = Enumerable.Repeat(float.NaN, size * hypotheses.Length + 13).ToArray();
+                var written = session.Calculate(default, batch, costs, default);
+                Check(written == count * hypotheses.Length, "Incorrect written cost count");
+                for (var index = 0; index < written; index++)
+                {
+                    Check(BitConverter.SingleToInt32Bits(costs[index]) == BitConverter.SingleToInt32Bits(expected[start * hypotheses.Length + index]),
+                        "Grouping or concurrent submission changed a GPU cost");
+                }
+                Check(costs.Skip(written).All(float.IsNaN), "GPU wrote beyond the logical result length");
+            }
+        });
     }
 
     private void CheckFastScene(IProjectStore store, ProjectData project, ReconstructionScene scene)

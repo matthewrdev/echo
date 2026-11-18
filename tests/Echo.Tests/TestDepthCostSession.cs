@@ -20,7 +20,7 @@ internal sealed class TestDepthCostSession : IDepthCostSession
         get; private set;
     }
 
-    public float[] Calculate(V3 centre, IReadOnlyList<DepthSearchSample> samples, CancellationToken cancellation)
+    public int Calculate(V3 centre, IReadOnlyList<DepthSearchSample> samples, float[] costs, CancellationToken cancellation)
     {
         var call = Interlocked.Increment(ref calls);
         if (mode == "failure" || mode == "partial-failure" && call > 1)
@@ -33,9 +33,9 @@ internal sealed class TestDepthCostSession : IDepthCostSession
         }
         if (mode == "invalid-count")
         {
-            return [];
+            return 0;
         }
-        var costs = new float[samples.Sum(sample => sample.Hypotheses.Length)];
+        var count = samples.Sum(sample => sample.Hypotheses.Length);
         var value = mode switch
         {
             "nan" => float.NaN,
@@ -44,8 +44,11 @@ internal sealed class TestDepthCostSession : IDepthCostSession
             "reject" or "partial-failure" => float.PositiveInfinity,
             _ => 0
         };
-        Array.Fill(costs, value);
-        return costs;
+        costs.AsSpan(0, count).Fill(value);
+        // Pool capacity is not the result length. Poison unused storage so the
+        // estimator must validate and consume only the reported costs.
+        costs.AsSpan(count).Fill(float.NaN);
+        return count;
     }
 
     public void Dispose()

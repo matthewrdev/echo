@@ -222,16 +222,29 @@ public sealed class DepthEstimator : IDepthEstimator
         long cpuSearches = 0;
         long validatedSearches = 0;
         var validate = project.Settings.DepthBackend == "metal-validated";
-        Parallel.For(margin, height - margin, options,
-            () => new DepthRowScratch(project.Settings.DepthRefinementSamples, Math.Max(planeDepths.Length, project.Settings.DepthRefinementSamples)),
-            (y, _, scratch) =>
+        var maximumPlanes = Math.Max(planeDepths.Length, project.Settings.DepthRefinementSamples);
+        var columns = Math.Max(1, width - 2 * margin);
+        // Bound each worker's batch by both samples and cost-buffer size. A row
+        // is the minimum unit; no hypotheses or usable pixels are discarded.
+        var rowsPerBatch = acceleration.Session == null ? 1 : DepthBatchSizing.Rows(columns, maximumPlanes);
+        var rowCount = Math.Max(0, height - 2 * margin);
+        var batches = (rowCount + rowsPerBatch - 1) / rowsPerBatch;
+        Parallel.For(0, batches, options,
+            () => new DepthRowScratch(project.Settings.DepthRefinementSamples, maximumPlanes,
+                acceleration.Session == null ? 0 : checked(rowsPerBatch * columns)),
+            (batch, _, scratch) =>
         {
             cancellation.ThrowIfCancellationRequested();
+            var y = margin + batch * rowsPerBatch;
             if (acceleration.Session != null)
             {
-                SearchAcceleratedRow(y, gray, width, height, patchSpacing, focal, camera, centre, views, prior, near, far,
+                var end = Math.Min(height - margin, y + rowsPerBatch);
+                SearchAcceleratedRows(y, end, gray, width, height, patchSpacing, focal, camera, centre, views, prior, near, far,
                     planeDepths, scratch, result, acceleration, validate, cancellation);
-                levelProgress.CompleteRow();
+                for (var row = y; row < end; row++)
+                {
+                    levelProgress.CompleteRow();
+                }
                 return scratch;
             }
             Span<double> patch = stackalloc double[25];
@@ -438,59 +451,52 @@ public sealed class DepthEstimator : IDepthEstimator
         }
     }
 
-    private void SearchAcceleratedRow(int y, float[] gray, int width, int height, int patchSpacing, double focal,
+    private void SearchAcceleratedRows(int firstRow, int endRow, float[] gray, int width, int height, int patchSpacing, double focal,
         CameraPose camera, V3 centre, StereoView[] views, DepthMap? prior, double near, double far,
         double[] planeDepths, DepthRowScratch scratch, DepthMap result, DepthAccelerationState acceleration,
         bool validate, CancellationToken cancellation)
     {
-        var local = new List<DepthSearchSample>();
-        var global = new List<DepthSearchSample>();
+        var batch = scratch.Batch!;
+        batch.Reset();
         Span<double> patch = stackalloc double[25];
-        var rayY = (y - height * .5) / focal;
         var margin = 2 * patchSpacing + 1;
-        for (var x = margin; x < width - margin; x++)
+        for (var y = firstRow; y < endRow; y++)
         {
-            cancellation.ThrowIfCancellationRequested();
-            var norm = NormalizePatch(gray, width, x, y, patch, patchSpacing);
-            if (norm < .0008)
+            var rayY = (y - height * .5) / focal;
+            for (var x = margin; x < width - margin; x++)
             {
-                continue;
+                cancellation.ThrowIfCancellationRequested();
+                var norm = NormalizePatch(gray, width, x, y, patch, patchSpacing);
+                if (norm < .0008)
+                {
+                    continue;
+                }
+                var count = prior == null ? 0 : CreateHypotheses(prior, x, y, width, height, near, far, scratch.Hypotheses);
+                var ray = CameraGeometry.Rotate(camera.Rotation, new V3((x - width * .5) / focal, rayY, 1));
+                var sample = batch.Sample(y * width + x, ray, norm, patch, scratch.Hypotheses[..count], planeDepths);
+                (count > 0 ? batch.Local : batch.Global).Add(sample);
             }
-            var count = prior == null ? 0 : CreateHypotheses(prior, x, y, width, height, near, far, scratch.Hypotheses);
-            var sample = new DepthSearchSample
-            {
-                PixelIndex = y * width + x,
-                Ray = CameraGeometry.Rotate(camera.Rotation, new V3((x - width * .5) / focal, rayY, 1)),
-                Patch = patch.ToArray(),
-                Norm = norm,
-                Hypotheses = count > 0 ? scratch.Hypotheses[..count].ToArray() : planeDepths
-            };
-            (count > 0 ? local : global).Add(sample);
         }
-        var rejected = SearchAcceleratedBatch(local, false, views, centre, result, scratch, acceleration, validate, cancellation);
-        foreach (var sample in rejected)
-        {
-            sample.Hypotheses = planeDepths;
-            global.Add(sample);
-        }
-        scratch.GlobalSearches += global.Count;
-        var missing = SearchAcceleratedBatch(global, true, views, centre, result, scratch, acceleration, validate, cancellation);
+        SearchAcceleratedBatch(batch.Local, false, views, centre, result, scratch, acceleration, validate, planeDepths, cancellation);
+        scratch.GlobalSearches += batch.Global.Count;
+        var missing = SearchAcceleratedBatch(batch.Global, true, views, centre, result, scratch, acceleration, validate, planeDepths, cancellation);
         if (prior != null)
         {
-            scratch.RecoveredSamples += global.Count - missing.Count;
+            scratch.RecoveredSamples += batch.Global.Count - missing;
         }
     }
 
-    private List<DepthSearchSample> SearchAcceleratedBatch(List<DepthSearchSample> samples, bool checkAmbiguity,
+    private int SearchAcceleratedBatch(List<DepthSearchSample> samples, bool checkAmbiguity,
         StereoView[] views, V3 centre, DepthMap result, DepthRowScratch scratch, DepthAccelerationState acceleration,
-        bool validate, CancellationToken cancellation)
+        bool validate, double[] planeDepths, CancellationToken cancellation)
     {
-        var rejected = new List<DepthSearchSample>();
+        var rejected = 0;
         if (samples.Count == 0)
         {
             return rejected;
         }
-        var acceleratedCosts = CalculateAcceleratedCosts(centre, samples, acceleration, cancellation);
+        var acceleratedCosts = scratch.Batch!.Costs;
+        var accelerated = CalculateAcceleratedCosts(centre, samples, acceleratedCosts, acceleration, cancellation);
         for (var index = 0; index < samples.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -498,10 +504,10 @@ public sealed class DepthEstimator : IDepthEstimator
             bool found;
             double depth;
             double cost;
-            if (acceleratedCosts == null)
+            if (!accelerated)
             {
                 scratch.CpuSearches++;
-                found = SearchDepth(views, centre, sample.Ray, sample.Patch, sample.Norm, sample.Hypotheses,
+                found = SearchDepth(views, centre, sample.Ray, sample.Patch.Span, sample.Norm, sample.Hypotheses.Span,
                     scratch.Costs, checkAmbiguity, cancellation, out depth, out cost);
             }
             else
@@ -511,12 +517,12 @@ public sealed class DepthEstimator : IDepthEstimator
                 {
                     costs[plane] = acceleratedCosts[index * costs.Length + plane];
                 }
-                found = SelectDepth(views, centre, sample.Ray, sample.Hypotheses, costs,
+                found = SelectDepth(views, centre, sample.Ray, sample.Hypotheses.Span, costs,
                     checkAmbiguity, out depth, out cost);
                 scratch.AcceleratedSearches++;
                 if (validate)
                 {
-                    var cpuFound = SearchDepth(views, centre, sample.Ray, sample.Patch, sample.Norm, sample.Hypotheses,
+                    var cpuFound = SearchDepth(views, centre, sample.Ray, sample.Patch.Span, sample.Norm, sample.Hypotheses.Span,
                         scratch.Costs, checkAmbiguity, cancellation, out var cpuDepth, out var cpuCost);
                     scratch.CpuSearches++;
                     scratch.ValidatedSearches++;
@@ -533,7 +539,14 @@ public sealed class DepthEstimator : IDepthEstimator
             }
             if (!found)
             {
-                rejected.Add(sample);
+                rejected++;
+                if (!checkAmbiguity)
+                {
+                    scratch.Batch.Global.Add(sample with
+                    {
+                        Hypotheses = planeDepths
+                    });
+                }
                 continue;
             }
             result.Depth[sample.PixelIndex] = (float)depth;
@@ -542,21 +555,21 @@ public sealed class DepthEstimator : IDepthEstimator
         return rejected;
     }
 
-    private float[]? CalculateAcceleratedCosts(V3 centre, List<DepthSearchSample> samples,
+    private bool CalculateAcceleratedCosts(V3 centre, List<DepthSearchSample> samples, float[] costs,
         DepthAccelerationState acceleration, CancellationToken cancellation)
     {
         if (acceleration.Failure != null)
         {
-            return null;
+            return false;
         }
         try
         {
-            var costs = acceleration.Session!.Calculate(centre, samples, cancellation);
-            if (costs.Length != checked(samples.Count * samples[0].Hypotheses.Length))
+            var count = acceleration.Session!.Calculate(centre, samples, costs, cancellation);
+            if (count != checked(samples.Count * samples[0].Hypotheses.Length))
             {
                 throw new DepthAccelerationException("Metal returned an invalid cost count.");
             }
-            foreach (var cost in costs)
+            foreach (var cost in costs.AsSpan(0, count))
             {
                 // Positive infinity means insufficient support, as on the CPU.
                 var invalidCost = float.IsNaN(cost) || cost < 0 || cost > 2 && !float.IsPositiveInfinity(cost);
@@ -565,12 +578,12 @@ public sealed class DepthEstimator : IDepthEstimator
                     throw new DepthAccelerationException("Metal returned an invalid stereo cost.");
                 }
             }
-            return costs;
+            return true;
         }
         catch (DepthAccelerationException error)
         {
             acceleration.Fail(error.Message);
-            return null;
+            return false;
         }
     }
 

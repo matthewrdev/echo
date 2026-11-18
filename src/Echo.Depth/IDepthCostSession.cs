@@ -13,6 +13,8 @@ public interface IDepthCostSession : IDisposable
         get;
     }
 
-    // One row-major cost per sample/hypothesis. Calls may arrive concurrently.
-    float[] Calculate(V3 centre, IReadOnlyList<DepthSearchSample> samples, CancellationToken cancellation);
+    // Write one row-major cost per sample/hypothesis and return the written count.
+    // Calls may arrive concurrently. Input and output buffers belong to the caller
+    // and must not be retained after this synchronous call completes.
+    int Calculate(V3 centre, IReadOnlyList<DepthSearchSample> samples, float[] costs, CancellationToken cancellation);
 }

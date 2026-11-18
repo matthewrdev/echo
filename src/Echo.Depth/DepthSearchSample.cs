@@ -2,7 +2,7 @@ using Echo.Geometry;
 
 namespace Echo.Depth;
 
-public sealed class DepthSearchSample
+public readonly record struct DepthSearchSample
 {
     public int PixelIndex
     {
@@ -12,10 +12,16 @@ public sealed class DepthSearchSample
     {
         get; init;
     }
-    public double[] Patch { get; init; } = [];
+    public ReadOnlyMemory<double> Patch
+    {
+        get; init;
+    }
     public double Norm
     {
         get; init;
     }
-    public double[] Hypotheses { get; set; } = [];
+    public ReadOnlyMemory<double> Hypotheses
+    {
+        get; init;
+    }
 }

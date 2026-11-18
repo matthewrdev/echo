@@ -12,6 +12,7 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
     private readonly V3 origin;
     private readonly IPerformanceTrace trace;
     private readonly object gate = new();
+    private readonly StringBuilder error = new(2048);
 
     public MetalDepthCostSession(MetalDepthHandle handle, string device, string shaderHash, V3 origin, IPerformanceTrace trace)
     {
@@ -31,17 +32,21 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
         get;
     }
 
-    public float[] Calculate(V3 centre, IReadOnlyList<DepthSearchSample> samples, CancellationToken cancellation)
+    public int Calculate(V3 centre, IReadOnlyList<DepthSearchSample> samples, float[] costs, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         if (samples.Count == 0)
         {
-            return [];
+            return 0;
         }
         using var span = trace.Begin("Stereo depth cost batch", PerformanceSpanKind.Compute, PerformanceBackend.Metal);
         var gpu = 0.0;
         var planeCount = samples[0].Hypotheses.Length;
         var costCount = checked(samples.Count * planeCount);
+        if (costs.Length < costCount)
+        {
+            throw new ArgumentException("The result buffer is too small for the depth batch.", nameof(costs));
+        }
         var jobs = ArrayPool<float>.Shared.Rent(checked(samples.Count * 32));
         var depths = ArrayPool<float>.Shared.Rent(costCount);
         try
@@ -54,6 +59,8 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                     throw new ArgumentException("All samples in a depth batch must have the same hypothesis count and 25 patch values.", nameof(samples));
                 }
                 var job = jobs.AsSpan(index * 32, 32);
+                var patch = sample.Patch.Span;
+                var hypotheses = sample.Hypotheses.Span;
                 job[0] = (float)(centre.X - origin.X);
                 job[1] = (float)(centre.Y - origin.Y);
                 job[2] = (float)(centre.Z - origin.Z);
@@ -63,19 +70,18 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                 job[6] = (float)sample.Norm;
                 for (var element = 0; element < 25; element++)
                 {
-                    job[7 + element] = (float)sample.Patch[element];
+                    job[7 + element] = (float)patch[element];
                 }
                 for (var plane = 0; plane < planeCount; plane++)
                 {
-                    depths[index * planeCount + plane] = (float)sample.Hypotheses[plane];
+                    depths[index * planeCount + plane] = (float)hypotheses[plane];
                 }
             }
-            var costs = new float[costCount];
             lock (gate)
             {
                 cancellation.ThrowIfCancellationRequested();
                 var before = MetalDepthNative.GpuTime(handle);
-                var error = new StringBuilder(2048);
+                error.Clear();
                 if (MetalDepthNative.Calculate(handle, jobs, samples.Count, depths, planeCount, costs, error, error.Capacity) != 0)
                 {
                     throw new DepthAccelerationException(error.ToString());
@@ -83,7 +89,7 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                 gpu = MetalDepthNative.GpuTime(handle) - before;
             }
             cancellation.ThrowIfCancellationRequested();
-            return costs;
+            return costCount;
         }
         catch (OperationCanceledException)
         {

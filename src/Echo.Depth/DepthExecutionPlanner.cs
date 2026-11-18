@@ -36,12 +36,11 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
         long workerBytes = 0;
         if (settings.DepthBackend != "cpu")
         {
-            // Packed upload plus resident GPU grayscale, and in-flight CPU/GPU row batches.
+            // Packed upload plus resident GPU grayscale, and in-flight CPU/GPU batches.
             // Keep per-worker scratch separate so admission can reduce parallelism.
-            var rowBytes = (long)settings.DepthWidth * (Math.Max(settings.DepthPlanes, settings.DepthRefinementSamples) * 12L
-                + settings.DepthRefinementSamples * 8L + 512);
             baseBytes += largestMap * neighbours * 8;
-            workerBytes = rowBytes;
+            workerBytes = DepthBatchSizing.WorkerBytes(settings.DepthWidth,
+                Math.Max(settings.DepthPlanes, settings.DepthRefinementSamples), settings.DepthRefinementSamples);
         }
         var configured = depthMemoryBudgetMb ?? settings.DepthMemoryBudgetMb;
         var memoryBudgetBytes = configured == 0 && jobBudgetBytes > 0
