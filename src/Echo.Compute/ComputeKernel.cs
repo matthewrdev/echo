@@ -28,5 +28,8 @@ public enum ComputeKernel
     VolumeCompactGroups,
     FusionRetainedCounts,
     FusionRetainedOffsets,
-    FusionCompactResults
+    FusionCompactResults,
+    DescriptorTiles,
+    DescriptorTileLeft,
+    DescriptorTileRight
 }

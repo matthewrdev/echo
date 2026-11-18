@@ -40,9 +40,14 @@ internal static class AcceleratedDescriptorMatcher
         var fixedBytes = (long)(left.Length + right.Length) * length * sizeof(float)
             + (long)left.Length * 32 + (long)right.Length * 16
             + (lines.Length + (long)pixels.Length) * sizeof(float) + 4096;
-        var availableRows = Math.Max(1, (compute.MemoryBudgetBytes - fixedBytes) / (right.Length * sizeof(float)));
-        var rows = (int)Math.Min(Math.Min(512, left.Length), availableRows);
-        if (!compute.CanAllocate(fixedBytes + (long)rows * right.Length * sizeof(float), settings.ComputeBackend))
+        var rightTiles = (right.Length + 15) / 16;
+        var rows = Math.Min(512, left.Length);
+        long TileBytes(int rowCount) => (long)((rowCount + 15) / 16) * rightTiles * 16 * 24;
+        while (rows > 1 && TileBytes(rows) > compute.MemoryBudgetBytes - fixedBytes)
+        {
+            rows = Math.Max(1, rows / 2);
+        }
+        if (!compute.CanAllocate(fixedBytes + TileBytes(rows), settings.ComputeBackend))
         {
             return null;
         }
@@ -63,7 +68,9 @@ internal static class AcceleratedDescriptorMatcher
             var guided = !lines.IsEmpty;
             session.Upload<float>(5, guided ? lines : [0, 0, 0, 0]);
             session.Upload<float>(6, guided ? pixels : [0, 0]);
-            session.Allocate(2, checked(Math.Min(rows, left.Length) * right.Length * sizeof(float)));
+            var tileCount = checked((rows + 15) / 16 * rightTiles);
+            session.Allocate(2, checked(tileCount * 16 * 16));
+            session.Allocate(7, checked(tileCount * 16 * 8));
             session.Allocate(3, checked(left.Length * 4 * sizeof(float)));
             session.Allocate(4, checked(right.Length * 2 * sizeof(float)));
             Span<int> parameters = stackalloc int[] { left.Length, right.Length, length, reverse ? 1 : 0, 0, 0, guided ? 1 : 0 };
@@ -73,9 +80,9 @@ internal static class AcceleratedDescriptorMatcher
                 var count = Math.Min(rows, left.Length - first);
                 parameters[4] = first;
                 parameters[5] = count;
-                session.Dispatch(ComputeKernel.DescriptorPairs, checked(count * right.Length), parameters);
-                session.Dispatch(ComputeKernel.DescriptorLeft, count, parameters);
-                session.Dispatch(ComputeKernel.DescriptorRight, right.Length, parameters);
+                session.Dispatch(ComputeKernel.DescriptorTiles, checked((count + 15) / 16 * rightTiles * 256), parameters);
+                session.Dispatch(ComputeKernel.DescriptorTileLeft, count, parameters);
+                session.Dispatch(ComputeKernel.DescriptorTileRight, right.Length, parameters);
                 // Submit before the generic safety drain. Two queued submissions retain
                 // bounded memory/cancellation latency while the CPU encodes the next block.
                 if ((first / rows + 1) % 8 == 0 && session is IComputeStreamingSession { SupportsStreaming: true } streaming)

@@ -106,9 +106,10 @@ final class ComputeSession {
             }
         }
         let pipeline = try owner.pipeline(name)
-        let fixedGroups = name == "fusion_retained_counts" || name == "fusion_compact_results"
+        let fixedGroups =
+            name == "fusion_retained_counts" || name == "fusion_compact_results" || name == "descriptor_tiles"
         if fixedGroups && pipeline.maxTotalThreadsPerThreadgroup < 256 {
-            throw ComputeDevice.failure("Fusion compaction requires 256-thread groups")
+            throw ComputeDevice.failure("This compute kernel requires 256-thread groups")
         }
         if command == nil { command = owner.queue.makeCommandBuffer() }
         guard let command, let encoder = command.makeComputeCommandEncoder() else {

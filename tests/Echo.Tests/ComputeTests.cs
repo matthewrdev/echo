@@ -30,8 +30,8 @@ public sealed class ComputeTests
         tests.Run("Metal descriptor blocks preserve mutual, ratio, reversed and tied matches", () =>
         {
             var random = new Random(271);
-            var left = new Feature[137];
-            var right = new Feature[149];
+            var left = new Feature[537];
+            var right = new Feature[549];
             for (var i = 0; i < left.Length; i++)
             {
                 left[i] = new Feature { Descriptor = Enumerable.Range(0, 128).Select(_ => (float)random.NextDouble() * .1f).ToArray() };
@@ -41,6 +41,8 @@ public sealed class ComputeTests
                 right[i] = new Feature { Descriptor = left[i % left.Length].Descriptor.Select(value => value + .0001f).ToArray() };
             }
             right[9].Descriptor = right[8].Descriptor.ToArray();
+            right[529].Descriptor = right[8].Descriptor.ToArray();
+            left[530].Descriptor = left[17].Descriptor.ToArray();
             right[26].Descriptor = left[26].Descriptor.Reverse().ToArray();
             foreach (var reversed in new[] { false, true })
             {

@@ -7,7 +7,8 @@ internal static class ComputeKernelOperation
         return kernel switch
         {
             ComputeKernel.GaussianHorizontal or ComputeKernel.GaussianVertical => ComputeOperation.Features,
-            ComputeKernel.DescriptorPairs or ComputeKernel.DescriptorLeft or ComputeKernel.DescriptorRight => ComputeOperation.Matching,
+            ComputeKernel.DescriptorPairs or ComputeKernel.DescriptorLeft or ComputeKernel.DescriptorRight
+                or ComputeKernel.DescriptorTiles or ComputeKernel.DescriptorTileLeft or ComputeKernel.DescriptorTileRight => ComputeOperation.Matching,
             ComputeKernel.EpipolarCandidates or ComputeKernel.EpipolarCounts or ComputeKernel.TriangulatePairs => ComputeOperation.Alignment,
             ComputeKernel.DepthFilter => ComputeOperation.Depth,
             ComputeKernel.CloudSupport => ComputeOperation.Cloud,
