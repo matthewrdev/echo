@@ -5,6 +5,7 @@ struct PerformanceTraceDocument: Codable {
     let summary: PerformanceTraceSummary
     let spans: [PerformanceSpan]
     let statistics: [PerformanceStatistic]
+    var measurements: [PerformanceMeasurement]? = nil
 
     var reusedStages: Set<String> {
         Set(spans.filter { $0.kind == .stage && isReused($0) }.map(\.stage))

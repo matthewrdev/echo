@@ -1,6 +1,8 @@
 import Foundation
 
 struct PerformanceTraceSummary: Codable, Identifiable {
+    var environment: PerformanceTraceEnvironment? = nil
+    var droppedMeasurements: Int64? = nil
     let id: String
     let runId: String
     let target: String

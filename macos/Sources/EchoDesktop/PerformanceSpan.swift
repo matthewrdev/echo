@@ -17,4 +17,11 @@ struct PerformanceSpan: Codable, Identifiable {
     let unit: String
     let bytes: Int64
     let detail: String?
+    var threadAllocatedBytes: Int64? = nil
+    var processAllocatedBytes: Int64? = nil
+    var processCpuMilliseconds: Double? = nil
+    var gcPauseMilliseconds: Double? = nil
+    var gen0Collections: Int64? = nil
+    var gen1Collections: Int64? = nil
+    var gen2Collections: Int64? = nil
 }

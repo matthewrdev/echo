@@ -54,5 +54,13 @@ final class PerformanceTraceViewerTests: XCTestCase {
         view.cacheDisplay(in: view.bounds, to: bitmap)
         try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
             to: URL(fileURLWithPath: output).appendingPathComponent("performance-overview.png"))
+        view.rootView = PerformanceTraceView(workspace: workspace, model: workspace.performance, page: .diagnostics)
+            .environment(\.colorScheme, .light).frame(width: 1100, height: 680).background(Color.white).id(
+                PerformanceTracePage.diagnostics)
+        try await Task.sleep(for: .milliseconds(300))
+        view.layoutSubtreeIfNeeded()
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
+            to: URL(fileURLWithPath: output).appendingPathComponent("performance-diagnostics.png"))
     }
 }

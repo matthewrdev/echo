@@ -36,6 +36,8 @@ struct PerformanceTraceView: View {
                             kind = .operation
                             page = .timings
                         }
+                    } else if page == .diagnostics {
+                        PerformanceDiagnosticsView(document: document)
                     } else {
                         HStack {
                             Picker("Detail", selection: $kind) {

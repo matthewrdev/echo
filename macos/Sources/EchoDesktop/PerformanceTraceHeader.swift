@@ -37,7 +37,7 @@ struct PerformanceTraceHeader: View {
     private var pagePicker: some View {
         Picker("View", selection: $page) {
             ForEach(PerformanceTracePage.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }.pickerStyle(.segmented).labelsHidden().frame(width: 270, alignment: .leading)
+        }.pickerStyle(.segmented).labelsHidden().frame(width: 390, alignment: .leading)
     }
 
     private func summary(_ document: PerformanceTraceDocument) -> some View {
