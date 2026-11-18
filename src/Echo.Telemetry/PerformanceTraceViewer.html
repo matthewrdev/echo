@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Echo performance trace</title>
+<style>
+:root{color-scheme:dark;--bg:#10151e;--panel:#19212e;--line:#303c4f;--text:#e7edf7;--muted:#a7b5c9;--accent:#70dbb8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1600px;margin:auto;padding:30px}h1{font-size:26px;letter-spacing:-.7px;margin:0}h2{font-size:16px;margin:0 0 12px}p{margin:7px 0}.muted{color:var(--muted)}header{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:20px}.badge{border:1px solid var(--accent);color:var(--accent);border-radius:30px;padding:5px 14px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.card,section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}.card strong{display:block;font-size:24px;font-variant-numeric:tabular-nums}.card span{color:var(--muted);font-size:12px}section{margin-top:16px}.filters,.heading{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.heading{justify-content:space-between;margin-bottom:10px}.heading h2{margin:0}label{font-size:12px;color:var(--muted)}select,input,button{font:inherit;background:#101722;color:var(--text);border:1px solid #43526a;border-radius:6px;padding:7px 10px}select,input{display:block;min-width:160px}input{min-width:250px}button{cursor:pointer}button:hover,button:focus-visible{border-color:var(--accent);color:var(--accent)}.table-scroll{overflow:auto;max-height:470px}table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}th,td{text-align:right;padding:9px 11px;border-bottom:1px solid var(--line)}th{position:sticky;top:0;background:var(--panel);z-index:1;color:var(--muted)}th:first-child,td:first-child{text-align:left}th button{border:0;background:none;padding:0;font-size:12px;color:var(--muted)}td:first-child{white-space:normal;min-width:210px}tbody tr:hover{background:#253348}.note{font-size:12px;color:var(--muted);margin-top:12px}.warning{color:#ffd58b}.timeline-scroll{height:420px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;background:#101722}.timeline-space{position:relative;min-height:420px}canvas{position:sticky;top:0;display:block;width:100%;height:420px;touch-action:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 ui-monospace,monospace;background:#101722;border-radius:6px;padding:12px;margin-bottom:0}.legend{display:flex;gap:15px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}footer{color:var(--muted);font-size:12px;margin-top:20px}@media(max-width:700px){main{padding:14px}.cards{grid-template-columns:1fr 1fr}header{align-items:flex-start}.card strong{font-size:20px}}@media print{body{background:white;color:black}section,.card{break-inside:avoid}.table-scroll{max-height:none}.filters,button{display:none}}
+</style>
+</head>
+<body><main>
+<header><div><h1>Echo performance trace</h1><p class="muted" id="identity"></p></div><span class="badge" id="status"></span></header>
+<p class="muted" id="environment"></p>
+<div class="cards" id="summary"></div>
+<section><div class="filters">
+<label>Stage<select id="stage"><option value="">All stages</option></select></label>
+<label>Detail<select id="kind"><option value="">All intervals</option><option value="stage">Stages</option><option value="operation" selected>Operations</option><option value="checkpoint">Checkpoints</option><option value="compute">Compute</option><option value="transfer">Transfers</option><option value="wait">Waits</option></select></label>
+<label>Search<input id="search" type="search" placeholder="Filter steps and measurements"></label>
+<button id="fit">Fit filtered intervals</button><button id="reset">Show whole run</button>
+</div></section>
+<section><div class="heading"><h2>Timeline</h2><span class="muted" id="range"></span></div>
+<div class="legend" id="legend"></div><p class="note" id="retention"></p>
+<div class="timeline-scroll" id="timeline-scroll"><div class="timeline-space" id="timeline-space"><canvas id="timeline" role="img" aria-label="Performance intervals grouped by thread and nesting level"></canvas></div></div>
+<p class="note">Drag horizontally to zoom. Click an interval for its measurements. Scroll vertically for more thread lanes.</p>
+<pre id="selection">Select an interval to inspect its duration, GPU time and allocation measurements.</pre></section>
+<section><h2>Aggregated timings</h2><div class="table-scroll"><table id="timings"><thead><tr>
+<th>Step / stage</th><th><button data-sort="count">Calls</button></th><th><button data-sort="busyMilliseconds">Covered</button></th><th><button data-sort="totalMilliseconds">Sum ↓</button></th><th>P50 ≤</th><th>P95 ≤</th><th>Longest</th><th>Peak active</th><th>GPU batches</th><th>Allocated</th><th>Process CPU</th><th>GC pause</th><th>Reused / failed</th><th>Items / bytes</th>
+</tr></thead><tbody></tbody></table></div>
+<p class="note">Covered is wall time with at least one call active; Sum includes overlapping calls and child work. P50/P95 are upper bounds from power-of-two duration buckets, not exact percentiles. Aggregates include intervals omitted from the timeline. Older traces show — for diagnostics that were not recorded.</p>
+<p class="note">Stage allocation, CPU and GC values cover the processor process. Other allocation values cover the calling thread, including children; cross-thread completion has no thread-allocation sample. Allocated bytes are not retained memory. GPU times belong to completed command buffers collected by that call, not necessarily the kernel named on the row.</p></section>
+<section><h2>Workload and scheduling measurements</h2><div class="table-scroll"><table id="measurements"><thead><tr><th>Measurement / stage</th><th>Samples</th><th>Unit</th><th>Total</th><th>Mean</th><th>Minimum</th><th>Maximum</th></tr></thead><tbody></tbody></table></div><p class="note" id="measurement-note">These samples are aggregated without individual timeline records. Time samples can overlap across workers.</p></section>
+<footer>Self-contained export: no network requests or external assets. This is an instrumented elapsed-time trace, not a sampled CPU call-stack profile. Original trace data is embedded in this file.</footer>
+</main>
+<script type="application/json" id="trace-data">__ECHO_TRACE_DATA__</script>
+<script>
+'use strict';
+const trace=JSON.parse(document.getElementById('trace-data').textContent);
+const summary=trace.summary, spans=trace.spans||[], statistics=trace.statistics||[], measurements=trace.measurements||[];
+const $=id=>document.getElementById(id), fmt=new Intl.NumberFormat(undefined,{maximumFractionDigits:3});
+const number=value=>value==null?'—':fmt.format(value);
+function duration(value){if(value==null)return '—';if(value<1)return number(value*1000)+' µs';if(value<1000)return number(value)+' ms';if(value<60000)return number(value/1000)+' s';return Math.floor(value/60000)+'m '+number((value%60000)/1000)+'s';}
+function bytes(value){if(value==null)return '—';let index=0;const units=['B','KiB','MiB','GiB','TiB'];while(value>=1024&&index<units.length-1){value/=1024;index++;}return number(value)+' '+units[index];}
+function element(tag,text,parent){const node=document.createElement(tag);if(text!=null)node.textContent=text;if(parent)parent.appendChild(node);return node;}
+$('identity').textContent='Run '+summary.runId+' · Attempt '+summary.id+' · '+summary.startedAt;
+$('status').textContent=summary.status;
+const env=summary.environment;
+$('environment').textContent=env?env.runtime+' · '+env.architecture+' · '+env.logicalProcessors+' logical processors · '+(env.serverGc?'Server':'Workstation')+' GC · '+env.operatingSystem:'Runtime environment was not recorded in this older trace.';
+const gpu=statistics.reduce((total,row)=>total+(row.gpuMilliseconds||0),0);
+for(const [label,value] of [['Elapsed',duration(summary.durationMilliseconds)],['Process CPU',duration(summary.cpuMilliseconds)],['Completed GPU batches',duration(gpu)],['Omitted timeline intervals',number(summary.droppedSpans||0)]]){const card=element('div',null,$('summary'));card.className='card';element('span',label,card);element('strong',value,card);}
+const colours={stage:'#82a9ff',checkpoint:'#b69cf5',operation:'#70dbb8',compute:'#f0bc72',transfer:'#7bcddd',wait:'#ef91a4'};
+for(const [name,colour] of Object.entries(colours)){const label=element('span',null,$('legend'));const swatch=element('i',null,label);swatch.style.background=colour;label.appendChild(document.createTextNode(name));}
+for(const stage of [...new Set([...spans,...statistics,...measurements].map(row=>row.stage))].sort()){const option=element('option',stage,$('stage'));option.value=stage;}
+let start=0,end=Math.max(1,summary.durationMilliseconds),sort='totalMilliseconds',filtered=[],lanes=[],laneByKey=new Map(),hitBoxes=[],drag=null;
+const byId=new Map(spans.map(span=>[span.id,span]));
+const depthCache=new Map();
+function depth(span){if(depthCache.has(span.id))return depthCache.get(span.id);let parent=byId.get(span.parentId),count=0;const seen=new Set([span.id]);while(parent&&parent.threadId===span.threadId&&!seen.has(parent.id)&&count<32){seen.add(parent.id);count++;parent=byId.get(parent.parentId);}depthCache.set(span.id,count);return count;}
+function matches(row,withKind=true){return (!$('stage').value||row.stage===$('stage').value)&&(!withKind||!$('kind').value||row.kind===$('kind').value)&&row.name.toLowerCase().includes($('search').value.toLowerCase());}
+function cells(row,values){for(const value of values)element('td',value,row);}
+function refresh(){
+ const tbody=$('timings').tBodies[0];tbody.replaceChildren();
+ const rows=statistics.filter(row=>matches(row)).sort((a,b)=>(b[sort]||0)-(a[sort]||0));
+ for(const row of rows){const tr=element('tr',null,tbody);cells(tr,[row.name+' / '+row.stage,number(row.count),duration(row.busyMilliseconds),duration(row.totalMilliseconds),duration(row.medianUpperMilliseconds),duration(row.p95UpperMilliseconds),duration(row.maximumMilliseconds),number(row.maximumConcurrency),duration(row.gpuMilliseconds),bytes(row.processAllocatedBytes??row.threadAllocatedBytes),duration(row.processCpuMilliseconds),duration(row.gcPauseMilliseconds),number(row.reusedCount)+' / '+number(row.failedCount),number(row.items)+' / '+bytes(row.bytes)]);tr.title='Allocation samples: '+(row.threadAllocationSamples??'not recorded')+'; GC collections: '+[row.gen0Collections,row.gen1Collections,row.gen2Collections].map(number).join(' / ');}
+ if(!rows.length){const tr=element('tr',null,tbody);const cell=element('td','No matching timings.',tr);cell.colSpan=14;}
+ const samples=$('measurements').tBodies[0];samples.replaceChildren();
+ const selected=measurements.filter(row=>matches(row,false)).sort((a,b)=>(a.stage+a.name).localeCompare(b.stage+b.name));
+ for(const row of selected){const tr=element('tr',null,samples);cells(tr,[row.name+' / '+row.stage,number(row.count),row.unit,number(row.total),number(row.count?row.total/row.count:0),number(row.minimum),number(row.maximum)]);}
+ if(!selected.length){const tr=element('tr',null,samples);const cell=element('td','No matching measurements. Older traces do not contain these counters.',tr);cell.colSpan=7;}
+ if(summary.droppedMeasurements)$('measurement-note').textContent=number(summary.droppedMeasurements)+' samples omitted after the 256 measurement-name limit. Time samples can overlap across workers.';
+ filtered=spans.filter(row=>matches(row)&&row.durationMilliseconds>=0);
+ const keys=new Map();for(const span of filtered){const level=depth(span),key=span.threadId+':'+level;keys.set(key,{key,thread:span.threadId,depth:level});}
+ lanes=[...keys.values()].sort((a,b)=>a.thread-b.thread||a.depth-b.depth);laneByKey=new Map(lanes.map((lane,index)=>[lane.key,index]));
+ $('timeline-space').style.height=Math.max(420,40+lanes.length*22)+'px';
+ $('retention').textContent=number(filtered.length)+' retained intervals match the filter. '+number(summary.droppedSpans||0)+' detailed intervals were omitted to bound trace memory; timing aggregates still cover all recorded calls.';
+ $('timeline-scroll').scrollTop=0;draw();
+}
+const canvas=$('timeline'),ctx=canvas.getContext('2d');
+function draw(){
+ const width=canvas.clientWidth,height=420,scale=Math.min(2,window.devicePixelRatio||1),left=125,plot=Math.max(1,width-left-15),scroll=$('timeline-scroll').scrollTop;
+ canvas.width=Math.round(width*scale);canvas.height=Math.round(height*scale);ctx.scale(scale,scale);ctx.fillStyle='#101722';ctx.fillRect(0,0,width,height);ctx.font='11px system-ui';hitBoxes=[];
+ for(let index=0;index<lanes.length;index++){const y=34+index*22-scroll;if(y<26||y>height)continue;ctx.fillStyle=index%2?'#141e2a':'#101722';ctx.fillRect(0,y-3,width,22);ctx.fillStyle='#a7b5c9';ctx.fillText('Thread '+lanes[index].thread+' · '+lanes[index].depth,8,y+10);}
+ ctx.save();ctx.beginPath();ctx.rect(left,30,plot,height-30);ctx.clip();
+ for(const span of filtered){const stop=span.startMilliseconds+span.durationMilliseconds;if(stop<start||span.startMilliseconds>end)continue;const index=laneByKey.get(span.threadId+':'+depth(span)),y=34+index*22-scroll;if(y<26||y>height)continue;const x=left+(Math.max(start,span.startMilliseconds)-start)/(end-start)*plot,w=Math.max(1,(Math.min(end,stop)-Math.max(start,span.startMilliseconds))/(end-start)*plot);ctx.globalAlpha=span.status==='reused'?.35:.9;ctx.fillStyle=colours[span.kind]||'#9dacc4';ctx.fillRect(x,y,w,15);hitBoxes.push({x,y,w,span});}
+ ctx.restore();ctx.globalAlpha=1;ctx.fillStyle='#101722';ctx.fillRect(0,0,width,29);
+ for(let tick=0;tick<=5;tick++){const x=left+tick*plot/5;ctx.fillStyle='#a7b5c9';ctx.fillText(duration(start+(end-start)*tick/5),Math.min(x,width-90),18);ctx.strokeStyle='#2b394c';ctx.beginPath();ctx.moveTo(x,28);ctx.lineTo(x,height);ctx.stroke();}
+ if(drag){ctx.fillStyle='#9fbdf433';ctx.fillRect(Math.min(drag.from,drag.to),30,Math.abs(drag.to-drag.from),height-30);}
+ $('range').textContent=duration(start)+' → '+duration(end);
+}
+function fit(){if(!filtered.length)return;start=Infinity;end=0;for(const span of filtered){start=Math.min(start,span.startMilliseconds);end=Math.max(end,span.startMilliseconds+span.durationMilliseconds);}end=Math.max(start+1,end);draw();}
+function position(event){const box=canvas.getBoundingClientRect();return {x:Math.max(125,Math.min(box.width-15,event.clientX-box.left)),y:event.clientY-box.top};}
+canvas.addEventListener('pointerdown',event=>{const p=position(event);drag={from:p.x,to:p.x,y:p.y};canvas.setPointerCapture(event.pointerId);});
+canvas.addEventListener('pointermove',event=>{if(drag){drag.to=position(event).x;draw();}});
+canvas.addEventListener('pointerup',event=>{if(!drag)return;const p=position(event),selection=drag;drag=null;if(Math.abs(p.x-selection.from)>5){const width=Math.max(1,canvas.clientWidth-140),old=start,range=end-start;start=old+(Math.min(p.x,selection.from)-125)/width*range;end=old+(Math.max(p.x,selection.from)-125)/width*range;}else{const hit=[...hitBoxes].reverse().find(box=>p.x>=box.x&&p.x<=box.x+box.w&&p.y>=box.y&&p.y<=box.y+15);if(hit)$('selection').textContent=JSON.stringify(hit.span,null,2);}draw();});
+canvas.addEventListener('pointercancel',()=>{drag=null;draw();});
+$('fit').addEventListener('click',fit);$('reset').addEventListener('click',()=>{start=0;end=Math.max(1,summary.durationMilliseconds);draw();});
+for(const id of ['stage','kind','search'])$(id).addEventListener(id==='search'?'input':'change',refresh);
+for(const button of document.querySelectorAll('[data-sort]'))button.addEventListener('click',()=>{sort=button.dataset.sort;refresh();});
+$('timeline-scroll').addEventListener('scroll',draw);window.addEventListener('resize',draw);refresh();
+</script></body></html>

@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <EmbeddedResource Include="PerformanceTraceViewer.html" />
     <InternalsVisibleTo Include="Echo.Tests" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" /><ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" /></ItemGroup>

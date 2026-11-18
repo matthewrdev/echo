@@ -40,6 +40,7 @@ public sealed class ArgumentParser : IArgumentParser
             "confirm",
             "run",
             "output",
+            "format",
             "width",
             "height",
             "view",

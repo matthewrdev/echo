@@ -77,6 +77,7 @@ if (args.Contains("--fusion", StringComparer.Ordinal))
 composition.Resolve<ProcessingTelemetryTests>().Run(scaleTests);
 composition.Resolve<PerformanceTraceTests>().Run(scaleTests);
 composition.Resolve<PerformanceDiagnosticsTests>().Run(scaleTests);
+composition.Resolve<PerformanceTraceExportTests>().Run(scaleTests);
 composition.Resolve<ProgressivePreviewTests>().Run(scaleTests);
 if (args.Contains("--telemetry", StringComparer.Ordinal))
 {

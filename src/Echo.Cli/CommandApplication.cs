@@ -47,7 +47,8 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH run resume RUN_ID [--events ndjson]
     echo-photo --project PATH run status|cancel|events [RUN_ID]
     echo-photo --project PATH trace list [--all] [--run RUN_ID]
-    echo-photo --project PATH trace show ATTEMPT_ID [--run RUN_ID]
+    echo-photo --project PATH trace show ATTEMPT_ID [--run RUN_ID] [--summary]
+    echo-photo --project PATH trace export ATTEMPT_ID --output NEW_FILE [--format html|json] [--run RUN_ID]
     echo-photo --project PATH inspect [--run RUN_ID] [--summary]
     echo-photo --project PATH export-gis --output NEW_DIRECTORY [--run RUN_ID]
     echo-photo inspect-glb FILE
