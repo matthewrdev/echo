@@ -1,7 +1,14 @@
+using System.Text.Json.Serialization;
+
 namespace Echo.Contracts;
 
 public sealed class ImagePair
 {
+    [JsonIgnore]
+    public PairGeometryVerification? BundleVerification
+    {
+        get; set;
+    }
     public PairVerification? Verification
     {
         get; set;

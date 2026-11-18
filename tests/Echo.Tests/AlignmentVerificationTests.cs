@@ -33,6 +33,28 @@ public sealed class AlignmentVerificationTests
                 var point = new V3(random.NextDouble() * 4 - 2, random.NextDouble() * 3 - 1, -8 - random.NextDouble() * 8);
                 pair.Matches.Add(new Match { A = CameraGeometry.Project(left, leftPose, point)![..2], B = CameraGeometry.Project(right, rightPose, point)![..2] });
             }
+            ImagePairVerifier.Verify(left, right, pair, default);
+            var firstVerification = pair.Verification;
+            ImagePairVerifier.Verify(left, right, pair, default);
+            Check(ReferenceEquals(firstVerification, pair.Verification), "Unchanged verified pairs should reuse their geometry result");
+            pair.Matches[0].GeometricInlier = false;
+            ImagePairVerifier.Verify(left, right, pair, default);
+            Check(!ReferenceEquals(firstVerification, pair.Verification) && pair.Matches[0].GeometricInlier == true,
+                "An edited inlier flag must invalidate the result even when candidate count is unchanged");
+            firstVerification = pair.Verification;
+            var originalPixel = pair.Matches[0].B;
+            pair.Matches[0].B = [originalPixel[0] + 100, originalPixel[1] + 80];
+            ImagePairVerifier.Verify(left, right, pair, default);
+            Check(!ReferenceEquals(firstVerification, pair.Verification) && pair.Matches[0].GeometricInlier == false,
+                "Edited coordinates must be geometrically rechecked");
+            pair.Matches[0].B = originalPixel;
+            ImagePairVerifier.Verify(left, right, pair, default);
+            firstVerification = pair.Verification;
+            left.Width = 2000;
+            ImagePairVerifier.Verify(left, right, pair, default);
+            Check(!ReferenceEquals(firstVerification, pair.Verification) && pair.Verification!.ThresholdPixels == 2,
+                "A different geometric threshold must invalidate the stamp");
+            left.Width = 1000;
             var project = new ProjectData { Images = [left, right] };
             var clean = reconstructor.Align(project, [pair], default);
             var wrong = new List<Match>();

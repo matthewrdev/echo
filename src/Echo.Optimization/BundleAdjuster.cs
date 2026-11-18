@@ -440,8 +440,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 continue;
             }
 
-            var relative = FundamentalMatrixEstimator.Estimate(pair.Matches, Math.Max(photos[a].Width, photos[b].Width) / 1000.0, cancellation);
-            var matches = relative?.Inliers ?? pair.Matches.Where(m => m.Manual).ToList();
+            var matches = PairGeometryVerificationCache.Inliers(pair, Math.Max(photos[a].Width, photos[b].Width) / 1000.0, cancellation);
             foreach (var match in matches)
             {
                 links.Add(new Link

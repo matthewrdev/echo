@@ -33,7 +33,8 @@ public sealed class Reconstructor : IReconstructor
         var priors = CameraPriorBuilder.Build(project);
 
         // Reject descriptor aliases before they can bias any camera or point estimate.
-        // Recheck legacy artifacts too; serialized display flags are not solver authority.
+        // Reuse only a certificate tied to the exact correspondences, flags,
+        // threshold and implementation. Display flags alone are not authority.
         trace?.Operation(new OperationProgress("Verify image geometry", "Verifying matched pairs"));
         pairs = ImagePairVerifier.VerifyAll(images, pairs, Math.Max(1, Environment.ProcessorCount - 2),
             cancellation, compute, project.Settings.ComputeBackend);

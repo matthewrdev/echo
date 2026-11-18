@@ -44,6 +44,19 @@ public static class ImagePairVerifier
     {
         cancellation.ThrowIfCancellationRequested();
         var threshold = Math.Max(leftPhoto.Width, rightPhoto.Width) / 1000.0;
+        var implementation = backend + ":" + compute?.GetImplementation(ComputeOperation.Alignment);
+        var verification = candidates.Verification;
+        var reusable = verification?.AlgorithmVersion == 2 && verification.ThresholdPixels == threshold
+            && verification.Fingerprint == PairVerificationFingerprint.Compute(candidates, threshold, implementation);
+        if (reusable)
+        {
+            return new ImagePair
+            {
+                A = candidates.A,
+                B = candidates.B,
+                Matches = candidates.Matches.Where(match => match.Manual || match.GeometricInlier == true).ToList()
+            };
+        }
         var automatic = new List<Match>(candidates.Matches.Count);
         foreach (var match in candidates.Matches)
         {
@@ -66,9 +79,11 @@ public static class ImagePairVerifier
         }
         candidates.Verification = new PairVerification
         {
+            AlgorithmVersion = 2,
             ThresholdPixels = threshold,
             CandidateCount = automatic.Count,
-            InlierCount = inliers.Count
+            InlierCount = inliers.Count,
+            Fingerprint = PairVerificationFingerprint.Compute(candidates, threshold, implementation)
         };
         return verified;
     }
