@@ -72,6 +72,8 @@ public sealed class Settings
     public bool DepthRangeAutomatic { get; set; } = true;
     public double DepthNear { get; set; } = 2;
     public double DepthFar { get; set; } = 100;
+    public SubjectDistanceMode SubjectDistanceMode { get; set; } = SubjectDistanceMode.Auto;
+    public double SubjectDistanceLimit { get; set; } = 200;
     public int TextureSize { get; set; } = 8192;
     public int FaceLimit { get; set; } = 1500000;
     public bool MeshCompleteSurface { get; set; } = true;
@@ -147,6 +149,8 @@ public sealed class Settings
             || !double.IsFinite(DepthFar)
             || DepthNear <= 0
             || DepthFar <= DepthNear;
+        var invalidSubjectDistance = !Enum.IsDefined(SubjectDistanceMode)
+            || !double.IsFinite(SubjectDistanceLimit) || SubjectDistanceLimit <= 0;
         var invalidOutputSettings = TextureSize is < 256 or > 8192
             || (TextureSize & (TextureSize - 1)) != 0
             || FaceLimit is < 1 or > 10000000
@@ -180,6 +184,7 @@ public sealed class Settings
             || invalidDepthExecution
             || invalidDepthResolution
             || invalidDepthRange
+            || invalidSubjectDistance
             || invalidOutputSettings
             || invalidIslandSettings;
 

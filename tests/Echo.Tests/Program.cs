@@ -137,6 +137,8 @@ composition.Resolve<SemanticQualityTests>().Run(scaleTests);
 composition.Resolve<DepthRecoveryTests>().Run(scaleTests);
 composition.Resolve<DepthSamplingTests>().Run(scaleTests);
 composition.Resolve<DepthRangeTests>().Run(scaleTests);
+composition.Resolve<SubjectDistanceTests>().Run(scaleTests);
+composition.Resolve<SubjectDistanceRunOptionsTests>().Run(scaleTests);
 composition.Resolve<DepthNeighbourTests>().Run(scaleTests);
 composition.Resolve<StereoCostBatchTests>().Run(scaleTests);
 composition.Resolve<GrayscaleSamplerTests>().Run(scaleTests);

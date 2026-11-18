@@ -36,16 +36,37 @@ public sealed class DepthEstimator : IDepthEstimator
         int maxWorkers = 0,
         Action<string>? progress = null,
         Action<DepthLevelMetrics>? metrics = null,
-        Action<ProcessingExecution>? execution = null)
+        Action<ProcessingExecution>? execution = null,
+        SubjectDistancePlan? subjectDistance = null)
     {
         trace?.Operation(new OperationProgress("Depth range and neighbours", "Planning depth search"));
         var photo = FindPhoto(project.Images, camera.ImageId);
-        var range = DepthRangeEstimator.Estimate(project, scene, photo, camera, cancellation);
+        subjectDistance ??= SubjectDistancePlanner.Estimate(project, scene, cancellation);
+        var range = SubjectDistanceFilter.Limit(DepthRangeEstimator.Estimate(project, scene, photo, camera, cancellation, subjectDistance.MaximumDistance), subjectDistance);
         progress?.Invoke($"Depth range {range.Near:F2}–{range.Far:F2} ({range.Source}, {range.SampleCount:N0} scene samples; metres when georeferenced)");
         if (range.RejectedObservations > 0)
         {
             progress?.Invoke($"Depth range excluded {range.RejectedObservations:N0} sparse points with missing cameras, invalid geometry or less than 0.5° triangulation parallax");
         }
+        if (range.SubjectDistanceRejectedObservations > 0)
+        {
+            progress?.Invoke($"Subject distance excluded {range.SubjectDistanceRejectedObservations:N0} distant sparse observations before depth range selection.");
+        }
+        if (range.OutsideSubjectRange)
+        {
+            progress?.Invoke("Explicit near/far bounds lie beyond the subject distance limit; retaining the photo with an empty depth map.");
+            var emptyWidth = Math.Min(photo.Width, project.Settings.DepthWidth);
+            var emptyHeight = Math.Max(1, (int)Math.Round(photo.Height * (double)emptyWidth / photo.Width));
+            return new DepthMap
+            {
+                ImageId = photo.Id,
+                Width = emptyWidth,
+                Height = emptyHeight,
+                Depth = new float[checked(emptyWidth * emptyHeight)],
+                Confidence = new float[checked(emptyWidth * emptyHeight)]
+            };
+        }
+
         CameraPose[] selected = [];
         var maximumNeighbours = DepthNeighbourSelector.MaximumNeighbours(project.Settings.DepthNeighbours, scene.Cameras.Count);
         using var sources = new DepthSourceImages(rasterImageService, store, maximumNeighbours + 1);
@@ -79,6 +100,7 @@ public sealed class DepthEstimator : IDepthEstimator
             }
             if (width == project.Settings.DepthWidth)
             {
+                SubjectDistanceFilter.Apply(prior, subjectDistance, cancellation);
                 return prior;
             }
 

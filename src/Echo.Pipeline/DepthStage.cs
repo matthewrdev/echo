@@ -37,6 +37,11 @@ public sealed class DepthStage : IPipelineStage
         var cancellation = context.Cancellation;
         var alignment = context.Artifact("alignment");
         var scene = context.Scene();
+        var subjectDistance = SubjectDistancePlanner.Estimate(project, scene, cancellation);
+        var subjectDescription = subjectDistance.MaximumDistance.HasValue
+            ? $"Subject distance limit: {subjectDistance.MaximumDistance:F2}; {subjectDistance.Source}; capture extent {subjectDistance.CaptureExtent:F2}, foreground depth {subjectDistance.ForegroundDepth:F2}, {subjectDistance.EvidenceCameras} evidence cameras (metres when georeferenced)."
+            : $"Subject distance: {subjectDistance.Source}.";
+        context.ReportProgress(Name, subjectDescription);
         var plan = executionPlanner.Plan(project, scene.Cameras.Count, context.WorkingMemoryBytes, context.Resources.DepthMemoryBudgetMb);
         var needsSemantics = project.Settings.DepthSuppressSky || project.Settings.OptimiseVegetation || project.Settings.RecoverCliffDepth;
         var steps = new List<string>();
@@ -71,7 +76,7 @@ public sealed class DepthStage : IPipelineStage
         var progressGate = new object();
         // Version adaptive overlap selection, fine-image prefiltering and sky filtering. Direct Metal
         // stays separate; CPU and fully validated Metal share a numerical contract.
-        var algorithmVersion = project.Settings.DepthBackend is "auto" or "metal" ? "echo-depth-pyramid11-metal-overlap1-sky1" : "echo-depth-pyramid11-cpu-overlap1-sky1";
+        var algorithmVersion = project.Settings.DepthBackend is "auto" or "metal" ? "echo-depth-pyramid12-metal-overlap1-sky1-subject2" : "echo-depth-pyramid12-cpu-overlap1-sky1-subject2";
         var budgetMode = context.Resources.DepthMemoryBudgetMb == 0 ? "automatic" : "manual";
         context.ReportProgress(Name, $"Depth: {plan.ConcurrentImages} images concurrently, {plan.WorkersPerImage} CPU workers per image; estimated {plan.EstimatedBytesPerImage / 1024 / 1024:N0} MB per job; {budgetMode} memory budget {plan.MemoryBudgetBytes / 1024 / 1024:N0} MB.", 0, scene.Cameras.Count);
         var options = new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = plan.ConcurrentImages };
@@ -93,7 +98,8 @@ public sealed class DepthStage : IPipelineStage
                 project.Settings.DepthNeighbours,
                 project.Settings.DepthRangeAutomatic,
                 project.Settings.DepthNear,
-                project.Settings.DepthFar
+                project.Settings.DepthFar,
+                subjectDistance
             };
             DepthMap? detected = null;
             var processing = new ProcessingMetadata
@@ -114,7 +120,7 @@ public sealed class DepthStage : IPipelineStage
                     {
                         context.ReportProgress(Name, $"Image {index + 1}/{scene.Cameras.Count} · {photo.Name} · {message}", completed, scene.Cameras.Count);
                     }
-                }, execution: processing.Executions.Add);
+                }, execution: processing.Executions.Add, subjectDistance: subjectDistance);
                 if (project.Settings.DepthSuppressSky)
                 {
                     var removed = DepthSkyFilter.Apply(map, semantics[camera.ImageId], cancellation);
@@ -167,12 +173,13 @@ public sealed class DepthStage : IPipelineStage
         if (project.Settings.RecoverCliffDepth)
         {
             context.BeginStep(Name, stepNames, stepIndex++, originalUnits.Length);
-            depthUnits = cliffRecovery.Build(context, scene, originalUnits, semantics);
+            depthUnits = cliffRecovery.Build(context, scene, originalUnits, semantics, subjectDistance);
         }
         context.BeginStep(Name, stepNames, stepIndex, 1);
         var artifact = context.Build("depth", depthUnits, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), depthUnits);
+            fileOperations.AtomicJson(Path.Combine(directory, "subject-distance.json"), subjectDistance);
             if (project.Settings.RecoverCliffDepth)
             {
                 fileOperations.AtomicJson(Path.Combine(directory, "original-units.json"), originalUnits);

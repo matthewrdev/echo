@@ -29,6 +29,8 @@ struct ProcessingImpact {
             || old.depthRefinementSamples != new.depthRefinementSamples || old.depthNeighbours != new.depthNeighbours
             || old.depthRangeAutomatic != new.depthRangeAutomatic
             || old.depthNear != new.depthNear || old.depthFar != new.depthFar
+            || old.subjectDistanceMode != new.subjectDistanceMode
+            || old.subjectDistanceLimit != new.subjectDistanceLimit
         if depth { return .depth }
         let cloud =
             old.cloudNeighbours != new.cloudNeighbours || old.cloudMinimumSupport != new.cloudMinimumSupport

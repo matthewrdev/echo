@@ -40,6 +40,8 @@ struct ProcessingSettings: Codable {
     var depthRangeAutomatic: Bool = true
     var depthNear: Double = 2
     var depthFar: Double = 100
+    var subjectDistanceMode: SubjectDistanceMode = .auto
+    var subjectDistanceLimit: Double = 200
     var cloudWorkerThreads: Int = 0
     var cloudBatchRows: Int = 8
     var cloudNeighbours: Int = 8
@@ -113,6 +115,9 @@ struct ProcessingSettings: Codable {
         depthRangeAutomatic = try values.decodeIfPresent(Bool.self, forKey: .depthRangeAutomatic) ?? true
         depthNear = try values.decodeIfPresent(Double.self, forKey: .depthNear) ?? 2
         depthFar = try values.decodeIfPresent(Double.self, forKey: .depthFar) ?? 100
+        subjectDistanceMode =
+            try values.decodeIfPresent(SubjectDistanceMode.self, forKey: .subjectDistanceMode) ?? .auto
+        subjectDistanceLimit = try values.decodeIfPresent(Double.self, forKey: .subjectDistanceLimit) ?? 200
         cloudWorkerThreads = try values.decodeIfPresent(Int.self, forKey: .cloudWorkerThreads) ?? 0
         cloudBatchRows = try values.decodeIfPresent(Int.self, forKey: .cloudBatchRows) ?? 8
         cloudNeighbours = try values.decodeIfPresent(Int.self, forKey: .cloudNeighbours) ?? 8
@@ -188,6 +193,8 @@ struct ProcessingSettings: Codable {
         try values.encode(depthRangeAutomatic, forKey: .depthRangeAutomatic)
         try values.encode(depthNear, forKey: .depthNear)
         try values.encode(depthFar, forKey: .depthFar)
+        try values.encode(subjectDistanceMode, forKey: .subjectDistanceMode)
+        try values.encode(subjectDistanceLimit, forKey: .subjectDistanceLimit)
         try values.encode(cloudWorkerThreads, forKey: .cloudWorkerThreads)
         try values.encode(cloudBatchRows, forKey: .cloudBatchRows)
         try values.encode(cloudNeighbours, forKey: .cloudNeighbours)
@@ -229,9 +236,13 @@ struct ProcessingSettings: Codable {
             return
                 "Up to \(bundleIterations) iterations per solve · guided second pass \(guidedAlignmentPass ? "on" : "off")"
         case .depth:
+            let subject =
+                subjectDistanceMode == .manual
+                ? "subject limit \(subjectDistanceLimit) m"
+                : subjectDistanceMode == .auto && depthRangeAutomatic ? "adaptive subject limit" : "subject limit off"
             let range = depthRangeAutomatic ? "Automatic scene range" : "\(depthNear)–\(depthFar) m range"
             return
-                "\(depthWidth) px · \(depthPlanes) initial samples · \(depthRefinementSamples) refinement samples · \(depthNeighbours)+ adaptive stereo views · \(range)"
+                "\(depthWidth) px · \(depthPlanes) initial samples · \(depthRefinementSamples) refinement samples · \(depthNeighbours)+ adaptive stereo views · \(range) · \(subject)"
         case .cloud:
             return
                 "\(cloudNeighbours) neighbours · \(cloudMinimumSupport) required supporting views · \((cloudDepthTolerance * 100).formatted())% relative depth tolerance"

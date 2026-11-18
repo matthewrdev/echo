@@ -32,6 +32,7 @@ public sealed class ArgumentParser : IArgumentParser
             "target",
             "colour-tuning",
             "edge-softening",
+            "subject-distance",
             "from",
             "artifact",
             "unused",

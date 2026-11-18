@@ -3,6 +3,25 @@ import XCTest
 @testable import EchoDesktop
 
 final class ProcessingSettingsTests: XCTestCase {
+    func testSubjectDistanceDefaultsRoundTripAndDepthImpact() throws {
+        let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
+        XCTAssertEqual(original.subjectDistanceMode, .auto)
+        XCTAssertEqual(original.subjectDistanceLimit, 200)
+        for mode in SubjectDistanceMode.allCases {
+            var changed = original
+            changed.subjectDistanceMode = mode
+            changed.subjectDistanceLimit = 125
+            let restored = try JSONDecoder().decode(
+                ProcessingSettings.self, from: JSONEncoder().encode(changed))
+            XCTAssertEqual(restored.subjectDistanceMode, mode)
+            XCTAssertEqual(restored.subjectDistanceLimit, 125)
+            XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .depth)
+        }
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                ProcessingSettings.self, from: Data("{\"subjectDistanceMode\":\"unknown\"}".utf8)))
+    }
+
     func testColourFinishRoundTripAndTextureOnlyImpact() throws {
         let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
         XCTAssertEqual(original.textureColourEnhancement, 0.5)

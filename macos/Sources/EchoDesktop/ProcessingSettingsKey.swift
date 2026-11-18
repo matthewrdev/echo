@@ -11,6 +11,7 @@ enum ProcessingSettingsKey: String, CodingKey {
     case fusionMemoryBudgetMb, fusionVoxelSize, fusionAllowCoarserResolution
     case cloudReprojectionTolerancePixels, cloudMinimumParallaxDegrees
     case depthRefinementSamples, depthNeighbours, depthRangeAutomatic
+    case subjectDistanceMode, subjectDistanceLimit
     case textureSeamBlendPixels, textureColourEnhancement, textureChartFaces, textureChartAngle, textureGutter
     case meshCompleteSurface, meshIslandMode, meshIslandMinimumAreaPercent
     case fusionIslandMode, fusionIslandMinimumSizePercent, textureSuppressSky, textureSkyMarginPixels

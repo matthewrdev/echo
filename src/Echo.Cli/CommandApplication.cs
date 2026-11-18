@@ -43,6 +43,7 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH pipeline plan [--target export]
     echo-photo --project PATH run start [--target alignment] [--events ndjson]
         [--colour-tuning on|off|0..1] [--edge-softening on|off|0..16]
+        [--subject-distance auto|off|METRES]
     echo-photo --project PATH run resume RUN_ID [--events ndjson]
     echo-photo --project PATH run status|cancel|events [RUN_ID]
     echo-photo --project PATH trace list [--all] [--run RUN_ID]

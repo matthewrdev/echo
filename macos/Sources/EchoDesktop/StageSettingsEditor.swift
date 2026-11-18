@@ -138,6 +138,21 @@ struct StageSettingsEditor: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 ModelDependencyNotice()
+                Picker("Subject distance limit", selection: $settings.subjectDistanceMode) {
+                    Text("Automatic").tag(SubjectDistanceMode.auto)
+                    Text("Custom").tag(SubjectDistanceMode.manual)
+                    Text("Off").tag(SubjectDistanceMode.off)
+                }
+                if settings.subjectDistanceMode == .manual {
+                    TextField(
+                        "Maximum subject distance (m)", value: $settings.subjectDistanceLimit,
+                        format: .number.grouping(.never)
+                    )
+                    .textFieldStyle(.roundedBorder)
+                }
+                Text(
+                    "Automatic uses the camera footprint and foreground observations to exclude distant background terrain. Custom sets a maximum camera depth; Off retains the full scene range. Manual near/far bounds take precedence over the automatic subject limit."
+                ).font(.caption).foregroundStyle(.secondary)
                 Toggle("Automatic depth range", isOn: $settings.depthRangeAutomatic)
                 if settings.depthRangeAutomatic {
                     Text(

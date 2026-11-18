@@ -29,11 +29,16 @@ public sealed class Processor : IProcessor
         CancellationToken token,
         string? resumeId = null,
         Action<object>? output = null,
-        TextureRunOptions? textureOptions = null)
+        TextureRunOptions? textureOptions = null,
+        SubjectDistanceRunOptions? subjectDistanceOptions = null)
     {
         if (resumeId != null && textureOptions != null)
         {
             throw new EchoException("Resume preserves its saved texture settings. Use run start to change colour tuning or edge softening.", 2);
+        }
+        if (resumeId != null && subjectDistanceOptions != null)
+        {
+            throw new EchoException("Resume preserves its saved subject distance settings. Use run start to change --subject-distance.", 2);
         }
         using var lease = store.Lock("run");
         var run = resumeId == null
@@ -51,6 +56,7 @@ public sealed class Processor : IProcessor
         }
 
         textureOptions?.Apply(run.Snapshot.Settings);
+        subjectDistanceOptions?.Apply(run.Snapshot.Settings);
         run.Snapshot.Settings.Validate();
         var cancelFile = store.PathFor($"runs/{run.Id}/cancel");
         if (File.Exists(cancelFile))

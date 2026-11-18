@@ -13,5 +13,6 @@ public interface IDepthEstimator
         int maxWorkers = 0,
         Action<string>? progress = null,
         Action<DepthLevelMetrics>? metrics = null,
-        Action<ProcessingExecution>? execution = null);
+        Action<ProcessingExecution>? execution = null,
+        SubjectDistancePlan? subjectDistance = null);
 }

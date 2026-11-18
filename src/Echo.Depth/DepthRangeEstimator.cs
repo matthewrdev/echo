@@ -6,13 +6,16 @@ namespace Echo.Depth;
 
 public static class DepthRangeEstimator
 {
-    public static DepthSearchRange Estimate(ProjectData project, ReconstructionScene scene, Photo photo, CameraPose camera, CancellationToken cancellation)
+    public static DepthSearchRange Estimate(ProjectData project, ReconstructionScene scene, Photo photo, CameraPose camera, CancellationToken cancellation, double? maximumSubjectDistance = null)
     {
         cancellation.ThrowIfCancellationRequested();
         var settings = project.Settings;
         if (!settings.DepthRangeAutomatic)
         {
-            return new DepthSearchRange(settings.DepthNear, settings.DepthFar, (settings.DepthNear + settings.DepthFar) * .5, 0, "manual");
+            return new DepthSearchRange(settings.DepthNear, settings.DepthFar, (settings.DepthNear + settings.DepthFar) * .5, 0, "manual")
+            {
+                OutsideSubjectRange = maximumSubjectDistance.HasValue && settings.DepthNear >= maximumSubjectDistance.Value
+            };
         }
 
         if (scene.Points.Count < 10)
@@ -30,7 +33,7 @@ public static class DepthRangeEstimator
             try
             {
                 return FromScene(scene, photo, camera, depths.AsSpan(0, capacity),
-                    depths.AsSpan(capacity, capacity), tiles.AsSpan(0, capacity), cancellation);
+                    depths.AsSpan(capacity, capacity), tiles.AsSpan(0, capacity), cancellation, maximumSubjectDistance);
             }
             finally
             {
@@ -44,7 +47,7 @@ public static class DepthRangeEstimator
     }
 
     private static DepthSearchRange FromScene(ReconstructionScene scene, Photo photo, CameraPose camera,
-        Span<double> depths, Span<double> grouped, Span<byte> tiles, CancellationToken cancellation)
+        Span<double> depths, Span<double> grouped, Span<byte> tiles, CancellationToken cancellation, double? maximumSubjectDistance)
     {
         Span<int> observedCounts = stackalloc int[48];
         Span<int> visibleCounts = stackalloc int[48];
@@ -53,6 +56,7 @@ public static class DepthRangeEstimator
         var count = 0;
         var observedCount = 0;
         var rejectedObservations = 0;
+        var outsideSubject = 0;
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
         foreach (var pose in scene.Cameras)
         {
@@ -87,6 +91,12 @@ public static class DepthRangeEstimator
                 continue;
             }
 
+            if (maximumSubjectDistance.HasValue && projected.Z > maximumSubjectDistance.Value)
+            {
+                outsideSubject++;
+                continue;
+            }
+
             var tile = (int)(projected.Y * 6 / photo.Height) * 8 + (int)(projected.X * 8 / photo.Width);
             var observed = point.ImageA == photo.Id || point.ImageB == photo.Id;
             depths[count] = projected.Z;
@@ -102,9 +112,12 @@ public static class DepthRangeEstimator
 
         if (count < 10)
         {
+            // Distant sparse matches do not rule out an unmatched foreground.
+            // Keep searching within the subject cap instead of skipping the photo.
             return FromCameraBounds(scene, cancellation) with
             {
-                RejectedObservations = rejectedObservations
+                RejectedObservations = rejectedObservations,
+                SubjectDistanceRejectedObservations = outsideSubject
             };
         }
 
@@ -136,7 +149,8 @@ public static class DepthRangeEstimator
         return FromTiles(samples, grouped[..sampleCount], counts, source, cancellation)
             with
         {
-            RejectedObservations = rejectedObservations
+            RejectedObservations = rejectedObservations,
+            SubjectDistanceRejectedObservations = outsideSubject
         };
     }
 

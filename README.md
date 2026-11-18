@@ -50,6 +50,8 @@ Use `--help` for commands and `doctor` to check dependencies. Commands return JS
 
 Colour tuning and texture seam softening default to strength `0.5` and a `4`-pixel atlas strip. Add `--colour-tuning off --edge-softening off` to `run start` to disable them, or supply a strength from `0` to `1` and a width from `0` to `16`. These overrides affect only that run; project settings stay unchanged.
 
+Subject distance defaults to automatic: the camera footprint and reliable foreground observations limit distant background reconstruction. Use `run start --subject-distance auto`, `--subject-distance off`, or a positive maximum camera depth in metres such as `--subject-distance 500`. The same controls are in the desktop's Depth settings. Explicit near/far depth bounds take precedence over the automatic subject limit; a custom subject limit still caps those bounds. CLI overrides apply only to the new run, and the chosen automatic distance is recorded in the depth artifact and activity log.
+
 ## Development
 
 The desktop uses SwiftUI, AppKit and SceneKit/Metal. The CLI and processing subsystems use C#/.NET with MEF composition.

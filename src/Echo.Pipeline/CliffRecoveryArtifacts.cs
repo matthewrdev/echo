@@ -20,8 +20,9 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
         this.files = files;
     }
 
-    public string[] Build(RunContext context, ReconstructionScene scene, string[] originalUnits, IReadOnlyDictionary<string, SemanticMap> semantics)
+    public string[] Build(RunContext context, ReconstructionScene scene, string[] originalUnits, IReadOnlyDictionary<string, SemanticMap> semantics, SubjectDistancePlan? subjectDistance = null)
     {
+        subjectDistance ??= SubjectDistancePlanner.Estimate(context.Run.Snapshot, scene, context.Cancellation);
         // All confirmations use the original maps. New estimates cannot provide
         // circular support for one another, regardless of image processing order.
         var maps = originalUnits.Select(unit => context.ReadData<DepthMap>(context.Store.PathFor(unit + "/depth.json"))).ToArray();
@@ -39,11 +40,13 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
                 alignment = context.Artifact("alignment"),
                 semantics = context.Artifact("semantics"),
                 context.Run.Snapshot.Settings.DepthNeighbours,
-                context.Run.Snapshot.Settings.DepthSuppressSky
+                context.Run.Snapshot.Settings.DepthSuppressSky,
+                subjectDistance
             }, directory =>
             {
                 var result = recovery.Recover(context.Store, context.Run.Snapshot, scene, map, maps, semantics[map.ImageId], context.Cancellation,
                     message => context.ReportProgress("depth", $"{photo.Name} · {message}", index, maps.Length));
+                var distanceRemoved = SubjectDistanceFilter.Apply(result.Map, subjectDistance, context.Cancellation);
                 files.AtomicData(Path.Combine(directory, "depth.json"), result.Map, context.Cancellation);
                 files.AtomicJson(Path.Combine(directory, "recovery.report.json"), new
                 {
@@ -52,11 +55,12 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
                     result.RecoveredSamples,
                     result.SourceImageWidth,
                     result.Neighbours,
+                    subjectDistanceRemovedSamples = distanceRemoved,
                     preservedSamples = Enumerable.Range(0, map.SampleCount).Count(index => float.IsFinite(map.DepthAt(index)) && map.DepthAt(index) > 0),
                     method = "Bounded missing-rock stereo search; two original depth confirmations and two photographic confirmations; no generative geometry"
                 });
             }, () => new ProcessingMetadata { SourceArtifacts = [.. originalUnits, context.Artifact("semantics"), context.Artifact("alignment")] },
-                algorithmVersion: "echo-cliff-recovery3-overlap-sky");
+                algorithmVersion: "echo-cliff-recovery4-overlap-sky-subject1");
             context.ReportProgress("depth", $"Cliff recovery checked · {photo.Name} · {index + 1}/{maps.Length}", index + 1, maps.Length);
         }
         return units;

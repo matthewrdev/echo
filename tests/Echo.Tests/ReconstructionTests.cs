@@ -533,6 +533,27 @@ public sealed class ReconstructionTests
                 var resumed = processor.Execute(store, "export", default, first.Id);
                 Check(resumed.Snapshot.Settings.TextureSize == 256 && resumed.Artifacts["texture"] == first.Artifacts["texture"], "Resume uses immutable snapshot");
             });
+            tests.Run("Subject distance edits preserve alignment, invalidate depth and reuse the original checkpoints when restored", () =>
+            {
+                var original = processor.Execute(store, "export", default);
+                var changed = processor.Execute(store, "export", default, subjectDistanceOptions: new SubjectDistanceRunOptions
+                {
+                    Mode = SubjectDistanceMode.Manual,
+                    MaximumDistance = 50
+                });
+                foreach (var stage in new[] { "features", "matching", "alignment" })
+                {
+                    Check(changed.Artifacts[stage] == original.Artifacts[stage], "Subject distance preserves " + stage);
+                }
+                foreach (var stage in new[] { "depth", "cloud", "fusion", "mesh", "texture", "export" })
+                {
+                    Check(changed.Artifacts[stage] != original.Artifacts[stage], "Subject distance invalidates " + stage);
+                }
+                var plan = jsonCodec.Read<Echo.Depth.SubjectDistancePlan>(store.PathFor(changed.Artifacts["depth"] + "/subject-distance.json"));
+                Check(plan.Mode == SubjectDistanceMode.Manual && plan.MaximumDistance == 50, "The artifact records the effective subject limit");
+                var restored = processor.Execute(store, "export", default);
+                Check(restored.Artifacts["export"] == original.Artifacts["export"], "Restoring the setting reuses the original completed output");
+            });
             tests.Run("Exclusion edits reuse cloud and rebuild downstream stages while saved runs retain their original regions", () =>
             {
                 var before = store.GetRun();
