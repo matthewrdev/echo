@@ -23,6 +23,8 @@
 .operation-list{display:block;max-height:360px;overflow-y:auto;scrollbar-gutter:stable}.operation-row{min-height:53px;margin-top:3px}.operation-label{display:block;font-size:12px;overflow-wrap:anywhere}.operation-label small{display:block;margin-top:4px;font-size:10px}.operation-time{font-size:12px;font-weight:500;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.operation-track{height:23px;margin:0;background:repeating-linear-gradient(to right,#344258 0,#344258 1px,transparent 1px,transparent 50%);border-right:1px solid #344258;border-radius:0;display:flex;align-items:center}.operation-track>span{height:17px;min-width:2px;background:#78d5ba;border-radius:3px}.operation-row:hover .operation-track>span{background:#a1f5d9}.operation-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 @media(max-width:700px){.substep-axis,.operation-row{grid-template-columns:110px minmax(50px,1fr) 65px;gap:7px}.substep-axis-labels span:nth-child(2){display:none}.operation-label,.operation-time{font-size:11px}}
 .back-to-steps{float:right;border:0;background:none;padding:0 0 8px 10px;font-size:11px;color:var(--muted)}.stage-detail{scroll-margin-top:20px}
+
+.gantt-controls{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin:12px 0 8px}.gantt-controls select,.gantt-controls input,.gantt-controls button{font-size:11px;padding:5px 8px}.gantt-controls select{min-width:140px}.gantt-controls input{min-width:0;width:86px}.gantt-controls button:disabled{cursor:default;opacity:.35}.gantt-caption{font-size:11px;color:var(--text);margin:6px 0 10px}.gantt-track svg{width:100%;height:20px;display:block;overflow:hidden}.gantt-track path{fill:#78d5ba}.operation-row:hover .gantt-track path{fill:#a1f5d9}.gantt-track.incomplete{background-color:#403d2b;background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,#ffd58b20 4px,#ffd58b20 5px)}
 </style>
 </head>
 <body><main>
@@ -100,6 +102,86 @@ function buildStageOverview(trace) {
     }
     return stages.sort((a, b) => a.start - b.start);
 }
+function mergeGanttIntervals(intervals) {
+    const merged = [];
+    for (const interval of [...intervals].sort((a, b) => a.start - b.start)) {
+        const previous = merged[merged.length - 1];
+        if (previous && interval.start <= previous.end) previous.end = Math.max(previous.end, interval.end);
+        else merged.push({...interval});
+    }
+    return merged;
+}
+function buildSubstepGantt(trace, step) {
+    const members = (trace.spans || []).filter(span => span.stage === step.key);
+    const byId = new Map(members.map(span => [span.id, span]));
+    const operationKey = row => JSON.stringify([row.name, row.backend]);
+    const groups = new Map();
+    const items = new Map();
+    for (const statistic of step.statistics.filter(row => row.kind === 'operation')) {
+        groups.set(operationKey(statistic), {statistic, spans: []});
+    }
+    for (const span of members) {
+        const valid = span.kind === 'operation' && Number.isFinite(span.startMilliseconds)
+            && Number.isFinite(span.durationMilliseconds) && span.durationMilliseconds >= 0;
+        if (!valid) continue;
+        const key = operationKey(span);
+        if (!groups.has(key)) groups.set(key, {statistic: null, spans: []});
+        groups.get(key).spans.push(span);
+        let parent = byId.get(span.parentId);
+        const seen = new Set([span.id]);
+        while (parent && !seen.has(parent.id)) {
+            seen.add(parent.id);
+            if (parent.kind === 'checkpoint') {
+                if (!items.has(parent.id)) items.set(parent.id, {span: parent, spans: []});
+                items.get(parent.id).spans.push(span);
+                break;
+            }
+            parent = byId.get(parent.parentId);
+        }
+    }
+    const rows = [];
+    for (const group of groups.values()) {
+        const statistic = group.statistic;
+        const sample = statistic || group.spans[0];
+        const segments = mergeGanttIntervals(group.spans.flatMap(span => {
+            const spanEnd = span.startMilliseconds + span.durationMilliseconds;
+            return step.segments.flatMap(boundary => {
+                const start = Math.max(boundary.start, span.startMilliseconds);
+                const end = Math.min(boundary.end, spanEnd);
+                return end >= start ? [{start, end}] : [];
+            });
+        }));
+        const recordedTime = segments.reduce((sum, interval) => sum + interval.end - interval.start, 0);
+        const sum = group.spans.reduce((total, span) => total + span.durationMilliseconds, 0);
+        const tolerance = Math.max(1, statistic?.totalMilliseconds || 0) * 1e-8;
+        const complete = !!statistic && group.spans.length === statistic.count
+            && group.spans.every(span => span.status !== 'running')
+            && Math.abs(sum - statistic.totalMilliseconds) <= tolerance;
+        const measured = statistic?.busyMilliseconds;
+        const hasMeasured = Number.isFinite(measured) && measured >= 0 && measured <= step.duration + tolerance;
+        const activeTime = hasMeasured ? Math.min(measured, step.duration) : recordedTime;
+        rows.push({name: sample.name, backend: sample.backend, segments, complete,
+            activeTime: segments.length || hasMeasured ? activeTime : null,
+            lowerBound: !complete && !hasMeasured, count: statistic?.count ?? group.spans.length,
+            workerTime: statistic?.totalMilliseconds ?? sum});
+    }
+    rows.sort((a, b) => (a.segments[0]?.start ?? Infinity) - (b.segments[0]?.start ?? Infinity));
+    const orderedItems = [...items.values()].filter(item => Number.isFinite(item.span.startMilliseconds)
+        && Number.isFinite(item.span.durationMilliseconds) && item.span.durationMilliseconds >= 0)
+        .sort((a, b) => a.span.startMilliseconds - b.span.startMilliseconds || a.span.id - b.span.id);
+    return {rows, items: orderedItems};
+}
+function buildItemGantt(item) {
+    const start = item.span.startMilliseconds;
+    const end = start + item.span.durationMilliseconds;
+    return {start, end, rows: [...item.spans].sort((a, b) => a.startMilliseconds - b.startMilliseconds || a.id - b.id).map(span => {
+        const left = Math.max(start, span.startMilliseconds);
+        const right = Math.min(end, span.startMilliseconds + span.durationMilliseconds);
+        return {name: span.name, backend: span.backend, span, count: 1, complete: true, lowerBound: false,
+            activeTime: Math.max(0, right - left), workerTime: span.durationMilliseconds,
+            segments: right >= left ? [{start: left, end: right}] : []};
+    })};
+}
 </script>
 <script>
 'use strict';
@@ -119,7 +201,7 @@ for(const [label,value] of [['Elapsed',duration(summary.durationMilliseconds)],[
 const colours={stage:'#82a9ff',checkpoint:'#b69cf5',operation:'#70dbb8',compute:'#f0bc72',transfer:'#7bcddd',wait:'#ef91a4'};
 for(const [name,colour] of Object.entries(colours)){const label=element('span',null,$('legend'));const swatch=element('i',null,label);swatch.style.background=colour;label.appendChild(document.createTextNode(name));}
 for(const stage of [...new Set([...spans,...statistics,...measurements].map(row=>row.stage))].sort()){const option=element('option',stage,$('stage'));option.value=stage;}
-let start=0,end=Math.max(1,summary.durationMilliseconds),sort='totalMilliseconds',filtered=[],lanes=[],laneByKey=new Map(),hitBoxes=[],drag=null;
+let start=0,end=Math.max(1,summary.durationMilliseconds),sort='totalMilliseconds',filtered=[],lanes=[],laneByKey=new Map(),hitBoxes=[],drag=null,focusedSpanId=null;
 const byId=new Map(spans.map(span=>[span.id,span]));
 const depthCache=new Map();
 function depth(span){if(depthCache.has(span.id))return depthCache.get(span.id);let parent=byId.get(span.parentId),count=0;const seen=new Set([span.id]);while(parent&&parent.threadId===span.threadId&&!seen.has(parent.id)&&count<32){seen.add(parent.id);count++;parent=byId.get(parent.parentId);}depthCache.set(span.id,count);return count;}
@@ -136,7 +218,7 @@ function refresh(){
  for(const row of selected){const tr=element('tr',null,samples);cells(tr,[row.name+' / '+row.stage,number(row.count),row.unit,number(row.total),number(row.count?row.total/row.count:0),number(row.minimum),number(row.maximum)]);}
  if(!selected.length){const tr=element('tr',null,samples);const cell=element('td','No matching measurements. Older traces do not contain these counters.',tr);cell.colSpan=7;}
  if(summary.droppedMeasurements)$('measurement-note').textContent=number(summary.droppedMeasurements)+' samples omitted after the 256 measurement-name limit. Time samples can overlap across workers.';
- filtered=spans.filter(row=>matches(row)&&row.durationMilliseconds>=0);
+ filtered=spans.filter(row=>matches(row)&&row.durationMilliseconds>=0&&(focusedSpanId==null||row.id===focusedSpanId));
  const keys=new Map();for(const span of filtered){const level=depth(span),key=span.threadId+':'+level;keys.set(key,{key,thread:span.threadId,depth:level});}
  lanes=[...keys.values()].sort((a,b)=>a.thread-b.thread||a.depth-b.depth);laneByKey=new Map(lanes.map((lane,index)=>[lane.key,index]));
  $('timeline-space').style.height=Math.max(420,40+lanes.length*22)+'px';
@@ -162,7 +244,7 @@ canvas.addEventListener('pointermove',event=>{if(drag){drag.to=position(event).x
 canvas.addEventListener('pointerup',event=>{if(!drag)return;const p=position(event),selection=drag;drag=null;if(Math.abs(p.x-selection.from)>5){const width=Math.max(1,canvas.clientWidth-140),old=start,range=end-start;start=old+(Math.min(p.x,selection.from)-125)/width*range;end=old+(Math.max(p.x,selection.from)-125)/width*range;}else{const hit=[...hitBoxes].reverse().find(box=>p.x>=box.x&&p.x<=box.x+box.w&&p.y>=box.y&&p.y<=box.y+15);if(hit)$('selection').textContent=JSON.stringify(hit.span,null,2);}draw();});
 canvas.addEventListener('pointercancel',()=>{drag=null;draw();});
 $('fit').addEventListener('click',fit);$('reset').addEventListener('click',()=>{start=0;end=Math.max(1,summary.durationMilliseconds);draw();});
-for(const id of ['stage','kind','search'])$(id).addEventListener(id==='search'?'input':'change',refresh);
+for(const id of ['stage','kind','search'])$(id).addEventListener(id==='search'?'input':'change',()=>{focusedSpanId=null;refresh();});
 for(const button of document.querySelectorAll('[data-sort]'))button.addEventListener('click',()=>{sort=button.dataset.sort;refresh();});
 const stageNames = {
     preparation: 'Prepare photos', features: 'Extract features', matching: 'Match photos',
@@ -172,6 +254,8 @@ const stageNames = {
 const stageColours = ['#93a4bc','#91b7ff','#77dfc0','#b8a1f5','#79cce8','#b1d68b','#d7c182','#f0b987','#eaa2c6','#a6b9ed'];
 const stages = buildStageOverview(trace);
 const stageButtons = new Map();
+const ganttModels = new Map();
+const ganttSelections = new Map();
 let runEnd = Math.max(1, summary.durationMilliseconds);
 for (const step of stages) runEnd = Math.max(runEnd, step.end);
 function stageName(key) { return stageNames[key] || key; }
@@ -219,6 +303,7 @@ function buildOverview() {
     if (!stages.length) element('p', 'No retained stage intervals are available. Use the detailed aggregates below.', $('stage-graph'));
 }
 function selectStage(step, reveal = true) {
+    focusedSpanId = null;
     $('stage').value = step ? step.key : '';
     $('kind').value = step ? 'operation' : 'stage';
     $('search').value = '';
@@ -235,6 +320,116 @@ function openTimeline() {
     draw();
     $('advanced').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
+function renderSubstepGantt(step, panel) {
+    if (!ganttModels.has(step.key)) ganttModels.set(step.key, buildSubstepGantt(trace, step));
+    const model = ganttModels.get(step.key);
+    if (!ganttSelections.has(step.key)) ganttSelections.set(step.key, {single: false, index: 0});
+    const selection = ganttSelections.get(step.key);
+    const pair = step.key === 'matching';
+    element('h4', 'Sub-step Gantt', panel);
+    const controls = element('div', null, panel);
+    controls.className = 'gantt-controls';
+    if (model.items.length > 1) {
+        const label = element('label', 'View', controls);
+        const scope = element('select', null, label);
+        scope.setAttribute('aria-label', 'Gantt scope');
+        element('option', 'Whole stage', scope).value = 'stage';
+        element('option', pair ? 'Single photo pair' : 'Single item', scope).value = 'item';
+        scope.value = selection.single ? 'item' : 'stage';
+        scope.addEventListener('change', () => { selection.single = scope.value === 'item'; updateOverview(); });
+        if (selection.single) {
+            const label = element('label', pair ? 'Photo pair' : 'Item', controls);
+            const input = element('input', null, label);
+            input.type = 'number';
+            input.min = '1';
+            input.max = String(model.items.length);
+            input.value = String(selection.index + 1);
+            input.setAttribute('aria-label', pair ? 'Photo pair number' : 'Item number');
+            const selectItem = () => {
+                const value = Number(input.value);
+                if (Number.isInteger(value) && value >= 1 && value <= model.items.length) {
+                    selection.index = value - 1;
+                    updateOverview();
+                } else input.value = String(selection.index + 1);
+            };
+            input.addEventListener('change', selectItem);
+            input.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    selectItem();
+                }
+            });
+            const go = element('button', 'Go', controls);
+            go.addEventListener('click', selectItem);
+            for (const [text, offset] of [['Previous', -1], ['Next', 1]]) {
+                const button = element('button', text, controls);
+                button.disabled = selection.index + offset < 0 || selection.index + offset >= model.items.length;
+                button.addEventListener('click', () => { selection.index += offset; updateOverview(); });
+            }
+        }
+    }
+    const item = selection.single ? model.items[selection.index] : null;
+    const view = item ? buildItemGantt(item) : {start: step.start, end: step.end, rows: model.rows};
+    const extent = Math.max(.001, view.end - view.start);
+    if (item) {
+        element('p', (pair ? 'Photo pair ' : 'Item ') + number(selection.index + 1) + ' of ' + number(model.items.length)
+            + ' · ' + duration(view.end - view.start) + ' elapsed · starts ' + duration(view.start - step.start) + ' into the stage', panel).className = 'gantt-caption';
+        element('p', 'Actual start and end times for this item. Click a row to inspect that exact call.', panel).className = 'note';
+    } else {
+        element('p', 'Elapsed time within this stage. Bars show recorded start/end intervals; gaps stay visible. Active time counts overlapping calls once. Different rows can overlap.', panel).className = 'note';
+        if (model.items.length > 1) element('p', number(model.items.length) + (pair ? ' photo pairs run through these steps. Choose Single photo pair to see one sequence.' : ' items run through these steps. Choose Single item to see one sequence.'), panel).className = 'gantt-caption';
+        if (view.rows.some(row => !row.complete)) element('p', 'Some intervals are missing or unfinished. Hatched rows show retained intervals only; ≥ marks a lower bound on active time.', panel).className = 'note warning';
+    }
+    const axis = element('div', null, panel);
+    axis.className = 'substep-axis';
+    element('span', 'Sub-step', axis);
+    const ticks = element('span', null, axis);
+    ticks.className = 'substep-axis-labels';
+    for (const fraction of [0, .5, 1]) element('span', briefDuration(extent * fraction), ticks);
+    element('span', item ? 'Duration' : 'Active time', axis);
+    const list = element('div', null, panel);
+    list.className = 'operation-list';
+    list.setAttribute('aria-label', stageName(step.key) + ' sub-step Gantt chart');
+    for (const row of view.rows) {
+        const button = element('button', null, list);
+        button.className = 'operation-row';
+        const label = element('span', null, button);
+        label.className = 'operation-label';
+        element('span', row.name, label);
+        element('small', item ? 'Starts ' + duration((row.segments[0]?.start ?? view.start) - view.start)
+            : number(row.count) + (row.count === 1 ? ' call' : ' calls'), label);
+        const track = element('span', null, button);
+        track.className = 'operation-track gantt-track' + (!row.complete ? ' incomplete' : '');
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 1000 20');
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.setAttribute('aria-hidden', 'true');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', row.segments.map(segment => {
+            const left = Math.max(0, Math.min(1000, 1000 * (segment.start - view.start) / extent));
+            const right = Math.max(left, Math.min(1000, 1000 * (segment.end - view.start) / extent));
+            return 'M' + left + ' 2H' + right + 'V18H' + left + 'Z';
+        }).join(''));
+        svg.appendChild(path);
+        track.appendChild(svg);
+        const elapsed = row.activeTime == null ? '—' : (row.lowerBound ? '≥ ' : '') + briefDuration(row.activeTime);
+        element('strong', elapsed, button).className = 'operation-time';
+        button.title = row.name + '\n' + (item ? 'Call duration: ' : 'Active elapsed time: ') + elapsed
+            + '\nSummed call time (includes overlap): ' + duration(row.workerTime);
+        button.addEventListener('click', () => {
+            $('kind').value = 'operation';
+            $('search').value = row.name;
+            focusedSpanId = row.span?.id ?? null;
+            refresh();
+            start = view.start;
+            end = Math.max(start + .001, view.end);
+            if (row.span) $('selection').textContent = JSON.stringify(row.span, null, 2);
+            openTimeline();
+        });
+    }
+    if (!view.rows.length) element('p', 'No operation intervals were recorded for this step.', list).className = 'muted';
+}
+
 function updateOverview() {
     const step = stages.find(item => item.key === $('stage').value);
     for (const [key, button] of stageButtons) button.setAttribute('aria-pressed', String(key === step?.key));
@@ -275,41 +470,7 @@ function updateOverview() {
         element('small', label, item);
         element('strong', value, item);
     }
-    const operations = step.statistics.filter(row => row.kind === 'operation').sort((a, b) => b.totalMilliseconds - a.totalMilliseconds);
-    element('h4', 'Sub-step timings · ' + operations.length + ' operations', panel);
-    element('p', 'Total across all calls, including parallel workers. These totals can exceed the step’s wall time and are not additive. Select a bar to inspect its calls.', panel).className = 'note';
-    const maximum = operations[0]?.totalMilliseconds || 1;
-    const axis = element('div', null, panel);
-    axis.className = 'substep-axis';
-    element('span', 'Sub-step', axis);
-    const ticks = element('span', null, axis);
-    ticks.className = 'substep-axis-labels';
-    for (const fraction of [0, .5, 1]) element('span', briefDuration(maximum * fraction), ticks);
-    element('span', 'Total', axis);
-    const list = element('div', null, panel);
-    list.className = 'operation-list';
-    list.setAttribute('aria-label', stageName(step.key) + ' sub-step timing chart');
-    for (const operation of operations) {
-        const button = element('button', null, list);
-        button.className = 'operation-row';
-        const label = element('span', null, button);
-        label.className = 'operation-label';
-        element('span', operation.name, label);
-        element('small', number(operation.count) + (operation.count === 1 ? ' call' : ' calls') + (operation.busyMilliseconds == null ? '' : ' · ' + briefDuration(operation.busyMilliseconds) + ' covered'), label);
-        const track = element('span', null, button);
-        track.className = 'operation-track';
-        const bar = element('span', null, track);
-        bar.style.width = 100 * operation.totalMilliseconds / maximum + '%';
-        element('strong', briefDuration(operation.totalMilliseconds), button).className = 'operation-time';
-        button.addEventListener('click', () => {
-            $('kind').value = 'operation';
-            $('search').value = operation.name;
-            refresh();
-            fit();
-            openTimeline();
-        });
-    }
-    if (!operations.length) element('p', 'No operation timings were recorded for this step.', list).className = 'muted';
+    renderSubstepGantt(step, panel);
     const inspect = element('button', 'Open step timeline →', panel);
     inspect.className = 'inspect-button';
     inspect.addEventListener('click', () => { selectStage(step, false); openTimeline(); });
