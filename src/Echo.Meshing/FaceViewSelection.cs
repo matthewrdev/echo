@@ -25,14 +25,14 @@ internal static class FaceViewSelection
         {
             reporter.Start(PhotographSelectionPhase.CheckMeasuredVisibility, mesh.Faces.Count);
             FaceViewEvaluation.Evaluate(visibility, occlusion, views, sourcePhotos, candidates, scales, selected,
-                false, reporter, cancellation);
+                false, reporter, cancellation, scratch);
             reporter.Complete();
             var missing = selected.Count(view => view < 0);
             reporter.Start(PhotographSelectionPhase.CheckCompletedGaps, views.Count > 0 ? missing : 0);
             if (missing > 0 && views.Count > 0)
             {
                 FaceViewEvaluation.Evaluate(visibility, occlusion, views, sourcePhotos, candidates, scales, selected,
-                    true, reporter, cancellation);
+                    true, reporter, cancellation, scratch);
             }
             reporter.Complete();
         }

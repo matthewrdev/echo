@@ -2,6 +2,7 @@ using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Meshing;
+using Echo.Storage;
 
 namespace Echo.Tests;
 
@@ -18,6 +19,63 @@ public sealed class PhotographSelectionTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("High-camera visibility batches preserve measured and gap selection under a small memory budget", () =>
+        {
+            var photos = Enumerable.Range(0, 439).Select(index => new Photo
+            {
+                Id = index.ToString(),
+                Width = 100,
+                Height = 100,
+                FocalPixels = 100
+            }).ToArray();
+            var project = new ProjectData { Images = photos.ToList() };
+            var scene = new ReconstructionScene
+            {
+                Cameras = photos.Select((photo, index) => new CameraPose
+                {
+                    ImageId = photo.Id,
+                    Centre = [index < 4 ? 0 : 100, 0, 0]
+                }).ToList()
+            };
+            var maps = photos.Select(photo => new DepthMap
+            {
+                ImageId = photo.Id,
+                Width = 100,
+                Height = 100,
+                Depth = Enumerable.Range(0, 10000).Select(index => index % 100 < 50 ? 10f : 0f).ToArray()
+            }).ToArray();
+            var mesh = new Surface();
+            for (var face = 0; face < 513; face++)
+            {
+                var x = face % 27 * .12 - 1.5;
+                var y = face / 27 * .12 - 1;
+                var first = mesh.Vertices.Count;
+                mesh.Vertices.Add([x, y, 10]);
+                mesh.Vertices.Add([x + .1, y, 10]);
+                mesh.Vertices.Add([x, y + .1, 10]);
+                mesh.Faces.Add([first, first + 1, first + 2]);
+            }
+            var views = MeshDepthViews.Build(project, scene, maps);
+            var byId = photos.ToDictionary(photo => photo.Id);
+            var expected = FaceViewSelection.Select(mesh, views, byId, default, optimizeSeams: false);
+            Check(expected.All(view => view == 0), "Measured and inferred faces must retain the first equally detailed visible photograph");
+            var directory = Path.Combine(Path.GetTempPath(), "echo-visibility-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                using var data = new BulkDataSession(65536, 0);
+                using var work = new WorkBuffers(data, directory);
+                var actual = FaceViewSelection.Select(mesh, views, byId, default, work: work, optimizeSeams: false);
+                Check(actual.SequenceEqual(expected), "Memory-dependent visibility batches changed photograph assignments");
+                Check(data.Statistics.PeakResidentBytes <= 65536, "Visibility reservations exceeded the shared page budget");
+            }
+            finally
+            {
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, true);
+                }
+            }
+        });
         tests.Run("Completion verifies photographs without running seam optimization", () =>
         {
             var project = new ProjectData { Images = [new Photo { Id = "photo", Width = 100, Height = 100, FocalPixels = 50 }] };

@@ -1,5 +1,6 @@
 using Echo.Contracts;
 using Echo.Geometry;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 
@@ -7,9 +8,12 @@ internal static class FaceViewEvaluation
 {
     public static void Evaluate(SurfaceTriangleIndex visibility, SurfaceOcclusionCompute? occlusion,
         IReadOnlyList<DepthView> views, Photo[] photos, FaceViewCandidateStore candidates, double[] scales,
-        int[] selected, bool fallback, PhotographSelectionProgress reporter, CancellationToken cancellation)
+        int[] selected, bool fallback, PhotographSelectionProgress reporter, CancellationToken cancellation, WorkBuffers? work = null)
     {
-        var batchSize = Math.Max(1, Math.Min(256, 4096 / Math.Max(1, views.Count)));
+        var bytesPerFace = checked(Math.Max(1, views.Count) * 80L + 128);
+        var batchSize = (int)Math.Max(1, Math.Min(256, 16L * 1024 * 1024 / bytesPerFace));
+        using var reservation = Reserve(work, bytesPerFace, ref batchSize);
+        var cullingSize = Math.Max(1, Math.Min(32, 4096 / Math.Max(1, views.Count)));
         var options = new FaceViewCandidate[checked(batchSize * views.Count)];
         var rays = new SurfaceRay[options.Length];
         var raySlots = new int[options.Length];
@@ -21,43 +25,57 @@ internal static class FaceViewEvaluation
         };
         var retained = new List<FaceViewCandidate>(views.Count);
         var triangles = new SurfaceTriangle[batchSize];
-        var visibleViews = new List<int>(views.Count);
-        for (var first = 0; first < selected.Length; first += batchSize)
+        var faceIndices = new int[batchSize];
+        var visibleViews = Enumerable.Range(0, (batchSize + cullingSize - 1) / cullingSize)
+            .Select(_ => new List<int>(views.Count)).ToArray();
+        for (var first = 0; first < selected.Length;)
         {
             cancellation.ThrowIfCancellationRequested();
-            var count = Math.Min(batchSize, selected.Length - first);
-            Array.Clear(options);
-            var minimum = new V3(double.PositiveInfinity, double.PositiveInfinity, double.PositiveInfinity);
-            var maximum = minimum * -1;
-            for (var local = 0; local < count; local++)
+            var count = 0;
+            while (first < selected.Length && count < batchSize)
             {
-                var triangle = visibility.Triangle(first + local);
-                triangles[local] = triangle;
-                var low = triangle.Minimum;
-                var high = triangle.Maximum;
-                minimum = new V3(Math.Min(minimum.X, low.X), Math.Min(minimum.Y, low.Y), Math.Min(minimum.Z, low.Z));
-                maximum = new V3(Math.Max(maximum.X, high.X), Math.Max(maximum.Y, high.Y), Math.Max(maximum.Z, high.Z));
-            }
-            visibleViews.Clear();
-            for (var view = 0; view < views.Count; view++)
-            {
-                if (views[view].Projection.MaySee(minimum, maximum))
+                var face = first++;
+                if (!fallback || selected[face] < 0)
                 {
-                    visibleViews.Add(view);
+                    faceIndices[count++] = face;
+                }
+            }
+            if (count == 0)
+            {
+                continue;
+            }
+            Array.Clear(options);
+            for (var group = 0; group * cullingSize < count; group++)
+            {
+                var minimum = new V3(double.PositiveInfinity, double.PositiveInfinity, double.PositiveInfinity);
+                var maximum = minimum * -1;
+                var end = Math.Min(count, (group + 1) * cullingSize);
+                for (var local = group * cullingSize; local < end; local++)
+                {
+                    var triangle = visibility.Triangle(faceIndices[local]);
+                    triangles[local] = triangle;
+                    var low = triangle.Minimum;
+                    var high = triangle.Maximum;
+                    minimum = new V3(Math.Min(minimum.X, low.X), Math.Min(minimum.Y, low.Y), Math.Min(minimum.Z, low.Z));
+                    maximum = new V3(Math.Max(maximum.X, high.X), Math.Max(maximum.Y, high.Y), Math.Max(maximum.Z, high.Z));
+                }
+                visibleViews[group].Clear();
+                for (var view = 0; view < views.Count; view++)
+                {
+                    if (views[view].Projection.MaySee(minimum, maximum))
+                    {
+                        visibleViews[group].Add(view);
+                    }
                 }
             }
             Parallel.For(0, count, parallel, local =>
             {
-                var face = first + local;
-                if (fallback && selected[face] >= 0)
-                {
-                    return;
-                }
+                var face = faceIndices[local];
                 var triangle = triangles[local];
                 var centre = (triangle.A + triangle.B + triangle.C) / 3;
                 var area = (triangle.B - triangle.A).Cross(triangle.C - triangle.A).Length;
                 scales[face] = Math.Sqrt(area);
-                foreach (var view in visibleViews)
+                foreach (var view in visibleViews[local / cullingSize])
                 {
                     var density = FaceViewResolution.Density(views[view], photos[view], triangle.A, triangle.B, triangle.C, area);
                     if (!(density > 0))
@@ -76,13 +94,9 @@ internal static class FaceViewEvaluation
             var rayCount = 0;
             for (var local = 0; local < count; local++)
             {
-                if (fallback && selected[first + local] >= 0)
-                {
-                    continue;
-                }
                 var triangle = triangles[local];
                 var centre = (triangle.A + triangle.B + triangle.C) / 3;
-                foreach (var view in visibleViews)
+                foreach (var view in visibleViews[local / cullingSize])
                 {
                     var slot = local * views.Count + view;
                     if (options[slot].Cost > 0)
@@ -109,13 +123,9 @@ internal static class FaceViewEvaluation
             }
             for (var local = 0; local < count; local++)
             {
-                var face = first + local;
-                if (fallback && selected[face] >= 0)
-                {
-                    continue;
-                }
+                var face = faceIndices[local];
                 retained.Clear();
-                foreach (var view in visibleViews)
+                foreach (var view in visibleViews[local / cullingSize])
                 {
                     var option = options[local * views.Count + view];
                     if (option.Cost > 0)
@@ -141,4 +151,22 @@ internal static class FaceViewEvaluation
             }
         }
     }
+    private static PageMemoryReservation? Reserve(WorkBuffers? work, long bytesPerFace, ref int count)
+    {
+        if (work == null)
+        {
+            return null;
+        }
+        while (count > 1)
+        {
+            var reservation = work.TryReserveMemory(count * bytesPerFace);
+            if (reservation != null)
+            {
+                return reservation;
+            }
+            count /= 2;
+        }
+        return work.TryReserveMemory(bytesPerFace);
+    }
+
 }
