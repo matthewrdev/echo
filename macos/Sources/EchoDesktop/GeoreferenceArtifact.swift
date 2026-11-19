@@ -5,5 +5,6 @@ struct GeoreferenceArtifact {
     let presentation: ArtifactPresentation
     let overlay: ModelMapOverlay?
     let cameras: [MapCamera]
+    let surface: Surface?
     let bounds: SceneBounds
 }

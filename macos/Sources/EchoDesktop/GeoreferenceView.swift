@@ -4,6 +4,7 @@ struct GeoreferenceView: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @Binding var expanded: Bool
     @StateObject private var model = GeoreferenceViewModel()
+    @StateObject private var probe = GeographicProbeViewModel()
     @StateObject private var controller = SceneViewportController()
     @State private var tab = "Map"
     @State private var opacity = 0.8
@@ -28,8 +29,9 @@ struct GeoreferenceView: View {
                 Picker("Geographic view", selection: $tab) {
                     Text("Map").tag("Map")
                     Text("3D").tag("3D")
+                    Text("Test GPS").tag("Test GPS")
                     Text("Details").tag("Details")
-                }.labelsHidden().pickerStyle(.segmented).frame(width: 260)
+                }.labelsHidden().pickerStyle(.segmented).frame(width: 340)
                 Spacer()
                 Button("Export geographic data…", systemImage: "square.and.arrow.up") { export() }
                     .labelStyle(.iconOnly).help("Export geographic data for GIS and Redpoint")
@@ -58,6 +60,9 @@ struct GeoreferenceView: View {
             } else if let artifact = model.artifact {
                 if tab == "Map" {
                     map(artifact)
+                } else if tab == "Test GPS" {
+                    GeoreferenceProbeView(
+                        artifact: artifact, probe: probe, controller: controller, showGround: $showGround)
                 } else {
                     modelView(artifact)
                 }
@@ -71,7 +76,10 @@ struct GeoreferenceView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .task(id: identity) { await model.load(root: workspace.root, run: workspace.geographicRun) }
+        .task(id: identity) {
+            probe.clear(in: model.artifact)
+            await model.load(root: workspace.root, run: workspace.geographicRun)
+        }
         .onDisappear { model.cancel() }
     }
 

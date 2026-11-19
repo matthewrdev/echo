@@ -6,6 +6,7 @@ final class ArtifactSceneView: SCNView {
     let cropHandles = CropHandleInteraction()
     let textureBrush = TextureBrushInteraction()
     private var brushTracking: NSTrackingArea?
+    var selectSurfacePoint: ((SCNVector3) -> Void)?
     var placeExclusion: ((SCNVector3) -> Void)?
     var artifactIdentity = ""
     var needsInitialFit = true
@@ -182,6 +183,10 @@ final class ArtifactSceneView: SCNView {
         super.mouseUp(with: event)
         guard let start = mouseStart, hypot(location.x - start.x, location.y - start.y) < 4
         else { return }
+        if let selectSurfacePoint {
+            if let point = exclusionPoint(at: location) { selectSurfacePoint(point) }
+            return
+        }
         if let placeExclusion {
             if let point = exclusionPoint(at: location) {
                 placeExclusion(point)

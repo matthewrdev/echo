@@ -58,7 +58,7 @@ struct GeoreferenceArtifactReader {
                 cameraInspection: CameraInspectionData(
                     root: root, cameras: metadata.cameras, photos: run.snapshot.images),
                 metricScale: true),
-            overlay: overlay, cameras: cameras,
+            overlay: overlay, cameras: cameras, surface: surface,
             bounds: SceneBounds(positions: surface?.vertices ?? metadata.cameras.map(\.centre)))
     }
 }

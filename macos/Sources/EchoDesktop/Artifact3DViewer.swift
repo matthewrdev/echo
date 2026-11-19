@@ -8,6 +8,7 @@ struct Artifact3DViewer: View {
     @Binding var showGround: Bool
     var exclusionRegions: [ExclusionRegion] = []
     var selectedExclusionID: String?
+    var selectSurfacePoint: ((SCNVector3) -> Void)?
     var placeExclusion: ((SCNVector3) -> Void)?
     var changeExclusion: ((ExclusionRegion) -> Void)?
     var texturePainting: TexturePriorityPainting?
@@ -27,7 +28,8 @@ struct Artifact3DViewer: View {
                         selected = $0
                         observationIndex = 0
                     }, exclusionRegions: exclusionRegions, selectedExclusionID: selectedExclusionID,
-                    placeExclusion: placeExclusion, changeExclusion: changeExclusion,
+                    selectSurfacePoint: selectSurfacePoint, placeExclusion: placeExclusion,
+                    changeExclusion: changeExclusion,
                     texturePainting: texturePainting, textureBrush: textureBrush,
                     showTexturePriority: showTexturePriority, finishTextureStroke: finishTextureStroke
                 )

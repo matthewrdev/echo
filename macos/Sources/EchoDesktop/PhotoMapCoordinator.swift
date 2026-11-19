@@ -12,6 +12,38 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     private var updating = false
     private var model: ModelMapOverlay?
     private var modelOpacity = 0.8
+    var locationGesture: NSClickGestureRecognizer?
+    var pickLocation: ((CLLocationCoordinate2D) -> Void)?
+    private var probe: GeographicProbeAnnotation?
+    private var probeCircle: MKCircle?
+    private var probeSignature = ""
+
+    @objc func pickTestLocation(_ gesture: NSClickGestureRecognizer) {
+        guard let pickLocation, let map = gesture.view as? MKMapView else { return }
+        pickLocation(map.convert(gesture.location(in: map), toCoordinateFrom: map))
+    }
+
+    func updateProbe(map: MKMapView, position: GeoPosition?, accuracy: Double) {
+        let signature = position.map { "\($0.latitude):\($0.longitude):\(accuracy)" } ?? ""
+        guard signature != probeSignature else { return }
+        probeSignature = signature
+        if let probe { map.removeAnnotation(probe) }
+        if let probeCircle { map.removeOverlay(probeCircle) }
+        probe = nil
+        probeCircle = nil
+        guard let position else { return }
+        let annotation = GeographicProbeAnnotation(position: position, accuracy: accuracy)
+        probe = annotation
+        map.addAnnotation(annotation)
+        if !map.visibleMapRect.contains(MKMapPoint(annotation.coordinate)) {
+            map.setCenter(annotation.coordinate, animated: false)
+        }
+        if accuracy > 0 {
+            let circle = MKCircle(center: annotation.coordinate, radius: accuracy)
+            probeCircle = circle
+            map.addOverlay(circle)
+        }
+    }
 
     init(selection: @escaping (String?) -> Void) { self.selection = selection }
 
@@ -62,8 +94,8 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     }
 
     private func rebuild(map: MKMapView, cameras: [MapCamera], fit: Bool) {
-        map.removeAnnotations(map.annotations)
-        map.removeOverlays(map.overlays.filter { !($0 is ModelMapOverlay) })
+        map.removeAnnotations(map.annotations.filter { $0 is PhotoMapAnnotation })
+        map.removeOverlays(map.overlays.filter { !($0 is ModelMapOverlay) && $0 !== probeCircle })
         colors.removeAll()
         cameraIDs.removeAll()
         cameraOverlays.removeAll()
@@ -146,6 +178,13 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        if let circle = overlay as? MKCircle, circle === probeCircle {
+            let renderer = MKCircleRenderer(circle: circle)
+            renderer.strokeColor = .systemPink
+            renderer.fillColor = NSColor.systemPink.withAlphaComponent(0.12)
+            renderer.lineWidth = 2
+            return renderer
+        }
         if let model = overlay as? ModelMapOverlay {
             let renderer = ModelMapOverlayRenderer(model: model)
             renderer.alpha = modelOpacity
@@ -170,6 +209,14 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     }
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        if annotation is GeographicProbeAnnotation {
+            let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: nil)
+            marker.markerTintColor = .systemPink
+            marker.glyphImage = NSImage(systemSymbolName: "location.fill", accessibilityDescription: "Test location")
+            marker.canShowCallout = true
+            marker.displayPriority = .required
+            return marker
+        }
         guard let annotation = annotation as? PhotoMapAnnotation else { return nil }
         let view = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: nil)
         view.markerTintColor = palette.color(pitch: annotation.camera.pitchDegrees)

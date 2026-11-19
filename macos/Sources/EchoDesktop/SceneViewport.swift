@@ -9,6 +9,7 @@ struct SceneViewport: NSViewRepresentable {
     var selection: ((SparseSelection?) -> Void)?
     var exclusionRegions: [ExclusionRegion] = []
     var selectedExclusionID: String?
+    var selectSurfacePoint: ((SCNVector3) -> Void)?
     var placeExclusion: ((SCNVector3) -> Void)?
     var changeExclusion: ((ExclusionRegion) -> Void)?
     var texturePainting: TexturePriorityPainting?
@@ -54,6 +55,7 @@ struct SceneViewport: NSViewRepresentable {
         view.inspection = presentation.sparseInspection
         view.cameraInspection = presentation.cameraInspection
         view.selection = selection
+        view.selectSurfacePoint = selectSurfacePoint
         view.placeExclusion = placeExclusion
         view.exclusionOverlay.update(scene: view.scene, regions: exclusionRegions, selectedID: selectedExclusionID)
         view.cropHandles.update(
