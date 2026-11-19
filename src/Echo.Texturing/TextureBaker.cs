@@ -82,6 +82,12 @@ public sealed class TextureBaker : ITextureBaker
             progress?.Invoke("Finishing texture contrast and colour…");
             TextureColourEnhancer.Apply(atlas, project.Settings.TextureColourEnhancement, cancellation);
         }
+        if (project.Settings.ColourGrade is { IsIdentity: false } grade)
+        {
+            progress?.Invoke("Applying saved colour grade…");
+            new ColourGradeTransform(grade).Apply(atlas, cancellation);
+            result.ColourGrade = grade;
+        }
         progress?.Invoke("Encoding the photographic texture atlas…");
         images.Save(atlas, output, SKEncodedImageFormat.Jpeg, project.Settings.TextureJpegQuality);
         SaveVariants(atlas, result, output, project.Settings.TextureJpegQuality, cancellation, progress);

@@ -56,7 +56,8 @@ struct ProcessingImpact {
             || old.meshIslandMinimumAreaPercent != new.meshIslandMinimumAreaPercent
         if mesh { return .mesh }
         let texture =
-            old.texturePriority != new.texturePriority
+            (old.colourGrade ?? ColourGrade()) != (new.colourGrade ?? ColourGrade())
+            || old.texturePriority != new.texturePriority
             || old.vegetationTextureScale != new.vegetationTextureScale
             || old.textureSize != new.textureSize || old.textureJpegQuality != new.textureJpegQuality
             || old.textureChartFaces != new.textureChartFaces || old.textureChartAngle != new.textureChartAngle

@@ -5,6 +5,11 @@ namespace Echo.Texturing;
 
 public sealed class TextureResult
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ColourGrade? ColourGrade
+    {
+        get; set;
+    }
     public int MinimumAtlasSize
     {
         get; set;

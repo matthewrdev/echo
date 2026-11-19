@@ -1,4 +1,5 @@
 enum ProcessingSettingsKey: String, CodingKey {
+    case colourGrade
     case exclusionRegions, texturePriority
     case processingMemoryMode, processingMemoryBudgetMb, processingDiskBudgetMb
     case optimiseVegetation, vegetationMeshToleranceMultiplier, vegetationTextureScale, recoverCliffDepth

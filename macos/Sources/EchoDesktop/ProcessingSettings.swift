@@ -1,6 +1,7 @@
 import Foundation
 
 struct ProcessingSettings: Codable {
+    var colourGrade: ColourGrade?
     var exclusionRegions: [ExclusionRegion] = []
     var texturePriority: TexturePriorityPainting?
     var processingMemoryMode: ProcessingMemoryMode = .paged
@@ -75,6 +76,7 @@ struct ProcessingSettings: Codable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: ProcessingSettingsKey.self)
+        colourGrade = try values.decodeIfPresent(ColourGrade.self, forKey: .colourGrade)
         texturePriority = try values.decodeIfPresent(TexturePriorityPainting.self, forKey: .texturePriority)
         exclusionRegions = try values.decodeIfPresent([ExclusionRegion].self, forKey: .exclusionRegions) ?? []
         processingMemoryMode =
@@ -156,6 +158,7 @@ struct ProcessingSettings: Codable {
 
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: ProcessingSettingsKey.self)
+        try values.encodeIfPresent(colourGrade, forKey: .colourGrade)
         try values.encode(exclusionRegions, forKey: .exclusionRegions)
         try values.encodeIfPresent(texturePriority, forKey: .texturePriority)
         try values.encode(processingMemoryMode, forKey: .processingMemoryMode)

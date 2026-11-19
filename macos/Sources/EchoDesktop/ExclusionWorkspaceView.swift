@@ -10,6 +10,11 @@ struct ExclusionWorkspaceView: View {
     @Binding var showGround: Bool
     @Binding var editing: Bool
     @Binding var editingTexture: Bool
+    var colourGrade: ColourGrade?
+    var histogramBrush: CropBrushConfiguration?
+    var histogramSelection: ExclusionRegion?
+    var finishHistogramStroke: ((ExclusionRegion) -> Void)?
+    var histogramStrokeError: ((String) -> Void)?
 
     private var alignment: String { workspace.displayedRun?.artifacts["alignment"] ?? "" }
     @State private var regions: [ExclusionRegion] = []
@@ -32,16 +37,19 @@ struct ExclusionWorkspaceView: View {
             Artifact3DViewer(
                 presentation: presentation, openFeatures: openFeatures,
                 controller: controller, showGround: $showGround,
-                exclusionRegions: editing ? regions : [], selectedExclusionID: selectedID,
-                cropBrush: editing && paintingCrop ? CropBrushConfiguration(radius: brushRadius, mode: brushMode) : nil,
-                finishCropStroke: appendPaintedRegion, cropStrokeError: { paintError = $0 },
+                exclusionRegions: editing ? regions : histogramSelection.map { [$0] } ?? [],
+                selectedExclusionID: editing ? selectedID : nil,
+                cropBrush: histogramBrush
+                    ?? (editing && paintingCrop ? CropBrushConfiguration(radius: brushRadius, mode: brushMode) : nil),
+                finishCropStroke: histogramBrush != nil ? finishHistogramStroke : appendPaintedRegion,
+                cropStrokeError: histogramBrush != nil ? histogramStrokeError : { paintError = $0 },
                 placeExclusion: placing ? place : nil,
                 changeExclusion: editing ? change : nil,
                 texturePainting: editingTexture && !textureModel.incompatible ? textureModel.painting : nil,
                 textureBrush: editingTexture && textureModel.paintingEnabled && !textureModel.incompatible
                     ? textureModel.brush : nil,
                 showTexturePriority: editingTexture && textureModel.showHeatmap,
-                finishTextureStroke: textureModel.append)
+                finishTextureStroke: textureModel.append, colourGrade: colourGrade)
             if editing {
                 Divider()
                 editor.frame(width: 280)

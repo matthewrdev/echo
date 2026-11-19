@@ -20,6 +20,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     let projectThumbnails: ProjectThumbnailLoader?
     let telemetry = TelemetryHistory()
     let texturePriorityEditor = TexturePriorityEditorModel()
+    let colourGrading = ColourGradingModel()
     let performance: PerformanceTraceViewModel
 
     @Published var recentProjects: [RecentProject]
@@ -30,6 +31,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var inspection: Inspection? {
         didSet {
             if let project = inspection?.project, project.id != oldValue?.project.id {
+                colourGrading.cancel()
+                colourGrading.load(project.settings.colourGrade)
                 texturePriorityEditor.load(
                     project.settings.texturePriority, alignment: displayedRun?.artifacts["alignment"] ?? "")
             }

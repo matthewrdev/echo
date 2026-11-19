@@ -102,6 +102,7 @@ final class NativeSceneFactory {
         bounds.fit(camera: camera, size: CGSize(width: 800, height: 600), offset: view.offset, up: view.up)
         scene.rootNode.addChildNode(camera)
         scene.rootNode.addChildNode(GroundGridFactory().make(bounds: bounds))
+        ColourGradePreview.apply(ColourGrade(), to: scene)
         return scene
     }
 

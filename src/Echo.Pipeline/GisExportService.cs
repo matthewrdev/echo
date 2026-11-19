@@ -7,6 +7,8 @@ using Echo.Infrastructure;
 using Echo.Projects;
 using Echo.Texturing;
 using Echo.Storage;
+using Echo.Imaging;
+using SkiaSharp;
 
 namespace Echo.Pipeline;
 
@@ -135,6 +137,11 @@ public sealed class GisExportService : IGisExportService
             return;
         }
         using var session = bulk.OpenSession(64L * 1024 * 1024, 256L * 1024 * 1024);
+        var grade = new ColourGradeTransform(run.Snapshot.Settings.ColourGrade);
+        if (run.Snapshot.Settings.ColourGrade is { IsIdentity: false } recipe)
+        {
+            files.AtomicJson(Path.Combine(directory, "cloud-colour-grade.json"), recipe);
+        }
         if (run.Artifacts.TryGetValue("cloud", out var cloudPath))
         {
             var report = json.Read<DenseCloudOverview>(store.PathFor(cloudPath + "/cloud.json")).ToReport();
@@ -142,7 +149,7 @@ public sealed class GisExportService : IGisExportService
             if (cloud.Samples.Count > 0)
             {
                 las.Write(Path.Combine(directory, "cloud.las"), origin, cloud.Samples.Select(point =>
-                    new GeographicCloudPoint(new V3(point.X, point.Y, point.Z), point.Red, point.Green, point.Blue)));
+                    GradedPoint(new V3(point.X, point.Y, point.Z), point.Red, point.Green, point.Blue, grade)));
                 return;
             }
         }
@@ -150,12 +157,18 @@ public sealed class GisExportService : IGisExportService
         if (scene.Points.Count > 0)
         {
             las.Write(Path.Combine(directory, "sparse.las"), origin, scene.Points.Select(point =>
-                new GeographicCloudPoint(new V3(point.Position), point.Colour?[0] ?? 255, point.Colour?[1] ?? 255, point.Colour?[2] ?? 255)));
+                GradedPoint(new V3(point.Position), point.Colour?[0] ?? 255, point.Colour?[1] ?? 255, point.Colour?[2] ?? 255, grade)));
         }
         else
         {
             manifest.Warnings.Add("LAS omitted: this run has no saved point cloud.");
         }
+    }
+
+    private GeographicCloudPoint GradedPoint(V3 position, byte red, byte green, byte blue, ColourGradeTransform grade)
+    {
+        var colour = grade.Apply(new SKColor(red, green, blue));
+        return new GeographicCloudPoint(position, colour.Red, colour.Green, colour.Blue);
     }
 
     private Surface? ReadSurface(IProjectStore store, RunData run)

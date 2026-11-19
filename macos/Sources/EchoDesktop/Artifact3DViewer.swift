@@ -18,6 +18,7 @@ struct Artifact3DViewer: View {
     var textureBrush: TextureBrushConfiguration?
     var showTexturePriority = false
     var finishTextureStroke: ((TexturePriorityStroke) -> Void)?
+    var colourGrade: ColourGrade?
     @State private var selected: SparseSelection?
     @State private var observationIndex = 0.0
 
@@ -35,7 +36,8 @@ struct Artifact3DViewer: View {
                     cropStrokeError: cropStrokeError, placeExclusion: placeExclusion,
                     changeExclusion: changeExclusion,
                     texturePainting: texturePainting, textureBrush: textureBrush,
-                    showTexturePriority: showTexturePriority, finishTextureStroke: finishTextureStroke
+                    showTexturePriority: showTexturePriority, finishTextureStroke: finishTextureStroke,
+                    colourGrade: colourGrade
                 )
                 .overlay(alignment: .bottomLeading) {
                     if let data = presentation.cameraInspection, let scene = presentation.scene,

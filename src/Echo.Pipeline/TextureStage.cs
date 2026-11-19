@@ -63,6 +63,16 @@ public sealed class TextureStage : IPipelineStage
             project.Settings.TextureSeamBlendPixels,
             project.Settings.TextureColourEnhancement
         };
+        // Identity grades retain all existing checkpoints. A changed recipe only invalidates finishing.
+        if (project.Settings.ColourGrade is { IsIdentity: false } grade)
+        {
+            grade.Validate();
+            fingerprint = new
+            {
+                photographic = fingerprint,
+                colourGrade = grade
+            };
+        }
         var texture = context.Build("texture", fingerprint, dir =>
                 {
                     var surface = context.ReadData<Surface>(store.PathFor(meshPath + "/mesh.json"));

@@ -7,6 +7,7 @@ struct ArtifactViewer: View {
     @State private var openingSelection = true
     @State private var editingCrop = false
     @State private var editingTexture = false
+    @State private var editingColour = false
     @AppStorage("viewer.showGroundGrid") private var showGround = false
 
     private var artifactKey: String {
@@ -152,14 +153,18 @@ struct ArtifactViewer: View {
             }
         }
         .onChange(of: workspace.selectedStage) { _, _ in
+            editingColour = false
             editingCrop = false
             editingTexture = false
         }
         .onChange(of: workspace.displayedRun?.id) { _, _ in
+            workspace.colourGrading.selection = nil
+            editingColour = false
             editingCrop = false
             editingTexture = false
         }
         .onChange(of: workspace.root) { _, _ in
+            editingColour = false
             editingCrop = false
             editingTexture = false
         }
@@ -195,7 +200,16 @@ struct ArtifactViewer: View {
 
     private var editingTools: some View {
         HStack(spacing: 8) {
+            Button("Colour grading", systemImage: "slider.horizontal.3") {
+                editingColour.toggle()
+                editingCrop = false
+                editingTexture = false
+            }
+            .labelStyle(ViewerIconLabelStyle(selected: editingColour))
+            .help("Colour grading and histograms")
+            .accessibilityIdentifier("colourGrade.open")
             Button(editingCrop ? "Close crop editor" : "Crop regions", systemImage: "crop") {
+                editingColour = false
                 editingCrop.toggle()
                 editingTexture = false
             }
@@ -205,6 +219,7 @@ struct ArtifactViewer: View {
                 Button(
                     editingTexture ? "Close texture brush" : "Texture priority", systemImage: "paintbrush.pointed"
                 ) {
+                    editingColour = false
                     editingTexture.toggle()
                     editingCrop = false
                 }
@@ -250,13 +265,15 @@ struct ArtifactViewer: View {
                 } else if let matches = value.matches {
                     MatchingViewer(data: matches, selected: $model.selectedMatchIndex)
                 } else if value.scene != nil {
-                    ExclusionWorkspaceView(
+                    GradedCloudWorkspace(
                         workspace: workspace, textureModel: workspace.texturePriorityEditor, presentation: value,
                         openFeatures: { photoID in
                             workspace.selectedPhotoID = photoID
                             workspace.selectedStage = .features
                         }, controller: sceneController, showGround: $showGround,
-                        editing: $editingCrop, editingTexture: $editingTexture)
+                        editing: $editingCrop, editingTexture: $editingTexture,
+                        grading: workspace.colourGrading, editingColour: editingColour,
+                        minimumSupport: model.depthAgreementPercentage / 100)
                 } else if let depth = value.depthImage {
                     HStack(spacing: 12) {
                         Text(value.title).fontWeight(.semibold).lineLimit(1).truncationMode(.middle)

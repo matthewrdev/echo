@@ -5,6 +5,11 @@ public sealed class Settings
     public const double MinimumFusionVoxelSize = .025;
 
     public List<ExclusionRegion> ExclusionRegions { get; set; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ColourGrade? ColourGrade
+    {
+        get; set;
+    }
     public TexturePriorityPainting? TexturePriority
     {
         get; set;
@@ -83,6 +88,7 @@ public sealed class Settings
 
     public void Validate()
     {
+        ColourGrade?.Validate();
         TexturePriority?.Validate();
         if (ExclusionRegions == null || ExclusionRegions.Any(region => region == null))
         {

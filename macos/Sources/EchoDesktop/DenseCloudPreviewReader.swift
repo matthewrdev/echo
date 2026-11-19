@@ -3,17 +3,8 @@ import SceneKit
 final class DenseCloudPreviewReader {
     func read(file: URL, expectedCount: Int, limit: Int, minimumSupport: Double) throws -> DenseCloudPreview {
         let bytes = try Data(contentsOf: file, options: .alwaysMapped)
-        let prefix = bytes.prefix(8192)
-        guard let end = prefix.range(of: Data("end_header\n".utf8)) else {
-            throw CLIError(message: "Dense cloud has no supported PLY header.")
-        }
-        let header = String(decoding: prefix[..<end.upperBound], as: UTF8.self)
-        let expectedHeader =
-            "ply\nformat binary_little_endian 1.0\nelement vertex \(expectedCount)\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nproperty int view\nproperty float confidence\nend_header\n"
-        guard expectedCount >= 0, header == expectedHeader,
-            (bytes.count - end.upperBound) / 23 == expectedCount,
-            (bytes.count - end.upperBound) % 23 == 0
-        else { throw CLIError(message: "Dense cloud layout or point count does not match its checkpoint.") }
+        let layout = try DenseCloudLayout(
+            prefix: bytes.prefix(8192), expectedCount: expectedCount, fileSize: bytes.count)
         let budget = CloudDisplayDetail.pointLimit(limit).limit(for: expectedCount)
         var packed = Data(count: budget * 16)
         var retained = 0
@@ -24,7 +15,7 @@ final class DenseCloudPreviewReader {
                     // One midpoint from every equal interval spans the entire saved cloud
                     // without a large point-object array or a copy of the mapped PLY.
                     let index = Int((Int64(sample) * 2 + 1) * Int64(expectedCount) / (Int64(budget) * 2))
-                    let input = end.upperBound + index * 23
+                    let input = layout.offset + index * DenseCloudLayout.stride
                     let confidence = Float(
                         bitPattern: UInt32(
                             littleEndian: source.loadUnaligned(fromByteOffset: input + 19, as: UInt32.self)))

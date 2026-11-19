@@ -23,6 +23,8 @@ if (args.Contains("--reconstruction", StringComparer.Ordinal))
     return composition.Resolve<ReconstructionTests>().Run();
 }
 var scaleTests = new TestSuite();
+composition.Resolve<ColourGradingTests>().Run(scaleTests);
+composition.Resolve<ColourGradingPipelineTests>().Run(scaleTests);
 composition.Resolve<ReconstructionValidationTests>().Run(scaleTests);
 if (args.Contains("--validation", StringComparer.Ordinal))
 {

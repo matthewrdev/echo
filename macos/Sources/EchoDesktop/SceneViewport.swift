@@ -19,6 +19,7 @@ struct SceneViewport: NSViewRepresentable {
     var textureBrush: TextureBrushConfiguration?
     var showTexturePriority = false
     var finishTextureStroke: ((TexturePriorityStroke) -> Void)?
+    var colourGrade: ColourGrade?
 
     func makeNSView(context: Context) -> ArtifactSceneView {
         let view = ArtifactSceneView(
@@ -82,6 +83,7 @@ struct SceneViewport: NSViewRepresentable {
             in: view, regions: exclusionRegions, selectedID: selectedExclusionID,
             changed: placeExclusion == nil && cropBrush == nil ? changeExclusion : nil)
         view.highlight(texturePainting == nil ? selected : nil)
+        ColourGradePreview.apply(colourGrade, to: view.scene)
         view.textureBrush.configuration = textureBrush
         view.textureBrush.painting = texturePainting
         view.textureBrush.showHeatmap = showTexturePriority
