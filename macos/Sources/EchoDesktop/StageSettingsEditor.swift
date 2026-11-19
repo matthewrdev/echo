@@ -217,7 +217,12 @@ struct StageSettingsEditor: View {
             case .mesh:
                 Toggle("Infer missing surfaces", isOn: $settings.meshCompleteSurface)
                 Text(
-                    "Completes gaps near the observed surface. Turn off to inspect the measured shape without inferred surface completion. Small local hole repairs still run. Changing this setting reuses fusion."
+                    "Completes missing surfaces. Turn off to inspect the measured shape without inferred surface completion. Small local hole repairs still run. Changing this setting reuses fusion."
+                ).font(.caption).foregroundStyle(.secondary)
+                Toggle("Close main hull", isOn: $settings.meshCloseHull)
+                    .disabled(!settings.meshCompleteSurface)
+                Text(
+                    "Retains the closed reconstructed hull, including an inferred back and bottom. Turn off to restrict completion to the scanned neighbourhood and preserve observed openings. Explicit crop cuts remain open. The mesh report records any remaining boundary edges."
                 ).font(.caption).foregroundStyle(.secondary)
                 Toggle("Optimise vegetation", isOn: $settings.optimiseVegetation)
                 Text(

@@ -58,8 +58,9 @@ public sealed class MeshStage : IPipelineStage
             fusionPath,
             depthUnits,
             alignment,
-            completionVersion = project.Settings.MeshCompleteSurface ? 13 : 10,
+            completionVersion = project.Settings.MeshCompleteSurface ? 14 : 10,
             project.Settings.MeshCompleteSurface,
+            closeHull = project.Settings.MeshCompleteSurface && project.Settings.MeshCloseHull,
             project.Settings.ExclusionRegions,
             simplificationVersion = 5,
             project.Settings.ComputeBackend,
@@ -108,7 +109,7 @@ public sealed class MeshStage : IPipelineStage
                     progress.Report(new OperationProgress("Find surface gaps", project.Settings.MeshCompleteSurface
                         ? "Checking the surface for gaps…" : "Inferred surface completion is disabled."));
                     var completed = project.Settings.MeshCompleteSurface
-                        && SurfaceSupportFilter.HasGaps(reduced, cancellation, context.Work);
+                        && (project.Settings.MeshCloseHull || SurfaceSupportFilter.HasGaps(reduced, cancellation, context.Work));
                     if (completed)
                     {
                         progress.Report(new OperationProgress("Completion photograph selection", "Selecting photographs for surface completion…"));
@@ -120,15 +121,22 @@ public sealed class MeshStage : IPipelineStage
                         var reconstructed = completionBuffers.Replace(work => surfaceReconstructor.Reconstruct(observed, scene, volume.VoxelSize, cancellation,
                             message => context.ReportProgress(Name, message), context.Memory, work));
                         reconstructed = completionBuffers.Replace(work => SurfaceExclusionFilter.Filter(reconstructed, project.Settings.ExclusionRegions, cancellation, work));
-                        context.ReportProgress(Name, "Restricting surface completion to the scanned neighbourhood…");
-                        var supported = completionBuffers.Replace(work => SurfaceSupportFilter.Filter(reconstructed, observed, volume.VoxelSize * 24, cancellation, work, progress.Report));
+                        var supported = reconstructed;
+                        if (!project.Settings.MeshCloseHull)
+                        {
+                            context.ReportProgress(Name, "Restricting surface completion to the scanned neighbourhood…");
+                            supported = completionBuffers.Replace(work => SurfaceSupportFilter.Filter(reconstructed, observed, volume.VoxelSize * 24, cancellation, work, progress.Report));
+                        }
                         context.ReportProgress(Name, "Adapting the completed surface to its geometric detail…");
                         reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance, work: work, progress: progress.Report));
-                        context.ReportProgress(Name, "Checking completed surfaces against observed empty space…");
-                        facesBeforeVisibility = reduced.Faces.Count;
-                        reduced = geometryBuffers.Replace(work => SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, work, progress.Report, compute, depthContext));
-                        rejectedAfterCompletion = facesBeforeVisibility - reduced.Faces.Count;
-                        context.ReportProgress(Name, $"Rejected {rejectedAfterCompletion:N0} completed triangles contradicted by observed empty space.");
+                        if (!project.Settings.MeshCloseHull)
+                        {
+                            context.ReportProgress(Name, "Checking completed surfaces against observed empty space…");
+                            facesBeforeVisibility = reduced.Faces.Count;
+                            reduced = geometryBuffers.Replace(work => SurfaceVisibilityFilter.Filter(reduced, project, scene, maps, cancellation, work, progress.Report, compute, depthContext));
+                            rejectedAfterCompletion = facesBeforeVisibility - reduced.Faces.Count;
+                            context.ReportProgress(Name, $"Rejected {rejectedAfterCompletion:N0} completed triangles contradicted by observed empty space.");
+                        }
                     }
                     context.ReportProgress(Name, "Repairing bounded enclosed holes after visibility cleanup…");
                     progress.Begin(MeshPhase.RepairFinalHoles);
@@ -174,6 +182,10 @@ public sealed class MeshStage : IPipelineStage
                     // Removed fragments must not continue to occlude photographs
                     // of the surviving surface during source assignment.
                     progress.Begin(MeshPhase.SelectPhotographs);
+                    var topology = SurfaceTopology.Measure(trimming.Surface, cancellation, context.Work);
+                    context.ReportProgress(Name, topology.Closed
+                        ? "Main hull is closed: zero boundary edges."
+                        : $"Main hull has {topology.BoundaryEdges:N0} open edges and {topology.InteriorHoles:N0} interior boundary loops. Crop cuts remain open.");
                     var mesh = meshBuilder.AssignCameras(project, scene, maps, trimming.Surface, cancellation,
                         retainUnobserved: true, operationProgress: progress.Report, work: context.Work, depthContext: depthContext);
                     var photographCoverage = SurfacePhotographCoverage.Measure(mesh, cancellation);
@@ -202,13 +214,15 @@ public sealed class MeshStage : IPipelineStage
                         detailTolerance,
                         completed,
                         completionEnabled = project.Settings.MeshCompleteSurface,
+                        closeHull = project.Settings.MeshCompleteSurface && project.Settings.MeshCloseHull,
+                        topology,
                         visibilityFiltering = new
                         {
                             rejectedBeforeCompletion,
                             rejectedAfterCompletion
                         },
                         finalHoleRepair = finalRepair,
-                        completionDistance = completed ? volume.VoxelSize * 24 : 0,
+                        completionDistance = completed && project.Settings.MeshCloseHull ? (double?)null : completed ? volume.VoxelSize * 24 : 0,
                         islandTrimming = new
                         {
                             mode = project.Settings.MeshIslandMode,
@@ -219,10 +233,14 @@ public sealed class MeshStage : IPipelineStage
                             trimming.RemovedArea
                         },
                         method = completed
-                            ? "Visibility-constrained screened Poisson completion, adaptive simplification and graph-cut photographic view selection"
+                            ? project.Settings.MeshCloseHull
+                                ? "Closed screened Poisson hull, adaptive simplification and graph-cut photographic view selection"
+                                : "Visibility-constrained screened Poisson completion, adaptive simplification and graph-cut photographic view selection"
                             : "Observed surface extraction, supported hole repair, adaptive simplification and graph-cut photographic view selection",
                         note = completed
-                            ? "Completed regions are inferred geometry. Distant extrapolation and surfaces contradicted by multiple visible depth rays are removed; missing and occluded depths remain neutral."
+                            ? project.Settings.MeshCloseHull
+                                ? "Completed regions include inferred back and bottom surfaces beyond the photographed area. The closed hull is retained after reconstruction; explicit crop cuts remain open. Consult topology for the measured closure result."
+                                : "Completed regions are inferred geometry. Distant extrapolation and surfaces contradicted by multiple visible depth rays are removed; missing and occluded depths remain neutral."
                             : "No inferred surface completion was applied. Small local holes may be repaired; missing and occluded depths remain neutral."
                     });
                 });

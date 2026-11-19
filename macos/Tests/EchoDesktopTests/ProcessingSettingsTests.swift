@@ -3,6 +3,16 @@ import XCTest
 @testable import EchoDesktop
 
 final class ProcessingSettingsTests: XCTestCase {
+    func testHullClosureRoundTripAndMeshOnlyImpact() throws {
+        let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
+        XCTAssertTrue(original.meshCloseHull)
+        var changed = original
+        changed.meshCloseHull = false
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .mesh)
+        let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(changed))
+        XCTAssertFalse(restored.meshCloseHull)
+    }
+
     func testSubjectDistanceDefaultsRoundTripAndDepthImpact() throws {
         let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
         XCTAssertEqual(original.subjectDistanceMode, .auto)

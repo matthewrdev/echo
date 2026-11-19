@@ -13,7 +13,7 @@ enum ProcessingSettingsKey: String, CodingKey {
     case depthRefinementSamples, depthNeighbours, depthRangeAutomatic
     case subjectDistanceMode, subjectDistanceLimit
     case textureSeamBlendPixels, textureColourEnhancement, textureChartFaces, textureChartAngle, textureGutter
-    case meshCompleteSurface, meshIslandMode, meshIslandMinimumAreaPercent
+    case meshCompleteSurface, meshCloseHull, meshIslandMode, meshIslandMinimumAreaPercent
     case fusionIslandMode, fusionIslandMinimumSizePercent, textureSuppressSky, textureSkyMarginPixels
     case featureWidth, bundleIterations, featureLimit, pairWindow, matchAllPairs, gpsPairNeighbours,
         matchRatioThreshold, matchDistanceThreshold, depthWidth, depthPlanes, depthNear, depthFar, cloudNeighbours,

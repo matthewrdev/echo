@@ -628,6 +628,21 @@ public sealed class ReconstructionTests
                 Check(mesh.Faces.Count > 0, "Observed geometry survives without inferred completion");
                 store.Edit(project => project.Settings.MeshCompleteSurface = true);
             });
+            tests.Run("Closed hull survives the final mesh and export while closure edits reuse fusion", () =>
+            {
+                var closed = processor.Execute(store, "export", default);
+                using var report = JsonDocument.Parse(File.ReadAllText(store.PathFor(closed.Artifacts["mesh"] + "/mesh.report.json")));
+                Check(report.RootElement.GetProperty("topology").GetProperty("closed").GetBoolean(), "Completed main hull has zero open edges and valid topology");
+                using var exported = JsonDocument.Parse(File.ReadAllText(store.PathFor(closed.Artifacts["export"] + "/cliff.report.json")));
+                Check(exported.RootElement.GetProperty("topology").GetProperty("boundaryEdges").GetInt32() == 0, "Export carries the verified hull result");
+                store.Edit(project => project.Settings.MeshCloseHull = false);
+                var bounded = processor.Execute(store, "export", default);
+                Check(bounded.Artifacts["fusion"] == closed.Artifacts["fusion"], "Closure reuses observed fusion");
+                Check(bounded.Artifacts["mesh"] != closed.Artifacts["mesh"], "Closure changes rebuild mesh geometry");
+                store.Edit(project => project.Settings.MeshCloseHull = true);
+                var restored = processor.Execute(store, "export", default);
+                Check(restored.Artifacts["mesh"] == closed.Artifacts["mesh"], "Restoring closure reuses the correct hull checkpoint");
+            });
             tests.Run("Island trimming edits reuse fusion and rebuild the completed mesh and downstream artifacts", () =>
             {
                 foreach (var mode in new[] { IslandTrimMode.Small, IslandTrimMode.Main })

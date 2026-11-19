@@ -38,7 +38,7 @@ public sealed class ExportStage : IPipelineStage
         var fusionPath = context.Artifact("fusion");
         var export = context.Build("export", new
         {
-            descriptionVersion = 3,
+            descriptionVersion = 4,
             texture,
             meshPath,
             alignment,
@@ -49,6 +49,8 @@ public sealed class ExportStage : IPipelineStage
                     var surface = context.ReadData<Surface>(store.PathFor(tex.MeshFile == null
                         ? meshPath + "/mesh.json" : texture + "/" + tex.MeshFile));
                     var uvs = context.ReadData<TextureCoordinates>(store.PathFor(texture + "/" + tex.UvsFile)).Values;
+                    using var meshReport = System.Text.Json.JsonDocument.Parse(File.ReadAllText(store.PathFor(meshPath + "/mesh.report.json")));
+                    var hasTopology = meshReport.RootElement.TryGetProperty("topology", out var topology);
 
                     glbWriter.Write(Path.Combine(dir, "cliff.glb"), surface, uvs, File.ReadAllBytes(store.PathFor(texture + "/atlas.jpg")));
                     fileOperations.AtomicJson(Path.Combine(dir, "cliff.geo.json"), new
@@ -74,11 +76,13 @@ public sealed class ExportStage : IPipelineStage
                         scene.Bundle,
                         faces = surface.Faces.Count,
                         inferredColourFaces = surface.SourceImages.Count(string.IsNullOrEmpty),
+                        closeHull = project.Settings.MeshCompleteSurface && project.Settings.MeshCloseHull,
+                        topology = hasTopology ? (System.Text.Json.JsonElement?)topology : null,
                         textureSize = tex.Size,
                         tex.CoverageFraction,
                         scene.Unplaced,
                         warnings = scene.Warnings,
-                        geometry = GeometryDescription(project.Settings.MeshCompleteSurface),
+                        geometry = GeometryDescription(project.Settings.MeshCompleteSurface, project.Settings.MeshCloseHull),
                         alignment,
                         cloud = cloudPath,
                         fusion = fusionPath,
@@ -94,10 +98,12 @@ public sealed class ExportStage : IPipelineStage
         context.Publish("export", export);
     }
 
-    private string GeometryDescription(bool completeSurface)
+    private string GeometryDescription(bool completeSurface, bool closeHull)
     {
         var completion = completeSurface
-            ? "Screened Poisson gap completion is bounded to the observed neighbourhood; completed regions are inferred geometry. "
+            ? closeHull
+                ? "Screened Poisson completion retains the closed inferred hull, including unseen back and bottom surfaces. Explicit crop cuts remain open. Consult mesh topology for the measured closure result. "
+                : "Screened Poisson gap completion is bounded to the observed neighbourhood; completed regions are inferred geometry. "
             : "Missing-surface inference is disabled; gaps in observed geometry remain open. ";
         return "Multiview-validated dense cloud, uncertainty-aware TSDF, consistent tetrahedral extraction, and adaptive simplification. "
             + completion

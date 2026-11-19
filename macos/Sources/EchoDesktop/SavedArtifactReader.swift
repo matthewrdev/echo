@@ -188,8 +188,11 @@ final class SavedArtifactReader: ArtifactReader {
             let scene = scenes.make(
                 reconstruction: reconstruction, points: [], photos: photos, root: root, surface: asset.surface,
                 uvs: asset.uvs, texture: asset.image, meshMode: MeshViewMode(rawValue: mode) ?? .textured)
+            var detail = "\(asset.surface.faces.count.formatted()) triangles · actual exported GLB"
+            let report: MeshArtifactReport? = try? read(folder.appendingPathComponent("cliff.report.json"))
+            if let topologyDetail = report?.detail { detail += " · \(topologyDetail)" }
             return ArtifactPresentation(
-                title: stage.title, detail: "\(asset.surface.faces.count.formatted()) triangles · actual exported GLB",
+                title: stage.title, detail: detail,
                 scene: scene, sceneIdentity: run.id + stage.rawValue,
                 cameraInspection: CameraInspectionData(
                     root: root, cameras: reconstruction?.cameras ?? [], photos: photos),
@@ -264,6 +267,8 @@ final class SavedArtifactReader: ArtifactReader {
                 surface = savedSurface
                 points = []
                 detail = "\(savedSurface.faces.count.formatted()) triangles"
+                let report: MeshArtifactReport? = try? read(folder.appendingPathComponent("mesh.report.json"))
+                if let topologyDetail = report?.detail { detail += " · \(topologyDetail)" }
                 if mode == "Textured", let texturePath = run.artifacts["texture"] {
                     let textureFolder = root.appendingPathComponent(texturePath)
                     let artifact: TextureArtifact = try read(textureFolder.appendingPathComponent("texture.json"))

@@ -39,7 +39,8 @@ final class SavedArtifactIntegrationTests: XCTestCase {
                 let features = try XCTUnwrap(presentation.features)
                 XCTAssertFalse(features.features.isEmpty)
                 XCTAssertFalse(features.matches.isEmpty)
-                XCTAssertTrue(features.matches.allSatisfy { features.features.indices.contains($0.featureIndex) })
+                let selectableFeatureCount = features.features.count + features.lines.count
+                XCTAssertTrue(features.matches.allSatisfy { (0..<selectableFeatureCount).contains($0.featureIndex) })
             case .matching:
                 let matches = try XCTUnwrap(presentation.matches)
                 XCTAssertFalse(matches.matches.isEmpty)
@@ -48,6 +49,12 @@ final class SavedArtifactIntegrationTests: XCTestCase {
             case .alignment, .cloud, .mesh, .texture, .export:
                 let scene = try XCTUnwrap(presentation.scene, stage.rawValue)
                 XCTAssertFalse(scene.rootNode.childNodes.isEmpty, stage.rawValue)
+                if stage == .mesh || stage == .export, let artifact = run.artifacts[stage.rawValue] {
+                    let filename = stage == .mesh ? "mesh.report.json" : "cliff.report.json"
+                    let report: MeshArtifactReport? = try? json.read(
+                        root.appendingPathComponent(artifact).appendingPathComponent(filename))
+                    if let detail = report?.detail { XCTAssertTrue(presentation.detail.contains(detail)) }
+                }
             case .depth:
                 let depth = try XCTUnwrap(presentation.depthImage)
                 XCTAssertGreaterThan(depth.overlay.size.width, 0)
