@@ -28,7 +28,7 @@ public sealed class TextureBaker : ITextureBaker
     public TextureResult Bake(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
         string output, CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null)
     {
-        var layout = layoutPlanner.Plan(project, scene, mesh, cancellation, progress, vegetationFaces, work);
+        var layout = layoutPlanner.Plan(project, scene, mesh, cancellation, progress, vegetationFaces, work, operationProgress);
         var patches = layout.Patches;
         var vegetationCharts = layout.VegetationChartCount;
         var size = project.Settings.TextureSize;
@@ -48,6 +48,8 @@ public sealed class TextureBaker : ITextureBaker
             TexelsPerWorldUnit = scale,
             BaselineTexelsPerWorldUnit = layout.BaselineTexelsPerWorldUnit
         };
+        operationProgress?.Invoke(new OperationProgress("UV mesh", "Building the textured mesh and UV coordinates…", 0, patches.Count, "charts"));
+        var completedCharts = 0;
         foreach (var patch in patches)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -67,6 +69,11 @@ public sealed class TextureBaker : ITextureBaker
                 surface.Faces.Add([lookup[face[0]], lookup[face[1]], lookup[face[2]]]);
                 surface.SourceImages.Add(mesh.SourceImages[index]);
             }
+            completedCharts++;
+            if (completedCharts % 1000 == 0 || completedCharts == patches.Count)
+            {
+                operationProgress?.Invoke(new OperationProgress("UV mesh", "Building the textured mesh and UV coordinates…", completedCharts, patches.Count, "charts"));
+            }
         }
 
         progress?.Invoke("Levelling exposure and colour differences along photographic seams…");
@@ -79,24 +86,30 @@ public sealed class TextureBaker : ITextureBaker
         result.CoverageFraction = rasterizer.Paint(store, project, scene, surface, result, patches, atlas, cancellation, operationProgress, work);
         if (project.Settings.TextureColourEnhancement > 0)
         {
+            operationProgress?.Invoke(new OperationProgress("Colour enhancement", "Finishing texture contrast and colour…"));
             progress?.Invoke("Finishing texture contrast and colour…");
             TextureColourEnhancer.Apply(atlas, project.Settings.TextureColourEnhancement, cancellation);
         }
         if (project.Settings.ColourGrade is { IsIdentity: false } grade)
         {
+            operationProgress?.Invoke(new OperationProgress("Colour grading", "Applying saved colour grade…"));
             progress?.Invoke("Applying saved colour grade…");
             new ColourGradeTransform(grade).Apply(atlas, cancellation);
             result.ColourGrade = grade;
         }
+        operationProgress?.Invoke(new OperationProgress("Atlas encoding", "Encoding the photographic texture atlas…", 0, 1, "atlases"));
         progress?.Invoke("Encoding the photographic texture atlas…");
         images.Save(atlas, output, SKEncodedImageFormat.Jpeg, project.Settings.TextureJpegQuality);
-        SaveVariants(atlas, result, output, project.Settings.TextureJpegQuality, cancellation, progress);
+        operationProgress?.Invoke(new OperationProgress("Atlas encoding", "Photographic atlas encoded.", 1, 1, "atlases"));
+        SaveVariants(atlas, result, output, project.Settings.TextureJpegQuality, cancellation, progress, operationProgress);
         return result;
     }
 
     private void SaveVariants(SKBitmap atlas, TextureResult result, string output, int quality,
-        CancellationToken cancellation, Action<string>? progress)
+        CancellationToken cancellation, Action<string>? progress, Action<OperationProgress>? operationProgress)
     {
+        string[] steps = ["Filter atlas", "Encode variant"];
+        operationProgress?.Invoke(new OperationProgress("Atlas variants", "Preparing smaller atlases…") { Steps = steps, StepIndex = 0 });
         SKBitmap? previous = null;
         try
         {
@@ -104,10 +117,12 @@ public sealed class TextureBaker : ITextureBaker
             {
                 cancellation.ThrowIfCancellationRequested();
                 progress?.Invoke($"Filtering {size:N0} × {size:N0} atlas with shared UVs…");
+                operationProgress?.Invoke(new OperationProgress("Atlas variants", $"Filtering {size:N0} × {size:N0} atlas…") { Steps = steps, StepIndex = 0 });
                 var reduced = TextureAtlasDownsampler.Half(previous ?? atlas, cancellation);
                 previous?.Dispose();
                 previous = reduced;
                 var filename = Path.GetFileNameWithoutExtension(output) + $"-{size}.jpg";
+                operationProgress?.Invoke(new OperationProgress("Atlas variants", $"Encoding {size:N0} × {size:N0} atlas…") { Steps = steps, StepIndex = 1 });
                 images.Save(reduced, Path.Combine(Path.GetDirectoryName(output) ?? ".", filename), SKEncodedImageFormat.Jpeg, quality);
                 result.Variants.Add(new TextureAtlasVariant
                 {

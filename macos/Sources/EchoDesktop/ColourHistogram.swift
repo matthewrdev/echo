@@ -1,6 +1,7 @@
 import Foundation
 
 struct ColourHistogram: Sendable {
+    var scanColours = (0..<64).map { ScanColourBin(id: $0) }
     var red = [UInt64](repeating: 0, count: 256)
     var green = [UInt64](repeating: 0, count: 256)
     var blue = [UInt64](repeating: 0, count: 256)
@@ -10,6 +11,8 @@ struct ColourHistogram: Sendable {
     var clippedWhite: UInt64 = 0
 
     mutating func add(_ colour: SIMD3<UInt8>, count amount: UInt64) {
+        let group = (Int(colour.x) >> 6) << 4 | (Int(colour.y) >> 6) << 2 | (Int(colour.z) >> 6)
+        scanColours[group].add(colour, count: amount)
         red[Int(colour.x)] += amount
         green[Int(colour.y)] += amount
         blue[Int(colour.z)] += amount

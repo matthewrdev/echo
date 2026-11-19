@@ -6,19 +6,22 @@ struct ColourHistogramView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("RGB").font(.caption).foregroundStyle(.secondary)
-            plot(channels: [histogram.red, histogram.green, histogram.blue], colours: [.red, .green, .blue])
-                .frame(height: 90)
-            Text("Brightness").font(.caption).foregroundStyle(.secondary)
-            plot(channels: [histogram.brightness], colours: [.primary]).frame(height: 60)
-            HStack {
-                Text("0 · black")
-                Spacer()
-                Text("white · 255")
-            }.font(.caption2).foregroundStyle(.secondary)
+            ScanColourHistogramView(histogram: histogram, logarithmic: logarithmic)
+            DisclosureGroup("Channels") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("RGB channels").font(.caption).foregroundStyle(.secondary)
+                    plot(channels: [histogram.red, histogram.green, histogram.blue], colours: [.red, .green, .blue])
+                        .frame(height: 90)
+                    Text("Brightness").font(.caption).foregroundStyle(.secondary)
+                    plot(channels: [histogram.brightness], colours: [.primary]).frame(height: 60)
+                    HStack {
+                        Text("0 · black")
+                        Spacer()
+                        Text("white · 255")
+                    }.font(.caption2).foregroundStyle(.secondary)
+                }
+            }.font(.caption)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("RGB and brightness histograms for \(histogram.count.formatted()) points")
     }
 
     private func plot(channels: [[UInt64]], colours: [Color]) -> some View {

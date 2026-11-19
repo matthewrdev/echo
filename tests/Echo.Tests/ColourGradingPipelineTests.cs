@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.ComponentModel.Composition;
+using System.Text.Json;
 using Echo.Contracts;
 using Echo.Imaging;
 using Echo.Infrastructure;
@@ -46,7 +47,10 @@ public sealed class ColourGradingPipelineTests
                 var source = File.ReadAllBytes(store.PathFor("source.png"));
                 store.Edit(project =>
                 {
-                    project.Images = [new Photo { Id = "a", Name = "a.png", Source = "source.png", Width = 128, Height = 128, FocalPixels = 64 }];
+                    project.Images = [
+                        new Photo { Id = "a", Name = "a.png", Source = "source.png", Width = 128, Height = 128, FocalPixels = 64 },
+                        new Photo { Id = "b", Name = "b.png", Source = "source.png", Width = 128, Height = 128, FocalPixels = 64 }
+                    ];
                     project.Settings.ComputeBackend = ComputeBackend.Cpu;
                     project.Settings.OptimiseVegetation = false;
                     project.Settings.TextureSuppressSky = false;
@@ -58,20 +62,21 @@ public sealed class ColourGradingPipelineTests
                 files.AtomicData(store.PathFor("artifacts/alignment/test/scene.json"), new ReconstructionScene
                 {
                     Origin = new GeoPosition { Latitude = -33, Longitude = 150, Altitude = 100, AltitudeDatum = "WGS84 ellipsoid" },
-                    Cameras = [new CameraPose { ImageId = "a" }],
+                    Cameras = [new CameraPose { ImageId = "a" }, new CameraPose { ImageId = "b" }],
                     Points = [new CloudPoint { Position = [0, 0, 10], Colour = [128, 128, 128] }]
                 });
                 files.AtomicData(store.PathFor("artifacts/mesh/test/mesh.json"), new Surface
                 {
                     Vertices = [[-1, -.3, 10], [1, -.3, 10], [1, .3, 10], [-1, .3, 10]],
                     Faces = [[0, 1, 2], [0, 2, 3]],
-                    SourceImages = ["a", "a"]
+                    SourceImages = ["a", "b"]
                 });
                 var original = Bake(store);
                 store.Edit(project => project.Settings.ColourGrade = new ColourGrade());
                 Check(Bake(store).Artifacts["texture"] == original.Artifacts["texture"], "Identity grade must reuse the original checkpoint.");
                 store.Edit(project => project.Settings.ColourGrade = new ColourGrade { Exposure = 1 });
                 var graded = Bake(store);
+                CheckProgress(store, graded);
                 Check(graded.Artifacts["texture"] != original.Artifacts["texture"], "Changed grade must invalidate texture.");
                 Check(Bake(store).Artifacts["texture"] == graded.Artifacts["texture"], "Unchanged grade must reuse the baked texture.");
                 Check(original.Artifacts["mesh"] == graded.Artifacts["mesh"], "Grading must preserve upstream geometry.");
@@ -110,6 +115,44 @@ public sealed class ColourGradingPipelineTests
         texture.Execute(context);
         context.Complete();
         return run;
+    }
+
+    private void CheckProgress(IProjectStore store, RunData run)
+    {
+        var updates = new List<JsonElement>();
+        foreach (var line in File.ReadLines(store.PathFor($"runs/{run.Id}/events.ndjson")))
+        {
+            using var document = JsonDocument.Parse(line);
+            var record = document.RootElement;
+            var payload = record.GetProperty("payload");
+            if (record.GetProperty("type").GetString() == "stageProgress" && payload.TryGetProperty("operation", out _))
+            {
+                updates.Add(payload.Clone());
+            }
+        }
+        string[] required = ["Load inputs", "UV charts", "Atlas packing", "UV mesh", "Seam indexing", "Seam sampling",
+            "Exposure correction", "Local seam correction", "Texture projection", "Atlas gutters", "Atlas background",
+            "Atlas pixels", "Colour grading", "Atlas encoding", "Save texture"];
+        foreach (var name in required)
+        {
+            Check(updates.Any(update => update.GetProperty("operation").GetString() == name), $"Texture must report {name}.");
+        }
+        foreach (var update in updates)
+        {
+            var steps = update.GetProperty("stageSteps").EnumerateArray().Select(value => value.GetString()).ToArray();
+            var index = update.GetProperty("stageStepIndex").GetInt32();
+            Check(steps[index] == update.GetProperty("operation").GetString(), "Every operation must identify its coloured stage.");
+            Check(!steps.Contains("Colour enhancement") && !steps.Contains("Seam softening"), "Disabled finishing steps must not be planned.");
+        }
+        var charts = updates.Where(update => update.GetProperty("operation").GetString() == "UV charts"
+            && update.GetProperty("stepIndex").ValueKind == JsonValueKind.Number).ToArray();
+        Check(charts.Select(update => update.GetProperty("stepIndex").GetInt32()).Distinct().Count() == 5,
+            "All chart preparation stages must be exposed as substeps.");
+        var merging = charts.First(update => update.GetProperty("stepIndex").GetInt32() == 3);
+        Check(merging.GetProperty("completed").ValueKind == JsonValueKind.Null, "Uncounted chart merging must not inherit parameterization's completed counter.");
+        var saved = updates.Last();
+        Check(saved.GetProperty("operation").GetString() == "Save texture" && saved.GetProperty("completed").GetInt32() == 3,
+            "Texture progress must finish after every artifact is saved.");
     }
 
     private void Check(bool condition, string message)

@@ -28,9 +28,10 @@ struct ColourGradingEditor: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Colour grading").font(.headline)
-                Toggle("Show original colours", isOn: $model.showOriginal)
+                Toggle("Original", isOn: $model.showOriginal)
+                    .help("Compare with the original scan colours")
                     .accessibilityIdentifier("colourGrade.original")
-                Picker("Histogram region", selection: $scope) {
+                Picker("Region", selection: $scope) {
                     Text("Included points").tag("included")
                     Text("Whole cloud").tag("all")
                     if model.selection != nil { Text("Painted selection").tag("selection") }
@@ -42,12 +43,13 @@ struct ColourGradingEditor: View {
                     }
                 }
                 Button(
-                    model.selectingRegion ? "Cancel selection" : "Paint histogram region",
+                    model.selectingRegion ? "Cancel selection" : "Paint region",
                     systemImage: "paintbrush.pointed"
                 ) {
                     model.selectingRegion.toggle()
                     model.selectionError = nil
                 }
+                .help("Select a region to measure its colours. The grade still applies to the whole scan.")
                 if model.selectingRegion {
                     Text(
                         "Paint around the region to measure. The outline extends through the cloud. Option-drag orbits."
@@ -55,31 +57,30 @@ struct ColourGradingEditor: View {
                     .font(.caption).foregroundStyle(.secondary)
                 }
                 if let error = model.selectionError { Text(error).font(.caption).foregroundStyle(.red) }
-                Text("Uses every saved point passing Depth agreement, regardless of display detail.")
-                    .font(.caption).foregroundStyle(.secondary)
                 if model.scanning {
                     ProgressView("Reading full cloud…", value: model.progress)
                     Button("Cancel histogram") { model.cancel() }
                 } else if let histogram = model.histogram {
                     ColourHistogramView(histogram: histogram, logarithmic: logarithmic)
-                    Text("\(histogram.count.formatted()) points · \(model.showOriginal ? "original" : "graded")")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .overlay(alignment: .topTrailing) {
+                            if model.updating {
+                                ProgressView().controlSize(.mini).padding(6)
+                                    .help("Updating histogram")
+                            }
+                        }
                     if histogram.count > 0 {
                         Text(
-                            "Channel clipping · black \(percentage(histogram.clippedBlack, histogram.count)) · white \(percentage(histogram.clippedWhite, histogram.count))"
+                            "Clipped · dark \(percentage(histogram.clippedBlack, histogram.count)) · light \(percentage(histogram.clippedWhite, histogram.count))"
                         )
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     } else {
                         Text("No points match this region and depth-agreement filter.").font(.caption)
                     }
-                    Toggle("Logarithmic histogram", isOn: $logarithmic).font(.caption)
+                    Toggle("Log scale", isOn: $logarithmic).font(.caption)
                 } else {
-                    Text("Histograms use the completed cloud, including points beyond the display limit.")
-                        .font(.caption).foregroundStyle(.secondary)
                     Button("Calculate histogram") { startScan() }
                         .disabled(workspace.displayedRun?.artifacts["cloud"] == nil)
                 }
-                if model.updating { ProgressView("Updating histogram…").controlSize(.small) }
                 if let error = model.error { Text(error).font(.caption).foregroundStyle(.red) }
                 Divider()
                 control("Exposure (EV)", value: $model.grade.exposure, range: -4...4)
@@ -100,14 +101,6 @@ struct ColourGradingEditor: View {
                     Button("Revert to saved") { model.load(workspace.inspection?.project.settings.colourGrade) }
                         .disabled(saved)
                 }
-                Text(
-                    "The grade applies to the whole scan. Painted histogram selections are temporary and do not change your crop or processing settings."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-                Text(
-                    "Save, then process Texture and Export. Textures use the original photographs with seam balancing and colour enhancement before this grade. Source colours stay intact."
-                )
-                .font(.caption).foregroundStyle(.secondary)
             }.padding(.trailing, 8)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { saveControls }
@@ -139,6 +132,7 @@ struct ColourGradingEditor: View {
             .buttonStyle(.borderedProminent)
             .disabled(!workspace.canEdit || !model.grade.isValid || saved)
             .accessibilityIdentifier("colourGrade.save")
+            .help("Save the grade for the whole scan, then process Texture and Export.")
             Label(saved ? "Saved" : "Unsaved grade", systemImage: saved ? "checkmark.circle" : "pencil.circle")
                 .font(.caption).foregroundStyle(saved ? .green : .secondary)
         }.padding(.top, 10).frame(maxWidth: .infinity, alignment: .leading).background(.background)

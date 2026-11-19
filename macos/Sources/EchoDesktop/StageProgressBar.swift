@@ -66,10 +66,33 @@ struct StageProgressBar: View {
                     }
                 }
                 if showsLegend && isStagePlan {
-                    HStack(spacing: 10) {
-                        if let steps = progress.steps, let index = progress.activeStepIndex {
-                            Text("\(steps[index]) · substep \(index + 1) of \(steps.count)")
+                    if let steps = progress.steps, let active = progress.activeStepIndex {
+                        HStack(spacing: 3) {
+                            ForEach(steps.indices, id: \.self) { index in
+                                GeometryReader { geometry in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(colors[index % colors.count].opacity(0.16))
+                                        Capsule().fill(colors[index % colors.count])
+                                            .frame(width: geometry.size.width * progress.fractionForStep(index))
+                                        if index == active && progress.fractionCompleted == nil {
+                                            Capsule().strokeBorder(colors[index % colors.count], lineWidth: 1.5)
+                                        }
+                                    }
+                                }.frame(height: 7).help(steps[index])
+                            }
                         }
+                        .accessibilityLabel("Current stage substeps")
+                        .accessibilityValue(progress.stepSummary ?? "")
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 150), alignment: .leading)],
+                            alignment: .leading, spacing: 5
+                        ) {
+                            ForEach(steps.indices, id: \.self) { index in
+                                legend(steps[index], index: index, active: active)
+                            }
+                        }
+                    }
+                    HStack(spacing: 10) {
                         if let fraction = progress.fractionCompleted {
                             ProgressView(value: fraction)
                                 .progressViewStyle(.linear).controlSize(.small).tint(.secondary)
@@ -94,6 +117,6 @@ struct StageProgressBar: View {
             Text(title).fontWeight(index == active ? .semibold : .regular)
         }
         .font(.caption2).foregroundStyle(index == active ? .primary : .secondary)
-        .fixedSize()
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

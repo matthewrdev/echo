@@ -48,6 +48,19 @@ final class SavedColourGradingTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
         try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
             to: URL(fileURLWithPath: output).appendingPathComponent("grading-editor.png"))
+        let sliderFrames = gradingSliderFrames(in: host)
+        XCTAssertEqual(sliderFrames.count, 10)
+        workspace.colourGrading.grade.saturation = 1.2
+        XCTAssertTrue(workspace.colourGrading.updating)
+        try await Task.sleep(for: .milliseconds(30))
+        host.layoutSubtreeIfNeeded()
+        XCTAssertEqual(gradingSliderFrames(in: host), sliderFrames, "Updating must not move the sliders")
+        let updateDeadline = Date().addingTimeInterval(10)
+        while workspace.colourGrading.updating && Date() < updateDeadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        host.layoutSubtreeIfNeeded()
+        XCTAssertEqual(gradingSliderFrames(in: host), sliderFrames, "The new histogram must preserve slider positions")
         let originalRegions = workspace.inspection?.project.settings.exclusionRegions
         let originalGrade = workspace.colourGrading.grade
         let originalCount = workspace.colourGrading.histogram?.count ?? 0
@@ -171,6 +184,12 @@ final class SavedColourGradingTests: XCTestCase {
     private func save(_ image: NSImage, to file: URL) throws {
         let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(image.tiffRepresentation)))
         try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: file)
+    }
+
+    @MainActor
+    private func gradingSliderFrames(in view: NSView) -> [NSRect] {
+        if view is NSSlider { return [view.convert(view.bounds, to: nil)] }
+        return view.subviews.flatMap { gradingSliderFrames(in: $0) }
     }
 
     @MainActor

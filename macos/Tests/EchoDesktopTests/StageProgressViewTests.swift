@@ -6,6 +6,39 @@ import XCTest
 
 final class StageProgressViewTests: XCTestCase {
     @MainActor
+    func testTextureProgressRendersTheWholePlanAndChartSubsteps() async throws {
+        let progress = RunProgress(
+            stageSteps: [
+                "Load inputs", "UV charts", "Atlas packing", "Vegetation budget", "UV mesh", "Seam indexing",
+                "Seam sampling", "Exposure correction", "Local seam correction", "Texture projection",
+                "Inferred texture completion", "Seam softening", "Atlas gutters", "Atlas background", "Atlas pixels",
+                "Colour enhancement", "Colour grading", "Atlas encoding", "Atlas variants", "Save texture",
+            ], stageStepIndex: 1,
+            steps: ["Chart geometry", "Partition regions", "Parameterize charts", "Merge charts", "Orient charts"],
+            stepIndex: 2, operation: "UV charts", unit: "regions", stage: "texture", message: "Parameterizing charts",
+            completed: 1000, total: 19000, updated: nil)
+        let view = NSHostingView(
+            rootView: VStack(alignment: .leading, spacing: 12) {
+                Text("Texture · UV charts").font(.headline)
+                StageProgressBar(progress: progress, showsLegend: true)
+            }.padding(20).frame(width: 900).background(Color.white).environment(\.colorScheme, .light))
+        view.frame = NSRect(x: 0, y: 0, width: 900, height: 340)
+        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = view
+        defer { window.contentView = nil }
+        view.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertLessThanOrEqual(view.fittingSize.height, view.bounds.height)
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        if let output = ProcessInfo.processInfo.environment["ECHO_TEST_RENDER_DIR"] {
+            try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
+            try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
+                to: URL(fileURLWithPath: output).appendingPathComponent("texture-progress.png"))
+        }
+    }
+
+    @MainActor
     func testMeshProgressRendersBeforeSimplificationAndWithNestedSteps() async throws {
         let data = Data(
             #"{"stage":"mesh","message":"Loading","stageSteps":["Load inputs","Extract surface","Simplify geometry","Repair observed holes","Complete surface","Repair final holes","Select photographs","Save mesh"],"stageStepIndex":0}"#

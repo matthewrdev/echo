@@ -6,6 +6,23 @@ import XCTest
 @testable import EchoDesktop
 
 final class ColourGradingTests: XCTestCase {
+    func testActualColourBinsCountEveryPointAndUseObservedSwatches() {
+        var histogram = ColourHistogram()
+        let rock = SIMD3<UInt8>(145, 108, 78)
+        let similarRock = SIMD3<UInt8>(159, 120, 90)
+        let vegetation = SIMD3<UInt8>(40, 95, 35)
+        histogram.add(rock, count: 2000)
+        histogram.add(similarRock, count: 500)
+        histogram.add(vegetation, count: 250)
+        let bins = histogram.scanColours.filter { $0.count > 0 }
+        XCTAssertEqual(bins.count, 2)
+        XCTAssertEqual(bins.reduce(0) { $0 + $1.count }, histogram.count)
+        XCTAssertEqual(histogram.count, 2750)
+        XCTAssertEqual(bins.first { $0.colour == rock }?.count, 2500)
+        XCTAssertEqual(bins.first { $0.colour == rock }?.hex, "#916C4E")
+        XCTAssertEqual(bins.first { $0.colour == vegetation }?.count, 250)
+    }
+
     func testScalarRecipeMatchesProcessingReferenceColours() {
         var grade = ColourGrade()
         for value in 0...255 {
@@ -102,6 +119,7 @@ final class ColourGradingTests: XCTestCase {
         camera.eulerAngles = SCNVector3Zero
         camera.camera?.usesOrthographicProjection = true
         camera.camera?.orthographicScale = 1
+        let cameraTransform = camera.transform
         let renderer = SCNRenderer(device: device, options: nil)
         renderer.scene = scene
         renderer.pointOfView = camera
@@ -131,6 +149,7 @@ final class ColourGradingTests: XCTestCase {
         XCTAssertEqual(complex.y, Double(expected.y), accuracy: 2)
         XCTAssertEqual(complex.z, Double(expected.z), accuracy: 2)
         ColourGradePreview.apply(nil, to: scene)
+        XCTAssertTrue(SCNMatrix4EqualToMatrix4(camera.transform, cameraTransform), "Grading must preserve the view")
         let reset = try centreColour(renderer)
         XCTAssertEqual(reset.x, original.x, accuracy: 1)
         XCTAssertEqual(preview.geometry.sources(for: .color).first?.data, buffer)

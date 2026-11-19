@@ -41,6 +41,8 @@ public sealed class TextureRasterizer : ITextureRasterizer
         Action<OperationProgress>? progress, WorkBuffers? work, bool useCompute)
     {
         var size = texture.Size;
+        var photographedFaces = mesh.SourceImages.Count(source => !string.IsNullOrEmpty(source));
+        progress?.Invoke(new OperationProgress("Texture projection", "Preparing photographic projection…", 0, photographedFaces, "triangles"));
         var byteColour = atlas.ColorType is SKColorType.Bgra8888 or SKColorType.Rgba8888;
         var directLayout = BitConverter.IsLittleEndian
             && byteColour
@@ -78,7 +80,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
             {
                 continue;
             }
-            progress?.Invoke(new OperationProgress("Texture projection", $"Projecting photograph {photos[group.Key].Name}…", completedFaces, mesh.Faces.Count, "triangles"));
+            progress?.Invoke(new OperationProgress("Texture projection", $"Projecting photograph {photos[group.Key].Name}…", completedFaces, photographedFaces, "triangles"));
             var photo = photos[group.Key];
             var camera = cameras[group.Key];
             var projection = new CameraProjector(photo, camera);
@@ -93,7 +95,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 cancellation.ThrowIfCancellationRequested();
                 if (completedFaces++ % 10000 == 0)
                 {
-                    progress?.Invoke(new OperationProgress("Texture projection", "Projecting source pixels into the atlas…", completedFaces, mesh.Faces.Count, "triangles"));
+                    progress?.Invoke(new OperationProgress("Texture projection", "Projecting source pixels into the atlas…", completedFaces, photographedFaces, "triangles"));
                 }
                 var face = mesh.Faces[index];
                 for (var corner = 0; corner < 3; corner++)
@@ -135,6 +137,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
             }
         }
         painting?.Dispose();
+        progress?.Invoke(new OperationProgress("Texture projection", "Photographic projection complete.", completedFaces, photographedFaces, "triangles"));
 
         if (needsCompletion)
         {
@@ -174,12 +177,14 @@ public sealed class TextureRasterizer : ITextureRasterizer
             TextureSeamSoftener.Apply(target, size, mesh, texture.Uvs, project.Settings.TextureSeamBlendPixels, cancellation, work);
         }
         var gutter = texture.GutterPixels > 0 ? texture.GutterPixels : project.Settings.TextureGutter;
+        progress?.Invoke(new OperationProgress("Atlas gutters", "Extending colour into atlas gutters…"));
         if (!useCompute || !TexturePaddingCompute.TryExtend(compute, project.Settings.ComputeBackend, target, size, gutter, cancellation))
         {
             TexturePadding.Extend(target, size, gutter, cancellation, progress);
         }
         TextureBackground.Fill(target, size, cancellation, progress);
 
+        progress?.Invoke(new OperationProgress("Atlas pixels", "Finalising atlas pixels…", 0, target.Length, "pixels"));
         for (var i = 0; i < target.Length; i++)
         {
             var colour = target[i].Alpha == 0 ? new SKColor(48, 52, 58) : target[i];
@@ -193,6 +198,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
             atlas.Pixels = managedTarget;
         }
         GC.KeepAlive(atlas);
+        progress?.Invoke(new OperationProgress("Atlas pixels", "Atlas pixels finalised.", target.Length, target.Length, "pixels"));
         return (double)painted / (size * size);
     }
 

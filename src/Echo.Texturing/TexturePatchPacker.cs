@@ -18,14 +18,14 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
     }
 
     public double Pack(IReadOnlyList<TexturePatch> patches, int size, int gutter, CancellationToken cancellation = default,
-        Action<string>? progress = null, ComputeBackend backend = ComputeBackend.Auto)
+        Action<string>? progress = null, ComputeBackend backend = ComputeBackend.Auto, Action<OperationProgress>? operationProgress = null)
     {
-        return TryPack(patches, size, gutter, cancellation, progress, backend)
+        return TryPack(patches, size, gutter, cancellation, progress, backend, operationProgress)
             ?? throw new EchoException("Texture atlas is too small for its patches. Increase atlas size or the maximum triangles per chart.", 5);
     }
 
     public double? TryPack(IReadOnlyList<TexturePatch> patches, int size, int gutter, CancellationToken cancellation = default,
-        Action<string>? progress = null, ComputeBackend backend = ComputeBackend.Auto)
+        Action<string>? progress = null, ComputeBackend backend = ComputeBackend.Auto, Action<OperationProgress>? operationProgress = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (patches.Count == 0)
@@ -34,12 +34,14 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
         }
         var ordered = patches.OrderByDescending(p => Math.Max(p.Bounds.Width, p.Bounds.Height))
             .ThenByDescending(p => p.Bounds.Width * p.Bounds.Height).ToArray();
-        var baseline = TryPackSkyline(ordered, size, gutter, cancellation);
+        var baseline = TryPackSkyline(ordered, size, gutter, cancellation, operationProgress);
+        operationProgress?.Invoke(PackingProgress(2, "Filling gaps between intact UV islands…"));
         return baseline.HasValue ? gaps.Improve(ordered, size, gutter, baseline.Value, cancellation, progress, backend) : null;
     }
 
-    internal double? TryPackSkyline(IReadOnlyList<TexturePatch> ordered, int size, int gutter, CancellationToken cancellation)
+    internal double? TryPackSkyline(IReadOnlyList<TexturePatch> ordered, int size, int gutter, CancellationToken cancellation, Action<OperationProgress>? operationProgress = null)
     {
+        operationProgress?.Invoke(PackingProgress(0, "Packing rectangular chart bounds…", 0, 16));
         if (!TryPack(ordered, size, gutter, 0))
         {
             return null;
@@ -64,11 +66,13 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
             {
                 upper = candidate;
             }
+            operationProgress?.Invoke(PackingProgress(0, "Packing rectangular chart bounds…", iteration + 1, 16));
         }
 
         var rectangularScale = lower;
         var silhouetteLower = lower;
         var silhouetteUpper = Math.Sqrt((double)size * size / area) * 1.5;
+        operationProgress?.Invoke(PackingProgress(1, "Packing chart silhouettes…", 0, 8));
         if (profiles.TryPack(ordered, size, gutter, silhouetteLower, cancellation))
         {
             for (var iteration = 0; iteration < 8; iteration++)
@@ -82,6 +86,7 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
                 {
                     silhouetteUpper = candidate;
                 }
+                operationProgress?.Invoke(PackingProgress(1, "Packing chart silhouettes…", iteration + 1, 8));
             }
 
             profiles.TryPack(ordered, size, gutter, silhouetteLower, cancellation);
@@ -90,6 +95,15 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
 
         TryPack(ordered, size, gutter, rectangularScale);
         return rectangularScale;
+    }
+
+    private OperationProgress PackingProgress(int index, string message, long? completed = null, long? total = null)
+    {
+        return new OperationProgress("Atlas packing", message, completed, total, "iterations")
+        {
+            Steps = ["Rectangular packing", "Silhouette packing", "Gap packing"],
+            StepIndex = index
+        };
     }
 
     private bool TryPack(IReadOnlyList<TexturePatch> patches, int size, int gutter, double scale)

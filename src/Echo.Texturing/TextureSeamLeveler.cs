@@ -26,6 +26,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         Surface mesh, CancellationToken cancellation, Action<OperationProgress>? progress = null, WorkBuffers? work = null)
     {
         cancellation.ThrowIfCancellationRequested();
+        progress?.Invoke(new OperationProgress("Seam indexing", "Building photographic seam topology…"));
         var imageIds = mesh.SourceImages.Distinct().Order(StringComparer.Ordinal).ToArray();
         if (imageIds.Length <= 1)
         {
@@ -106,7 +107,9 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         {
             return new TextureSeamCorrections();
         }
+        progress?.Invoke(new OperationProgress("Seam indexing", "Photographic seams indexed.", mesh.Faces.Count, mesh.Faces.Count, "triangles"));
         ReadColours(store, project, scene, imageIds, samples, nodes, cancellation, progress);
+        progress?.Invoke(new OperationProgress("Seam sampling", "Photographic seam colours sampled.", imageIds.Length, imageIds.Length, "photographs"));
         var links = new List<TextureSeamLink>();
         foreach (var group in Enumerable.Range(0, nodes.Count).Where(index => nodes[index].Weight > 0).GroupBy(index => nodes[index].Vertex))
         {
@@ -120,7 +123,10 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             }
         }
         var global = GlobalOffsets(nodes, links, imageIds.Length, cancellation, progress);
+        progress?.Invoke(new OperationProgress("Exposure correction", "Photograph exposure offsets solved.", 160, 160, "iterations"));
+        progress?.Invoke(new OperationProgress("Local seam correction", "Diffusing local seam corrections…", 0, 32, "iterations"));
         var local = LocalOffsets(nodes, global, cancellation, progress, project.Settings.ComputeBackend);
+        progress?.Invoke(new OperationProgress("Local seam correction", "Local seam corrections solved.", 32, 32, "iterations"));
         var offsets = new V3[corners.Length];
         for (var corner = 0; corner < corners.Length; corner++)
         {
