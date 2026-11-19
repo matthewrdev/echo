@@ -73,6 +73,27 @@ struct ArtifactViewer: View {
                 Label(workspace.savedResultsNotice, systemImage: "checkmark.circle")
                     .font(.callout).foregroundStyle(.secondary)
             }
+            if workspace.selectedStage == .alignment,
+                workspace.displayedRun?.status == "running",
+                workspace.displayedRun?.artifacts["alignment"] == nil
+            {
+                Label {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(
+                            "Alignment in progress. Camera and point positions are provisional and may appear incorrect until alignment finishes."
+                        )
+                        if model.presentation?.metricScale == false {
+                            Text("This preview is not yet oriented to geographic up and may appear upside down.")
+                        }
+                    }
+                } icon: {
+                    Image(systemName: "info.circle")
+                }
+                .font(.callout).fixedSize(horizontal: false, vertical: true)
+                .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                .accessibilityIdentifier("alignment.provisionalNotice")
+            }
             if workspace.stageStatus(workspace.selectedStage) == "Out of date" {
                 Label(
                     "These results use earlier inputs. Process again to rebuild this stage and its dependencies.",

@@ -135,6 +135,15 @@ final class SavedWorkspaceViewerTests: XCTestCase {
         try clickActivityHeader(collapsedSplit.arrangedSubviews[1], in: window)
         try await Task.sleep(for: .milliseconds(150))
         XCTAssertEqual(collapsedSplit.arrangedSubviews[1].frame.height, expandedHeight, accuracy: 2)
+        if run.artifacts["alignmentPreview"] != nil, run.artifacts["alignment"] == nil {
+            workspace.selectedStage = .alignment
+            for _ in 0..<200 where model.presentation?.scene == nil {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            XCTAssertNotNil(
+                model.presentation?.scene, model.error ?? "Live alignment must remain visible beneath its notice")
+            try snapshot(collapsed, to: folder.appendingPathComponent("alignment-provisional-notice.png"))
+        }
     }
 
     @MainActor

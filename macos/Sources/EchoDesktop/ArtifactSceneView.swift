@@ -10,6 +10,7 @@ final class ArtifactSceneView: SCNView {
     var selectSurfacePoint: ((SCNVector3) -> Void)?
     var placeExclusion: ((SCNVector3) -> Void)?
     var artifactIdentity = ""
+    var artifactMetricScale = false
     var needsInitialFit = true
     var inspection: SparseInspectionData?
     var cameraInspection: CameraInspectionData?

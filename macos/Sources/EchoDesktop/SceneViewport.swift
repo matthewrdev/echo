@@ -54,10 +54,13 @@ struct SceneViewport: NSViewRepresentable {
 
     func updateNSView(_ view: ArtifactSceneView, context: Context) {
         if view.scene !== presentation.scene {
+            let sameCoordinateFrame = view.artifactMetricScale == presentation.metricScale
             let preserveCamera =
                 !presentation.sceneIdentity.isEmpty && view.artifactIdentity == presentation.sceneIdentity
+                && sameCoordinateFrame
             let transform = preserveCamera ? view.pointOfView?.transform : nil
             view.artifactIdentity = presentation.sceneIdentity
+            view.artifactMetricScale = presentation.metricScale
             view.scene = presentation.scene
             view.pointOfView = presentation.scene?.rootNode.childNode(withName: "viewer-camera", recursively: false)
             if let transform { view.pointOfView?.transform = transform }

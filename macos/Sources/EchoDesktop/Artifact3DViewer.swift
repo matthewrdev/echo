@@ -120,7 +120,12 @@ struct Artifact3DViewer: View {
             if active { selected = nil }
         }
         .onChange(of: presentation.id) { _, _ in
-            if presentation.cameraInspection != nil { return }
+            if case .camera(let imageID) = selected {
+                let cameraStillPresent =
+                    presentation.cameraInspection?.cameras[imageID] != nil
+                    || presentation.sparseInspection?.cameras[imageID] != nil
+                if cameraStillPresent { return }
+            }
             selected = nil
             observationIndex = 0
         }
