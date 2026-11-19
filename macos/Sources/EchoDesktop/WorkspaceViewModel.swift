@@ -718,9 +718,9 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     private func execute(_ title: String, _ arguments: [String]) {
         perform(title) {
-            try await self.client.command(root: self.root, arguments: arguments) { line in
-                Task { @MainActor in self.receive(line) }
-            }
+            let progress = CLIProgressBuffer { [weak self] lines in self?.receive(lines) }
+            defer { progress.flush() }
+            try await self.client.command(root: self.root, arguments: arguments, progress: progress.append)
         }
     }
 
@@ -756,16 +756,22 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         logs = entries
     }
 
-    private func receive(_ line: String) {
-        guard let data = line.data(using: .utf8),
-            let record = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return }
-        if let name = record["name"] as? String { status = "Imported \(name)" }
-        if let entry = eventFormatter.entry(from: data) {
-            status = entry.message
-            if selectedRun == "latest" || selectedRun == inspection?.run?.id {
-                if logIDs.insert(entry.id).inserted { logs.append(entry) }
+    private func receive(_ lines: [String]) {
+        var message: String?
+        var added: [RunLogEntry] = []
+        for line in lines {
+            guard let data = line.data(using: .utf8),
+                let record = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { continue }
+            if let name = record["name"] as? String { message = "Imported \(name)" }
+            if let entry = eventFormatter.entry(from: data) {
+                message = entry.message
+                if selectedRun == "latest" || selectedRun == inspection?.run?.id {
+                    if logIDs.insert(entry.id).inserted { added.append(entry) }
+                }
             }
         }
+        if let message, status != message { status = message }
+        if !added.isEmpty { logs.append(contentsOf: added) }
     }
 }

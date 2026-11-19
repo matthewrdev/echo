@@ -16,9 +16,7 @@ struct StageLogView: View {
     private var latestCommand: CLICommandInvocation? {
         workspace.commands.last { !$0.isBackgroundQuery }
     }
-    private var lastID: String? {
-        scope == .stage ? entries.last.map { "event-\($0.id)" } : commands.last.map { "command-\($0.id)" }
-    }
+    private var lastID: String? { commands.last.map { "command-\($0.id)" } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -62,41 +60,45 @@ struct StageLogView: View {
                 Text("CLI history is available for this session, but could not be saved: \(error)")
                     .foregroundStyle(.orange)
             }
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 5) {
-                        if scope == .stage {
-                            if entries.isEmpty {
-                                Text(
-                                    "\(workspace.stageStatus(workspace.selectedStage)). Messages will appear here when this stage runs."
-                                )
-                                .foregroundStyle(.secondary)
-                            }
-                            ForEach(entries) { entry in
-                                RunLogRow(entry: entry).equatable().id("event-\(entry.id)")
-                            }
-                        } else {
-                            if commands.isEmpty {
-                                Text("CLI commands for this project appear here as Echo launches them.")
-                                    .foregroundStyle(.secondary)
-                            }
-                            ForEach(commands) { command in
-                                CLICommandRow(invocation: command).id("command-\(command.id)")
-                            }
-                        }
-                    }
-                    .padding(.vertical, 6)
-                    .background(LogScrollPositionObserver(followLatest: $followLatest))
+            if scope == .stage {
+                if entries.isEmpty {
+                    Text(
+                        "\(workspace.stageStatus(workspace.selectedStage)). Messages will appear here when this stage runs."
+                    )
+                    .foregroundStyle(.secondary).frame(maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    NativeRunLog(entries: entries, followLatest: $followLatest)
+                        .frame(minHeight: 0, maxHeight: .infinity)
                 }
-                .frame(minHeight: 0, maxHeight: .infinity)
-                .onAppear { if let lastID { proxy.scrollTo(lastID, anchor: .bottom) } }
-                .onChange(of: lastID) { _, id in
-                    if followLatest, let id { proxy.scrollTo(id, anchor: .bottom) }
-                }
-                .onChange(of: followLatest) { _, follows in
-                    if follows, let lastID { proxy.scrollTo(lastID, anchor: .bottom) }
-                }
+            } else {
+                commandHistory
             }
         }.font(.caption).padding(.top, 6)
+    }
+
+    private var commandHistory: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 5) {
+                    if commands.isEmpty {
+                        Text("CLI commands for this project appear here as Echo launches them.")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(commands) { command in
+                        CLICommandRow(invocation: command).id("command-\(command.id)")
+                    }
+                }
+                .padding(.vertical, 6)
+                .background(LogScrollPositionObserver(followLatest: $followLatest))
+            }
+            .frame(minHeight: 0, maxHeight: .infinity)
+            .onAppear { if let lastID { proxy.scrollTo(lastID, anchor: .bottom) } }
+            .onChange(of: lastID) { _, id in
+                if followLatest, let id { proxy.scrollTo(id, anchor: .bottom) }
+            }
+            .onChange(of: followLatest) { _, follows in
+                if follows, let lastID { proxy.scrollTo(lastID, anchor: .bottom) }
+            }
+        }
     }
 }

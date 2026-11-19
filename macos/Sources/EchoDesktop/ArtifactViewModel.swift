@@ -86,7 +86,7 @@ final class ArtifactViewModel: ObservableObject {
         do {
             let found = try await reader.units(root: self.root!, run: run, stage: stage)
             guard generation == request else { return }
-            units = found
+            if units != found { units = found }
             if stage == .matching, let requestedMatch {
                 selectedUnit = requestedMatch.unitID
                 selectedMatchIndex = requestedMatch.matchIndex

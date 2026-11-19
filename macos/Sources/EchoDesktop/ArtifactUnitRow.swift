@@ -12,7 +12,9 @@ struct ArtifactUnitRow: View {
                     Image(nsImage: images[index]).resizable().scaledToFill()
                         .frame(width: images.count > 1 ? 81 : 166, height: 70).clipped()
                 }
-            }.clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+            .frame(height: 70)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
             Text(unit.title).font(.caption).lineLimit(3)
             if !unit.detail.isEmpty { Text(unit.detail).font(.caption2).foregroundStyle(.secondary) }
         }
@@ -24,8 +26,11 @@ struct ArtifactUnitRow: View {
         .contentShape(Rectangle())
         .help(unit.title).accessibilityLabel(unit.title + ", " + unit.detail)
         .task(id: unit.id) {
-            images = await Task.detached(priority: .utility) { unit.thumbnails.compactMap { NSImage(contentsOf: $0) } }
-                .value
+            let loaded = await Task.detached(priority: .utility) {
+                unit.thumbnails.compactMap { NSImage(contentsOf: $0) }
+            }
+            .value
+            if !Task.isCancelled { images = loaded }
         }
     }
 }
