@@ -98,7 +98,8 @@ final class NativeSceneFactory {
         let camera = SCNNode()
         camera.name = "viewer-camera"
         camera.camera = SCNCamera()
-        bounds.fit(camera: camera, size: CGSize(width: 800, height: 600))
+        let view = PhotographedView(bounds: bounds, cameras: surface == nil ? [] : reconstruction?.cameras ?? [])
+        bounds.fit(camera: camera, size: CGSize(width: 800, height: 600), offset: view.offset, up: view.up)
         scene.rootNode.addChildNode(camera)
         scene.rootNode.addChildNode(GroundGridFactory().make(bounds: bounds))
         return scene

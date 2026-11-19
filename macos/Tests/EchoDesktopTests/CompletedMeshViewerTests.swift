@@ -23,7 +23,7 @@ final class CompletedMeshViewerTests: XCTestCase {
         let presentation: ArtifactPresentation
         do {
             presentation = try await reader.load(
-                root: root, run: run, stage: .mesh, unit: nil, mode: "Solid", slice: 0.5)
+                root: root, run: run, stage: .mesh, unit: nil, mode: "Textured", slice: 0.5)
         } catch {
             XCTFail("Mesh loading failed: \(String(reflecting: error))")
             return

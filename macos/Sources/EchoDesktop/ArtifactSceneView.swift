@@ -14,6 +14,7 @@ final class ArtifactSceneView: SCNView {
     var cameraInspection: CameraInspectionData?
     var selection: ((SparseSelection?) -> Void)?
     private let cloudHighlight = CloudCameraHighlight()
+    private let meshOrbit = MeshOrbitInteraction()
     private let optionCamera = OptionCameraInteraction()
     private var pointerInteraction = ScenePointerInteraction.idle
     private var pointerLocation = NSPoint.zero
@@ -35,7 +36,7 @@ final class ArtifactSceneView: SCNView {
         }
     }
 
-    func fitArtifact(direction: SceneViewDirection = .north) {
+    func fitArtifact(direction: SceneViewDirection? = nil) {
         guard let scene, let camera = pointOfView else { return }
         guard let artifact = scene.rootNode.childNode(withName: "artifact", recursively: false) else { return }
         let box = artifact.boundingBox
@@ -43,7 +44,14 @@ final class ArtifactSceneView: SCNView {
             [box.min.x, box.min.y, box.min.z], [box.max.x, box.max.y, box.max.z],
         ])
         defaultCameraController.stopInertia()
-        fit.fit(camera: camera, size: bounds.size, direction: direction)
+        if let direction {
+            fit.fit(camera: camera, size: bounds.size, direction: direction)
+        } else {
+            let front = camera.worldFront
+            fit.fit(
+                camera: camera, size: bounds.size,
+                offset: SCNVector3(-front.x, -front.y, -front.z), up: camera.worldUp)
+        }
         defaultCameraController.target = fit.centre
         needsInitialFit = false
     }
@@ -63,8 +71,15 @@ final class ArtifactSceneView: SCNView {
             pointerInteraction = .tool
             return
         }
-        pointerInteraction = .nativeCamera
         mouseStart = location
+        let nativePan =
+            event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.control)
+            || event.modifierFlags.contains(.command)
+        if !nativePan, meshOrbit.begin(at: location, in: self) {
+            pointerInteraction = .meshOrbit
+            return
+        }
+        pointerInteraction = .nativeCamera
         super.mouseDown(with: event)
     }
 
@@ -78,6 +93,8 @@ final class ArtifactSceneView: SCNView {
             }
         case .optionCamera:
             optionCamera.drag(to: pointerLocation, in: self)
+        case .meshOrbit:
+            meshOrbit.drag(to: pointerLocation, in: self)
         case .nativeCamera:
             super.mouseDragged(with: event)
         case .idle, .finished:
@@ -96,7 +113,8 @@ final class ArtifactSceneView: SCNView {
         optionHeld = held
         if held {
             mouseStart = nil
-            if pointerInteraction == .tool || pointerInteraction == .finished {
+            if pointerInteraction == .meshOrbit { meshOrbit.end(in: self) }
+            if pointerInteraction == .tool || pointerInteraction == .finished || pointerInteraction == .meshOrbit {
                 if pointerInteraction == .tool { finishTool(at: pointerLocation) }
                 pointerInteraction = .optionCamera
                 optionCamera.begin(at: pointerLocation, modifiers: modifiers, in: self)
@@ -177,10 +195,11 @@ final class ArtifactSceneView: SCNView {
             return
         case .idle, .finished:
             return
+        case .meshOrbit:
+            meshOrbit.end(in: self)
         case .nativeCamera:
-            break
+            super.mouseUp(with: event)
         }
-        super.mouseUp(with: event)
         guard let start = mouseStart, hypot(location.x - start.x, location.y - start.y) < 4
         else { return }
         if let selectSurfacePoint {
