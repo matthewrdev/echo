@@ -17,7 +17,7 @@ final class UserDefaultsRecentProjectStore: RecentProjectStore {
         let canonical = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
         var projects = load().filter { $0.path != canonical }
         projects.insert(RecentProject(path: canonical, name: name, lastOpened: Date()), at: 0)
-        return save(Array(projects.prefix(12)))
+        return save(projects)
     }
 
     func remove(path: String) -> [RecentProject] { save(load().filter { $0.path != path }) }

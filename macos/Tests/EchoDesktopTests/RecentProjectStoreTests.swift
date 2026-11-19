@@ -35,18 +35,23 @@ final class RecentProjectStoreTests: XCTestCase {
         XCTAssertEqual(store.remove(path: "/private/tmp/first.echo").map(\.name), ["Second"])
     }
 
-    func testRecentListKeepsOnlyTwelveNewestProjects() throws {
+    func testRecentListRetainsAllProjectsAcrossReloadAndReopen() throws {
         let suite = "EchoTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = UserDefaultsRecentProjectStore(defaults: defaults)
-        for number in 0..<15 {
+        for number in 0..<30 {
             _ = store.record(path: "/private/tmp/project-\(number).echo", name: "Project \(number)")
         }
 
-        let projects = store.load()
-        XCTAssertEqual(projects.count, 12)
-        XCTAssertEqual(projects.first?.name, "Project 14")
-        XCTAssertEqual(projects.last?.name, "Project 3")
+        let reopened = UserDefaultsRecentProjectStore(defaults: defaults)
+        let projects = reopened.load()
+        XCTAssertEqual(projects.count, 30)
+        XCTAssertEqual(projects.first?.name, "Project 29")
+        XCTAssertEqual(projects.last?.name, "Project 0")
+        let reordered = reopened.record(path: "/private/tmp/project-0.echo", name: "Project 0")
+        XCTAssertEqual(reordered.count, 30)
+        XCTAssertEqual(reordered.first?.name, "Project 0")
+        XCTAssertEqual(Set(reordered.map(\.path)).count, 30)
     }
 }

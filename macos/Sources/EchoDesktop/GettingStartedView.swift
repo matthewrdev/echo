@@ -3,6 +3,14 @@ import SwiftUI
 struct GettingStartedView: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @State private var renamingProject: RecentProject?
+    @State private var search = ""
+
+    private var projects: [RecentProject] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return workspace.recentProjects.filter {
+            query.isEmpty || $0.name.localizedStandardContains(query) || $0.path.localizedStandardContains(query)
+        }
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 50) {
@@ -37,7 +45,11 @@ struct GettingStartedView: View {
                 }
             }.frame(width: 310).disabled(workspace.openingProject || workspace.busy)
             VStack(alignment: .leading, spacing: 16) {
-                Text("Recent Projects").font(.title2.bold())
+                HStack {
+                    Text("Recent Projects").font(.title2.bold())
+                    Spacer()
+                    Text("\(workspace.recentProjects.count)").foregroundStyle(.secondary)
+                }
                 if workspace.recentProjects.isEmpty {
                     ContentUnavailableView(
                         "Your projects will appear here", systemImage: "clock.arrow.circlepath",
@@ -45,9 +57,14 @@ struct GettingStartedView: View {
                     )
                     .frame(height: 260)
                 } else {
+                    TextField("Search projects by name or folder", text: $search)
+                        .textFieldStyle(.roundedBorder)
+                    if projects.isEmpty {
+                        ContentUnavailableView.search(text: search)
+                    }
                     ScrollView {
                         LazyVStack(spacing: 8) {
-                            ForEach(workspace.recentProjects) { project in
+                            ForEach(projects) { project in
                                 Button {
                                     workspace.openRecent(project)
                                 } label: {
@@ -79,9 +96,9 @@ struct GettingStartedView: View {
                                     .disabled(workspace.openingProject || workspace.busy)
                             }
                         }
-                    }.frame(maxHeight: 460)
+                    }.frame(maxHeight: .infinity)
                 }
-            }.frame(minWidth: 390, maxWidth: 480, alignment: .leading)
+            }.frame(minWidth: 390, maxWidth: 720, maxHeight: .infinity, alignment: .topLeading)
         }
         .padding(50).frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
