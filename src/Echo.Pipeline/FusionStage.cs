@@ -39,7 +39,7 @@ public sealed class FusionStage : IPipelineStage
         var scene = context.Scene();
         var depthUnits = context.DepthUnits();
         var cloudPath = context.Artifact("cloud");
-        var resources = resourcePlanner.Plan(project.Settings);
+        var resources = resourcePlanner.Plan(project.Settings, context.WorkingMemoryBytes);
         var inputs = new
         {
             cloudPath,

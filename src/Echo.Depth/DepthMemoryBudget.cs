@@ -1,3 +1,5 @@
+using Echo.Contracts;
+
 namespace Echo.Depth;
 
 internal static class DepthMemoryBudget
@@ -9,13 +11,6 @@ internal static class DepthMemoryBudget
             return configuredMegabytes;
         }
 
-        // Runtime capacity respects GC/container limits; it is not a live free-RAM reading.
-        // Leave three quarters for the rest of the process and other applications.
-        if (availableBytes <= 0)
-        {
-            return 1024;
-        }
-
-        return (int)Math.Clamp(availableBytes / 4 / (1024 * 1024), 256, 32768);
+        return (int)Math.Min(int.MaxValue, AutomaticMemoryBudget.ResolveBytes(availableBytes) / (1024 * 1024));
     }
 }

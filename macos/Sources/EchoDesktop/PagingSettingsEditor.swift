@@ -18,7 +18,7 @@ struct PagingSettingsEditor: View {
                     .frame(width: 100)
             }
             Text(
-                "Automatic RAM leaves headroom for other applications. Zero selects available scratch disk. Paging preserves the requested reconstruction resolution."
+                "Automatic allows 87.5% of the machine’s RAM, retaining system headroom. Memory grows as needed. Zero selects available scratch disk. Paging preserves reconstruction quality."
             )
             .font(.caption).foregroundStyle(.secondary)
         }

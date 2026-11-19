@@ -228,6 +228,19 @@ public sealed class RunRecoveryTests
             });
             Check(context.Run.Progress!.StageStepIndex == 3 && context.Run.Progress.Steps.Length == 0 && context.Run.Progress.Completed == null, "Nested steps leaked into saving");
         }));
+        tests.Run("Automatic run memory uses workstation capacity and preserves explicit limits", () =>
+        {
+            const long gigabyte = 1024L * 1024 * 1024;
+            Check(AutomaticMemoryBudget.ResolveBytes(64 * gigabyte) == 56 * gigabyte,
+                "A 64 GiB workstation must allow 56 GiB rather than the old 32 GiB limit");
+            Check(AutomaticMemoryBudget.ResolveBytes(128 * gigabyte) == 112 * gigabyte,
+                "Large workstations must retain proportional system headroom without a fixed cap");
+            Check(resourcePlanner.Plan(new Settings()).MemoryBytes
+                == AutomaticMemoryBudget.ResolveBytes(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes),
+                "Run scheduling must apply the same automatic capacity policy");
+            Check(resourcePlanner.Plan(new Settings { ProcessingMemoryBudgetMb = 1024 }).MemoryBytes == gigabyte,
+                "An explicit user budget remains a limit");
+        });
         tests.Run("Resume can change operational budgets without changing reconstruction settings", () => WithProject(store =>
         {
             var run = SaveRun(store);

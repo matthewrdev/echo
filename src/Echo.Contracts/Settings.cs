@@ -136,7 +136,7 @@ public sealed class Settings
         var invalidFusionIslands = !Enum.IsDefined(FusionIslandMode)
             || !double.IsFinite(FusionIslandMinimumSizePercent)
             || FusionIslandMinimumSizePercent is < 0 or > 100;
-        var invalidDepthMemory = DepthMemoryBudgetMb != 0 && DepthMemoryBudgetMb is < 256 or > 32768;
+        var invalidDepthMemory = DepthMemoryBudgetMb != 0 && DepthMemoryBudgetMb is < 256 or > 524287;
         var invalidDepthExecution = DepthConcurrency is < 0 or > 16
             || DepthWorkerThreads is < 0 or > 256
             || invalidDepthMemory

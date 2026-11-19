@@ -1,3 +1,5 @@
+using Echo.Contracts;
+
 namespace Echo.Fusion;
 
 internal static class FusionMemoryBudget
@@ -10,11 +12,10 @@ internal static class FusionMemoryBudget
         }
 
         const long megabyte = 1024 * 1024;
-        var capacity = availableBytes > 0 ? availableBytes : 8L * 1024 * megabyte;
-        // Automatic leaves room for source maps, the cloud and other applications.
+        // Use the same workstation capacity policy as the run and depth planners.
         // An explicit budget is independent of the resolution/detail multiplier.
         var budget = requestedMegabytes == 0
-            ? Math.Clamp(capacity / 4, 64 * megabyte, 524287 * megabyte)
+            ? Math.Min(AutomaticMemoryBudget.ResolveBytes(availableBytes), 524287 * megabyte)
             : requestedMegabytes * megabyte;
         // Conservative scratch estimate for occupied/candidate hash sets, sorted
         // keys, output references and samples. Source maps/cloud are separate.

@@ -10,15 +10,30 @@ namespace Echo.Tests;
 public sealed class FusionSettingsTests
 {
     private readonly IJsonCodec json;
+    private readonly IFusionResourcePlanner resourcePlanner;
 
     [ImportingConstructor]
-    public FusionSettingsTests(IJsonCodec json)
+    public FusionSettingsTests(IJsonCodec json, IFusionResourcePlanner resourcePlanner)
     {
         this.json = json;
+        this.resourcePlanner = resourcePlanner;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Fusion shares the run budget without overriding smaller explicit limits", () =>
+        {
+            const long megabyte = 1024 * 1024;
+            foreach (var requested in new[] { 0, 4096 })
+            {
+                var plan = resourcePlanner.Plan(new Settings { FusionMemoryBudgetMb = requested }, 512 * megabyte);
+                Check(plan.MemoryBudgetBytes == 512 * megabyte, "Fusion independently claimed memory reserved by the run");
+                Check(plan.MaximumGridSamples * 256L == plan.MemoryBudgetBytes, "Candidate planning exceeded the shared budget");
+            }
+
+            var limited = resourcePlanner.Plan(new Settings { FusionMemoryBudgetMb = 256 }, 512 * megabyte);
+            Check(limited.MemoryBudgetBytes == 256 * megabyte, "An explicit smaller fusion budget was ignored");
+        });
         tests.Run("Explicit fusion budgets support 16, 32 and 64 GiB without automatic clamping", () =>
         {
             foreach (var megabytes in new[] { 16384, 32768, 65536 })

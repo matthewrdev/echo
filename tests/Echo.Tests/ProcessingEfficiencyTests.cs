@@ -97,11 +97,13 @@ public sealed class ProcessingEfficiencyTests
         {
             const long megabyte = 1024 * 1024;
             const long gigabyte = 1024 * megabyte;
-            Check(DepthMemoryBudget.ResolveMegabytes(0, 8 * gigabyte) == 2048, "8 GB runtime capacity budgets 2 GB");
-            Check(DepthMemoryBudget.ResolveMegabytes(0, 16 * gigabyte) == 4096, "16 GB runtime capacity budgets 4 GB");
-            Check(DepthMemoryBudget.ResolveMegabytes(0, 64 * gigabyte) == 16384, "Larger machines are not capped at 4 GB");
-            Check(DepthMemoryBudget.ResolveMegabytes(0, long.MaxValue) == 32768, "Automatic budget stays bounded without overflow");
-            Check(DepthMemoryBudget.ResolveMegabytes(0, 512 * megabyte) == 256, "Minimum scheduling budget");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 8 * gigabyte) == 7168, "8 GiB capacity allows 7 GiB");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 16 * gigabyte) == 14336, "16 GiB capacity allows 14 GiB");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 64 * gigabyte) == 57344, "64 GiB capacity allows 56 GiB");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 128 * gigabyte) == 114688, "128 GiB workstations are not capped at 32 GiB");
+            new Settings { DepthMemoryBudgetMb = 65536 }.Validate();
+            Check(DepthMemoryBudget.ResolveMegabytes(0, long.MaxValue) == int.MaxValue, "Unrepresentable capacities saturate without overflow");
+            Check(DepthMemoryBudget.ResolveMegabytes(0, 512 * megabyte) == 448, "Small runtime capacities retain proportional headroom");
             Check(DepthMemoryBudget.ResolveMegabytes(0, 0) == 1024, "Conservative fallback when runtime capacity is unavailable");
             Check(DepthMemoryBudget.ResolveMegabytes(2048, 64 * gigabyte) == 2048, "Explicit 2 GB remains explicit");
             Check(DepthMemoryBudget.ResolveMegabytes(4096, 8 * gigabyte) == 4096, "Explicit 4 GB remains explicit");
@@ -113,7 +115,7 @@ public sealed class ProcessingEfficiencyTests
             Check(automatic.DepthMemoryBudgetMb == 0, "Missing memory settings default to automatic");
             Check(json.Clone(automatic).DepthMemoryBudgetMb == 0, "Automatic mode round-trips");
             Check(JsonSerializer.Deserialize<Settings>("{\"depthMemoryBudgetMb\":1024}", json.Options)!.DepthMemoryBudgetMb == 1024, "Old projects retain explicit budgets");
-            foreach (var budget in new[] { -1, 1, 255, 32769 })
+            foreach (var budget in new[] { -1, 1, 255, 524288 })
             {
                 var settings = new Settings { DepthMemoryBudgetMb = budget };
                 var rejected = false;

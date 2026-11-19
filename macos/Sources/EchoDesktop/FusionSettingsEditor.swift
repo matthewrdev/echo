@@ -52,7 +52,7 @@ struct FusionSettingsEditor: View {
         }
         MemoryBudgetPicker(title: "Fusion memory", megabytes: $settings.fusionMemoryBudgetMb, exponents: 6...18)
         Text(
-            "Automatic uses 25% of available memory. Depth maps, the point cloud and other applications also need memory."
+            "Automatic allows 87.5% of the machine’s RAM, retaining system headroom. Memory grows as needed."
         )
         .font(.caption).foregroundStyle(.secondary)
     }

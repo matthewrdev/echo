@@ -237,7 +237,7 @@ public sealed class FusionQualityTests
             {
                 var available = capacity * capacityMultiplier;
                 var plan = FusionMemoryBudget.Resolve(0, available);
-                Check(plan.MemoryBudgetBytes == available / 4, "Automatic fusion memory scales with the workstation without the former 4 GiB ceiling");
+                Check(plan.MemoryBudgetBytes == available - available / 8, "Automatic fusion retains system headroom without a small fixed ceiling");
                 Check(plan.MaximumGridSamples * 256L <= plan.MemoryBudgetBytes, "The candidate limit matches the memory estimate");
             }
         });

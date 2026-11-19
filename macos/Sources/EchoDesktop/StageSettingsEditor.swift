@@ -109,7 +109,7 @@ struct StageSettingsEditor: View {
                     title: "Concurrent photos (0 = automatic)", value: $settings.depthConcurrency, range: 0...16)
                 IntegerSettingSlider(
                     title: "Total CPU workers (0 = automatic)", value: $settings.depthWorkerThreads, range: 0...256)
-                MemoryBudgetPicker(title: "Depth memory", megabytes: $settings.depthMemoryBudgetMb, exponents: 8...15)
+                MemoryBudgetPicker(title: "Depth memory", megabytes: $settings.depthMemoryBudgetMb, exponents: 8...18)
                 Text(
                     "Automatic uses the project’s working memory budget after reserving headroom and cache. Photo concurrency and CPU workers adapt to fit, without reducing image quality."
                 )
