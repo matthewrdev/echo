@@ -69,4 +69,4 @@ See [AGENTS.md](AGENTS.md) for code conventions.
 
 ## Licensing
 
-See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). Optional image-classification features download a model and process photographs locally; the notices explain its sources, caching and licensing restrictions.
+See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). Sky suppression and vegetation handling are enabled by default. Image classification downloads a model on first use and processes photographs locally; the notices explain its sources, caching and licensing restrictions. These controls can be disabled in processing settings.

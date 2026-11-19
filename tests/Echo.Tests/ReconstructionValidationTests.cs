@@ -20,6 +20,32 @@ public sealed class ReconstructionValidationTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("New processing defaults retain the reviewed reconstruction quality settings", () =>
+        {
+            string[] fields = ["depthSuppressSky", "textureSuppressSky", "optimiseVegetation", "recoverCliffDepth",
+                "bundleIterations", "gpsPairNeighbours", "frustumPairNeighbours", "pairSearchDistance",
+                "depthPlanes", "depthRefinementSamples", "depthNeighbours", "depthRangeAutomatic",
+                "subjectDistanceMode", "cloudNeighbours", "cloudMinimumSupport", "cloudDepthTolerance",
+                "cloudReprojectionTolerancePixels", "cloudMinimumParallaxDegrees", "fusionIslandMode",
+                "faceLimit", "meshCompleteSurface", "meshCloseHull", "meshIslandMode", "textureSize"];
+            using var defaults = JsonDocument.Parse(json.Encode(new Settings()));
+            foreach (var name in new[] { "can-lolo", "northern-buttress", "je-taime" })
+            {
+                var fixture = json.Read<ReconstructionCase>(Path.Combine(AppContext.BaseDirectory, "Fixtures", "reconstruction", name + ".json"));
+                using var reviewed = JsonDocument.Parse(json.Encode(fixture.Settings));
+                foreach (var field in fields)
+                {
+                    Check(defaults.RootElement.GetProperty(field).GetRawText() == reviewed.RootElement.GetProperty(field).GetRawText(),
+                        $"{field} must retain the reviewed {name} quality setting");
+                }
+            }
+        });
+        tests.Run("Depth defaults preserve higher detail without overriding saved resolutions", () =>
+        {
+            Check(new Settings().DepthWidth == 2048, "New scans must retain 2048-pixel depth detail");
+            Check(JsonSerializer.Deserialize<Settings>("{}", json.Options)!.DepthWidth == 2048, "Missing depth width must use the quality default");
+            Check(JsonSerializer.Deserialize<Settings>("{\"depthWidth\":1024}", json.Options)!.DepthWidth == 1024, "Saved processing inputs must remain reproducible");
+        });
         tests.Run("Pinned reconstruction cases decode with complete limits and explicit source hashes", () =>
         {
             foreach (var name in new[] { "can-lolo", "northern-buttress", "je-taime" })

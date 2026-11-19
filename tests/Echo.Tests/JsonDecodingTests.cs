@@ -78,11 +78,11 @@ public sealed class JsonDecodingTests
             Check(settings.MeshCompleteSurface, "Older projects retain surface completion until explicitly disabled");
             Check(settings.MeshIslandMode == IslandTrimMode.Main && settings.MeshIslandMinimumAreaPercent == .1, "Missing mesh island settings keep the main surface");
             Check(new Settings().MeshIslandMode == IslandTrimMode.Main, "New projects keep the main surface by default");
-            Check(settings.FusionIslandMode == IslandTrimMode.Off && settings.FusionIslandMinimumSizePercent == .1, "Early trimming remains opt-in");
-            Check(!settings.OptimiseVegetation && !settings.RecoverCliffDepth, "Semantic passes remain opt-in for old projects");
-            Check(!settings.DepthSuppressSky, "Missing sky exclusion setting must not trigger a model download");
-            Check(Read<Settings>("{\"depthSuppressSky\":true}").DepthSuppressSky, "Preserve explicit opt-in in existing projects");
-            Check(!settings.TextureSuppressSky && settings.TextureSkyMarginPixels == 8, "Sky suppression remains opt-in");
+            Check(settings.FusionIslandMode == IslandTrimMode.Main && settings.FusionIslandMinimumSizePercent == .1, "Validated main-surface trimming is the default");
+            Check(settings.OptimiseVegetation && !settings.RecoverCliffDepth, "Vegetation handling is enabled; experimental cliff recovery stays disabled");
+            Check(settings.DepthSuppressSky, "Missing depth sky setting uses the validated default");
+            Check(!Read<Settings>("{\"depthSuppressSky\":false}").DepthSuppressSky, "Preserve explicit opt-out in existing projects");
+            Check(settings.TextureSuppressSky && settings.TextureSkyMarginPixels == 8, "Texture sky suppression defaults on");
             foreach (var mode in Enum.GetValues<IslandTrimMode>())
             {
                 settings.MeshIslandMode = mode;

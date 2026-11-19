@@ -3,6 +3,41 @@ import XCTest
 @testable import EchoDesktop
 
 final class ProcessingSettingsTests: XCTestCase {
+    func testDefaultsMatchReviewedScanQualitySettings() throws {
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let defaults = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(ProcessingSettings())) as? [String: Any])
+        let decoded = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
+        let missing = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any])
+        let fields = [
+            "depthSuppressSky", "textureSuppressSky", "optimiseVegetation", "recoverCliffDepth",
+            "bundleIterations", "gpsPairNeighbours", "frustumPairNeighbours", "pairSearchDistance",
+            "depthPlanes", "depthRefinementSamples", "depthNeighbours", "depthRangeAutomatic",
+            "subjectDistanceMode", "cloudNeighbours", "cloudMinimumSupport", "cloudDepthTolerance",
+            "cloudReprojectionTolerancePixels", "cloudMinimumParallaxDegrees", "fusionIslandMode",
+            "faceLimit", "meshCompleteSurface", "meshCloseHull", "meshIslandMode", "textureSize",
+        ]
+        for name in ["can-lolo", "northern-buttress", "je-taime"] {
+            let file = repository.appendingPathComponent("tests/Echo.Tests/Fixtures/reconstruction/\(name).json")
+            let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+            let reviewed = try XCTUnwrap(fixture["settings"] as? [String: Any])
+            for field in fields {
+                XCTAssertEqual(defaults[field] as? NSObject, reviewed[field] as? NSObject, "\(name): \(field)")
+                XCTAssertEqual(missing[field] as? NSObject, reviewed[field] as? NSObject, "Missing \(field)")
+            }
+        }
+    }
+
+    func testDepthDefaultsPreserveHigherDetailAndSavedResolutions() throws {
+        XCTAssertEqual(ProcessingSettings().depthWidth, 2048)
+        let decoder = JSONDecoder()
+        XCTAssertEqual(try decoder.decode(ProcessingSettings.self, from: Data("{}".utf8)).depthWidth, 2048)
+        XCTAssertEqual(
+            try decoder.decode(ProcessingSettings.self, from: Data("{\"depthWidth\":1024}".utf8)).depthWidth, 1024)
+    }
+
     func testHullClosureRoundTripAndMeshOnlyImpact() throws {
         let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
         XCTAssertTrue(original.meshCloseHull)
@@ -81,15 +116,15 @@ final class ProcessingSettingsTests: XCTestCase {
         }
     }
 
-    func testSkyDepthSettingIsOptInAndInvalidatesDepth() throws {
+    func testSkyDepthSettingDefaultsOnAndPreservesExplicitOptOut() throws {
         let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
-        XCTAssertFalse(original.depthSuppressSky)
-        XCTAssertFalse(ProcessingSettings().depthSuppressSky)
+        XCTAssertTrue(original.depthSuppressSky)
+        XCTAssertTrue(ProcessingSettings().depthSuppressSky)
         var changed = original
-        changed.depthSuppressSky = true
+        changed.depthSuppressSky = false
         XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .depth)
         let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(changed))
-        XCTAssertTrue(restored.depthSuppressSky)
+        XCTAssertFalse(restored.depthSuppressSky)
     }
 
     func testFusionMemoryAndResolutionRoundTripAndInvalidateFusion() throws {
@@ -123,7 +158,7 @@ final class ProcessingSettingsTests: XCTestCase {
         changed.recoverCliffDepth = true
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .depth)
         changed = original
-        changed.optimiseVegetation = true
+        changed.optimiseVegetation = false
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .mesh)
         changed = original
         changed.vegetationMeshToleranceMultiplier = 3
@@ -148,9 +183,9 @@ final class ProcessingSettingsTests: XCTestCase {
         let old = Data(#"{"featureWidth":800,"textureSize":4096}"#.utf8)
         var settings = try JSONDecoder().decode(ProcessingSettings.self, from: old)
         XCTAssertEqual(settings.featureWidth, 800)
-        XCTAssertEqual(settings.cloudNeighbours, 8)
+        XCTAssertEqual(settings.cloudNeighbours, 16)
         XCTAssertEqual(settings.textureChartFaces, 512)
-        XCTAssertEqual(settings.frustumPairNeighbours, 12)
+        XCTAssertEqual(settings.frustumPairNeighbours, 32)
         XCTAssertTrue(settings.scaleInvariantFeatures)
         XCTAssertTrue(settings.guidedAlignmentPass)
         XCTAssertTrue(settings.depthRangeAutomatic)
@@ -159,7 +194,7 @@ final class ProcessingSettingsTests: XCTestCase {
         XCTAssertEqual(settings.meshIslandMode, .main)
         XCTAssertEqual(ProcessingSettings().meshIslandMode, .main)
         XCTAssertEqual(settings.meshIslandMinimumAreaPercent, 0.1)
-        XCTAssertFalse(settings.optimiseVegetation)
+        XCTAssertTrue(settings.optimiseVegetation)
         XCTAssertFalse(settings.recoverCliffDepth)
         settings.optimiseVegetation = true
         settings.recoverCliffDepth = true
@@ -271,25 +306,25 @@ final class ProcessingSettingsTests: XCTestCase {
 
     func testEarlyTrimmingAndSkyGuardRoundTripAtTheirOwnStages() throws {
         let original = try JSONDecoder().decode(ProcessingSettings.self, from: Data("{}".utf8))
-        XCTAssertEqual(original.fusionIslandMode, .off)
-        XCTAssertFalse(original.textureSuppressSky)
+        XCTAssertEqual(original.fusionIslandMode, .main)
+        XCTAssertTrue(original.textureSuppressSky)
         XCTAssertEqual(original.textureSkyMarginPixels, 8)
         var changed = original
         changed.fusionIslandMode = .main
         changed.fusionIslandMinimumSizePercent = 2
-        changed.textureSuppressSky = true
+        changed.textureSuppressSky = false
         changed.textureSkyMarginPixels = 16
         let restored = try JSONDecoder().decode(ProcessingSettings.self, from: JSONEncoder().encode(changed))
         XCTAssertEqual(restored.fusionIslandMode, .main)
         XCTAssertEqual(restored.fusionIslandMinimumSizePercent, 2)
-        XCTAssertTrue(restored.textureSuppressSky)
+        XCTAssertFalse(restored.textureSuppressSky)
         XCTAssertEqual(restored.textureSkyMarginPixels, 16)
         XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: restored), .fusion)
         changed = original
         changed.fusionIslandMinimumSizePercent = 2
         XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .fusion)
         changed = original
-        changed.textureSuppressSky = true
+        changed.textureSuppressSky = false
         XCTAssertEqual(ProcessingImpact().firstChangedStage(from: original, to: changed), .texture)
         changed = original
         changed.textureSkyMarginPixels = 16
@@ -368,7 +403,7 @@ final class ProcessingSettingsTests: XCTestCase {
         changed.lineSplitRegions = false
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .features)
         changed = original
-        changed.faceLimit = 2_000_000
+        changed.faceLimit = 3_000_000
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .mesh)
         changed = original
         changed.frustumPairNeighbours = 24

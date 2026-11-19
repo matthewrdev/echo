@@ -19,7 +19,8 @@ final class SavedArtifactPresentationTests: XCTestCase {
     func testChangedInputsAndLivePreviewsTakePrecedence() throws {
         let saved = try run(
             id: "saved", status: "completed", artifacts: ["features": "features/old", "depth": "depth/old"])
-        let changed = try run(id: "new", status: "running", settings: ["depthWidth": 2048])
+        let changed = try run(
+            id: "new", status: "running", settings: ["depthWidth": ProcessingSettings().depthWidth * 2])
         let displayed = SavedArtifactPresentation(current: changed, candidates: [saved])
         XCTAssertEqual(displayed.retainedStages, [.features])
         let preview = try run(id: "new", status: "running", artifacts: ["featuresPreview": "preview/new"])
@@ -61,7 +62,8 @@ final class SavedArtifactPresentationTests: XCTestCase {
             XCTAssertEqual(displayed.retainedStages, [.features, .depth], status)
             XCTAssertEqual(displayed.sourceRuns[.depth]?.id, saved.id)
             XCTAssertNil(stopped.artifacts["depth"], "Presentation must not rewrite the attempt's record")
-            let changed = try run(id: "changed", status: status, settings: ["depthWidth": 2048])
+            let changed = try run(
+                id: "changed", status: status, settings: ["depthWidth": ProcessingSettings().depthWidth * 2])
             XCTAssertEqual(SavedArtifactPresentation(current: changed, candidates: [saved]).retainedStages, [.features])
         }
     }

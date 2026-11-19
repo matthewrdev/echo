@@ -13,11 +13,11 @@ public sealed class Settings
     public ProcessingMemoryMode ProcessingMemoryMode { get; set; } = ProcessingMemoryMode.Paged;
     public int ProcessingMemoryBudgetMb { get; set; } = 0;
     public int ProcessingDiskBudgetMb { get; set; } = 0;
-    public bool OptimiseVegetation { get; set; } = false;
+    public bool OptimiseVegetation { get; set; } = true;
     public double VegetationMeshToleranceMultiplier { get; set; } = 2.5;
     public double VegetationTextureScale { get; set; } = .65;
     public bool RecoverCliffDepth { get; set; } = false;
-    public bool DepthSuppressSky { get; set; } = false;
+    public bool DepthSuppressSky { get; set; } = true;
     public bool ScaleInvariantFeatures { get; set; } = true;
     public bool GuidedAlignmentPass { get; set; } = true;
     public bool DetectLines { get; set; } = true;
@@ -26,22 +26,22 @@ public sealed class Settings
     public double LineGradientThreshold { get; set; } = .015;
     public bool LineSplitRegions { get; set; } = true;
     public int FeatureWidth { get; set; } = 2000;
-    public int BundleIterations { get; set; } = 25;
+    public int BundleIterations { get; set; } = 50;
     public int FeatureLimit { get; set; } = 6000;
     public int PairWindow { get; set; } = 5;
     public bool MatchAllPairs
     {
         get; set;
     }
-    public int GpsPairNeighbours { get; set; } = 3;
-    public int FrustumPairNeighbours { get; set; } = 12;
-    public double PairSearchDistance { get; set; } = 200;
+    public int GpsPairNeighbours { get; set; } = 12;
+    public int FrustumPairNeighbours { get; set; } = 32;
+    public double PairSearchDistance { get; set; } = 500;
     public double MatchRatioThreshold { get; set; } = .72;
     public double MatchDistanceThreshold { get; set; } = .65;
     public int CloudWorkerThreads { get; set; } = 0;
     public int CloudBatchRows { get; set; } = 8;
-    public int CloudNeighbours { get; set; } = 8;
-    public int CloudMinimumSupport { get; set; } = 1;
+    public int CloudNeighbours { get; set; } = 16;
+    public int CloudMinimumSupport { get; set; } = 2;
     public double CloudDepthTolerance { get; set; } = .01;
     public double CloudReprojectionTolerancePixels { get; set; } = 1.5;
     public double CloudMinimumParallaxDegrees { get; set; } = .5;
@@ -49,9 +49,9 @@ public sealed class Settings
     public int FusionMemoryBudgetMb { get; set; } = 0;
     public double FusionVoxelSize { get; set; } = 0;
     public bool FusionAllowCoarserResolution { get; set; } = false;
-    public IslandTrimMode FusionIslandMode { get; set; } = IslandTrimMode.Off;
+    public IslandTrimMode FusionIslandMode { get; set; } = IslandTrimMode.Main;
     public double FusionIslandMinimumSizePercent { get; set; } = .1;
-    public bool TextureSuppressSky { get; set; } = false;
+    public bool TextureSuppressSky { get; set; } = true;
     public int TextureSkyMarginPixels { get; set; } = 8;
     public int TextureSeamBlendPixels { get; set; } = 4;
     public double TextureColourEnhancement { get; set; } = .5;
@@ -65,7 +65,7 @@ public sealed class Settings
     public string DepthBackend { get; set; } = "auto";
     public int DepthWorkerThreads { get; set; } = 0;
     public int DepthMemoryBudgetMb { get; set; } = 0;
-    public int DepthWidth { get; set; } = 1024;
+    public int DepthWidth { get; set; } = 2048;
     public int DepthPlanes { get; set; } = 96;
     public int DepthRefinementSamples { get; set; } = 9;
     public int DepthNeighbours { get; set; } = 3;
@@ -75,7 +75,7 @@ public sealed class Settings
     public SubjectDistanceMode SubjectDistanceMode { get; set; } = SubjectDistanceMode.Auto;
     public double SubjectDistanceLimit { get; set; } = 200;
     public int TextureSize { get; set; } = 8192;
-    public int FaceLimit { get; set; } = 1500000;
+    public int FaceLimit { get; set; } = 2000000;
     public bool MeshCompleteSurface { get; set; } = true;
     public bool MeshCloseHull { get; set; } = true;
     public IslandTrimMode MeshIslandMode { get; set; } = IslandTrimMode.Main;

@@ -6,11 +6,11 @@ struct ProcessingSettings: Codable {
     var processingMemoryMode: ProcessingMemoryMode = .paged
     var processingMemoryBudgetMb: Int = 0
     var processingDiskBudgetMb: Int = 0
-    var optimiseVegetation: Bool = false
+    var optimiseVegetation: Bool = true
     var vegetationMeshToleranceMultiplier: Double = 2.5
     var vegetationTextureScale: Double = 0.65
     var recoverCliffDepth: Bool = false
-    var depthSuppressSky: Bool = false
+    var depthSuppressSky: Bool = true
     var scaleInvariantFeatures: Bool = true
     var guidedAlignmentPass: Bool = true
     var detectLines: Bool = true
@@ -19,13 +19,13 @@ struct ProcessingSettings: Codable {
     var lineGradientThreshold: Double = 0.015
     var lineSplitRegions: Bool = true
     var featureWidth: Int = 2000
-    var bundleIterations: Int = 25
+    var bundleIterations: Int = 50
     var featureLimit: Int = 6000
     var pairWindow: Int = 5
     var matchAllPairs: Bool = false
-    var gpsPairNeighbours: Int = 3
-    var frustumPairNeighbours: Int = 12
-    var pairSearchDistance: Double = 200
+    var gpsPairNeighbours: Int = 12
+    var frustumPairNeighbours: Int = 32
+    var pairSearchDistance: Double = 500
     var matchRatioThreshold: Double = 0.72
     var matchDistanceThreshold: Double = 0.65
     var depthConcurrency: Int = 0
@@ -33,7 +33,7 @@ struct ProcessingSettings: Codable {
     var depthBackend: String = "auto"
     var depthWorkerThreads: Int = 0
     var depthMemoryBudgetMb: Int = 0
-    var depthWidth: Int = 1024
+    var depthWidth: Int = 2048
     var depthPlanes: Int = 96
     var depthRefinementSamples: Int = 9
     var depthNeighbours: Int = 3
@@ -44,8 +44,8 @@ struct ProcessingSettings: Codable {
     var subjectDistanceLimit: Double = 200
     var cloudWorkerThreads: Int = 0
     var cloudBatchRows: Int = 8
-    var cloudNeighbours: Int = 8
-    var cloudMinimumSupport: Int = 1
+    var cloudNeighbours: Int = 16
+    var cloudMinimumSupport: Int = 2
     var cloudDepthTolerance: Double = 0.01
     var cloudReprojectionTolerancePixels: Double = 1.5
     var cloudMinimumParallaxDegrees: Double = 0.5
@@ -53,15 +53,15 @@ struct ProcessingSettings: Codable {
     var fusionMemoryBudgetMb: Int = 0
     var fusionVoxelSize: Double = 0
     var fusionAllowCoarserResolution: Bool = false
-    var fusionIslandMode: IslandTrimMode = .off
+    var fusionIslandMode: IslandTrimMode = .main
     var fusionIslandMinimumSizePercent: Double = 0.1
-    var textureSuppressSky: Bool = false
+    var textureSuppressSky: Bool = true
     var textureSkyMarginPixels: Int = 8
     var textureSize: Int = 8192
     var textureSeamBlendPixels: Int = 4
     var textureColourEnhancement: Double = 0.5
     var textureJpegQuality: Int = 92
-    var faceLimit: Int = 1_500_000
+    var faceLimit: Int = 2_000_000
     var meshCompleteSurface: Bool = true
     var meshCloseHull: Bool = true
     var meshIslandMode: IslandTrimMode = .main
@@ -81,12 +81,12 @@ struct ProcessingSettings: Codable {
             try values.decodeIfPresent(ProcessingMemoryMode.self, forKey: .processingMemoryMode) ?? .paged
         processingMemoryBudgetMb = try values.decodeIfPresent(Int.self, forKey: .processingMemoryBudgetMb) ?? 0
         processingDiskBudgetMb = try values.decodeIfPresent(Int.self, forKey: .processingDiskBudgetMb) ?? 0
-        optimiseVegetation = try values.decodeIfPresent(Bool.self, forKey: .optimiseVegetation) ?? false
+        optimiseVegetation = try values.decodeIfPresent(Bool.self, forKey: .optimiseVegetation) ?? true
         vegetationMeshToleranceMultiplier =
             try values.decodeIfPresent(Double.self, forKey: .vegetationMeshToleranceMultiplier) ?? 2.5
         vegetationTextureScale = try values.decodeIfPresent(Double.self, forKey: .vegetationTextureScale) ?? 0.65
         recoverCliffDepth = try values.decodeIfPresent(Bool.self, forKey: .recoverCliffDepth) ?? false
-        depthSuppressSky = try values.decodeIfPresent(Bool.self, forKey: .depthSuppressSky) ?? false
+        depthSuppressSky = try values.decodeIfPresent(Bool.self, forKey: .depthSuppressSky) ?? true
         scaleInvariantFeatures = try values.decodeIfPresent(Bool.self, forKey: .scaleInvariantFeatures) ?? true
         guidedAlignmentPass = try values.decodeIfPresent(Bool.self, forKey: .guidedAlignmentPass) ?? true
         detectLines = try values.decodeIfPresent(Bool.self, forKey: .detectLines) ?? true
@@ -95,13 +95,13 @@ struct ProcessingSettings: Codable {
         lineGradientThreshold = try values.decodeIfPresent(Double.self, forKey: .lineGradientThreshold) ?? 0.015
         lineSplitRegions = try values.decodeIfPresent(Bool.self, forKey: .lineSplitRegions) ?? true
         featureWidth = try values.decodeIfPresent(Int.self, forKey: .featureWidth) ?? 2000
-        bundleIterations = try values.decodeIfPresent(Int.self, forKey: .bundleIterations) ?? 25
+        bundleIterations = try values.decodeIfPresent(Int.self, forKey: .bundleIterations) ?? 50
         featureLimit = try values.decodeIfPresent(Int.self, forKey: .featureLimit) ?? 6000
         pairWindow = try values.decodeIfPresent(Int.self, forKey: .pairWindow) ?? 5
         matchAllPairs = try values.decodeIfPresent(Bool.self, forKey: .matchAllPairs) ?? false
-        gpsPairNeighbours = try values.decodeIfPresent(Int.self, forKey: .gpsPairNeighbours) ?? 3
-        frustumPairNeighbours = try values.decodeIfPresent(Int.self, forKey: .frustumPairNeighbours) ?? 12
-        pairSearchDistance = try values.decodeIfPresent(Double.self, forKey: .pairSearchDistance) ?? 200
+        gpsPairNeighbours = try values.decodeIfPresent(Int.self, forKey: .gpsPairNeighbours) ?? 12
+        frustumPairNeighbours = try values.decodeIfPresent(Int.self, forKey: .frustumPairNeighbours) ?? 32
+        pairSearchDistance = try values.decodeIfPresent(Double.self, forKey: .pairSearchDistance) ?? 500
         matchRatioThreshold = try values.decodeIfPresent(Double.self, forKey: .matchRatioThreshold) ?? 0.72
         matchDistanceThreshold = try values.decodeIfPresent(Double.self, forKey: .matchDistanceThreshold) ?? 0.65
         depthConcurrency = try values.decodeIfPresent(Int.self, forKey: .depthConcurrency) ?? 0
@@ -109,7 +109,7 @@ struct ProcessingSettings: Codable {
         depthBackend = try values.decodeIfPresent(String.self, forKey: .depthBackend) ?? "auto"
         depthWorkerThreads = try values.decodeIfPresent(Int.self, forKey: .depthWorkerThreads) ?? 0
         depthMemoryBudgetMb = try values.decodeIfPresent(Int.self, forKey: .depthMemoryBudgetMb) ?? 0
-        depthWidth = try values.decodeIfPresent(Int.self, forKey: .depthWidth) ?? 1024
+        depthWidth = try values.decodeIfPresent(Int.self, forKey: .depthWidth) ?? 2048
         depthPlanes = try values.decodeIfPresent(Int.self, forKey: .depthPlanes) ?? 96
         depthRefinementSamples = try values.decodeIfPresent(Int.self, forKey: .depthRefinementSamples) ?? 9
         depthNeighbours = try values.decodeIfPresent(Int.self, forKey: .depthNeighbours) ?? 3
@@ -121,8 +121,8 @@ struct ProcessingSettings: Codable {
         subjectDistanceLimit = try values.decodeIfPresent(Double.self, forKey: .subjectDistanceLimit) ?? 200
         cloudWorkerThreads = try values.decodeIfPresent(Int.self, forKey: .cloudWorkerThreads) ?? 0
         cloudBatchRows = try values.decodeIfPresent(Int.self, forKey: .cloudBatchRows) ?? 8
-        cloudNeighbours = try values.decodeIfPresent(Int.self, forKey: .cloudNeighbours) ?? 8
-        cloudMinimumSupport = try values.decodeIfPresent(Int.self, forKey: .cloudMinimumSupport) ?? 1
+        cloudNeighbours = try values.decodeIfPresent(Int.self, forKey: .cloudNeighbours) ?? 16
+        cloudMinimumSupport = try values.decodeIfPresent(Int.self, forKey: .cloudMinimumSupport) ?? 2
         cloudDepthTolerance = try values.decodeIfPresent(Double.self, forKey: .cloudDepthTolerance) ?? 0.01
         cloudReprojectionTolerancePixels =
             try values.decodeIfPresent(Double.self, forKey: .cloudReprojectionTolerancePixels) ?? 1.5
@@ -133,16 +133,16 @@ struct ProcessingSettings: Codable {
         fusionVoxelSize = try values.decodeIfPresent(Double.self, forKey: .fusionVoxelSize) ?? 0
         fusionAllowCoarserResolution =
             try values.decodeIfPresent(Bool.self, forKey: .fusionAllowCoarserResolution) ?? false
-        fusionIslandMode = try values.decodeIfPresent(IslandTrimMode.self, forKey: .fusionIslandMode) ?? .off
+        fusionIslandMode = try values.decodeIfPresent(IslandTrimMode.self, forKey: .fusionIslandMode) ?? .main
         fusionIslandMinimumSizePercent =
             try values.decodeIfPresent(Double.self, forKey: .fusionIslandMinimumSizePercent) ?? 0.1
-        textureSuppressSky = try values.decodeIfPresent(Bool.self, forKey: .textureSuppressSky) ?? false
+        textureSuppressSky = try values.decodeIfPresent(Bool.self, forKey: .textureSuppressSky) ?? true
         textureSkyMarginPixels = try values.decodeIfPresent(Int.self, forKey: .textureSkyMarginPixels) ?? 8
         textureSize = try values.decodeIfPresent(Int.self, forKey: .textureSize) ?? 8192
         textureSeamBlendPixels = try values.decodeIfPresent(Int.self, forKey: .textureSeamBlendPixels) ?? 4
         textureColourEnhancement = try values.decodeIfPresent(Double.self, forKey: .textureColourEnhancement) ?? 0.5
         textureJpegQuality = try values.decodeIfPresent(Int.self, forKey: .textureJpegQuality) ?? 92
-        faceLimit = try values.decodeIfPresent(Int.self, forKey: .faceLimit) ?? 1_500_000
+        faceLimit = try values.decodeIfPresent(Int.self, forKey: .faceLimit) ?? 2_000_000
         meshCompleteSurface = try values.decodeIfPresent(Bool.self, forKey: .meshCompleteSurface) ?? true
         meshCloseHull = try values.decodeIfPresent(Bool.self, forKey: .meshCloseHull) ?? true
         meshIslandMode = try values.decodeIfPresent(IslandTrimMode.self, forKey: .meshIslandMode) ?? .main

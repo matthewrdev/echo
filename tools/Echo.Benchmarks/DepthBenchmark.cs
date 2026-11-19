@@ -28,14 +28,18 @@ public sealed class DepthBenchmark
 
     public int Run(string[] args)
     {
-        if (args.Length < 5 || args.Length > 10)
+        if (args.Length < 5 || args.Length > 11)
         {
-            Console.Error.WriteLine("Usage: Echo.Benchmarks PROJECT RUN WIDTH ITERATIONS OUTPUT.json [CAMERAS] [CONCURRENCY] [FIRST_IMAGE_NAME] [MEMORY_MB] [auto|cpu|metal|metal-validated]");
+            Console.Error.WriteLine("Usage: Echo.Benchmarks PROJECT RUN WIDTH ITERATIONS OUTPUT.json [CAMERAS] [CONCURRENCY] [FIRST_IMAGE_NAME] [MEMORY_MB] [auto|cpu|metal|metal-validated] [SETTINGS.json]");
             return 2;
         }
 
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
+        if (args.Length >= 11)
+        {
+            run.Snapshot.Settings = json.Read<Settings>(Path.GetFullPath(args[10]));
+        }
         var scene = json.Read<ReconstructionScene>(store.PathFor(run.Artifacts["alignment"] + "/scene.json"));
         run.Snapshot.Settings.DepthWidth = int.Parse(args[2]);
         var cameraCount = args.Length >= 6 ? Math.Min(int.Parse(args[5]), scene.Cameras.Count) : 1;
@@ -80,7 +84,9 @@ public sealed class DepthBenchmark
                 phases[index] = profile;
                 var execution = new List<ProcessingExecution>();
                 executions[index] = execution;
-                maps[index] = estimator.Estimate(store, run.Snapshot, scene, scene.Cameras[firstCamera + index], default, plan.WorkersPerImage, metrics: profile.Add, execution: execution.Add);
+                maps[index] = estimator.Estimate(store, run.Snapshot, scene, scene.Cameras[firstCamera + index], default, plan.WorkersPerImage,
+                    progress: message => Console.Error.WriteLine($"{scene.Cameras[firstCamera + index].ImageId}: {message}"),
+                    metrics: profile.Add, execution: execution.Add);
             });
             watch.Stop();
             allocated = GC.GetTotalAllocatedBytes(true) - allocated;

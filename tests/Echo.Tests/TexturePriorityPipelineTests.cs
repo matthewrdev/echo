@@ -36,6 +36,7 @@ public sealed class TexturePriorityPipelineTests
                 store.Edit(project =>
                 {
                     project.Settings.ComputeBackend = ComputeBackend.Cpu;
+                    project.Settings.OptimiseVegetation = false;
                     project.Settings.TextureSize = 256;
                 });
                 files.AtomicData(store.PathFor("artifacts/alignment/test/scene.json"), new ReconstructionScene());

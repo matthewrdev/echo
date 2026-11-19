@@ -171,10 +171,17 @@ public sealed class DepthDiagnosticBenchmark
         var accepted = 0;
         var supported = 0;
         var total = 0;
-        for (var y = 10; y < map.Height - 10; y += 16)
+        const int comparisonWidth = 1024;
+        var scale = map.Width / (double)comparisonWidth;
+        var comparisonHeight = (int)Math.Round(map.Height / scale);
+        // Compare the same image locations and angular reprojection tolerance.
+        // One pixel at each native width would penalize higher resolutions.
+        for (var sampleY = 10; sampleY < comparisonHeight - 10; sampleY += 16)
         {
-            for (var x = 10; x < map.Width - 10; x += 16)
+            for (var sampleX = 10; sampleX < comparisonWidth - 10; sampleX += 16)
             {
+                var x = (int)Math.Round(sampleX * scale);
+                var y = (int)Math.Round(sampleY * scale);
                 total++;
                 var depth = map.DepthAt(y * map.Width + x);
                 if (depth <= 0)
@@ -182,7 +189,7 @@ public sealed class DepthDiagnosticBenchmark
                     continue;
                 }
                 accepted++;
-                if (CliffRecoverySearch.Supported(view, verification, view.Point(x, y, depth), x, y))
+                if (SupportedAtCommonResolution(view, verification, view.Point(x, y, depth), x, y, scale))
                 {
                     supported++;
                 }
@@ -192,11 +199,29 @@ public sealed class DepthDiagnosticBenchmark
         {
             photo.Name,
             label,
+            comparisonWidth,
             total,
             accepted,
             supported,
             coverage = map.Depth.Count(value => value > 0) / (double)map.SampleCount
         }));
+    }
+
+    private bool SupportedAtCommonResolution(DepthView reference, DepthView[] neighbours, V3 point, int x, int y, double tolerance)
+    {
+        var support = 0;
+        foreach (var neighbour in neighbours)
+        {
+            var cosine = Math.Clamp((point - reference.Centre).Unit.Dot((point - neighbour.Centre).Unit), -1, 1);
+            var usefulParallax = Math.Acos(cosine) >= .5 * Math.PI / 180;
+            var agrees = usefulParallax && neighbour.TrySurfacePoint(point, .005, out var surface)
+                && reference.ReprojectsTo(surface, x, y, tolerance);
+            if (agrees && ++support >= 2)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private double Normalize(float[] values, int width, int x, int y, double[] patch, int spacing)

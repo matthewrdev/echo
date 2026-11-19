@@ -102,7 +102,7 @@ public sealed class TextureTests
                 var project = new ProjectData
                 {
                     Images = [new Photo { Id = "a", Source = "source.png", Width = 128, Height = 128, FocalPixels = 64 }],
-                    Settings = new Settings { TextureColourEnhancement = 0, TextureSeamBlendPixels = 0, TextureSize = 256, TextureJpegQuality = 100 }
+                    Settings = new Settings { TextureSuppressSky = false, TextureColourEnhancement = 0, TextureSeamBlendPixels = 0, TextureSize = 256, TextureJpegQuality = 100 }
                 };
                 var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
                 var mesh = new Surface

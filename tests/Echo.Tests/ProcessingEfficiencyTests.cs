@@ -168,7 +168,7 @@ public sealed class ProcessingEfficiencyTests
                 rejected = true;
             }
             Check(rejected, "A manual limit below even one worker must not overcommit memory");
-            project.Settings.DepthMemoryBudgetMb = 1024;
+            project.Settings.DepthMemoryBudgetMb = 2048;
             var plan = planner.Plan(project, 48);
             Check(plan.ConcurrentImages == 1 && plan.WorkersPerImage <= 12, "Memory bounds concurrent image jobs");
             project.Settings.DepthMemoryBudgetMb = 4096;
