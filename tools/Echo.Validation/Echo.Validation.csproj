@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Echo.Pipeline/Echo.Pipeline.csproj" />
+    <ProjectReference Include="../../src/Echo.Composition/Echo.Composition.csproj" />
+    <ProjectReference Include="../../src/Echo.Depth.Metal/Echo.Depth.Metal.csproj" />
+    <ProjectReference Include="../../src/Echo.Texturing.Metal/Echo.Texturing.Metal.csproj" />
+  </ItemGroup>
+</Project>

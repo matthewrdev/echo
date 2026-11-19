@@ -1,0 +1,207 @@
+{
+  "name": "can-lolo",
+  "dataset": "margalef/can-lolo",
+  "photoManifestSha256": "9aac141cbc20befebc7062043ec4b7988ca89f9fd5c8788e58476b4c476a0e10",
+  "photoHashes": [
+    "adf9756c708091758aa17825ca56fc91aaa448454f6e29e946dd08682a673901",
+    "9657bc7e1298629384d9fcdf084b6f94ad870a625389eeb14bf813981c86dc02",
+    "87b2c439464fc71759e9656a10510e0a8ae28b0af9c959b423b7c706779aade9",
+    "00a385c07bb65acc7cfa5e536411a5a1f384812cfd061291c975ca50844af98e",
+    "3c0a75b48bcb7e46cf84a41748917aafb12ff991af4484d0cdd87d48010a55ac",
+    "9a8b956d33ce72a6c72ca0f4f29dbcce04962ccee9d65d80e51bbdabb389a5f9",
+    "61f64036696d39eca1c3b1a3d56eb1558f9103ae88ee60201f764c794a385f72",
+    "beffd26d4e6b0c8802dad8e753ac491ccd301cfb5b1721c7c840bb07a6ff4a65",
+    "a61ec626113d1c05161fe412e2b96e77b579fa6a7676157241f7670105c65624",
+    "c2e0e07d98f72d7fd20465756124ecfa7a8aa7a98bf6ed2eb399f4bf69fd4e79",
+    "4236536a698b90c416f1479538bde8f1a0356322385526bb8571cb973125927e",
+    "ea84c97af3584cefc2e6643f6d3dae94f7af1f2744dcf4a14d5a36d6d91f1c1c",
+    "ba86a386a5fae00cc98934bc770ce44887de2078d4b26b49d8881f4a1729244e",
+    "1d74cb32ceb0c9853c4ab85a2154cf5863f7aaba48eaf9b73bc325da7cf7830c",
+    "94536adebb0432b881d3e94ec93767858ef979e5b85b8ea8599bfafe003bcfb4",
+    "7e24005217e99017a0d2cb41f99c2d33affa4fd88cbcb6f5e2b599099f57a84a",
+    "77fe41e2b124cc886a711385468ad7a5bdd011edb66e43a74856306c0b03388d",
+    "e98f5e69514fa680f9332bddc7bea42757191838e7ff4a799e5152e571658614",
+    "c7f2e915ad7f0601c9a309d701b323c34b37cda4d346f90a3711f280f7584d48",
+    "bd196b507eb76373bea80fb5364c7cf5ad14194c9794d26daa6c24257853343e",
+    "c1d0a1d9d01e733a7f3934399707f86ce745fac44c7141f96c386360dbfafd4d",
+    "b7dbb9b8c450d20861ca481b97e14b05807d33a00ccd1b8412c32b836d527c27",
+    "0b172d55c09568b93b9980694ee30e9b04f331f3c5a74eead37b67e05bac9057",
+    "b79310bb8bede6e7d9df8a9602cf390894534f8f351594b7c8bfbdc954179b4e",
+    "8553ad444f79a86783aa81939db5d85f431c67287b028cd4a7511693a25df8cb",
+    "1d7513b0df7e34d75411e0b1d3dfdff7796dcd93887a39a81aaeacab906d4c3e",
+    "ff90827ace5d84b402d2cbb28e5bc0e89612866464d7f492247cb7d947f2f584",
+    "9fde79862ce3677457b229e5f39ad38c4b777d8727baba167eec020faecc3278",
+    "2117ff671bd0c2cdf4a941f2eee2b2d6a9dffb0294610ca0381a41409557fe5a",
+    "8d986dba1a41b1fc8b6965faadbee0d7b1c39b58fcd04622efd9e0cd4bacb194",
+    "b82cd2da9d7f4146a213f07b446f753a52f62408e887799f031a608dcecf1f84",
+    "625e8b72ec507a718834105d91784f131d50816e32cc204e1cddc0b65d7015d4",
+    "9bdf1d81c89d28430e738159d310874affa137961012f4d888b9a27925d1dc1e",
+    "9a0130fe658324a58d0c923725efa3c7b5a2fe157f9533438030f7640536f4f6",
+    "b41d5080d64fbc5177fcd945e2904aa03f46aa7801b8b6378536a0bb6dd67f21",
+    "41f4eddcd326fbbe79f902268a9baa906a36cb2cafbdd75774dc1ce107169220",
+    "71f5d75c247a6a467ec36ca0594cf3ebafd5b7d085e08fc503afa1c7287ee55b",
+    "383adafce63dfec8b35cd8e85f19097cd6c181107d0b52f22980935909ab0ac5",
+    "5655517080b5fb94f4f38df77321215bb7b67fae9ddec38e948a576bd58f63dc",
+    "e7e9336de8d02c1192294dae75249fedf87cc2b1eac7c9f446e9b916784531d9",
+    "19d635c3ad8298b3b6838890f853304c965929ec86efcede07564614c6e7b8f6",
+    "e64de398bb19ea02c287d3a9168681ee490efdb97b9d74d56462293f70e2c6ec",
+    "f1e6c577444514cd88b1f955c25686ecedba17499f15f48a56d5333761bc87f2",
+    "78c4efca80710ace6d8dfa40acaea404aac79761037e51ccc66cce34d6302d44",
+    "eb1a21131ddd8638e1552ef5c79013ea88df54acc96250ffc0e3e5e2c0d15444",
+    "e2ee5a253c1a12ce02d016e880c5d1f57b1a07fc9ec5fb72f81d4115e6602090",
+    "fa78519c5b06e013b4bd11bf2b4e437de1f0b1397710db754c5a04f2a58770d1",
+    "586c3a749bc706adf5efac434df00d73dcf5e8b785960c47cccedc643b0e46d9",
+    "d00d4c7c6942456e4df238e81743a1d1bedcfc5c8b69c17f9e4f3da4d43649a4",
+    "08735b5a60f18351148b56660b5e72607e5ff0584cd530a20422396939a65047"
+  ],
+  "settings": {
+    "exclusionRegions": [],
+    "texturePriority": null,
+    "processingMemoryMode": "paged",
+    "processingMemoryBudgetMb": 16384,
+    "processingDiskBudgetMb": 0,
+    "optimiseVegetation": true,
+    "vegetationMeshToleranceMultiplier": 2.5,
+    "vegetationTextureScale": 0.65,
+    "recoverCliffDepth": false,
+    "depthSuppressSky": true,
+    "scaleInvariantFeatures": true,
+    "guidedAlignmentPass": false,
+    "detectLines": true,
+    "lineLimit": 500,
+    "lineMinimumLength": 24,
+    "lineGradientThreshold": 0.015,
+    "lineSplitRegions": true,
+    "featureWidth": 2000,
+    "bundleIterations": 50,
+    "featureLimit": 6000,
+    "pairWindow": 5,
+    "matchAllPairs": false,
+    "gpsPairNeighbours": 12,
+    "frustumPairNeighbours": 32,
+    "pairSearchDistance": 500,
+    "matchRatioThreshold": 0.72,
+    "matchDistanceThreshold": 0.65,
+    "cloudWorkerThreads": 8,
+    "cloudBatchRows": 8,
+    "cloudNeighbours": 16,
+    "cloudMinimumSupport": 2,
+    "cloudDepthTolerance": 0.01,
+    "cloudReprojectionTolerancePixels": 1.5,
+    "cloudMinimumParallaxDegrees": 0.5,
+    "fusionDetailMultiplier": 1,
+    "fusionMemoryBudgetMb": 8192,
+    "fusionVoxelSize": 0.2,
+    "fusionAllowCoarserResolution": false,
+    "fusionIslandMode": "main",
+    "fusionIslandMinimumSizePercent": 0.1,
+    "textureSuppressSky": true,
+    "textureSkyMarginPixels": 8,
+    "textureSeamBlendPixels": 4,
+    "textureColourEnhancement": 0.5,
+    "textureJpegQuality": 92,
+    "textureChartFaces": 512,
+    "textureChartAngle": 60,
+    "textureGutter": 4,
+    "exportValidate": true,
+    "depthConcurrency": 2,
+    "computeBackend": "auto",
+    "depthBackend": "auto",
+    "depthWorkerThreads": 0,
+    "depthMemoryBudgetMb": 4096,
+    "depthWidth": 1024,
+    "depthPlanes": 96,
+    "depthRefinementSamples": 9,
+    "depthNeighbours": 3,
+    "depthRangeAutomatic": true,
+    "depthNear": 2,
+    "depthFar": 100,
+    "subjectDistanceMode": "auto",
+    "subjectDistanceLimit": 200,
+    "textureSize": 8192,
+    "faceLimit": 2000000,
+    "meshCompleteSurface": true,
+    "meshIslandMode": "main",
+    "meshIslandMinimumAreaPercent": 0.1,
+    "meshCloseHull": true
+  },
+  "limits": {
+    "registeredCameraFraction": {
+      "minimum": 0.98,
+      "maximum": 1
+    },
+    "medianReprojectionErrorPixels": {
+      "minimum": 0,
+      "maximum": 1
+    },
+    "sparsePoints": {
+      "minimum": 82792.0,
+      "maximum": 155235.0
+    },
+    "meanDepthCoverage": {
+      "minimum": 0.51993743,
+      "maximum": 1
+    },
+    "lowerDecileDepthCoverage": {
+      "minimum": 0.4060833,
+      "maximum": 1
+    },
+    "denseSamples": {
+      "minimum": 14717668.0,
+      "maximum": 27595627.5
+    },
+    "meshFaces": {
+      "minimum": 183157.8,
+      "maximum": 654135.0
+    },
+    "meshArea": {
+      "minimum": 8728.85899357,
+      "maximum": 31174.49640559
+    },
+    "inferredColourAreaFraction": {
+      "minimum": 0,
+      "maximum": 0.61
+    },
+    "meshExtentX": {
+      "minimum": 65.82388609,
+      "maximum": 80.45141634
+    },
+    "meshExtentY": {
+      "minimum": 44.25995443,
+      "maximum": 54.09549986
+    },
+    "meshExtentZ": {
+      "minimum": 84.80470944,
+      "maximum": 103.65020043
+    },
+    "mainHullBoundaryEdges": {
+      "minimum": 0,
+      "maximum": 0
+    },
+    "mainHullInteriorHoles": {
+      "minimum": 0,
+      "maximum": 0
+    },
+    "mainHullNonManifoldEdges": {
+      "minimum": 0,
+      "maximum": 0
+    },
+    "exportBytes": {
+      "minimum": 13893944.4,
+      "maximum": 49621230.0
+    },
+    "mainHullWindingConflicts": {
+      "minimum": 0,
+      "maximum": 0
+    },
+    "mainHullDegenerateFaces": {
+      "minimum": 0,
+      "maximum": 0
+    },
+    "photographedColourArea": {
+      "minimum": 7573.77841078,
+      "maximum": 11958.59749071
+    }
+  },
+  "baselineDescription": "Reviewed Echo reconstruction 39369010196d457794d6f82c94520d95. Coverage and size bounds detect regressions; they do not certify absolute accuracy. Zero main-hull boundaries is a new acceptance requirement; the historical output contains holes. Closed-hull colour limits use reviewed completion-version-14 output; at least 95% of the historical photograph-covered area must remain. Inferred-colour fraction includes the added unseen back and bottom."
+}

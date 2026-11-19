@@ -46,6 +46,9 @@ def prepare(arguments):
             "photos": len(originals),
             "importedDistinctPhotos": len(data["images"]),
         })
+        if dataset.get("referenceSceneFile"):
+            plan[-1]["referenceScene"] = str(directory / dataset["referenceSceneFile"])
+            plan[-1]["referenceSceneSha256"] = dataset["referenceSceneSha256"]
         (output / "reference-validation-plan.json").write_text(json.dumps(plan, indent=2) + "\n")
         if arguments.run_stage:
             with (output / (name + ".ndjson")).open("w") as log:

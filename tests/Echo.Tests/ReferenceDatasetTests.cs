@@ -23,10 +23,24 @@ public sealed class ReferenceDatasetTests
         var datasets = JsonSerializer.Deserialize<List<ReferenceDataset>>(File.ReadAllText(path), options)
             ?? throw new InvalidDataException("Missing reference dataset catalogue.");
 
-        tests.Run("Reference catalogue covers all requested regions and both Blue Lake areas", () =>
+        tests.Run("Reference catalogue covers the source-backed regions and both Blue Lake areas", () =>
         {
-            var regions = new[] { "siurana", "margalef", "blue-lake", "kalymnos", "rogers-canyon" };
-            Check(datasets.Select(dataset => dataset.Folder.Split('/')[0]).Distinct().Order().SequenceEqual(regions.Order()), "Expected five distinct regions");
+            var regions = new[]
+            {
+                "siurana",
+                "margalef",
+                "blue-lake",
+                "kalymnos",
+                "rogers-canyon",
+                "suesca",
+                "urbenville",
+                "eagle-rock",
+                "valle-de-los-condores",
+                "ceuse",
+                "geyikbayiri",
+                "bulahdelah"
+            };
+            Check(datasets.Select(dataset => dataset.Folder.Split('/')[0]).Distinct().Order().SequenceEqual(regions.Order()), $"Expected {regions.Length} distinct regions with original source photos");
             var blueLake = new[] { "blue-lake/elephant-buttress", "blue-lake/northern-buttress" };
             Check(datasets.Where(dataset => dataset.Folder.StartsWith("blue-lake/", StringComparison.Ordinal)).Select(dataset => dataset.Folder).Order().SequenceEqual(blueLake.Order()), "Expected both Blue Lake source captures");
             Check(datasets.Select(dataset => dataset.AreaId).Distinct().Count() == datasets.Count, "Duplicate Red-Point area");
@@ -36,6 +50,7 @@ public sealed class ReferenceDatasetTests
                 Check(Guid.TryParse(dataset.PolycamCaptureId, out _), "Missing original Polycam capture ID");
                 Check(dataset.PhotoCount >= 3, "A reconstruction fixture needs source photos");
                 Check(dataset.ModelUrl == $"https://redpointaus.blob.core.windows.net/assets/{dataset.AreaId}/{dataset.ModelFile}", "Reference model must belong to the recorded area");
+                Check(string.IsNullOrEmpty(dataset.ReferenceSceneFile) == string.IsNullOrEmpty(dataset.ReferenceSceneSha256), "Reference scene path and checksum must be recorded together");
             }
         });
 
@@ -106,6 +121,14 @@ public sealed class ReferenceDatasetTests
         {
             Check(reader.ReadUInt32() == 0x46546c67 && reader.ReadUInt32() == 2, "Expected a GLB version 2 model");
             Check(reader.ReadUInt32() == stream.Length, "Truncated GLB reference");
+        }
+
+        if (!string.IsNullOrEmpty(dataset.ReferenceSceneFile))
+        {
+            var scenePath = SafePath(directory, dataset.ReferenceSceneFile);
+            Check(Hash(scenePath) == dataset.ReferenceSceneSha256, "Red-Point reference scene changed");
+            using var scene = JsonDocument.Parse(File.ReadAllText(scenePath));
+            Check(scene.RootElement.GetProperty("AreaId").GetString() == dataset.AreaId, "Reference scene belongs to a different area");
         }
 
         var manifestPath = Path.Combine(directory, "source-photos.json");

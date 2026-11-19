@@ -23,6 +23,11 @@ if (args.Contains("--reconstruction", StringComparer.Ordinal))
     return composition.Resolve<ReconstructionTests>().Run();
 }
 var scaleTests = new TestSuite();
+composition.Resolve<ReconstructionValidationTests>().Run(scaleTests);
+if (args.Contains("--validation", StringComparer.Ordinal))
+{
+    return scaleTests.Finish();
+}
 if (args.Contains("--gis", StringComparer.Ordinal))
 {
     composition.Resolve<GisExportTests>().Run(scaleTests);

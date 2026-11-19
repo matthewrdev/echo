@@ -13,6 +13,8 @@ public sealed class ReferenceDataset
         get; set;
     }
     public string ModelSha256 { get; set; } = "";
+    public string ReferenceSceneFile { get; set; } = "";
+    public string ReferenceSceneSha256 { get; set; } = "";
     public string PolycamCaptureId { get; set; } = "";
     public int PhotoCount
     {

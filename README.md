@@ -63,6 +63,8 @@ The desktop uses SwiftUI, AppKit and SceneKit/Metal. The CLI and processing subs
 ./scripts/check-format.sh  # Check formatting and code conventions
 ```
 
+With the reference photo catalogue available locally, run `./scripts/check-reconstruction.sh /path/to/3d-assets /path/to/new-results all` to reconstruct the pinned Can Lolo, Northern Buttress and Je T’aime photo sets from scratch. Each case records quality checks, main-hull topology, timing and sampled peak memory. Use `--memory-mib` to test a resource budget, and `--max-seconds` or `--max-peak-mib` to enforce performance limits. The results directory must be new; reference datasets are not bundled with the repository.
+
 See [AGENTS.md](AGENTS.md) for code conventions.
 
 ## Licensing
