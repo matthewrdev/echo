@@ -15,13 +15,15 @@ public sealed class DiskIoTests
     private readonly IBulkArtifactStore artifacts;
     private readonly ICloudBuilder clouds;
     private readonly IPlyWriter plyWriter;
+    private readonly IArtifactWriteObserver writes;
 
     [ImportingConstructor]
-    public DiskIoTests(IBulkArtifactStore artifacts, ICloudBuilder clouds, IPlyWriter plyWriter)
+    public DiskIoTests(IBulkArtifactStore artifacts, ICloudBuilder clouds, IPlyWriter plyWriter, IArtifactWriteObserver writes)
     {
         this.artifacts = artifacts;
         this.clouds = clouds;
         this.plyWriter = plyWriter;
+        this.writes = writes;
     }
 
     internal void Run(TestSuite tests)
@@ -137,9 +139,22 @@ public sealed class DiskIoTests
             paged[3] = memory[3] = new DenseSample(-19, 0, 5, 255, 0, 1, 3, -0f);
             var expected = Path.Combine(directory, "memory.ply");
             var actual = Path.Combine(directory, "paged.ply");
+            using var written = writes.BeginScope();
             clouds.Write(expected, new DenseCloudData { Samples = memory });
             clouds.Write(actual, new DenseCloudData { Samples = paged });
             Check(File.ReadAllBytes(expected).SequenceEqual(File.ReadAllBytes(actual)), "Encoded publication changed the PLY");
+            foreach (var path in new[] { expected, actual })
+            {
+                Check(written.TryGetChecksum(path, out var checksum), "Publication must supply its checksum without rereading the cloud");
+                using var file = File.OpenRead(path);
+                Check(checksum == Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(file)), "Published checksum must match the full PLY");
+            }
+            using (var file = new FileStream(actual, FileMode.Open, FileAccess.Write))
+            {
+                file.Position = file.Length;
+                file.WriteByte(0);
+            }
+            Check(!written.TryGetChecksum(actual, out _), "Modified staging files cannot reuse their publication checksum");
         }));
         tests.Run("Paged file handles are reused and bounded across concurrent reads", () => InDirectory(directory =>
         {

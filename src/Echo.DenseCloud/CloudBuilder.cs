@@ -1,4 +1,5 @@
 using System.ComponentModel.Composition;
+using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Globalization;
 using System.Text;
@@ -17,13 +18,15 @@ public sealed class CloudBuilder : ICloudBuilder
 {
     private readonly IRasterImageService rasterImageService;
     private readonly ICloudExecutionPlanner executionPlanner;
+    private readonly IArtifactWriteObserver writes;
     private readonly IComputeService? compute;
 
     [ImportingConstructor]
-    public CloudBuilder(IRasterImageService rasterImageService, ICloudExecutionPlanner executionPlanner, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public CloudBuilder(IRasterImageService rasterImageService, ICloudExecutionPlanner executionPlanner, IArtifactWriteObserver writes, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.rasterImageService = rasterImageService;
         this.executionPlanner = executionPlanner;
+        this.writes = writes;
         this.compute = compute;
     }
 
@@ -256,24 +259,46 @@ public sealed class CloudBuilder : ICloudBuilder
 
     public void Write(string path, DenseCloudData cloud)
     {
-        using var stream = File.Create(path);
-        using var writer = new BinaryWriter(stream);
-        writer.Write(Encoding.ASCII.GetBytes($"ply\nformat binary_little_endian 1.0\nelement vertex {cloud.Samples.Count}\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nproperty int view\nproperty float confidence\nend_header\n"));
+        using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 65536, FileOptions.SequentialScan);
+        using var stream = new ChecksummedWriteStream(output);
+        stream.Write(Encoding.ASCII.GetBytes($"ply\nformat binary_little_endian 1.0\nelement vertex {cloud.Samples.Count}\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nproperty int view\nproperty float confidence\nend_header\n"));
         if (cloud.Samples is PagedList<DenseSample> paged && paged.Codec is DenseRecordCodec)
         {
             paged.CopyEncodedRecordsTo(stream);
-            return;
         }
-        foreach (var point in cloud.Samples)
+        else
         {
-            writer.Write(point.X);
-            writer.Write(point.Y);
-            writer.Write(point.Z);
-            writer.Write(point.Red);
-            writer.Write(point.Green);
-            writer.Write(point.Blue);
-            writer.Write(point.View);
-            writer.Write(point.Confidence);
+            WriteSamples(stream, cloud.Samples);
+        }
+        output.Flush(true);
+        var checksum = stream.CompleteChecksum();
+        if (checksum != null)
+        {
+            writes.Record(path, checksum);
+        }
+    }
+
+    private void WriteSamples(Stream stream, IList<DenseSample> samples)
+    {
+        var codec = new DenseRecordCodec();
+        var buffer = ArrayPool<byte>.Shared.Rent(65536);
+        try
+        {
+            var capacity = buffer.Length / codec.Size;
+            for (var start = 0; start < samples.Count;)
+            {
+                var count = Math.Min(capacity, samples.Count - start);
+                for (var index = 0; index < count; index++)
+                {
+                    codec.Encode(samples[start + index], buffer.AsSpan(index * codec.Size, codec.Size));
+                }
+                stream.Write(buffer.AsSpan(0, count * codec.Size));
+                start += count;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 
