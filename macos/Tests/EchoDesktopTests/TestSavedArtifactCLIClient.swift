@@ -4,6 +4,7 @@ import Foundation
 
 final class TestSavedArtifactCLIClient: CLIClient {
     var status = "running"
+    var currentArtifacts: [String: String] = [:]
     private(set) var requestedRuns: [String] = []
 
     func execute(_ arguments: [String], progress: @escaping @Sendable (String) -> Void) async throws -> Data {
@@ -41,7 +42,7 @@ final class TestSavedArtifactCLIClient: CLIClient {
             "id": id, "status": id == "current" ? status : (id == "saved" ? "completed" : "cancelled"),
             "target": "fusion", "snapshot": project, "storageVersion": 3,
             "artifacts": id == "saved"
-                ? ["alignment": "artifacts/alignment/saved", "cloud": "artifacts/cloud/saved"] : [:],
+                ? ["alignment": "artifacts/alignment/saved", "cloud": "artifacts/cloud/saved"] : currentArtifacts,
         ]
     }
 }

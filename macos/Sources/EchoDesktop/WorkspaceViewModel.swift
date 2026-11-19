@@ -328,6 +328,15 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
                 savedRunKey = ""
             }
             runs = result.0
+            let selectOpeningStage = inspection == nil && destination == .images
+            if selectOpeningStage,
+                let stage = PipelineStage.allCases.last(where: {
+                    displayedRun?.artifacts[$0.rawValue] != nil
+                        || displayedRun?.artifacts[$0.rawValue + "Preview"] != nil
+                })
+            {
+                selectedStage = stage
+            }
             inspection = result.1
             openingProject = false
             openingError = nil

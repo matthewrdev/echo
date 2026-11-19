@@ -21,10 +21,14 @@ final class CancelledWorkspaceTests: XCTestCase {
         let workspace = workspace(cli: cli, root: folder.path, store: store)
         await workspace.reload()
         XCTAssertEqual(workspace.stageStatus(.cloud), "Saved · awaiting validation")
+        XCTAssertEqual(
+            workspace.destination, .artifact(.cloud), "Open the latest available result, not the unfinished target")
         XCTAssertEqual(cli.requestedRuns.count, 6, "Repeated cancellations must not hide the last completed run")
 
+        workspace.destination = .images
         cli.status = "cancelled"
         await workspace.reload()
+        XCTAssertEqual(workspace.destination, .images, "Polling must preserve the user's navigation")
         XCTAssertEqual(workspace.stageStatus(.cloud), "Saved from earlier run")
         XCTAssertTrue(workspace.progressMessage.contains("Saved results are still available"))
         XCTAssertTrue(workspace.progressMessage.contains("repeats any unfinished steps"))
@@ -41,6 +45,7 @@ final class CancelledWorkspaceTests: XCTestCase {
         let reopened = self.workspace(cli: cli, root: folder.path, store: store)
         await reopened.reload()
         XCTAssertEqual(reopened.stageStatus(.cloud), "Saved from earlier run")
+        XCTAssertEqual(reopened.destination, .artifact(.cloud))
         reopened.selectedRun = "current"
         await reopened.reload()
         XCTAssertTrue(try XCTUnwrap(reopened.displayedRun).artifacts.isEmpty, "History shows this attempt only")
@@ -51,6 +56,44 @@ final class CancelledWorkspaceTests: XCTestCase {
         try FileManager.default.removeItem(at: folder.appendingPathComponent("artifacts/cloud/saved"))
         await reopened.reload()
         XCTAssertFalse(reopened.retainedStages.contains(.cloud), "Deleted artifacts must not reappear")
+    }
+
+    @MainActor
+    func testOpeningUsesPartialResultsAndReevaluatesWhenAnotherProjectOpens() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".echo")
+        let cli = TestSavedArtifactCLIClient()
+        cli.status = "cancelled"
+        cli.currentArtifacts = ["features": "features/saved", "alignmentPreview": "alignment/partial"]
+        let suite = "EchoTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UserDefaultsRecentProjectStore(defaults: defaults)
+        let workspace = workspace(cli: cli, root: folder.path, store: store)
+        await workspace.reload()
+        XCTAssertEqual(workspace.destination, .artifact(.alignment))
+
+        workspace.destination = .images
+        cli.currentArtifacts["export"] = "export/saved"
+        await workspace.reload()
+        XCTAssertEqual(workspace.destination, .images, "New results must not redirect an already open workspace")
+
+        let recent = try XCTUnwrap(
+            store.record(path: folder.appendingPathComponent("another.echo").path, name: "Another").first)
+        workspace.openRecent(recent)
+        for _ in 0..<200 where workspace.openingProject {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(workspace.openingProject)
+        XCTAssertEqual(workspace.destination, .artifact(.export), "Opening another project selects its latest output")
+
+        workspace.showProjects()
+        cli.currentArtifacts = [:]
+        workspace.openRecent(recent)
+        for _ in 0..<200 where workspace.openingProject {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(workspace.openingProject)
+        XCTAssertEqual(workspace.destination, .images, "Unprocessed projects open their photographs")
     }
 
     @MainActor
