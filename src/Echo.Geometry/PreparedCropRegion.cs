@@ -21,9 +21,13 @@ public sealed class PreparedCropRegion
         sine = Math.Sin(angle);
     }
 
-    public bool Contains(V3 point) => ExclusionGeometry.ContainsLocal(region, ToLocal(point));
+    public bool Contains(V3 point) => region.Shape == ExclusionShape.ProjectedHull
+        ? CropHullGeometry.Contains(region.Hull!, point)
+        : ExclusionGeometry.ContainsLocal(region, ToLocal(point));
 
-    public bool Intersects(V3 a, V3 b, V3 c) => ExclusionGeometry.IntersectsLocal(region, ToLocal(a), ToLocal(b), ToLocal(c));
+    public bool Intersects(V3 a, V3 b, V3 c) => region.Shape == ExclusionShape.ProjectedHull
+        ? CropHullGeometry.Intersects(region.Hull!, a, b, c)
+        : ExclusionGeometry.IntersectsLocal(region, ToLocal(a), ToLocal(b), ToLocal(c));
 
     private V3 ToLocal(V3 point)
     {

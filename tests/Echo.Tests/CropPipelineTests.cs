@@ -73,8 +73,30 @@ public sealed class CropPipelineTests
             store.Edit(project => project.Settings.CloudDepthTolerance *= 2);
             Check(Process(store).Artifacts["cloud"] != cloudPath, "Cloud validation settings must still invalidate cloud generation");
         }));
+        tests.Run("Painted hull edits rebuild fusion while reusing the complete cloud", () => WithProject(store =>
+        {
+            var original = Process(store, fusion: true);
+            var region = new ExclusionRegion
+            {
+                Shape = ExclusionShape.ProjectedHull,
+                Mode = CropRegionMode.Include,
+                Hull = CropHullFixture.Box(new V3(0, 0, 10), new V3(2, 2, 1))
+            };
+            store.Edit(project => project.Settings.ExclusionRegions = [region]);
+            var painted = Process(store, fusion: true);
+            Check(painted.Artifacts["cloud"] == original.Artifacts["cloud"], "Painted crop rebuilt the complete cloud");
+            Check(painted.Artifacts["fusion"] != original.Artifacts["fusion"], "Painted crop reused unfiltered fusion");
+            var volume = json.Read<FusedVolume>(store.PathFor(painted.Artifacts["fusion"] + "/volume.json"));
+            var crop = new RegionCropFilter([region]);
+            Check(volume.Samples.Count > 0 && volume.Samples.All(sample => !crop.IsExcluded(
+                new V3(sample.X * volume.VoxelSize, sample.Y * volume.VoxelSize, sample.Z * volume.VoxelSize))),
+                "Painted inclusion was lost during fusion");
+            store.Edit(project => project.Settings.ExclusionRegions.Clear());
+            Check(Process(store, fusion: true).Artifacts["fusion"] == original.Artifacts["fusion"], "Clearing paint must restore existing checkpoints");
+        }));
         tests.Run("Fusion cleanup reuses integration and grid checkpoints while reset and resolution changes invalidate them", () => WithProject(store =>
         {
+            store.Edit(project => project.Settings.FusionIslandMode = IslandTrimMode.Off);
             var original = Process(store, fusion: true);
             var grids = Directory.GetDirectories(store.PathFor("artifacts/fusion-grid")).Length;
             var chunks = Directory.GetDirectories(store.PathFor("artifacts/fusion-chunk")).Length;

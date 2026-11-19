@@ -571,7 +571,10 @@ public sealed class ReconstructionTests
                         Width = voxel * 2,
                         Height = voxel * 2,
                         Depth = voxel * 2,
-                        Radius = voxel
+                        Radius = voxel,
+                        Hull = shape == ExclusionShape.ProjectedHull
+                            ? CropHullFixture.Box(new V3(centre), new V3(voxel * 2, voxel * 2, voxel * 2))
+                            : null
                     };
                     store.Edit(project => project.Settings.ExclusionRegions = [region]);
                     var cropped = processor.Execute(store, "export", default);

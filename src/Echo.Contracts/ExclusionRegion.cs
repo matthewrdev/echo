@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Echo.Contracts;
 
 public sealed class ExclusionRegion
@@ -26,6 +28,11 @@ public sealed class ExclusionRegion
     public double Height { get; set; } = 1;
     public double Depth { get; set; } = 1;
     public double Radius { get; set; } = .5;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CropHull? Hull
+    {
+        get; set;
+    }
 
     public void Validate()
     {
@@ -36,7 +43,15 @@ public sealed class ExclusionRegion
         var validGeometry = validCentre && validRotation && validSize;
         if (!validIdentity || !validGeometry)
         {
-            throw new EchoException("Crop regions need an ID, a box or cylinder shape, an include or exclude mode, finite coordinates and rotation, and positive dimensions.", 2);
+            throw new EchoException("Crop regions need an ID, a box, cylinder or painted hull shape, an include or exclude mode, finite coordinates and rotation, and positive dimensions.", 2);
+        }
+        if (Shape == ExclusionShape.ProjectedHull)
+        {
+            if (Hull == null)
+            {
+                throw new EchoException("A painted crop region needs its projected hull.", 2);
+            }
+            Hull.Validate();
         }
     }
 

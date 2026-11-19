@@ -11,30 +11,38 @@ struct ExclusionRegionEditor: View {
             Picker("Mode", selection: $region.mode) {
                 ForEach(CropRegionMode.allCases, id: \.self) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented)
-            Picker("Shape", selection: $region.shape) {
-                ForEach(ExclusionShape.allCases, id: \.self) { Text($0.title).tag($0) }
-            }.pickerStyle(.segmented)
-            Text(metricScale ? "Position and size in metres" : "Position and size in model units")
-                .font(.caption).foregroundStyle(.secondary)
-            coordinate("Centre X", value: $region.centreX, minimum: bounds.minimum.x, maximum: bounds.maximum.x)
-            coordinate("Centre Y (up)", value: $region.centreY, minimum: bounds.minimum.y, maximum: bounds.maximum.y)
-            coordinate("Centre Z", value: $region.centreZ, minimum: bounds.minimum.z, maximum: bounds.maximum.z)
-            if region.shape == .box {
-                size("Width (X)", value: $region.width, extent: bounds.maximum.x - bounds.minimum.x)
-                size("Depth (Z)", value: $region.depth, extent: bounds.maximum.z - bounds.minimum.z)
+            if region.shape == .projectedHull {
+                Text("Painted polygon projected through the model from the view used to draw it.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Orbit to inspect its volume. Remove and repaint it to change the outline.")
+                    .font(.caption).foregroundStyle(.secondary)
             } else {
-                // A radius covering the horizontal bounding rectangle also covers its corners.
-                size(
-                    "Radius", value: $region.radius,
-                    extent: hypot(bounds.maximum.x - bounds.minimum.x, bounds.maximum.z - bounds.minimum.z) / 2)
-            }
-            size("Height (Y)", value: $region.height, extent: bounds.maximum.y - bounds.minimum.y)
-            Text("Slider limits use the cloud size +20%. Type a larger value if needed.")
-                .font(.caption).foregroundStyle(.secondary)
-            if region.shape == .box {
-                Divider()
-                adjustment("Rotation (°)", value: $region.rotationY, range: -180...180)
-                Text("Around the vertical axis").font(.caption).foregroundStyle(.secondary)
+                Picker("Shape", selection: $region.shape) {
+                    ForEach([ExclusionShape.box, .cylinder], id: \.self) { Text($0.title).tag($0) }
+                }.pickerStyle(.segmented)
+                Text(metricScale ? "Position and size in metres" : "Position and size in model units")
+                    .font(.caption).foregroundStyle(.secondary)
+                coordinate("Centre X", value: $region.centreX, minimum: bounds.minimum.x, maximum: bounds.maximum.x)
+                coordinate(
+                    "Centre Y (up)", value: $region.centreY, minimum: bounds.minimum.y, maximum: bounds.maximum.y)
+                coordinate("Centre Z", value: $region.centreZ, minimum: bounds.minimum.z, maximum: bounds.maximum.z)
+                if region.shape == .box {
+                    size("Width (X)", value: $region.width, extent: bounds.maximum.x - bounds.minimum.x)
+                    size("Depth (Z)", value: $region.depth, extent: bounds.maximum.z - bounds.minimum.z)
+                } else {
+                    // A radius covering the horizontal bounding rectangle also covers its corners.
+                    size(
+                        "Radius", value: $region.radius,
+                        extent: hypot(bounds.maximum.x - bounds.minimum.x, bounds.maximum.z - bounds.minimum.z) / 2)
+                }
+                size("Height (Y)", value: $region.height, extent: bounds.maximum.y - bounds.minimum.y)
+                Text("Slider limits use the cloud size +20%. Type a larger value if needed.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if region.shape == .box {
+                    Divider()
+                    adjustment("Rotation (°)", value: $region.rotationY, range: -180...180)
+                    Text("Around the vertical axis").font(.caption).foregroundStyle(.secondary)
+                }
             }
             if !region.isValid {
                 Text("Enter finite coordinates and rotation, and positive dimensions.").font(.caption).foregroundStyle(

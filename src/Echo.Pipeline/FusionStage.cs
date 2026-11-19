@@ -46,7 +46,7 @@ public sealed class FusionStage : IPipelineStage
             depthUnits,
             alignment,
             maximumGridSamples = context.Paged && project.Settings.FusionVoxelSize > 0 ? 0 : resources.MaximumGridSamples,
-            fusionVersion = 15,
+            fusionVersion = project.Settings.ExclusionRegions.Any(region => region.Shape == ExclusionShape.ProjectedHull) ? 16 : 15,
             project.Settings.ExclusionRegions,
             project.Settings.ComputeBackend,
             computeImplementation = context.ComputeImplementation(ComputeOperation.Fusion),

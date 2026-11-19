@@ -28,6 +28,7 @@ public sealed class ExclusionRegionTests
         tests.Run("Include regions form a union with exclusions taking precedence", Inclusion);
         tests.Run("Rotated regions share local coordinates for points and triangles", Rotation);
         tests.Run("Exclusion settings survive snapshots and reject invalid input", SettingsRoundTrip);
+        tests.Run("Painted hulls preserve projection, modes and serialized settings", PaintedHull);
         tests.Run("Depth exclusions mask scalar and bulk reads without modifying saved depths", DepthMask);
         tests.Run("Fusion excludes raw depth evidence and volume samples on CPU", () => Fusion(ComputeBackend.Cpu));
         bool accelerated;
@@ -40,6 +41,37 @@ public sealed class ExclusionRegionTests
             tests.Run("Fusion excludes raw depth evidence and volume samples on Metal", () => Fusion(ComputeBackend.Metal));
         }
         tests.Run("Mesh exclusions remove crossing triangles even with all vertices outside", Mesh);
+    }
+
+    private void PaintedHull()
+    {
+        var region = new ExclusionRegion
+        {
+            Shape = ExclusionShape.ProjectedHull,
+            Mode = CropRegionMode.Include,
+            Hull = CropHullFixture.Box(new V3(0, 0, 0), new V3(2, 2, 6))
+        };
+        var restored = json.Clone(new Settings { ExclusionRegions = [region] });
+        restored.Validate();
+        var filter = new RegionCropFilter(restored.ExclusionRegions);
+        Check(!filter.IsExcluded(new V3(0, 0, -2)) && !filter.IsExcluded(new V3(0, 0, 2)), "Projected crop must include the entire selected depth");
+        Check(filter.IsExcluded(new V3(2, 0, 0)) && filter.IsExcluded(new V3(0, 0, 4)), "Crop must respect polygon sides and depth caps");
+        region.Mode = CropRegionMode.Exclude;
+        filter = new RegionCropFilter([region]);
+        Check(filter.ExcludesTriangle(new V3(-5, -5, 0), new V3(5, -5, 0), new V3(0, 5, 0)), "Spanning triangles must intersect the painted volume");
+        Check(!filter.ExcludesTriangle(new V3(-5, -5, 4), new V3(5, -5, 4), new V3(0, 5, 4)), "Triangles beyond the depth cap must survive");
+        Check(!json.Encode(new ExclusionRegion()).Contains("hull", StringComparison.OrdinalIgnoreCase), "Legacy region payloads must retain their fingerprints");
+        restored.ExclusionRegions[0].Hull!.Planes[0].NormalX = double.NaN;
+        Reject(restored);
+        var native = Environment.GetEnvironmentVariable("ECHO_TEST_PAINT_SETTINGS");
+        if (native != null)
+        {
+            var settings = json.Read<Settings>(native);
+            settings.Validate();
+            var hull = settings.ExclusionRegions.Single().Hull!;
+            var centre = hull.Vertices.Select(vertex => new V3(vertex[0], vertex[1], vertex[2])).Aggregate(new V3(0, 0, 0), (a, b) => a + b) / hull.Vertices.Length;
+            Check(!new RegionCropFilter(settings.ExclusionRegions).IsExcluded(centre), "Native painted hull was not retained by processing");
+        }
     }
 
     private void Geometry()
@@ -163,6 +195,10 @@ public sealed class ExclusionRegionTests
             {
                 var fixture = new FusionFixture();
                 var region = new ExclusionRegion { Shape = shape, Mode = mode, RotationY = 30, CentreZ = 10, Width = 2, Height = 2, Depth = 1, Radius = 1 };
+                if (shape == ExclusionShape.ProjectedHull)
+                {
+                    region.Hull = CropHullFixture.Box(new V3(0, 0, 10), new V3(2, 2, 1));
+                }
                 fixture.Project.Settings.ExclusionRegions = [region];
                 fixture.Project.Settings.ComputeBackend = backend;
                 fixture.Project.Settings.FusionVoxelSize = .125;
@@ -198,6 +234,10 @@ public sealed class ExclusionRegionTests
                 foreach (var buffers in new WorkBuffers?[] { null, work })
                 {
                     var region = new ExclusionRegion { Shape = shape, Width = 2, Height = 2, Depth = 2, Radius = 1 };
+                    if (shape == ExclusionShape.ProjectedHull)
+                    {
+                        region.Hull = CropHullFixture.Box(new V3(0, 0, 0), new V3(2, 2, 2));
+                    }
                     var filtered = SurfaceExclusionFilter.Filter(surface, [region], default, buffers);
                     Check(filtered.Faces.Count == 1 && filtered.Vertices.Count == 3, "Crossing triangle or unused vertices survived");
                     Check(filtered.SourceImages.SequenceEqual(["retained"]), "Source photograph mapping shifted");
@@ -209,6 +249,10 @@ public sealed class ExclusionRegionTests
                     region.Depth = 4;
                     region.Radius = 2;
                     region.RotationY = 45;
+                    if (shape == ExclusionShape.ProjectedHull)
+                    {
+                        region.Hull = CropHullFixture.Box(new V3(11, 0, 11), new V3(4, 2, 4));
+                    }
                     var included = SurfaceExclusionFilter.Filter(surface, [region], default, buffers);
                     Check(included.Faces.Count == 1 && included.Vertices.Count == 3, "Include region did not remove exterior faces");
                     Check(included.SourceImages.SequenceEqual(["retained"]), "Include region lost source image mapping");

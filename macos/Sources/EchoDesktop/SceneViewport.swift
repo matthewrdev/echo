@@ -10,6 +10,9 @@ struct SceneViewport: NSViewRepresentable {
     var exclusionRegions: [ExclusionRegion] = []
     var selectedExclusionID: String?
     var selectSurfacePoint: ((SCNVector3) -> Void)?
+    var cropBrush: CropBrushConfiguration?
+    var finishCropStroke: ((ExclusionRegion) -> Void)?
+    var cropStrokeError: ((String) -> Void)?
     var placeExclusion: ((SCNVector3) -> Void)?
     var changeExclusion: ((ExclusionRegion) -> Void)?
     var texturePainting: TexturePriorityPainting?
@@ -39,6 +42,16 @@ struct SceneViewport: NSViewRepresentable {
         CGSize(width: proposal.width ?? 400, height: proposal.height ?? 300)
     }
 
+    static func dismantleNSView(_ view: ArtifactSceneView, coordinator: ()) {
+        view.delegate = nil
+        view.cropBrush.cancel(in: view)
+        view.cropHandles.update(in: view, regions: [], selectedID: nil, changed: nil)
+        view.exclusionOverlay.update(scene: nil, regions: [], selectedID: nil)
+        view.textureBrush.configuration = nil
+        view.textureBrush.painting = nil
+        view.textureBrush.cancel(in: view)
+    }
+
     func updateNSView(_ view: ArtifactSceneView, context: Context) {
         if view.scene !== presentation.scene {
             let preserveCamera =
@@ -57,10 +70,14 @@ struct SceneViewport: NSViewRepresentable {
         view.selection = selection
         view.selectSurfacePoint = selectSurfacePoint
         view.placeExclusion = placeExclusion
+        view.cropBrush.configuration = cropBrush
+        view.cropBrush.finished = finishCropStroke
+        view.cropBrush.failed = cropStrokeError
+        if cropBrush == nil { view.cropBrush.cancel(in: view) }
         view.exclusionOverlay.update(scene: view.scene, regions: exclusionRegions, selectedID: selectedExclusionID)
         view.cropHandles.update(
             in: view, regions: exclusionRegions, selectedID: selectedExclusionID,
-            changed: placeExclusion == nil ? changeExclusion : nil)
+            changed: placeExclusion == nil && cropBrush == nil ? changeExclusion : nil)
         view.highlight(texturePainting == nil ? selected : nil)
         view.textureBrush.configuration = textureBrush
         view.textureBrush.painting = texturePainting

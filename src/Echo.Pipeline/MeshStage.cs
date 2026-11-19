@@ -58,7 +58,8 @@ public sealed class MeshStage : IPipelineStage
             fusionPath,
             depthUnits,
             alignment,
-            completionVersion = project.Settings.MeshCompleteSurface ? 14 : 10,
+            completionVersion = (project.Settings.MeshCompleteSurface ? 14 : 10)
+                + (project.Settings.ExclusionRegions.Any(region => region.Shape == ExclusionShape.ProjectedHull) ? 1 : 0),
             project.Settings.MeshCompleteSurface,
             closeHull = project.Settings.MeshCompleteSurface && project.Settings.MeshCloseHull,
             project.Settings.ExclusionRegions,

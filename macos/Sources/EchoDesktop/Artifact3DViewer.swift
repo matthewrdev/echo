@@ -9,6 +9,9 @@ struct Artifact3DViewer: View {
     var exclusionRegions: [ExclusionRegion] = []
     var selectedExclusionID: String?
     var selectSurfacePoint: ((SCNVector3) -> Void)?
+    var cropBrush: CropBrushConfiguration?
+    var finishCropStroke: ((ExclusionRegion) -> Void)?
+    var cropStrokeError: ((String) -> Void)?
     var placeExclusion: ((SCNVector3) -> Void)?
     var changeExclusion: ((ExclusionRegion) -> Void)?
     var texturePainting: TexturePriorityPainting?
@@ -28,7 +31,8 @@ struct Artifact3DViewer: View {
                         selected = $0
                         observationIndex = 0
                     }, exclusionRegions: exclusionRegions, selectedExclusionID: selectedExclusionID,
-                    selectSurfacePoint: selectSurfacePoint, placeExclusion: placeExclusion,
+                    selectSurfacePoint: selectSurfacePoint, cropBrush: cropBrush, finishCropStroke: finishCropStroke,
+                    cropStrokeError: cropStrokeError, placeExclusion: placeExclusion,
                     changeExclusion: changeExclusion,
                     texturePainting: texturePainting, textureBrush: textureBrush,
                     showTexturePriority: showTexturePriority, finishTextureStroke: finishTextureStroke

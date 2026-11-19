@@ -1,13 +1,23 @@
 import SceneKit
 
+@MainActor
 final class ExclusionSceneOverlay {
     private weak var scene: SCNScene?
+    private var root: SCNNode?
     private var regions: [ExclusionRegion] = []
     private var selectedID: String?
 
     func update(scene: SCNScene?, regions: [ExclusionRegion], selectedID: String?) {
         guard self.scene !== scene || self.regions != regions || self.selectedID != selectedID else { return }
-        self.scene?.rootNode.childNode(withName: "exclusion-regions", recursively: false)?.removeFromParentNode()
+        SCNTransaction.lock()
+        SCNTransaction.begin()
+        SCNTransaction.disableActions = true
+        defer {
+            SCNTransaction.commit()
+            SCNTransaction.unlock()
+        }
+        root?.removeFromParentNode()
+        root = nil
         self.scene = scene
         self.regions = regions
         self.selectedID = selectedID
@@ -15,10 +25,14 @@ final class ExclusionSceneOverlay {
         let root = SCNNode()
         root.name = "exclusion-regions"
         for region in regions where region.enabled && region.isValid {
-            let geometry: SCNGeometry =
-                region.shape == .box
-                ? SCNBox(width: region.width, height: region.height, length: region.depth, chamferRadius: 0)
-                : SCNCylinder(radius: region.radius, height: region.height)
+            let geometry: SCNGeometry
+            if let hull = region.hull, region.shape == .projectedHull {
+                geometry = CropHullSceneGeometry().make(hull, outline: false)
+            } else if region.shape == .box {
+                geometry = SCNBox(width: region.width, height: region.height, length: region.depth, chamferRadius: 0)
+            } else {
+                geometry = SCNCylinder(radius: region.radius, height: region.height)
+            }
             let material = SCNMaterial()
             material.diffuse.contents = region.mode == .include ? NSColor.systemGreen : NSColor.systemRed
             material.lightingModel = .constant
@@ -41,9 +55,13 @@ final class ExclusionSceneOverlay {
             root.addChildNode(outline)
         }
         scene.rootNode.addChildNode(root)
+        self.root = root
     }
 
     private func outlineGeometry(_ region: ExclusionRegion) -> SCNGeometry {
+        if let hull = region.hull, region.shape == .projectedHull {
+            return CropHullSceneGeometry().make(hull, outline: true)
+        }
         var vertices: [SCNVector3] = []
         var edges: [UInt32] = []
         if region.shape == .box {

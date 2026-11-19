@@ -1,5 +1,5 @@
 enum CropRegionMode: String, Codable, CaseIterable, Sendable {
-    case exclude, include
+    case include, exclude
 
     var title: String { self == .include ? "Include" : "Exclude" }
 }

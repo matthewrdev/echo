@@ -45,7 +45,7 @@ public sealed class RegionCropFilter
                 return true;
             }
         }
-        // Both shapes are convex. Requiring a whole triangle in one include
+        // Crop volumes are convex. Requiring a whole triangle in one include
         // region prevents reconstruction from bridging the space between them.
         foreach (var region in includes)
         {

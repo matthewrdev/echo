@@ -1,12 +1,22 @@
 import SceneKit
 
+@MainActor
 final class CropHandleOverlay {
     private weak var scene: SCNScene?
+    private var root: SCNNode?
     private var region: ExclusionRegion?
 
     func update(scene: SCNScene?, region: ExclusionRegion?) {
         guard self.scene !== scene || self.region != region else { return }
-        self.scene?.rootNode.childNode(withName: "crop-handles", recursively: false)?.removeFromParentNode()
+        SCNTransaction.lock()
+        SCNTransaction.begin()
+        SCNTransaction.disableActions = true
+        defer {
+            SCNTransaction.commit()
+            SCNTransaction.unlock()
+        }
+        root?.removeFromParentNode()
+        root = nil
         self.scene = scene
         self.region = region
         guard let scene, let region else { return }
@@ -55,5 +65,6 @@ final class CropHandleOverlay {
             }
         }
         scene.rootNode.addChildNode(root)
+        self.root = root
     }
 }

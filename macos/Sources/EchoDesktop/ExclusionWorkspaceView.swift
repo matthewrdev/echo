@@ -15,6 +15,11 @@ struct ExclusionWorkspaceView: View {
     @State private var regions: [ExclusionRegion] = []
     @State private var selectedID: String?
     @State private var placing = false
+    @State private var paintingCrop = false
+    @State private var brushRadius = 14.0
+    @State private var brushMode: CropRegionMode = .include
+    @State private var paintError: String?
+    @State private var paintedIDs: [String] = []
 
     private var bounds: SceneBounds {
         let box = presentation.scene?.rootNode.childNode(withName: "artifact", recursively: false)?.boundingBox
@@ -28,6 +33,8 @@ struct ExclusionWorkspaceView: View {
                 presentation: presentation, openFeatures: openFeatures,
                 controller: controller, showGround: $showGround,
                 exclusionRegions: editing ? regions : [], selectedExclusionID: selectedID,
+                cropBrush: editing && paintingCrop ? CropBrushConfiguration(radius: brushRadius, mode: brushMode) : nil,
+                finishCropStroke: appendPaintedRegion, cropStrokeError: { paintError = $0 },
                 placeExclusion: placing ? place : nil,
                 changeExclusion: editing ? change : nil,
                 texturePainting: editingTexture && !textureModel.incompatible ? textureModel.painting : nil,
@@ -46,12 +53,14 @@ struct ExclusionWorkspaceView: View {
         .onChange(of: editing) { _, active in
             if active { loadCropRegions() }
             placing = false
+            paintingCrop = false
         }
         .onChange(of: editingTexture) { _, active in
             if active {
                 textureModel.followRun(workspace.inspection?.project.settings.texturePriority, alignment: alignment)
             }
             placing = false
+            paintingCrop = false
         }
         .onChange(of: alignment) { _, _ in
             editingTexture = false
@@ -62,6 +71,7 @@ struct ExclusionWorkspaceView: View {
             editingTexture = false
             textureModel.followRun(workspace.inspection?.project.settings.texturePriority, alignment: alignment)
             placing = false
+            paintingCrop = false
         }
         .onAppear {
             if editing { loadCropRegions() }
@@ -72,6 +82,7 @@ struct ExclusionWorkspaceView: View {
     private func loadCropRegions() {
         regions = workspace.inspection?.project.settings.exclusionRegions ?? []
         selectedID = regions.first?.id
+        paintedIDs = []
     }
 
     private var editor: some View {
@@ -80,14 +91,40 @@ struct ExclusionWorkspaceView: View {
                 Text("Crop regions").font(.headline)
                 Spacer()
                 Menu("Add", systemImage: "plus") {
-                    ForEach(ExclusionShape.allCases, id: \.self) { shape in
+                    ForEach([ExclusionShape.box, .cylinder], id: \.self) { shape in
                         Button(shape.title) {
                             let region = ExclusionRegion(shape: shape, bounds: bounds)
                             regions.append(region)
                             selectedID = region.id
+                            paintingCrop = false
                         }
                     }
                 }.fixedSize()
+            }
+            Toggle("Paint crop", isOn: $paintingCrop)
+                .toggleStyle(.button)
+                .onChange(of: paintingCrop) { _, active in
+                    if active { placing = false }
+                    paintError = nil
+                }
+            if paintingCrop {
+                Picker("Paint mode", selection: $brushMode) {
+                    ForEach(CropRegionMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                }.pickerStyle(.segmented)
+                Text("Brush diameter: \(Int(brushRadius * 2)) px").font(.caption)
+                Slider(value: $brushRadius, in: 2...80).accessibilityLabel("Crop brush radius")
+                Text(
+                    "Strokes form a convex outline through the full model depth. Option-drag orbits; Escape cancels the current stroke."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
+            if let paintError { Text(paintError).font(.caption).foregroundStyle(.red) }
+            if !paintedIDs.isEmpty {
+                Button("Undo last paint") {
+                    let id = paintedIDs.removeLast()
+                    regions.removeAll { $0.id == id }
+                    selectedID = regions.last?.id
+                }
             }
             if !regions.isEmpty {
                 Picker("Region", selection: $selectedID) {
@@ -104,15 +141,19 @@ struct ExclusionWorkspaceView: View {
                 if let index = regions.firstIndex(where: { $0.id == selectedID }) {
                     VStack(alignment: .leading, spacing: 12) {
                         ExclusionRegionEditor(
-                            region: $regions[index], bounds: bounds, metricScale: presentation.metricScale)
-                        Button(placing ? "Cancel placement" : "Place on surface", systemImage: "scope") {
-                            placing.toggle()
+                            region: binding(for: regions[index]), bounds: bounds, metricScale: presentation.metricScale)
+                        if regions[index].shape != .projectedHull {
+                            Button(placing ? "Cancel placement" : "Place on surface", systemImage: "scope") {
+                                placing.toggle()
+                                paintingCrop = false
+                            }
                         }
                         if placing {
                             Text("Click a point or triangle to centre this region there.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Button("Remove region", role: .destructive) {
+                            paintedIDs.removeAll { $0 == regions[index].id }
                             regions.remove(at: index)
                             selectedID = regions.first?.id
                             placing = false
@@ -120,7 +161,7 @@ struct ExclusionWorkspaceView: View {
                     }
                 } else {
                     Text(
-                        "Add a box or cylinder, then choose Include or Exclude and adjust its position and size. Boxes can rotate around the vertical axis."
+                        "Paint an outline, or add a box or cylinder. New regions default to Include. Exclude regions remove points from any included region."
                     )
                     .font(.callout).foregroundStyle(.secondary)
                 }
@@ -138,6 +179,22 @@ struct ExclusionWorkspaceView: View {
                 Label("Saved", systemImage: "checkmark.circle").font(.caption).foregroundStyle(.green)
             }
         }
+    }
+
+    private func binding(for region: ExclusionRegion) -> Binding<ExclusionRegion> {
+        Binding(
+            get: { regions.first { $0.id == region.id } ?? region },
+            set: { changed in
+                guard let index = regions.firstIndex(where: { $0.id == region.id }) else { return }
+                regions[index] = changed
+            })
+    }
+
+    private func appendPaintedRegion(_ region: ExclusionRegion) {
+        regions.append(region)
+        selectedID = region.id
+        paintedIDs.append(region.id)
+        paintError = nil
     }
 
     private func place(_ point: SCNVector3) {

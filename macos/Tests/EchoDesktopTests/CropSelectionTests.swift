@@ -63,7 +63,8 @@ final class CropSelectionTests: XCTestCase {
         second.mode = .include
         second.centreX = 5
         second.width = 2
-        let exclude = ExclusionRegion()
+        var exclude = ExclusionRegion()
+        exclude.mode = .exclude
         XCTAssertEqual(try counter.count(regions: [include]), CropPointCounts(included: 2, excluded: 2))
         XCTAssertEqual(try counter.count(regions: [include, exclude]), CropPointCounts(included: 1, excluded: 3))
         XCTAssertEqual(

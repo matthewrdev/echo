@@ -6,7 +6,7 @@ struct ExclusionRegion: Codable, Hashable, Identifiable, Sendable {
     var id = UUID().uuidString
     var enabled = true
     var shape: ExclusionShape = .box
-    var mode: CropRegionMode = .exclude
+    var mode: CropRegionMode = .include
     var rotationY = 0.0
     var centreX = 0.0
     var centreY = 0.0
@@ -15,10 +15,12 @@ struct ExclusionRegion: Codable, Hashable, Identifiable, Sendable {
     var height = 1.0
     var depth = 1.0
     var radius = 0.5
+    var hull: CropHull?
 
     var isValid: Bool {
         !id.isEmpty && [centreX, centreY, centreZ, rotationY].allSatisfy(\.isFinite)
             && [width, height, depth, radius].allSatisfy { $0.isFinite && $0 > 0 }
+            && (shape != .projectedHull || hull?.isValid == true)
     }
 
     init(shape: ExclusionShape = .box, bounds: SceneBounds? = nil) {
@@ -56,6 +58,7 @@ struct ExclusionRegion: Codable, Hashable, Identifiable, Sendable {
         height = try values.decode(Double.self, forKey: .height)
         depth = try values.decode(Double.self, forKey: .depth)
         radius = try values.decode(Double.self, forKey: .radius)
+        hull = try values.decodeIfPresent(CropHull.self, forKey: .hull)
     }
 
     mutating func place(at point: SCNVector3) {

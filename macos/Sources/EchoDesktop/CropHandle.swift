@@ -8,7 +8,7 @@ struct CropHandle {
     var point: SCNVector3 { SCNVector3(position.x, position.y, position.z) }
 
     static func handles(for region: ExclusionRegion) -> [CropHandle] {
-        guard region.enabled, region.isValid else { return [] }
+        guard region.enabled, region.isValid, region.shape != .projectedHull else { return [] }
         let centre = SIMD3(region.centreX, region.centreY, region.centreZ)
         var handles = [CropHandle(kind: .move, position: centre)]
         func append(_ kind: CropHandleKind, _ offset: SIMD3<Double>) {

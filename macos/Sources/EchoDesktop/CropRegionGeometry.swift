@@ -12,6 +12,7 @@ struct CropRegionGeometry: Sendable {
     }
 
     func contains(_ point: SIMD3<Double>) -> Bool {
+        if region.shape == .projectedHull { return region.hull?.contains(point) == true }
         let local = inverseOrientation.act(point - centre)
         guard abs(local.y) <= region.height / 2 else { return false }
         if region.shape == .box {

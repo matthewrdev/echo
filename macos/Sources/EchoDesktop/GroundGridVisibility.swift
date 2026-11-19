@@ -2,6 +2,8 @@ import SceneKit
 
 final class GroundGridVisibility: NSObject, SCNSceneRendererDelegate {
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        SCNTransaction.lock()
+        defer { SCNTransaction.unlock() }
         guard let grid = renderer.scene?.rootNode.childNode(withName: "ground-grid", recursively: false),
             !grid.isHidden
         else { return }
