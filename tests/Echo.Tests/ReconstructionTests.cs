@@ -387,8 +387,29 @@ public sealed class ReconstructionTests
             store.Init("synthetic stereo plane");
             tests.Run("Import deduplicates originals and validates hints", () =>
             {
-                Check(store.Import(source, "drone", 100).Count == 3, "Import three photographs");
-                Check(store.Import(source, "repeat", 100).Count == 0 && store.Load().Images.All(i => i.Sets.Contains("repeat")), "Deduplication and sets");
+                var updates = new List<PhotoImportProgress>();
+                void Observe(object value)
+                {
+                    var update = (PhotoImportProgress)value;
+                    updates.Add(update);
+                    if (update.Type == "imageImported")
+                    {
+                        Check(store.Load().Images.Any(image => image.Id == update.Id), "Only persisted photos count as imported");
+                    }
+                }
+                Check(store.Import(source, "drone", 100, Observe).Count == 3, "Import three photographs");
+                Check(updates.Select(update => update.Completed).SequenceEqual([0, 1, 2, 3]), "Import reports progress before and after each photograph");
+                Check(updates.All(update => update.Total == 3 && update.Skipped == 0), "Only supported input photographs enter the total");
+                var firstEvent = JsonSerializer.SerializeToElement(updates[1], jsonCodec.Options);
+                Check(firstEvent.GetProperty("type").GetString() == "imageImported" && firstEvent.GetProperty("count").GetInt32() == 1,
+                    "Existing import event fields remain compatible");
+                updates.Clear();
+                Check(store.Import(source, "repeat", 100, Observe).Count == 0 && store.Load().Images.All(i => i.Sets.Contains("repeat")), "Deduplication and sets");
+                Check(updates.Select(update => update.Completed).SequenceEqual([0, 1, 2, 3]), "Duplicate files also advance import progress");
+                Check(updates[^1].Skipped == 3 && updates[^1].Count == 0, "Existing photos are counted separately from new imports");
+                updates.Clear();
+                store.Import(source, "limited", 2, Observe);
+                Check(updates.Count == 3 && updates.All(update => update.Total == 2), "The total respects the import limit");
                 var images = store.Load().Images;
                 Check(images.All(i => i.Gps != null && i.Attitude != null && i.FocalPixels == 250), "Sidecar calibration");
                 Throws(() => store.AddHints([new Hint { Type = "tie", ImageId = images[0].Id, OtherImageId = images[1].Id, Pixel = [-1, 0], OtherPixel = [0, 0] }]), 2);
@@ -433,10 +454,33 @@ public sealed class ReconstructionTests
                 var sawLiveCloudBeforeCompletion = false;
                 var meshPhases = new HashSet<int>();
                 var lastMeshPhase = -1;
+                var alignmentPhases = new HashSet<string>();
+                var lastAlignmentPhase = -1;
+                var alignmentSubsteps = 0;
                 first = processor.Execute(store, "export", default, paused.Id, output: value =>
                 {
                     var record = JsonSerializer.SerializeToElement(value, jsonCodec.Options);
                     var payload = record.GetProperty("payload");
+                    var alignmentProgress = record.GetProperty("type").GetString() == "stageProgress"
+                        && payload.GetProperty("stage").GetString() == "alignment";
+                    if (alignmentProgress && payload.TryGetProperty("stageStepIndex", out var alignmentPhase))
+                    {
+                        var index = alignmentPhase.GetInt32();
+                        Check(index >= lastAlignmentPhase, "Alignment workflow phases went backwards");
+                        lastAlignmentPhase = index;
+                        var steps = payload.GetProperty("stageSteps");
+                        alignmentPhases.Add(steps[index].GetString()!);
+                        Check(steps.GetArrayLength() == 8 && steps[0].GetString() == "Load matches"
+                            && steps[7].GetString() == "Save alignment", "Guided alignment covers the full workflow");
+                        var persisted = store.GetRun(paused.Id).Progress!;
+                        Check(persisted.StageStepIndex == index, "Live and polled alignment phases differ");
+                        if (payload.TryGetProperty("stepIndex", out var substep) && substep.ValueKind == JsonValueKind.Number)
+                        {
+                            Check(substep.GetInt32() >= 0 && substep.GetInt32() < payload.GetProperty("steps").GetArrayLength(),
+                                "Alignment operation must identify a valid substep");
+                            alignmentSubsteps++;
+                        }
+                    }
                     var meshProgress = record.GetProperty("type").GetString() == "stageProgress"
                         && payload.GetProperty("stage").GetString() == "mesh";
                     if (meshProgress && payload.TryGetProperty("stageStepIndex", out var phase))
@@ -509,6 +553,9 @@ public sealed class ReconstructionTests
                 Check(depthReports == 3, "Every depth image is reported during processing");
                 Check(cloudProgressEvents >= 3, "Dense cloud reports progress during construction");
                 Check(sawLiveCloudBeforeCompletion, "Dense cloud publishes a viewable artifact before completion");
+                Check(alignmentPhases.IsSupersetOf(["Load matches", "Initial alignment", "Save initial alignment", "Guided matching", "Validate recovery", "Save alignment"]),
+                    "Alignment publishes initial solve, guided recovery and final saving phases");
+                Check(alignmentSubsteps > 5, "The initial solve publishes its discrete operations");
                 Check(meshPhases.Count >= 8 && meshPhases.Contains(0), "Mesh must publish the complete phase plan before simplification");
                 var scene = jsonCodec.Read<ReconstructionScene>(store.PathFor(first.Artifacts["alignment"] + "/scene.json"));
                 Check(scene.Cameras.Count == 3 && scene.Points.Count > 15, "Reconstructed camera/point geometry");
@@ -522,6 +569,37 @@ public sealed class ReconstructionTests
                 Check(atlas.Width == 256 && atlas.Height == 256, "Requested atlas size");
                 Check(File.Exists(Path.Combine(export, "cliff.geo.json")), "Georeference sidecar");
                 Console.WriteLine($"  Synthetic export: {document.RootElement.GetProperty("faces")} triangles, {scene.Points.Count} points");
+            });
+            tests.Run("Disabling guided alignment removes recovery phases while reusing the initial solve", () =>
+            {
+                store.Edit(project => project.Settings.GuidedAlignmentPass = false);
+                try
+                {
+                    var phases = new HashSet<string>();
+                    var reusedInitial = false;
+                    var single = processor.Execute(store, "alignment", default, output: value =>
+                    {
+                        var record = JsonSerializer.SerializeToElement(value, jsonCodec.Options);
+                        var payload = record.GetProperty("payload");
+                        var alignmentProgress = record.GetProperty("type").GetString() == "stageProgress"
+                            && payload.GetProperty("stage").GetString() == "alignment";
+                        if (alignmentProgress && payload.TryGetProperty("stageSteps", out var steps))
+                        {
+                            Check(steps.GetArrayLength() == 4, "Disabled recovery must not show recovery phases");
+                            phases.Add(steps[payload.GetProperty("stageStepIndex").GetInt32()].GetString()!);
+                        }
+                        if (record.GetProperty("type").GetString() == "artifactReused")
+                        {
+                            reusedInitial |= jsonCodec.Encode(value).Contains("alignment-initial", StringComparison.Ordinal);
+                        }
+                    });
+                    Check(single.Status == "completed" && reusedInitial, "The unchanged initial solve reuses its checkpoint");
+                    Check(phases.SetEquals(["Load matches", "Save alignment"]), "Reused solving is not presented as newly executed work");
+                }
+                finally
+                {
+                    store.Edit(project => project.Settings.GuidedAlignmentPass = true);
+                }
             });
             tests.Run("A texture-only edit preserves geometry artifacts and frozen resume inputs", () =>
             {

@@ -62,6 +62,8 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     @Published var cancelRequested = false
     @Published var cancellationRequestedAt: Date?
     @Published var busy = false
+    @Published private(set) var importingPhotos = false
+    @Published private(set) var photoImportProgress: PhotoImportProgress?
     @Published private(set) var quitting = false
     @Published var status = "Open or create a project to begin."
     @Published var errorMessage: String?
@@ -141,6 +143,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         PipelineStage.allCases.filter { workingRun?.artifacts[$0.rawValue] != nil }.count
     }
     var progressTitle: String {
+        if importingPhotos { return "Importing photos" }
         if isWorking, let stage = workingRun?.progress.flatMap({ PipelineStage(rawValue: $0.stage) }) {
             if workingRun?.progress?.phase == "checking" {
                 let target = workingRun.flatMap { PipelineStage(rawValue: $0.target) }?.title ?? "next stage"
@@ -157,6 +160,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         }
     }
     var progressMessage: String {
+        if importingPhotos { return photoImportProgress?.detail ?? "Counting photos…" }
         if cancelRequested {
             return "Stopping… Your saved results will be kept."
         }
@@ -171,6 +175,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     var progressActivity: String {
+        if importingPhotos { return progressTitle }
         if isWorking, !cancelRequested, let title = workingRun?.progress?.stepActivityTitle {
             return title
         }
@@ -181,6 +186,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     var progressDetail: String {
+        if importingPhotos { return photoImportProgress?.summary ?? "Counting photos…" }
         if cancelRequested { return "Stopping… Your saved results will be kept." }
         if isWorking, workingRun?.progress?.phase == "checking" {
             return
@@ -523,7 +529,16 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        execute("Importing photos…", ["images", "import", url.path, "--set", url.lastPathComponent])
+        importPhotos(from: url)
+    }
+
+    func importPhotos(from directory: URL) {
+        guard canEdit, inspection != nil else { return }
+        perform("Importing photos…") {
+            self.importingPhotos = true
+            defer { self.importingPhotos = false }
+            try await self.executeCommand(["images", "import", directory.path, "--set", directory.lastPathComponent])
+        }
     }
 
     var canRunGroups: Bool {
@@ -720,16 +735,19 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     }
 
     private func execute(_ title: String, _ arguments: [String]) {
-        perform(title) {
-            let progress = CLIProgressBuffer { [weak self] lines in self?.receive(lines) }
-            defer { progress.flush() }
-            try await self.client.command(root: self.root, arguments: arguments, progress: progress.append)
-        }
+        perform(title) { try await self.executeCommand(arguments) }
+    }
+
+    private func executeCommand(_ arguments: [String]) async throws {
+        let progress = CLIProgressBuffer { [weak self] lines in self?.receive(lines) }
+        defer { progress.flush() }
+        try await client.command(root: root, arguments: arguments, progress: { progress.append($0) })
     }
 
     private func perform(_ title: String, operation: @escaping @MainActor () async throws -> Void) {
         guard canEdit else { return }
         busy = true
+        photoImportProgress = nil
         errorMessage = nil
         status = title
         Task {
@@ -766,6 +784,11 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             guard let data = line.data(using: .utf8),
                 let record = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             else { continue }
+            if let progress = try? JSONDecoder().decode(PhotoImportProgress.self, from: data), progress.isImportEvent {
+                photoImportProgress = progress
+                message = progress.detail
+                continue
+            }
             if let name = record["name"] as? String { message = "Imported \(name)" }
             if let entry = eventFormatter.entry(from: data) {
                 message = entry.message

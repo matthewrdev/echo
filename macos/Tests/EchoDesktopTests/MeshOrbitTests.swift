@@ -9,7 +9,7 @@ final class MeshOrbitTests: XCTestCase {
     @MainActor
     func testPickedSurfaceBecomesPivotWithoutJumpingAndBackgroundRetainsIt() throws {
         let view = makeView()
-        let orbit = MeshOrbitInteraction()
+        let orbit = ArtifactOrbitInteraction()
         let point = SCNVector3(0.7, 0.3, 0)
         let projected = view.projectPoint(point)
         let screen = CGPoint(x: projected.x, y: projected.y)

@@ -1,7 +1,7 @@
 enum ScenePointerInteraction {
     case idle
     case tool
-    case meshOrbit
+    case artifactOrbit
     case nativeCamera
     case optionCamera
     case finished

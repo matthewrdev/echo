@@ -2,7 +2,7 @@ import SceneKit
 import simd
 
 @MainActor
-final class MeshOrbitInteraction {
+final class ArtifactOrbitInteraction {
     private(set) var active = false
     private var previous = NSPoint.zero
     private var pivot = SIMD3<Float>.zero
@@ -11,13 +11,22 @@ final class MeshOrbitInteraction {
     func begin(at location: NSPoint, in view: SCNView) -> Bool {
         guard let camera = view.pointOfView,
             let artifact = view.scene?.rootNode.childNode(withName: "artifact", recursively: false),
-            artifact.geometry?.elements.contains(where: { $0.primitiveType == .triangles }) == true
+            let elements = artifact.geometry?.elements
         else { return false }
+        let isMesh = elements.contains { $0.primitiveType == .triangles }
+        let isCloud = elements.contains { $0.primitiveType == .point }
+        guard isMesh || isCloud else { return false }
         let controller = view.defaultCameraController
         controller.stopInertia()
         controller.pointOfView = camera
         controller.automaticTarget = false
-        if let hit = view.hitTest(location, options: [.rootNode: artifact, .backFaceCulling: false]).first {
+        if isCloud {
+            // Pick once at drag start, using only saved cloud geometry. Camera
+            // frustums, the grid and selection markers must never become pivots.
+            if let point = CloudPointPicker().pick(at: location, in: view, node: artifact, preferFrontmost: true) {
+                controller.target = point
+            }
+        } else if let hit = view.hitTest(location, options: [.rootNode: artifact, .backFaceCulling: false]).first {
             controller.target = hit.worldCoordinates
         }
         let target = controller.target

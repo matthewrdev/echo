@@ -6,6 +6,44 @@ import XCTest
 
 final class StageProgressViewTests: XCTestCase {
     @MainActor
+    func testAlignmentProgressShowsWorkflowAndActiveBundleIteration() async throws {
+        let progress = RunProgress(
+            stageSteps: [
+                "Load matches", "Initial alignment", "Save initial alignment", "Guided matching",
+                "Validate recovery", "Refine recovered alignment", "Check recovery quality", "Save alignment",
+            ],
+            stageStepIndex: 5,
+            steps: [
+                "Build tracks", "Measure error", "Assemble constraints", "Reduce system", "Solve cameras",
+                "Check improvement", "Filter tracks",
+            ], stepIndex: 4,
+            operation: "Solve bundle camera system", stage: "alignment",
+            message: "Bundle iteration 12 of 50 · Solving camera increments", completed: nil, total: nil, updated: nil)
+        let view = NSHostingView(
+            rootView: VStack(alignment: .leading, spacing: 12) {
+                Text("Alignment · Refine recovered alignment").font(.headline)
+                Text(progress.message).font(.caption).foregroundStyle(.secondary)
+                StageProgressBar(progress: progress, showsLegend: true)
+            }.padding(20).frame(width: 700).background(Color.white).environment(\.colorScheme, .light))
+        view.frame = NSRect(x: 0, y: 0, width: 700, height: 320)
+        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = view
+        defer { window.contentView = nil }
+        view.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertLessThanOrEqual(view.fittingSize.height, view.bounds.height)
+        XCTAssertEqual(progress.activeStageStepIndex, 5)
+        XCTAssertNil(progress.fractionCompleted, "An iterative solve has no reliable overall percentage")
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        if let output = ProcessInfo.processInfo.environment["ECHO_TEST_RENDER_DIR"] {
+            try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
+            try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(
+                to: URL(fileURLWithPath: output).appendingPathComponent("alignment-progress.png"))
+        }
+    }
+
+    @MainActor
     func testTextureProgressRendersTheWholePlanAndChartSubsteps() async throws {
         let progress = RunProgress(
             stageSteps: [

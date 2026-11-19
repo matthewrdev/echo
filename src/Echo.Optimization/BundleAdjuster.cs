@@ -22,8 +22,9 @@ public sealed class BundleAdjuster : IBundleAdjuster
         ReconstructionScene scene,
         IReadOnlyList<ImagePair> pairs,
         CancellationToken cancellation,
-        Action<ReconstructionScene>? checkpoint = null)
+        Action<ReconstructionScene>? checkpoint = null, Action<OperationProgress>? progress = null)
     {
+        var reporting = new BundleProgress(progress, trace, project.Settings.BundleIterations);
         var cameras = scene.Cameras;
         var imageLookup = new Dictionary<string, Photo>(project.Images.Count, StringComparer.Ordinal);
         foreach (var photo in project.Images)
@@ -62,7 +63,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             }
         }
 
-        trace?.Operation(new OperationProgress("Build bundle tracks", "Linking multi-view observations"), PerformanceBackend.Cpu);
+        reporting.Report(new OperationProgress("Build bundle tracks", "Linking multi-view observations"));
         var tracks = BuildTracks(photos, cameras, pairs, cancellation);
         if (tracks.Count < 20)
         {
@@ -149,7 +150,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
         Span<double> pu = stackalloc double[3];
         Span<double> pv = stackalloc double[3];
         Span<double> transformed = stackalloc double[3];
-        trace?.Operation(new OperationProgress("Evaluate bundle cost", "Measuring initial reprojection error"), PerformanceBackend.Cpu);
+        reporting.Report(new OperationProgress("Evaluate bundle cost", "Measuring initial reprojection error"));
         var cost = Cost();
         var oldPoints = new V3[tracks.Count];
         Span<double> cameraStep = stackalloc double[6];
@@ -171,7 +172,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
         for (var iteration = 0; iteration < project.Settings.BundleIterations; iteration++)
         {
             trace?.Measurement("Bundle attempted iterations", 1, "iterations");
-            trace?.Operation(new OperationProgress("Assemble bundle system", "Accumulating camera and point constraints"), PerformanceBackend.Cpu);
+            reporting.Report(new OperationProgress("Assemble bundle system", "Accumulating camera and point constraints"), iteration);
             cancellation.ThrowIfCancellationRequested();
             h.AsSpan().Clear();
             b.AsSpan().Clear();
@@ -274,7 +275,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 h[i * parameter + i] += lambda * Math.Max(1e-5, h[i * parameter + i]);
             }
 
-            trace?.Operation(new OperationProgress("Eliminate bundle points", "Reducing the camera system"), PerformanceBackend.Cpu);
+            reporting.Report(new OperationProgress("Eliminate bundle points", "Reducing the camera system"), iteration);
             foreach (var block in blocks)
             {
                 for (var i = 0; i < 3; i++)
@@ -294,7 +295,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 }
             }
 
-            trace?.Operation(new OperationProgress("Solve bundle camera system", "Solving camera increments"), PerformanceBackend.Cpu);
+            reporting.Report(new OperationProgress("Solve bundle camera system", "Solving camera increments"), iteration);
             DenseMatrix matrix;
             using (trace?.Begin("Copy bundle camera matrix", PerformanceSpanKind.Operation))
             {
@@ -383,7 +384,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 tracks[i].Point += step;
             }
 
-            trace?.Operation(new OperationProgress("Evaluate bundle update", "Checking reprojection improvement"), PerformanceBackend.Cpu);
+            reporting.Report(new OperationProgress("Evaluate bundle update", "Checking reprojection improvement"), iteration);
             var nextCost = Cost();
             if (double.IsFinite(nextCost) && nextCost < cost)
             {
@@ -420,7 +421,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             }
         }
 
-        trace?.Operation(new OperationProgress("Finalize bundle tracks", "Removing inconsistent observations"), PerformanceBackend.Cpu);
+        reporting.Report(new OperationProgress("Finalize bundle tracks", "Removing inconsistent observations"));
         report.FinalUntrimmedMedianError = MedianError(tracks, photos, cameras);
         foreach (var track in tracks)
         {

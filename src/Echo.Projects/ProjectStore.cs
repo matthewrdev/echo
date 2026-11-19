@@ -121,8 +121,11 @@ public sealed class ProjectStore : IProjectStore
         }
 
         var added = new List<Photo>();
-        foreach (var path in paths)
+        var skipped = 0;
+        progress?.Invoke(new PhotoImportProgress("imageImportStarted", 0, 0, paths.Length, 0));
+        for (var index = 0; index < paths.Length; index++)
         {
+            var path = paths[index];
             var hash = fileOperations.HashFile(path);
             var duplicate = Load().Images.FirstOrDefault(i => i.Hash == hash);
             if (duplicate != null)
@@ -135,6 +138,9 @@ public sealed class ProjectStore : IProjectStore
                         i.Sets.Add(set);
                     }
                 });
+                skipped++;
+                progress?.Invoke(new PhotoImportProgress("imageImportSkipped", added.Count, index + 1, paths.Length,
+                    skipped, duplicate.Id, Path.GetFileName(path)));
                 continue;
             }
 
@@ -209,13 +215,8 @@ public sealed class ProjectStore : IProjectStore
             File.Copy(path, original, true);
             Edit(p => p.Images.Add(image));
             added.Add(image);
-            progress?.Invoke(new
-            {
-                type = "imageImported",
-                image.Id,
-                image.Name,
-                count = added.Count
-            });
+            progress?.Invoke(new PhotoImportProgress("imageImported", added.Count, index + 1, paths.Length,
+                skipped, image.Id, image.Name));
         }
 
         return added;

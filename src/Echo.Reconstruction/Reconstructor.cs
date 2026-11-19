@@ -27,25 +27,26 @@ public sealed class Reconstructor : IReconstructor
     public ReconstructionScene Align(ProjectData project,
         List<ImagePair> pairs,
         CancellationToken cancellation,
-        Action<ReconstructionScene>? checkpoint = null)
+        Action<ReconstructionScene>? checkpoint = null, Action<OperationProgress>? progress = null)
     {
+        var reporting = new ReconstructionProgress(progress, trace);
         var images = project.Images.Where(image => image.Enabled).ToDictionary(image => image.Id, StringComparer.Ordinal);
         var priors = CameraPriorBuilder.Build(project);
 
         // Reject descriptor aliases before they can bias any camera or point estimate.
         // Reuse only a certificate tied to the exact correspondences, flags,
         // threshold and implementation. Display flags alone are not authority.
-        trace?.Operation(new OperationProgress("Verify image geometry", "Verifying matched pairs"));
+        reporting.Report(new OperationProgress("Verify image geometry", "Verifying matched pairs"));
         pairs = ImagePairVerifier.VerifyAll(images, pairs, Math.Max(1, Environment.ProcessorCount - 2),
             cancellation, compute, project.Settings.ComputeBackend);
 
-        var visual = visualReconstructor.TryAlignVerified(project, pairs, cancellation, checkpoint);
+        var visual = visualReconstructor.TryAlignVerified(project, pairs, cancellation, checkpoint, progress);
         if (visual != null)
         {
             return visual;
         }
 
-        trace?.Operation(new OperationProgress("Initialize cameras", "Building initial poses"));
+        reporting.Report(new OperationProgress("Initialize cameras", "Building initial poses"));
         var result = new ReconstructionScene();
         foreach (var image in images.Values)
         {
@@ -105,7 +106,7 @@ public sealed class Reconstructor : IReconstructor
             result.Warnings.Add("Absolute elevation datum is unknown; altitude offsets are approximate. Horizontal referencing is not survey validated.");
         }
 
-        trace?.Operation(new OperationProgress("Refine camera rotations", "Refining initial poses"));
+        reporting.Report(new OperationProgress("Refine camera rotations", "Refining initial poses"));
         if (result.Origin != null)
         {
             // Optimise only small rotation corrections: noisy GPS must not be disguised as precise visual poses.
@@ -119,7 +120,7 @@ public sealed class Reconstructor : IReconstructor
             }
         }
 
-        SparseTriangulator.Build(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint, compute, trace);
+        SparseTriangulator.Build(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint, compute, trace, progress);
         checkpoint?.Invoke(result);
         var registered = new HashSet<string>(StringComparer.Ordinal);
         foreach (var camera in result.Cameras)
@@ -129,7 +130,7 @@ public sealed class Reconstructor : IReconstructor
         // Register photographs without GPS against existing image-to-cloud observations using calibrated DLT + RANSAC.
         for (var pass = 0; pass < 3; pass++)
         {
-            trace?.Operation(new OperationProgress("Register cameras", "Registering remaining photographs"));
+            reporting.Report(new OperationProgress("Register cameras", $"Registration pass {pass + 1} of 3 · {registered.Count:N0}/{images.Count:N0} cameras placed"));
             var added = false;
             foreach (var image in images.Values)
             {
@@ -154,13 +155,13 @@ public sealed class Reconstructor : IReconstructor
                 break;
             }
 
-            SparseTriangulator.Build(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint, compute, trace);
+            SparseTriangulator.Build(result, images, pairs, cancellation, project.Settings.ComputeBackend, checkpoint, compute, trace, progress);
         }
 
         if (result.Cameras.Count >= 3)
         {
-            trace?.Operation(new OperationProgress("Bundle adjustment", "Refining cameras and tracks"));
-            bundleAdjuster.Refine(project, result, pairs, cancellation, checkpoint);
+            reporting.Report(new OperationProgress("Bundle adjustment", "Refining cameras and tracks"));
+            bundleAdjuster.Refine(project, result, pairs, cancellation, checkpoint, progress);
         }
         else
         {

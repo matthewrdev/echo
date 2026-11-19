@@ -2,12 +2,12 @@ import SceneKit
 
 @MainActor
 final class OptionCameraInteraction {
-    private let meshOrbit = MeshOrbitInteraction()
+    private let artifactOrbit = ArtifactOrbitInteraction()
     private var cameraControlEnabled = false
     private var previousMode: SCNInteractionMode = .orbitTurntable
 
     func begin(at location: NSPoint, modifiers: NSEvent.ModifierFlags, in view: SCNView) {
-        if !modifiers.contains(.shift), meshOrbit.begin(at: location, in: view) { return }
+        if !modifiers.contains(.shift), artifactOrbit.begin(at: location, in: view) { return }
         cameraControlEnabled = view.allowsCameraControl
         view.allowsCameraControl = false
         let controller = view.defaultCameraController
@@ -20,16 +20,16 @@ final class OptionCameraInteraction {
     }
 
     func drag(to location: NSPoint, in view: SCNView) {
-        if meshOrbit.active {
-            meshOrbit.drag(to: location, in: view)
+        if artifactOrbit.active {
+            artifactOrbit.drag(to: location, in: view)
             return
         }
         view.defaultCameraController.continueInteraction(location, withViewport: view.bounds.size, sensitivity: 1)
     }
 
     func end(at location: NSPoint, in view: SCNView) {
-        if meshOrbit.active {
-            meshOrbit.end(in: view)
+        if artifactOrbit.active {
+            artifactOrbit.end(in: view)
             return
         }
         let controller = view.defaultCameraController

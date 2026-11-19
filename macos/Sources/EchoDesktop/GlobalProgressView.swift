@@ -43,7 +43,11 @@ struct GlobalProgressView: View {
                     }
                 }
             }
-            if workspace.isWorking, let progress = workspace.workingRun?.progress, progress.phase != "checking" {
+            if workspace.importingPhotos {
+                if let progress = workspace.photoImportProgress {
+                    ProgressView(value: progress.fractionCompleted).accessibilityLabel(progress.summary)
+                }
+            } else if workspace.isWorking, let progress = workspace.workingRun?.progress, progress.phase != "checking" {
                 if progress.hasStepPlan {
                     StageProgressBar(progress: progress, showsLegend: true)
                 } else if let fraction = progress.fractionCompleted {

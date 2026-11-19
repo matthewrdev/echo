@@ -157,7 +157,17 @@ public sealed class VisualReconstructionTests
         }
 
         var snapshot = JsonSerializer.Serialize(project);
-        var scene = reconstructor.Align(project, pairs, default);
+        var updates = new List<OperationProgress>();
+        var scene = reconstructor.Align(project, pairs, default, progress: updates.Add);
+        Check(updates.All(update => update.Steps != null && update.StepIndex >= 0 && update.StepIndex < update.Steps.Length),
+            "Every alignment operation identifies its active substep");
+        Check(updates.Any(update => update.Operation == "Register visual cameras" && update.Message.Contains("Registration pass")),
+            "Visual registration reports its repeated passes");
+        Check(updates.Any(update => update.Operation == "Triangulation" && update.Completed == update.Total && update.Total > 0),
+            "Triangulation publishes completed pair counts");
+        Check(updates.Any(update => update.Operation == "Solve bundle camera system" && update.Message.Contains("Bundle iteration")),
+            "Bundle solving identifies the iteration rather than pretending to be one indefinite operation");
+        Check(updates.Last().Operation == "Reference visual reconstruction", "Final visual referencing is visible");
         Check(scene.Cameras.Count == centres.Length && scene.Unplaced.Count == 0, "Visual registration lost photographs");
         Check(scene.Cameras.All(camera => camera.Source.Contains("visual", StringComparison.Ordinal)), "GPS poses bypassed visual registration");
         Check(scene.Origin != null, "Visual reconstruction was not georeferenced");

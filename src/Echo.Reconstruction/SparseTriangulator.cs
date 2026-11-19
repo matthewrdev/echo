@@ -10,9 +10,11 @@ internal static class SparseTriangulator
     public static void Build(ReconstructionScene scene,
         Dictionary<string, Photo> images,
         List<ImagePair> pairs,
-        CancellationToken cancellation, ComputeBackend backend, Action<ReconstructionScene>? checkpoint, IComputeService? compute, IPerformanceTrace? trace)
+        CancellationToken cancellation, ComputeBackend backend, Action<ReconstructionScene>? checkpoint, IComputeService? compute, IPerformanceTrace? trace, Action<OperationProgress>? progress = null)
     {
-        trace?.Operation(new OperationProgress("Triangulation", "Constructing sparse points"));
+        var reporting = new ReconstructionProgress(progress, trace);
+        reporting.Report(new OperationProgress("Triangulation", "Constructing sparse points", 0, pairs.Count, "image pairs"));
+        var completed = 0;
         scene.Points.Clear();
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
         foreach (var camera in scene.Cameras)
@@ -22,6 +24,7 @@ internal static class SparseTriangulator
         foreach (var pair in pairs)
         {
             cancellation.ThrowIfCancellationRequested();
+            completed++;
             if (!cameras.TryGetValue(pair.A, out var a) || !cameras.TryGetValue(pair.B, out var b))
             {
                 continue;
@@ -47,6 +50,8 @@ internal static class SparseTriangulator
                 }
             }
             checkpoint?.Invoke(scene);
+            reporting.Report(new OperationProgress("Triangulation", "Constructing sparse points", completed, pairs.Count, "image pairs"));
         }
+        reporting.Report(new OperationProgress("Triangulation", "Sparse points triangulated.", pairs.Count, pairs.Count, "image pairs"));
     }
 }

@@ -16,7 +16,7 @@ final class ArtifactSceneView: SCNView {
     var cameraInspection: CameraInspectionData?
     var selection: ((SparseSelection?) -> Void)?
     private let cloudHighlight = CloudCameraHighlight()
-    private let meshOrbit = MeshOrbitInteraction()
+    private let artifactOrbit = ArtifactOrbitInteraction()
     private let optionCamera = OptionCameraInteraction()
     private var pointerInteraction = ScenePointerInteraction.idle
     private var pointerLocation = NSPoint.zero
@@ -87,8 +87,8 @@ final class ArtifactSceneView: SCNView {
         let nativePan =
             event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.control)
             || event.modifierFlags.contains(.command)
-        if !nativePan, meshOrbit.begin(at: location, in: self) {
-            pointerInteraction = .meshOrbit
+        if !nativePan, artifactOrbit.begin(at: location, in: self) {
+            pointerInteraction = .artifactOrbit
             return
         }
         pointerInteraction = .nativeCamera
@@ -105,8 +105,8 @@ final class ArtifactSceneView: SCNView {
             }
         case .optionCamera:
             optionCamera.drag(to: pointerLocation, in: self)
-        case .meshOrbit:
-            meshOrbit.drag(to: pointerLocation, in: self)
+        case .artifactOrbit:
+            artifactOrbit.drag(to: pointerLocation, in: self)
         case .nativeCamera:
             super.mouseDragged(with: event)
         case .idle, .finished:
@@ -125,8 +125,8 @@ final class ArtifactSceneView: SCNView {
         optionHeld = held
         if held {
             mouseStart = nil
-            if pointerInteraction == .meshOrbit { meshOrbit.end(in: self) }
-            if pointerInteraction == .tool || pointerInteraction == .finished || pointerInteraction == .meshOrbit {
+            if pointerInteraction == .artifactOrbit { artifactOrbit.end(in: self) }
+            if pointerInteraction == .tool || pointerInteraction == .finished || pointerInteraction == .artifactOrbit {
                 if pointerInteraction == .tool { finishTool(at: pointerLocation) }
                 pointerInteraction = .optionCamera
                 optionCamera.begin(at: pointerLocation, modifiers: modifiers, in: self)
@@ -210,8 +210,8 @@ final class ArtifactSceneView: SCNView {
             return
         case .idle, .finished:
             return
-        case .meshOrbit:
-            meshOrbit.end(in: self)
+        case .artifactOrbit:
+            artifactOrbit.end(in: self)
         case .nativeCamera:
             super.mouseUp(with: event)
         }

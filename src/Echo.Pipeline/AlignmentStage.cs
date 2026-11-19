@@ -44,6 +44,9 @@ public sealed class AlignmentStage : IPipelineStage
 
     public void Execute(RunContext context)
     {
+        var progress = new AlignmentProgress(context.Run.Snapshot.Settings.GuidedAlignmentPass,
+            update => context.ReportOperation(Name, update));
+        progress.Begin(AlignmentPhase.LoadMatches, "Loading verified image correspondences…");
         var previewPublisher = new RunPreviewPublisher(context, fileOperations, RunPreviewStage.Alignment);
         void Preview(ReconstructionScene scene)
         {
@@ -70,13 +73,13 @@ public sealed class AlignmentStage : IPipelineStage
             hints = project.Hints
         }, directory =>
         {
-            context.ReportProgress(Name, "Initial alignment: verifying image geometry and refining camera poses.");
-            var scene = reconstructor.Align(project, pairs, context.Cancellation, Preview);
-            context.Trace.Operation(new OperationProgress("Save initial alignment", "Saving cameras and sparse points"));
+            progress.Begin(AlignmentPhase.InitialSolve, "Initial alignment: verifying image geometry and refining camera poses.");
+            var scene = reconstructor.Align(project, pairs, context.Cancellation, Preview, progress.Report);
+            progress.Begin(AlignmentPhase.SaveInitial, "Saving initial cameras and sparse points…");
             fileOperations.AtomicData(Path.Combine(directory, "scene.json"), scene);
         });
 
-        var recoveryUnits = project.Settings.GuidedAlignmentPass ? RecoverPairs(context, pairUnits, pairs) : [];
+        var recoveryUnits = project.Settings.GuidedAlignmentPass ? RecoverPairs(context, pairUnits, pairs, progress) : [];
         var alignment = context.Build(Name, new
         {
             algorithmVersion = 6,
@@ -88,6 +91,10 @@ public sealed class AlignmentStage : IPipelineStage
             project.Settings.BundleIterations
         }, directory =>
         {
+            if (project.Settings.GuidedAlignmentPass)
+            {
+                progress.Begin(AlignmentPhase.ValidateRecovery, "Checking recovered image correspondences…");
+            }
             var scene = jsonCodec.Read<ReconstructionScene>(context.Store.PathFor(initial + "/scene.json"));
             var originalPairs = new List<ImagePair>(pairs);
             var recoveredPairs = ApplyRecoveredPairs(context, pairs, recoveryUnits);
@@ -96,16 +103,20 @@ public sealed class AlignmentStage : IPipelineStage
             {
                 context.ReportProgress(Name, $"Second alignment: jointly refining cameras and points with {recoveredPairs:N0} strengthened image pairs.");
                 var validated = AlignmentRecoveryFilter.Filter(project, scene, originalPairs, pairs, context.Cancellation,
-                    (completed, total) => context.ReportProgress(Name, $"Second pass: checking image pair {completed:N0} of {total:N0} against existing 3D landmarks.", completed, total));
+                    (completed, total) => progress.Report(new OperationProgress("Validate recovery",
+                        $"Checking image pair {completed:N0} of {total:N0} against existing 3D landmarks.", completed, total, "image pairs")));
                 // Keep speculative recovery local until its support has been assessed.
                 var established = jsonCodec.Read<ReconstructionScene>(context.Store.PathFor(initial + "/scene.json"));
                 try
                 {
-                    bundleAdjuster.Refine(project, scene, validated, context.Cancellation, Preview);
+                    progress.Begin(AlignmentPhase.RefineRecovery, "Refining cameras and points with validated recovered matches…");
+                    bundleAdjuster.Refine(project, scene, validated, context.Cancellation, Preview, progress.Report);
+                    progress.Begin(AlignmentPhase.AssessRecovery, "Comparing the recovered solution with the initial alignment…");
                     assessment = AlignmentRecoveryEvaluator.Evaluate(established, scene);
                 }
                 catch (EchoException error) when (error.ExitCode == 5)
                 {
+                    progress.Begin(AlignmentPhase.AssessRecovery, "Checking recovery stability…");
                     assessment = new AlignmentRecoveryAssessment
                     {
                         Reason = $"Second pass could not produce a stable solution: {error.Message} Kept the initial verified alignment."
@@ -119,6 +130,7 @@ public sealed class AlignmentStage : IPipelineStage
                 context.ReportProgress(Name, assessment.Reason);
                 Preview(scene);
             }
+            progress.Begin(AlignmentPhase.SaveAlignment, "Saving the verified alignment…");
             fileOperations.AtomicJson(Path.Combine(directory, "recovery.json"), new
             {
                 initial,
@@ -133,12 +145,14 @@ public sealed class AlignmentStage : IPipelineStage
                 positions[index] = scene.Points[index].Position;
             }
             plyWriter.Write(Path.Combine(directory, "points.ply"), positions);
+            progress.Report(new OperationProgress("Save alignment", "Cameras and sparse points saved.", 3, 3, "files"));
         });
         context.Publish(Name, alignment);
     }
 
-    private List<string> RecoverPairs(RunContext context, List<string> pairUnits, List<ImagePair> pairs)
+    private List<string> RecoverPairs(RunContext context, List<string> pairUnits, List<ImagePair> pairs, AlignmentProgress progress)
     {
+        progress.Begin(AlignmentPhase.GuidedMatching, "Searching for additional verified image matches…");
         var features = context.ReadArtifact<Dictionary<string, string>>("features", "units.json");
         var photos = new Dictionary<string, Photo>(context.Images.Count, StringComparer.Ordinal);
         foreach (var photo in context.Images)
@@ -153,7 +167,8 @@ public sealed class AlignmentStage : IPipelineStage
             index => BuildRecoveryPair(context, pairs[index], pairUnits[index], photos, features, cache), (index, unit) =>
         {
             units.Add(unit);
-            context.ReportProgress(Name, $"Second pass: searching and validating overlap in image pair {index + 1:N0} of {pairs.Count:N0}.", index + 1, pairs.Count);
+            progress.Report(new OperationProgress("Guided matching",
+                $"Searching and validating overlap in image pair {index + 1:N0} of {pairs.Count:N0}.", index + 1, pairs.Count, "image pairs"));
         }, context.Cancellation);
         return units;
     }

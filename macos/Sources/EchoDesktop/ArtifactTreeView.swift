@@ -76,10 +76,18 @@ struct ArtifactTreeView: View {
                     select: { workspace.destination = .images }
                 ) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(
-                            "\(photos.count.formatted()) photographs · \(photos.filter(\.enabled).count.formatted()) enabled"
-                        )
-                        Text("\(photos.filter { $0.gps != nil }.count.formatted()) with GPS")
+                        if workspace.importingPhotos {
+                            Text(workspace.photoImportProgress?.summary ?? "Counting photos…")
+                                .foregroundStyle(Color.accentColor).monospacedDigit()
+                            if let progress = workspace.photoImportProgress {
+                                ProgressView(value: progress.fractionCompleted).accessibilityLabel(progress.summary)
+                            }
+                        } else {
+                            Text(
+                                "\(photos.count.formatted()) photographs · \(photos.filter(\.enabled).count.formatted()) enabled"
+                            )
+                            Text("\(photos.filter { $0.gps != nil }.count.formatted()) with GPS")
+                        }
                     }
                 }
             }

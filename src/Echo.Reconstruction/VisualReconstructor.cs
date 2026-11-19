@@ -25,8 +25,9 @@ public sealed class VisualReconstructor : IVisualReconstructor
     }
 
     public ReconstructionScene? TryAlignVerified(ProjectData project, List<ImagePair> pairs,
-        CancellationToken cancellation, Action<ReconstructionScene>? checkpoint = null)
+        CancellationToken cancellation, Action<ReconstructionScene>? checkpoint = null, Action<OperationProgress>? progress = null)
     {
+        var reporting = new ReconstructionProgress(progress, trace);
         var priors = CameraPriorBuilder.Build(project);
         var geographicCameras = priors.Values.Count(prior => prior.Position != null);
         var insufficientReference = geographicCameras > 0 && geographicCameras < 3;
@@ -39,7 +40,7 @@ public sealed class VisualReconstructor : IVisualReconstructor
         var photos = working.Images.ToDictionary(photo => photo.Id, StringComparer.Ordinal);
         var calibrationGroups = photos.Values.ToDictionary(photo => photo.Id,
             photo => $"{photo.Camera}:{photo.Width}:{photo.Height}:{photo.FocalPixels:G8}", StringComparer.Ordinal);
-        var scene = Seed(photos, priors, pairs, project.Settings.ComputeBackend, cancellation);
+        var scene = Seed(photos, priors, pairs, project.Settings.ComputeBackend, cancellation, progress);
         if (scene == null)
         {
             return null;
@@ -48,10 +49,12 @@ public sealed class VisualReconstructor : IVisualReconstructor
         scene.Warnings.Add("Experimental: visual camera registration and shared focal refinement; GPS supplies a robust similarity reference. No lens-distortion calibration or survey control.");
         var registered = scene.Cameras.Select(camera => camera.ImageId).ToHashSet(StringComparer.Ordinal);
         checkpoint?.Invoke(scene);
+        var registrationPass = 0;
         while (registered.Count < photos.Count)
         {
             cancellation.ThrowIfCancellationRequested();
-            trace?.Operation(new OperationProgress("Register visual cameras", $"Registering photographs from {registered.Count} visual poses"));
+            registrationPass++;
+            reporting.Report(new OperationProgress("Register visual cameras", $"Registration pass {registrationPass} · {registered.Count:N0}/{photos.Count:N0} cameras placed"));
             var candidates = photos.Values.Where(photo => !registered.Contains(photo.Id)).ToArray();
             var poses = new CameraPose?[candidates.Length];
             var options = new ParallelOptions
@@ -83,8 +86,8 @@ public sealed class VisualReconstructor : IVisualReconstructor
             }
 
             SparseTriangulator.Build(scene, photos, pairs, cancellation, working.Settings.ComputeBackend,
-                checkpoint, compute, trace);
-            bundleAdjuster.Refine(working, scene, pairs, cancellation, checkpoint);
+                checkpoint, compute, trace, progress);
+            bundleAdjuster.Refine(working, scene, pairs, cancellation, checkpoint, progress);
             UpdateCalibrations(photos, calibrationGroups, scene.Cameras);
         }
 
@@ -92,7 +95,7 @@ public sealed class VisualReconstructor : IVisualReconstructor
         {
             return null;
         }
-        bundleAdjuster.Refine(working, scene, pairs, cancellation, checkpoint);
+        bundleAdjuster.Refine(working, scene, pairs, cancellation, checkpoint, progress);
         foreach (var id in photos.Keys)
         {
             if (!registered.Contains(id))
@@ -101,7 +104,7 @@ public sealed class VisualReconstructor : IVisualReconstructor
             }
         }
 
-        trace?.Operation(new OperationProgress("Reference visual reconstruction", "Aligning the visual frame to consistent GPS positions"));
+        reporting.Report(new OperationProgress("Reference visual reconstruction", "Aligning the visual frame to consistent GPS positions"));
         var georeferenced = SceneGeoreferencer.TryApply(scene, priors, new Random(817), cancellation);
         if (geographicCameras > 0 && !georeferenced)
         {
@@ -116,9 +119,10 @@ public sealed class VisualReconstructor : IVisualReconstructor
 
     private ReconstructionScene? Seed(Dictionary<string, Photo> photos,
         Dictionary<string, CameraPrior> priors, List<ImagePair> pairs, ComputeBackend backend,
-        CancellationToken cancellation)
+        CancellationToken cancellation, Action<OperationProgress>? progress)
     {
-        trace?.Operation(new OperationProgress("Select visual seed", "Finding a supported two-view reconstruction"));
+        var reporting = new ReconstructionProgress(progress, trace);
+        reporting.Report(new OperationProgress("Select visual seed", "Finding a supported two-view reconstruction"));
         var candidates = pairs.Where(pair => pair.Matches.Count >= 100)
             .OrderByDescending(pair => SeedScore(pair, priors));
         foreach (var pair in candidates)
@@ -146,7 +150,7 @@ public sealed class VisualReconstructor : IVisualReconstructor
                     }
                 ]
             };
-            SparseTriangulator.Build(scene, photos, [pair], cancellation, backend, null, compute, trace);
+            SparseTriangulator.Build(scene, photos, [pair], cancellation, backend, null, compute, trace, progress);
             if (scene.Points.Count >= 100)
             {
                 return scene;
