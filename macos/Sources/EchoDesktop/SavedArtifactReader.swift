@@ -202,7 +202,10 @@ final class SavedArtifactReader: ArtifactReader {
             var totalSparsePoints: Int?
             let reconstruction: ReconstructionScene? = try alignmentPath.map {
                 let directory = root.appendingPathComponent($0)
-                let previewFile = directory.appendingPathComponent("preview.json")
+                let binaryPreview = directory.appendingPathComponent("preview.bin")
+                let previewFile =
+                    FileManager.default.fileExists(atPath: binaryPreview.path)
+                    ? binaryPreview : directory.appendingPathComponent("preview.json")
                 if FileManager.default.fileExists(atPath: previewFile.path) {
                     let preview: AlignmentPreview = try read(previewFile)
                     totalSparsePoints = preview.totalPoints
@@ -227,7 +230,9 @@ final class SavedArtifactReader: ArtifactReader {
                 detail =
                     "\(label) · displaying \(points.count.formatted()) of \(available.formatted()) \(source) points"
                 if partial {
-                    detail += " · \((totalSparsePoints ?? available).formatted()) reconstructed · provisional sample"
+                    let total = totalSparsePoints ?? available
+                    let coverage = available < total ? "provisional sample" : "provisional alignment"
+                    detail += " · \(total.formatted()) reconstructed · \(coverage)"
                 }
                 if sparseOptions.maximumReprojectionError != nil {
                     detail += " · \(preview.eligibleCount.formatted()) pass error filter"

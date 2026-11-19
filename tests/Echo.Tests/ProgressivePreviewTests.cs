@@ -4,6 +4,10 @@ using Echo.Fusion;
 using Echo.Infrastructure;
 using Echo.Pipeline;
 using Echo.Projects;
+using Echo.Storage;
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
 
 namespace Echo.Tests;
 
@@ -14,14 +18,17 @@ public sealed class ProgressivePreviewTests
     private readonly IRunContextFactory contexts;
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
+    private readonly IAlignmentPreviewWriter alignmentPreviews;
 
     [ImportingConstructor]
-    public ProgressivePreviewTests(IProjectStoreFactory stores, IRunContextFactory contexts, IFileOperations files, IJsonCodec json)
+    public ProgressivePreviewTests(IProjectStoreFactory stores, IRunContextFactory contexts, IFileOperations files, IJsonCodec json,
+        IAlignmentPreviewWriter alignmentPreviews)
     {
         this.stores = stores;
         this.contexts = contexts;
         this.files = files;
         this.json = json;
+        this.alignmentPreviews = alignmentPreviews;
     }
 
     internal void Run(TestSuite tests)
@@ -32,10 +39,87 @@ public sealed class ProgressivePreviewTests
             {
                 Points = Enumerable.Range(0, 100000).Select(index => new CloudPoint { Position = [index, 0, 0] }).ToList()
             };
-            var preview = AlignmentPreviewSampler.Sample(scene);
+            var preview = AlignmentPreviewSampler.Sample(scene, 30000);
             Check(preview.TotalPoints == 100000 && preview.Scene.Points.Count == 30000, "Sparse preview is not bounded");
             Check(preview.Scene.Points[^1].Position[0] > 99990, "Sampling only showed the beginning of the cloud");
             Check(scene.Points.Count == 100000, "Preview changed reconstruction output");
+            Check(AlignmentPreviewSampler.Sample(scene).Scene.Points.Count == scene.Points.Count,
+                "New live previews should include every point below the display limit");
+        });
+        tests.Run("Full sparse previews publish atomic binary snapshots with bounded storage", () =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), "echo-sparse-preview-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var store = stores.Open(path);
+                store.Init();
+                var run = new RunData { Id = Guid.NewGuid().ToString("N"), Snapshot = store.Load() };
+                using var context = contexts.Create(store, run, default, null);
+                var publisher = new RunPreviewPublisher(context, files, RunPreviewStage.Alignment);
+                var scene = new ReconstructionScene
+                {
+                    Points = Enumerable.Range(0, 1100001).Select(index => new CloudPoint
+                    {
+                        Position = [index % 1000, index / 1000, 10],
+                        ImageA = "first",
+                        ImageB = "second",
+                        PixelA = [12, 34],
+                        PixelB = [56, 78],
+                        Error = index % 2 == 0 ? .5 : 2,
+                        Colour = [83, 210, 185]
+                    }).ToList()
+                };
+                var preview = AlignmentPreviewSampler.Sample(scene);
+                var timer = Stopwatch.StartNew();
+                publisher.PublishAlignment(preview, alignmentPreviews);
+                timer.Stop();
+                var saved = store.PathFor(run.Artifacts["alignmentPreview"] + "/preview.bin");
+                using (var input = new BinaryReader(File.OpenRead(saved), Encoding.UTF8))
+                {
+                    Check(input.ReadInt32() == 0x31505345, "Sparse snapshot format marker");
+                    var header = JsonSerializer.Deserialize<AlignmentPreviewHeader>(input.ReadBytes(input.ReadInt32()), json.Options)!;
+                    Check(header.TotalPoints == scene.Points.Count && header.Scene.Points.Count == 0, "Header contains inline points or loses the total");
+                    Check(input.ReadInt32() == 0x31504345 && input.ReadInt32() == 1 && input.ReadInt32() == 76,
+                        "Sparse preview must use the existing lossless point records");
+                    Check(input.ReadInt32() == scene.Points.Count, "Snapshot lost points");
+                    var codec = new CloudPointRecordCodec(header.Images);
+                    var point = codec.Decode(input.ReadBytes(codec.Size));
+                    Check(point.Position.SequenceEqual(scene.Points[0].Position) && point.PixelA.SequenceEqual(new double[] { 12, 34 })
+                        && point.ImageB == "second" && point.Colour!.SequenceEqual(new byte[] { 83, 210, 185 }), "Preview lost observation data");
+                }
+                Check(new FileInfo(saved).Length < scene.Points.Count * 77L, "Preview storage should stay compact");
+                var output = Environment.GetEnvironmentVariable("ECHO_TEST_ALIGNMENT_PREVIEW_OUTPUT");
+                if (!string.IsNullOrEmpty(output))
+                {
+                    Directory.CreateDirectory(output);
+                    File.Copy(saved, Path.Combine(output, "preview.bin"), true);
+                    Console.WriteLine($"  Sparse preview: {scene.Points.Count:N0} points, {new FileInfo(saved).Length:N0} bytes, {timer.ElapsedMilliseconds} ms publication");
+                }
+                var original = files.HashFile(saved);
+                using var cancelled = new CancellationTokenSource();
+                cancelled.Cancel();
+                try
+                {
+                    alignmentPreviews.Write(saved, preview, cancelled.Token);
+                    throw new InvalidOperationException("Cancelled preview was published");
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                Check(files.HashFile(saved) == original, "Cancellation damaged a readable snapshot");
+                for (var index = 0; index < 4; index++)
+                {
+                    publisher.PublishAlignment(AlignmentPreviewSampler.Sample(scene, 100), alignmentPreviews);
+                }
+                Check(Directory.GetFiles(store.PathFor($"runs/{run.Id}/previews"), "*", SearchOption.AllDirectories).Length == 2,
+                    "Binary preview updates accumulated files");
+                Check(!publisher.IsDue && Directory.GetFileSystemEntries(store.PathFor("artifacts")).Length == 0,
+                    "Preview updates bypass throttling or create reconstruction checkpoints");
+            }
+            finally
+            {
+                Directory.Delete(path, true);
+            }
         });
         tests.Run("Fusion previews keep bounded representative samples through repeated compaction", () =>
         {

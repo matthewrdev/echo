@@ -25,8 +25,11 @@ struct ArtifactViewer: View {
             run.artifacts[stage] == nil, let path = run.artifacts[stage + "Preview"]
         {
             // Preview slots are reused. Include their version even if polling missed a slot change.
-            let file = URL(fileURLWithPath: workspace.root).appendingPathComponent(path)
-                .appendingPathComponent("preview.json")
+            let folder = URL(fileURLWithPath: workspace.root).appendingPathComponent(path)
+            let binary = folder.appendingPathComponent("preview.bin")
+            let file =
+                workspace.selectedStage == .alignment && FileManager.default.fileExists(atPath: binary.path)
+                ? binary : folder.appendingPathComponent("preview.json")
             let version = ArtifactFileVersion(file: file)
             previewVersion = "\(version.modified?.timeIntervalSince1970 ?? 0)/\(version.size ?? 0)/\(run.status)"
         }

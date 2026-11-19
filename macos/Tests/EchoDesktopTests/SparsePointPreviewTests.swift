@@ -73,7 +73,7 @@ final class SparsePointPreviewTests: XCTestCase {
             XCTAssertGreaterThan(count, 0)
             XCTAssertGreaterThan(inspection.visibleTrackIndices.count, 0)
             if run.artifacts["alignment"] == nil {
-                XCTAssertTrue(value.detail.contains("reconstructed · provisional sample"))
+                XCTAssertTrue(value.detail.contains("reconstructed · provisional"))
             }
             if maximumError != nil {
                 XCTAssertTrue(value.detail.contains("pass error filter"))

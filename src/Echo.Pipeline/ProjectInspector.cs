@@ -10,11 +10,13 @@ namespace Echo.Pipeline;
 public sealed class ProjectInspector : IProjectInspector
 {
     private readonly IJsonCodec jsonCodec;
+    private readonly IAlignmentPreviewReader previewReader;
 
     [ImportingConstructor]
-    public ProjectInspector(IJsonCodec jsonCodec)
+    public ProjectInspector(IJsonCodec jsonCodec, IAlignmentPreviewReader previewReader)
     {
         this.jsonCodec = jsonCodec;
+        this.previewReader = previewReader;
     }
 
     public Inspection Inspect(IProjectStore store, string runId = "latest", bool summary = false)
@@ -39,8 +41,10 @@ public sealed class ProjectInspector : IProjectInspector
             if (run.Artifacts.TryGetValue(key, out var alignment))
             {
                 var preview = store.PathFor(alignment + "/preview.json");
+                var binaryPreview = store.PathFor(alignment + "/preview.bin");
                 var file = store.PathFor(alignment + "/scene.json");
-                scene = ReadArtifact(() => File.Exists(preview) ? ReadPreview(preview, summary) : summary
+                scene = ReadArtifact(() => File.Exists(binaryPreview) ? previewReader.Read(binaryPreview, summary).Scene
+                    : File.Exists(preview) ? ReadPreview(preview, summary) : summary
                         ? jsonCodec.Read<ReconstructionOverview>(file).ToScene()
                         : jsonCodec.Read<ReconstructionScene>(file),
                     "alignment", summary, warnings);

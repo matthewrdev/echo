@@ -4,8 +4,9 @@ namespace Echo.Pipeline;
 
 public static class AlignmentPreviewSampler
 {
-    public static AlignmentPreview Sample(ReconstructionScene scene, int limit = 30000)
+    public static AlignmentPreview Sample(ReconstructionScene scene, int limit = 4000000)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
         var count = Math.Min(limit, scene.Points.Count);
         var points = new List<CloudPoint>(count);
         for (var index = 0; index < count; index++)

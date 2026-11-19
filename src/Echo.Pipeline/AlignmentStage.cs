@@ -20,11 +20,12 @@ public sealed class AlignmentStage : IPipelineStage
     private readonly IImageWorkPlanner workPlanner;
     private readonly IOrderedWorkExecutor workExecutor;
     private readonly IFeatureSetCacheFactory cacheFactory;
+    private readonly IAlignmentPreviewWriter previewWriter;
 
     [ImportingConstructor]
     public AlignmentStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IReconstructor reconstructor, IPlyWriter plyWriter,
         IGuidedFeatureMatcher guidedMatcher, IBundleAdjuster bundleAdjuster, IImageWorkPlanner workPlanner,
-        IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory)
+        IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory, IAlignmentPreviewWriter previewWriter)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
@@ -35,6 +36,7 @@ public sealed class AlignmentStage : IPipelineStage
         this.workPlanner = workPlanner;
         this.workExecutor = workExecutor;
         this.cacheFactory = cacheFactory;
+        this.previewWriter = previewWriter;
     }
 
     public string Name => "alignment";
@@ -47,7 +49,7 @@ public sealed class AlignmentStage : IPipelineStage
         {
             if (previewPublisher.IsDue && scene.Points.Count > 0)
             {
-                previewPublisher.Publish(AlignmentPreviewSampler.Sample(scene));
+                previewPublisher.PublishAlignment(AlignmentPreviewSampler.Sample(scene), previewWriter);
             }
         }
         var project = context.Run.Snapshot;

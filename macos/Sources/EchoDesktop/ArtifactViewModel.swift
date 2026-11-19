@@ -5,6 +5,7 @@ final class ArtifactViewModel: ObservableObject {
     private let reader: ArtifactReader
     private var generation = UUID()
     private var loadTask: Task<ArtifactPresentation, Error>?
+    private var pendingPreviewRefresh = false
     private var root: URL?
     private var run: RunData?
     private var requestedMatch: FeatureMatchLink?
@@ -54,6 +55,14 @@ final class ArtifactViewModel: ObservableObject {
 
     func configure(root: String, run: RunData?, stage: PipelineStage, preferredPhotoID: String? = nil) async {
         let sameSelection = self.root?.path == root && self.run?.id == run?.id && self.stage == stage
+        if sameSelection, loading, stage == .alignment || stage == .fusion {
+            // Finish a large snapshot instead of cancelling it every time a newer
+            // preview arrives. Then jump straight to the latest available snapshot.
+            self.run = run
+            pendingPreviewRefresh = true
+            return
+        }
+        pendingPreviewRefresh = false
         let previousUnit = units.first { $0.id == selectedUnit }
         let previousMatching = self.run?.artifacts["matching"]
         let request = UUID()
@@ -128,6 +137,7 @@ final class ArtifactViewModel: ObservableObject {
     }
 
     func cancelLoading() {
+        pendingPreviewRefresh = false
         generation = UUID()
         loadTask?.cancel()
         loadTask = nil
@@ -136,6 +146,7 @@ final class ArtifactViewModel: ObservableObject {
 
     func load() async {
         guard let root, let run else { return }
+        pendingPreviewRefresh = false
         let request = UUID()
         generation = request
         loading = true
@@ -171,5 +182,11 @@ final class ArtifactViewModel: ObservableObject {
             presentation = nil
         }
         loading = false
+        if pendingPreviewRefresh {
+            Task { [weak self] in
+                guard let self, self.generation == request, self.pendingPreviewRefresh else { return }
+                await self.load()
+            }
+        }
     }
 }

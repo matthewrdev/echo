@@ -15,18 +15,55 @@ public sealed class ProjectInspectionTests
     private readonly IProjectInspector inspector;
     private readonly IJsonCodec json;
     private readonly IBulkArtifactStore bulk;
+    private readonly IAlignmentPreviewWriter previews;
 
     [ImportingConstructor]
-    public ProjectInspectionTests(IProjectStoreFactory stores, IProjectInspector inspector, IJsonCodec json, IBulkArtifactStore bulk)
+    public ProjectInspectionTests(IProjectStoreFactory stores, IProjectInspector inspector, IJsonCodec json, IBulkArtifactStore bulk,
+        IAlignmentPreviewWriter previews)
     {
         this.stores = stores;
         this.inspector = inspector;
         this.json = json;
         this.bulk = bulk;
+        this.previews = previews;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Live alignment inspection supports binary and legacy previews without decoding points in summaries", () => InProject(store =>
+        {
+            var run = store.GetRun();
+            var path = run.Artifacts["alignment"];
+            run.Artifacts.Remove("alignment");
+            run.Artifacts["alignmentPreview"] = path;
+            File.WriteAllText(store.PathFor($"runs/{run.Id}/run.json"), json.Encode(run));
+            var preview = new AlignmentPreview
+            {
+                TotalPoints = 1,
+                Scene = new ReconstructionScene
+                {
+                    Cameras = [new CameraPose { ImageId = "live-camera" }],
+                    Points = [new CloudPoint { Position = [1, 2, 3] }]
+                }
+            };
+            var binary = store.PathFor(path + "/preview.bin");
+            previews.Write(binary, preview, default);
+            var result = inspector.Inspect(store, summary: true);
+            Check(result.Warnings.Count == 0 && result.Reconstruction?.Cameras.Single().ImageId == "live-camera"
+                && result.Reconstruction.Points.Count == 0, "Live summary lost cameras or loaded point records");
+            Check(inspector.Inspect(store).Reconstruction!.Points[0].Position.SequenceEqual(new double[] { 1, 2, 3 }),
+                "Full inspection lost live points");
+            using (var file = File.OpenWrite(binary))
+            {
+                file.Position = file.Length - 4;
+                file.WriteByte(255);
+            }
+            Check(inspector.Inspect(store, summary: true).Warnings.Count == 0, "Summary read point records unnecessarily");
+            Reject(() => inspector.Inspect(store));
+            File.Delete(binary);
+            File.WriteAllText(store.PathFor(path + "/preview.json"), json.Encode(preview));
+            Check(inspector.Inspect(store).Reconstruction!.Points.Count == 1, "Legacy preview compatibility was lost");
+        }));
         tests.Run("Project summaries retain project and run data when saved alignment cannot be read", () => InProject(store =>
         {
             var scene = store.PathFor("artifacts/alignment/saved/scene.json");

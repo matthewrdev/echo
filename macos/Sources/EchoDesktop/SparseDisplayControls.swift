@@ -57,7 +57,7 @@ struct SparseDisplayControls: View {
         }
         .fixedSize()
         .help(
-            "Auto displays up to one million points. All and Custom support up to four million. Live previews contain a sample; the full cloud is available after alignment finishes. Filters affect only the display."
+            "Auto displays up to one million points. All and Custom support up to four million in saved clouds and new live alignments. Older live previews may contain a smaller sample. Filters affect only the display."
         )
     }
 

@@ -19,7 +19,12 @@ final class ArtifactJSONReader {
         }
         let data = try Data(contentsOf: file, options: .mappedIfSafe)
         var value: T
-        if T.self == FeatureSet.self || T.self == ImagePair.self || T.self == ImagePairSummary.self {
+        if T.self == AlignmentPreview.self, file.pathExtension == "bin" {
+            guard let preview = try AlignmentPreviewReader().read(data) as? T else {
+                throw CLIError(message: "Invalid sparse preview type")
+            }
+            value = preview
+        } else if T.self == FeatureSet.self || T.self == ImagePair.self || T.self == ImagePairSummary.self {
             value = try MatchingArtifactReader().read(file, metadata: data)
         } else if T.self == Surface.self || T.self == FusedVolume.self || T.self == DepthMap.self
             || T.self == SkyProbabilityMap.self
@@ -47,6 +52,8 @@ final class ArtifactJSONReader {
         // Summaries retain no sample arrays. Reserve more than the input size for decoded nested arrays.
         let cost: Int
         switch value {
+        case let preview as AlignmentPreview:
+            cost = preview.scene.points.count * 256 + data.count
         case let scene as ReconstructionScene:
             cost = scene.points.count * 256 + data.count
         case let surface as Surface:
