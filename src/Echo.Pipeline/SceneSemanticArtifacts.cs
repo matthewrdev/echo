@@ -22,14 +22,14 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
         this.workExecutor = workExecutor;
     }
 
-    public IReadOnlyDictionary<string, SemanticMap> Build(RunContext context)
+    public IReadOnlyDictionary<string, SemanticMap> Build(RunContext context, string progressStage = "depth")
     {
         var maps = new Dictionary<string, SemanticMap>();
         var units = new Dictionary<string, string>();
         var classified = 0;
         var backend = context.Run.Snapshot.Settings.ComputeBackend;
         var implementation = segmenter.GetImplementation(backend);
-        ReportPurpose(context);
+        ReportPurpose(context, progressStage);
         ISceneSegmentationSession? session = null;
         var sessionGate = new object();
         var memoryWorkers = Math.Max(1, context.WorkingMemoryBytes / (512L * 1024 * 1024));
@@ -56,11 +56,11 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
                         if (session == null)
                         {
                             var model = modelProvider.EnsureAvailable(context.Store.PathFor("models"), context.Cancellation,
-                                message => context.ReportProgress("depth", message));
+                                message => context.ReportProgress(progressStage, message));
                             session = segmenter.Open(model, backend);
                         }
                     }
-                    context.ReportProgress("depth", $"Detecting sky, vegetation and rock locally · {photo.Name}");
+                    context.ReportProgress(progressStage, $"Detecting sky, vegetation and rock locally · {photo.Name}");
                     detected = session.Segment(context.Store.PathFor(photo.Source), photo.Id, context.Cancellation);
                     files.AtomicData(Path.Combine(directory, "semantics.json"), detected, context.Cancellation);
                     reused = false;
@@ -78,7 +78,8 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
                 maps.Add(photo.Id, checkpoint.Map);
                 classified += checkpoint.Reused ? 0 : 1;
                 var action = checkpoint.Reused ? "Reused saved sky, vegetation and rock classification" : "Saved new sky, vegetation and rock classification";
-                context.ReportProgress("depth", $"{action} · {photo.Name} · {maps.Count}/{context.Images.Count}", maps.Count, context.Images.Count);
+                context.ReportProgress(progressStage, $"{action} · {photo.Name} · {maps.Count}/{context.Images.Count}",
+                    maps.Count, context.Images.Count, unit: "images");
             }, context.Cancellation);
         }
         finally
@@ -88,12 +89,18 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
         var artifact = context.Build("semantics", units, directory => files.AtomicJson(Path.Combine(directory, "units.json"), units),
             () => new ProcessingMetadata { SourceArtifacts = units.Values.ToList() });
         context.Publish("semantics", artifact);
-        context.ReportProgress("depth", $"Photo classification ready: {classified} processed locally, {maps.Count - classified} reused from this project's saved results.");
+        context.ReportProgress(progressStage, $"Photo classification ready: {classified} processed locally, {maps.Count - classified} reused from this project's saved results.");
         return maps;
     }
 
-    private void ReportPurpose(RunContext context)
+    private void ReportPurpose(RunContext context, string progressStage)
     {
+        if (progressStage == "matching")
+        {
+            context.ReportProgress(progressStage, "Checking saved photo classifications to exclude vegetation from matching.");
+            return;
+        }
+
         var settings = context.Run.Snapshot.Settings;
         var reasons = new List<string>();
         if (settings.DepthSuppressSky)

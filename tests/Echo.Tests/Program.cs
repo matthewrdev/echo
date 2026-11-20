@@ -146,6 +146,7 @@ if (args.Contains("--paging", StringComparer.Ordinal))
     return scaleTests.Finish();
 }
 composition.Resolve<MetadataTests>().Run(scaleTests);
+composition.Resolve<HeifImportTests>().Run(scaleTests);
 composition.Resolve<JsonDecodingTests>().Run(scaleTests);
 composition.Resolve<TextureRunOptionsTests>().Run(scaleTests);
 composition.Resolve<PhotoDeduplicationTests>().Run(scaleTests);

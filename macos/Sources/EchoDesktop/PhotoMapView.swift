@@ -5,6 +5,7 @@ struct PhotoMapView: View {
     @StateObject private var controller = CanvasViewportController()
     @State private var layer = PhotoMapLayer.satellite
     @State private var distance = 20.0
+    @State private var boxed: Set<String> = []
     private let projector = MapCameraProjector()
 
     private var cameras: [MapCamera] {
@@ -24,10 +25,14 @@ struct PhotoMapView: View {
                         Text("\(angle)°").font(.caption)
                     }
                 }
-                Text("Down ← tilt → Up · Scroll to zoom · drag to pan").font(.caption).foregroundStyle(.secondary)
+                Text("Down ← tilt → Up · Scroll to zoom · Drag to pan · Shift-drag to select")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             mapSurface(cameras)
-            if let selected = cameras.first(where: { $0.id == workspace.selectedPhotoID }) {
+            let selected = cameras.map(\.photo).filter { boxed.contains($0.id) }
+            if !selected.isEmpty {
+                selectionActions(selected)
+            } else if let selected = cameras.first(where: { $0.id == workspace.selectedPhotoID }) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(
@@ -47,7 +52,10 @@ struct PhotoMapView: View {
                     .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).help("Copy coordinates")
                 }
             }
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .onChange(of: cameras.map(\.id)) { _, visible in boxed.formIntersection(visible) }
+        .onChange(of: workspace.root) { _, _ in boxed.removeAll() }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var mapIdentity: String {
@@ -64,15 +72,18 @@ struct PhotoMapView: View {
             } else if layer != .offline {
                 NativePhotoMap(
                     cameras: cameras, identity: mapIdentity,
-                    satellite: layer == .satellite, selected: $workspace.selectedPhotoID)
+                    satellite: layer == .satellite, selected: $workspace.selectedPhotoID,
+                    boxed: boxed, boxSelection: addToSelection, singleSelection: selectOne)
             } else {
                 VStack(spacing: 8) {
                     CanvasControls(controller: controller, showsInstructions: false)
                         .padding(.trailing, 56)
-                    CanvasViewport(
-                        renderer: PhotoMapRenderer(
-                            identity: mapIdentity, cameras: cameras, selected: workspace.selectedPhotoID,
-                            selection: { workspace.selectedPhotoID = $0 }), controller: controller)
+                    let renderer = PhotoMapRenderer(
+                        identity: mapIdentity, cameras: cameras, selected: workspace.selectedPhotoID,
+                        boxed: boxed, selection: selectOne)
+                    CanvasViewport(renderer: renderer, controller: controller) { rect in
+                        addToSelection(renderer.cameraIDs(in: rect))
+                    }
                 }
             }
         }
@@ -84,5 +95,32 @@ struct PhotoMapView: View {
                 PhotoMapLayerControls(layer: $layer)
             }.padding(12)
         }
+    }
+
+    private func selectOne(_ id: String?) {
+        boxed.removeAll()
+        workspace.selectedPhotoID = id
+    }
+
+    private func addToSelection(_ ids: Set<String>) {
+        guard !ids.isEmpty else { return }
+        boxed.formUnion(ids)
+        if let id = workspace.selectedPhotoID, cameras.contains(where: { $0.id == id }) {
+            boxed.insert(id)
+        }
+        workspace.selectedPhotoID = nil
+    }
+
+    private func selectionActions(_ photos: [Photo]) -> some View {
+        HStack {
+            Text(photos.count == 1 ? "1 photo selected" : "\(photos.count.formatted()) photos selected")
+                .font(.caption)
+            Spacer()
+            Button("Exclude from processing") { workspace.excludePhotos(photos) }
+                .disabled(!workspace.canEdit || !photos.contains(where: \.enabled))
+            Button("Delete photos…", role: .destructive) { workspace.deletePhotos(photos) }
+                .disabled(!workspace.canEdit)
+            Button("Clear selection") { selectOne(nil) }
+        }.controlSize(.small)
     }
 }

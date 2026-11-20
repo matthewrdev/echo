@@ -12,6 +12,7 @@ struct ProcessingImpact {
         if features { return .features }
         let matching =
             old.pairWindow != new.pairWindow || old.matchAllPairs != new.matchAllPairs
+            || old.excludeVegetationFromMatching != new.excludeVegetationFromMatching
             || old.gpsPairNeighbours != new.gpsPairNeighbours || old.matchRatioThreshold != new.matchRatioThreshold
             || old.matchDistanceThreshold != new.matchDistanceThreshold
             || old.frustumPairNeighbours != new.frustumPairNeighbours

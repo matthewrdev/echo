@@ -1,5 +1,7 @@
 using System.ComponentModel.Composition;
+using System.Text.Json;
 using Echo.Contracts;
+using Echo.Geometry;
 using Echo.Metadata;
 using SkiaSharp;
 
@@ -20,6 +22,45 @@ public sealed class MetadataTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("iPhone rear-camera pose uses true north and normalized image axes", () =>
+        {
+            var metadata = new Dictionary<string, JsonElement>
+            {
+                ["Make"] = JsonSerializer.SerializeToElement("Apple"),
+                ["Model"] = JsonSerializer.SerializeToElement("iPhone 16 Pro"),
+                ["FrontFacingCamera"] = JsonSerializer.SerializeToElement(0),
+                ["GPSImgDirectionRef"] = JsonSerializer.SerializeToElement("T"),
+                ["GPSImgDirection"] = JsonSerializer.SerializeToElement(90)
+            };
+            var vectors = new Dictionary<int, double[]>
+            {
+                [1] = [-.8, -.36, .48],
+                [3] = [.8, .36, .48],
+                [6] = [.36, -.8, .48],
+                [8] = [-.36, .8, .48]
+            };
+
+            foreach (var (orientation, vector) in vectors)
+            {
+                metadata["Orientation"] = JsonSerializer.SerializeToElement(orientation);
+                metadata["AccelerationVector"] = JsonSerializer.SerializeToElement(vector);
+                var attitude = IPhoneCapturePose.Estimate(metadata) ?? throw new InvalidOperationException("Expected an iPhone pose");
+                var rotation = CameraGeometry.AttitudeRotation(attitude);
+                Check(attitude.Source == "iPhone sensor estimate" && attitude.Yaw == 90, "East-facing capture estimate");
+                Check(rotation[2] > .8 && Math.Abs(rotation[8]) < 1e-10, "Forward is east of the camera");
+                Check(Math.Abs(rotation[3] + .36) < 1e-10 && Math.Abs(rotation[4] + .8) < 1e-10
+                    && Math.Abs(rotation[5] - .48) < 1e-10, "World down projects correctly into the rotated image");
+            }
+
+            metadata["GPSImgDirectionRef"] = JsonSerializer.SerializeToElement("M");
+            Check(IPhoneCapturePose.Estimate(metadata) == null, "Magnetic heading cannot be used as true north");
+            metadata["GPSImgDirectionRef"] = JsonSerializer.SerializeToElement("T");
+            metadata["FrontFacingCamera"] = JsonSerializer.SerializeToElement(1);
+            Check(IPhoneCapturePose.Estimate(metadata) == null, "Front camera has different axes");
+            metadata["FrontFacingCamera"] = JsonSerializer.SerializeToElement(0);
+            metadata["AccelerationVector"] = JsonSerializer.SerializeToElement(new[] { 0, 0, 1 });
+            Check(IPhoneCapturePose.Estimate(metadata) == null, "Near-vertical capture has no stable heading");
+        });
         tests.Run("GPS altitude sign supports modern below-sea-level references", () =>
         {
             var gps = new MetadataExtractor.Formats.Exif.GpsDirectory();

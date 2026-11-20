@@ -153,13 +153,15 @@ public sealed class AlignmentStage : IPipelineStage
     private List<string> RecoverPairs(RunContext context, List<string> pairUnits, List<ImagePair> pairs, AlignmentProgress progress)
     {
         progress.Begin(AlignmentPhase.GuidedMatching, "Searching for additional verified image matches…");
-        var features = context.ReadArtifact<Dictionary<string, string>>("features", "units.json");
+        var settings = context.Run.Snapshot.Settings;
+        var features = settings.ExcludeVegetationFromMatching
+            ? context.ReadArtifact<Dictionary<string, string>>("matching", "feature-units.json")
+            : context.ReadArtifact<Dictionary<string, string>>("features", "units.json");
         var photos = new Dictionary<string, Photo>(context.Images.Count, StringComparer.Ordinal);
         foreach (var photo in context.Images)
         {
             photos.Add(photo.Id, photo);
         }
-        var settings = context.Run.Snapshot.Settings;
         var units = new List<string>(pairs.Count);
         var plan = workPlanner.Matching(settings, pairs.Count);
         using var cache = cacheFactory.Create(plan.FeatureCacheBytes);

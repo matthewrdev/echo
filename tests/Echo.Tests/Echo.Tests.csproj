@@ -4,6 +4,7 @@
     <ProjectReference Include="../../tools/Echo.Validation/Echo.Validation.csproj" />
     <ProjectReference Include="../../tools/Echo.Migrate/Echo.Migrate.csproj" />
     <None Update="Fixtures/reference-datasets.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures/oriented-photo.heic" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures/reconstruction/*.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../src/Echo.Cli/Echo.Cli.csproj" />
     <ProjectReference Include="../../src/Echo.Pipeline/Echo.Pipeline.csproj" />

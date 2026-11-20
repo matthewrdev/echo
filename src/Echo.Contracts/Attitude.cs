@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Echo.Contracts;
 
 public sealed class Attitude
@@ -11,6 +13,12 @@ public sealed class Attitude
         get; set;
     }
     public double Roll
+    {
+        get; set;
+    }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Source
     {
         get; set;
     }

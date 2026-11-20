@@ -4,6 +4,7 @@ struct CanvasViewport: NSViewRepresentable {
     let renderer: CanvasRenderer
     @ObservedObject var controller: CanvasViewportController
     var reportsHover = false
+    var boxSelection: ((CGRect) -> Void)? = nil
 
     func makeNSView(context: Context) -> InteractiveCanvasView {
         let view = InteractiveCanvasView()
@@ -29,5 +30,6 @@ struct CanvasViewport: NSViewRepresentable {
 
     func updateNSView(_ view: InteractiveCanvasView, context: Context) {
         view.renderer = renderer
+        view.boxSelection = boxSelection
     }
 }

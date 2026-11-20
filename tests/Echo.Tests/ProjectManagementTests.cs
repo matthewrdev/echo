@@ -1,5 +1,7 @@
 using System.ComponentModel.Composition;
 using Echo.Cli;
+using Echo.Contracts;
+using Echo.Infrastructure;
 using Echo.Projects;
 
 namespace Echo.Tests;
@@ -9,16 +11,19 @@ public sealed class ProjectManagementTests
 {
     private readonly ICommandApplication application;
     private readonly IProjectStoreFactory storeFactory;
+    private readonly IFileOperations fileOperations;
 
     [ImportingConstructor]
-    public ProjectManagementTests(ICommandApplication application, IProjectStoreFactory storeFactory)
+    public ProjectManagementTests(ICommandApplication application, IProjectStoreFactory storeFactory, IFileOperations fileOperations)
     {
         this.application = application;
         this.storeFactory = storeFactory;
+        this.fileOperations = fileOperations;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Confirmed batch photo deletion preserves saved run inputs and removes unused copies", VerifyPhotoDeletion);
         var root = Path.Combine(Path.GetTempPath(), "echo-project-management-" + Guid.NewGuid().ToString("N"));
         var store = storeFactory.Open(root);
         store.Init("Original");
@@ -89,6 +94,62 @@ public sealed class ProjectManagementTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    private void VerifyPhotoDeletion()
+    {
+        var scratch = Directory.CreateTempSubdirectory("echo-photo-deletion-");
+        try
+        {
+            var store = storeFactory.Open(Path.Combine(scratch.FullName, "test.echo"));
+            store.Init();
+            var saved = MakePhoto(store, "saved");
+            var spare = MakePhoto(store, "spare");
+            var keep = MakePhoto(store, "keep");
+            store.Edit(project => project.Images.AddRange([saved, keep]));
+            var runId = Guid.NewGuid().ToString("N");
+            var runFolder = store.PathFor($"runs/{runId}");
+            Directory.CreateDirectory(runFolder);
+            fileOperations.AtomicJson(Path.Combine(runFolder, "run.json"),
+                new RunData { Id = runId, Status = "completed", Snapshot = store.Load() });
+            store.Edit(project =>
+            {
+                project.Images.Add(spare);
+                project.Images.Single(photo => photo.Id == keep.Id).DuplicateOf = saved.Id;
+                project.Hints.Add(new Hint { ImageId = keep.Id, OtherImageId = saved.Id, Type = "tie" });
+            });
+
+            string[] Delete(params string[] rest) => ["--project", store.Root, "images", "delete", .. rest];
+            var projectId = store.Load().Id;
+            Check(application.Run(Delete(saved.Id, spare.Id)) == 2, "Reject an unconfirmed deletion");
+            Check(application.Run(Delete(spare.Id, "unknown", "--confirm", projectId)) == 2, "Reject stale selections");
+            using (store.Lock("run"))
+            {
+                Check(application.Run(Delete(saved.Id, spare.Id, "--confirm", projectId)) == 6, "Block deletion during a run");
+            }
+
+            Check(application.Run(Delete(saved.Id, spare.Id, "--confirm", projectId)) == 0, "Delete both inputs in one operation");
+            var active = store.Load();
+            Check(active.Images.Single().Id == keep.Id && active.Images.Single().DuplicateOf == null, "Remove photos and repair the duplicate reference");
+            Check(active.Hints.Count == 0, "Remove hints whose secondary photo was deleted");
+            Check(File.Exists(store.PathFor(saved.Source)) && File.Exists(store.PathFor(saved.Preview)), "Keep files needed by prior runs");
+            Check(!File.Exists(store.PathFor(spare.Source)) && !File.Exists(store.PathFor(spare.Preview)), "Remove unused input copies");
+            Check(!File.Exists(store.PathFor("sources/spare.original.heic")), "Remove the imported original copy");
+            Check(File.Exists(store.PathFor(keep.Source)) && store.GetRun(runId).Snapshot.Images.Count == 2, "Preserve live files and historical inputs");
+        }
+        finally
+        {
+            scratch.Delete(recursive: true);
+        }
+    }
+
+    private Photo MakePhoto(IProjectStore store, string id)
+    {
+        var photo = new Photo { Id = id, Source = $"sources/{id}.jpg", Preview = $"previews/{id}.jpg" };
+        File.WriteAllText(store.PathFor(photo.Source), id);
+        File.WriteAllText(store.PathFor(photo.Preview), id);
+        File.WriteAllText(store.PathFor($"sources/{id}.original.heic"), id);
+        return photo;
     }
 
     private void Check(bool condition, string message)

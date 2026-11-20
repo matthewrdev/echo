@@ -398,6 +398,10 @@ public sealed class ReconstructionTests
                     }
                 }
                 Check(store.Import(source, "drone", 100, Observe).Count == 3, "Import three photographs");
+                var revisions = store.PathFor("revisions");
+                Check(Directory.GetFiles(revisions, "*.json").Length == 1
+                    && File.Exists(store.PathFor($"revisions/{store.Load().Revision:D6}.json")),
+                    "Archive only the final import checkpoint");
                 Check(updates.Select(update => update.Completed).SequenceEqual([0, 1, 2, 3]), "Import reports progress before and after each photograph");
                 Check(updates.All(update => update.Total == 3 && update.Skipped == 0), "Only supported input photographs enter the total");
                 var firstEvent = JsonSerializer.SerializeToElement(updates[1], jsonCodec.Options);
@@ -407,6 +411,10 @@ public sealed class ReconstructionTests
                 Check(store.Import(source, "repeat", 100, Observe).Count == 0 && store.Load().Images.All(i => i.Sets.Contains("repeat")), "Deduplication and sets");
                 Check(updates.Select(update => update.Completed).SequenceEqual([0, 1, 2, 3]), "Duplicate files also advance import progress");
                 Check(updates[^1].Skipped == 3 && updates[^1].Count == 0, "Existing photos are counted separately from new imports");
+                var revision = store.Load().Revision;
+                Check(store.Import(source, "repeat", 100).Count == 0
+                    && store.Load().Revision == revision && Directory.GetFiles(revisions, "*.json").Length == 2,
+                    "Reimporting the same set creates no revision");
                 updates.Clear();
                 store.Import(source, "limited", 2, Observe);
                 Check(updates.Count == 3 && updates.All(update => update.Total == 2), "The total respects the import limit");
@@ -415,6 +423,25 @@ public sealed class ReconstructionTests
                 Throws(() => store.AddHints([new Hint { Type = "tie", ImageId = images[0].Id, OtherImageId = images[1].Id, Pixel = [-1, 0], OtherPixel = [0, 0] }]), 2);
                 using var lease = store.Lock("run");
                 Throws(() => processor.Execute(store, "features", default), 6);
+            });
+            tests.Run("Interrupted photo import archives the last committed photo", () =>
+            {
+                var interrupted = storeFactory.Open(Path.Combine(temp, "interrupted-import"));
+                interrupted.Init();
+                Throws(() => interrupted.Import(source, "drone", 100, value =>
+                {
+                    if (value is PhotoImportProgress { Type: "imageImported" })
+                    {
+                        throw new EchoException("Stop after the first committed photo.", 6);
+                    }
+                }), 6);
+
+                var checkpoint = interrupted.Load();
+                Check(checkpoint.Images.Count == 1
+                    && File.Exists(interrupted.PathFor($"revisions/{checkpoint.Revision:D6}.json")),
+                    "A partial import has one photo and its archived revision");
+                Check(interrupted.Import(source, "drone", 100).Count == 2 && interrupted.Load().Images.Count == 3,
+                    "Retry imports only the remaining photos");
             });
             store.Edit(p => p.Settings = new Settings { DepthSuppressSky = false, OptimiseVegetation = false, TextureSuppressSky = false, FusionIslandMode = IslandTrimMode.Off, FeatureWidth = 320, FeatureLimit = 400, DepthWidth = 128, DepthPlanes = 48, DepthRangeAutomatic = false, DepthNear = 8, DepthFar = 18, DepthConcurrency = 2, TextureSize = 256, FaceLimit = 800 });
             RunData? first = null;

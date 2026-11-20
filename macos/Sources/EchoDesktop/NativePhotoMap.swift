@@ -6,13 +6,18 @@ struct NativePhotoMap: NSViewRepresentable {
     let identity: String
     let satellite: Bool
     @Binding var selected: String?
+    var boxed: Set<String> = []
+    var boxSelection: ((Set<String>) -> Void)? = nil
+    var singleSelection: ((String?) -> Void)? = nil
     var modelOverlay: ModelMapOverlay? = nil
     var modelOpacity = 0.8
     var testLocation: GeoPosition? = nil
     var testAccuracy = 0.0
     var pickLocation: ((CLLocationCoordinate2D) -> Void)? = nil
 
-    func makeCoordinator() -> PhotoMapCoordinator { PhotoMapCoordinator(selection: { selected = $0 }) }
+    func makeCoordinator() -> PhotoMapCoordinator {
+        PhotoMapCoordinator(selection: singleSelection ?? { selected = $0 })
+    }
 
     func makeNSView(context: Context) -> ScrollablePhotoMap {
         let map = ScrollablePhotoMap()
@@ -35,8 +40,20 @@ struct NativePhotoMap: NSViewRepresentable {
         map.mapType = satellite ? .satellite : .standard
         context.coordinator.pickLocation = pickLocation
         context.coordinator.locationGesture?.isEnabled = pickLocation != nil
+        context.coordinator.selection = singleSelection ?? { selected = $0 }
+        map.boxSelection = boxSelection.map { select in
+            { [weak map] rect in
+                guard let map else { return }
+                let ids = cameras.compactMap { camera -> String? in
+                    let coordinate = CLLocationCoordinate2D(
+                        latitude: camera.position.latitude, longitude: camera.position.longitude)
+                    return rect.contains(map.convert(coordinate, toPointTo: map)) ? camera.id : nil
+                }
+                select(Set(ids))
+            }
+        }
         context.coordinator.updateModel(map: map, model: modelOverlay, opacity: modelOpacity)
-        context.coordinator.update(map: map, cameras: cameras, identity: identity, selected: selected)
+        context.coordinator.update(map: map, cameras: cameras, identity: identity, selected: selected, boxed: boxed)
         context.coordinator.updateProbe(map: map, position: testLocation, accuracy: testAccuracy)
     }
 

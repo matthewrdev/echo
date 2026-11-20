@@ -10,6 +10,8 @@ final class InteractiveCanvasView: NSView {
     }
     var zoomChanged: ((Double) -> Void)?
     var hoverChanged: ((CanvasHover?) -> Void)?
+    var boxSelection: ((CGRect) -> Void)?
+    private let marquee = MapSelectionMarquee()
     private var pointerPosition: CGPoint?
     private var pointerTrackingArea: NSTrackingArea?
     private var magnification: CGFloat = 1
@@ -77,11 +79,19 @@ final class InteractiveCanvasView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        if boxSelection != nil && event.modifierFlags.contains(.shift) {
+            marquee.begin(at: convert(event.locationInWindow, from: nil), in: self)
+            return
+        }
         dragDistance = 0
         NSCursor.closedHand.push()
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if marquee.isDragging {
+            marquee.update(to: convert(event.locationInWindow, from: nil))
+            return
+        }
         offset.x += event.deltaX
         offset.y += event.deltaY
         dragDistance += abs(event.deltaX) + abs(event.deltaY)
@@ -91,6 +101,15 @@ final class InteractiveCanvasView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if marquee.isDragging {
+            if let rect = marquee.finish(at: convert(event.locationInWindow, from: nil)) {
+                boxSelection?(
+                    CGRect(
+                        x: (rect.minX - origin.x) / scale, y: (rect.minY - origin.y) / scale,
+                        width: rect.width / scale, height: rect.height / scale))
+            }
+            return
+        }
         NSCursor.pop()
         pointerPosition = convert(event.locationInWindow, from: nil)
         updateHover()

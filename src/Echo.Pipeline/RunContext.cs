@@ -287,6 +287,7 @@ public sealed class RunContext : IDisposable
             "feature-image" => "features",
             "features-preview" => "features",
             "match-pair" => "matching",
+            "matching-feature-image" => "matching",
             "matching-preview" => "matching",
             "semantic-image" => "depth",
             "semantics" => "depth",
@@ -424,7 +425,7 @@ public sealed class RunContext : IDisposable
         }
     }
 
-    public void ReportProgress(string stage, string message, int? completed = null, int? total = null)
+    public void ReportProgress(string stage, string message, int? completed = null, int? total = null, string? unit = null)
     {
         lock (reportGate)
         {
@@ -438,7 +439,7 @@ public sealed class RunContext : IDisposable
                 message,
                 completed,
                 total,
-                unit = stage == "matching" ? "image pairs" : stage is "features" or "depth" ? "images" : "items"
+                unit = unit ?? (stage == "matching" ? "image pairs" : stage is "features" or "depth" ? "images" : "items")
             });
         }
     }
@@ -543,11 +544,11 @@ public sealed class RunContext : IDisposable
             {
                 "feature-image" => "features",
                 "match-pair" => "matching",
+                "matching-feature-image" => "matching",
                 "alignment-preview" => "alignment",
                 "alignment-initial" => "alignment",
                 "alignment-guided-pair" => "alignment",
-                "semantic-image" => "depth",
-                "semantics" => "depth",
+                "semantic-image" or "semantics" => Run.Progress?.Stage == "matching" ? "matching" : "depth",
                 "cliff-depth-image" => "depth",
                 "fusion-chunk" => "fusion",
                 "fusion-grid" => "fusion",

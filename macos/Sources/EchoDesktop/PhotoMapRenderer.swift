@@ -5,17 +5,20 @@ final class PhotoMapRenderer: CanvasRenderer {
     let size = CGSize(width: 1200, height: 800)
     private let cameras: [MapCamera]
     private let selected: String?
+    private let highlightedIDs: Set<String>
     private let selection: (String?) -> Void
     private let latitude: Double
     private let longitude: Double
     private let bounds: CGRect
 
     init(
-        identity: String, cameras: [MapCamera], selected: String?, selection: @escaping (String?) -> Void
+        identity: String, cameras: [MapCamera], selected: String?, boxed: Set<String> = [],
+        selection: @escaping (String?) -> Void
     ) {
         self.identity = identity
         self.cameras = cameras
-        self.selected = cameras.contains { $0.id == selected } ? selected : nil
+        self.selected = selected
+        highlightedIDs = Set(cameras.lazy.map(\.id)).intersection(boxed.union(selected.map { [$0] } ?? []))
         self.selection = selection
         latitude = cameras.first?.position.latitude ?? 0
         longitude = cameras.first?.position.longitude ?? 0
@@ -59,13 +62,15 @@ final class PhotoMapRenderer: CanvasRenderer {
         }
         context.strokePath()
         // Draw the selected camera last so it remains legible among overlapping frustums.
-        for camera in cameras.sorted(by: { ($0.id == selected ? 1 : 0) < ($1.id == selected ? 1 : 0) }) {
+        for camera in cameras.sorted(by: {
+            (highlightedIDs.contains($0.id) ? 1 : 0) < (highlightedIDs.contains($1.id) ? 1 : 0)
+        }) {
             context.saveGState()
             let origin = point(camera.position)
-            let highlighted = camera.id == selected
-            context.setAlpha(selected != nil && !highlighted ? 0.18 : 1)
+            let highlighted = highlightedIDs.contains(camera.id)
+            context.setAlpha(highlightedIDs.isEmpty || highlighted ? 1 : 0.18)
             let color = CameraTiltPalette().color(pitch: camera.pitchDegrees)
-            let corners = camera.displayCorners(selected: highlighted).map(point)
+            let corners = camera.displayCorners(selected: camera.id == selected).map(point)
             if !corners.isEmpty {
                 context.setStrokeColor(color.withAlphaComponent(highlighted ? 1 : 0.42).cgColor)
                 context.setFillColor(color.withAlphaComponent(highlighted ? 0.22 : 0.055).cgColor)
@@ -111,5 +116,9 @@ final class PhotoMapRenderer: CanvasRenderer {
         } else {
             selection(nil)
         }
+    }
+
+    func cameraIDs(in rect: CGRect) -> Set<String> {
+        Set(cameras.lazy.filter { rect.contains(self.point($0.position)) }.map(\.id))
     }
 }

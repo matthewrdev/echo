@@ -24,6 +24,7 @@ struct ProcessingSettings: Codable {
     var featureLimit: Int = 6000
     var pairWindow: Int = 5
     var matchAllPairs: Bool = false
+    var excludeVegetationFromMatching: Bool = false
     var gpsPairNeighbours: Int = 12
     var frustumPairNeighbours: Int = 32
     var pairSearchDistance: Double = 500
@@ -101,6 +102,8 @@ struct ProcessingSettings: Codable {
         featureLimit = try values.decodeIfPresent(Int.self, forKey: .featureLimit) ?? 6000
         pairWindow = try values.decodeIfPresent(Int.self, forKey: .pairWindow) ?? 5
         matchAllPairs = try values.decodeIfPresent(Bool.self, forKey: .matchAllPairs) ?? false
+        excludeVegetationFromMatching =
+            try values.decodeIfPresent(Bool.self, forKey: .excludeVegetationFromMatching) ?? false
         gpsPairNeighbours = try values.decodeIfPresent(Int.self, forKey: .gpsPairNeighbours) ?? 12
         frustumPairNeighbours = try values.decodeIfPresent(Int.self, forKey: .frustumPairNeighbours) ?? 32
         pairSearchDistance = try values.decodeIfPresent(Double.self, forKey: .pairSearchDistance) ?? 500
@@ -181,6 +184,7 @@ struct ProcessingSettings: Codable {
         try values.encode(featureLimit, forKey: .featureLimit)
         try values.encode(pairWindow, forKey: .pairWindow)
         try values.encode(matchAllPairs, forKey: .matchAllPairs)
+        try values.encode(excludeVegetationFromMatching, forKey: .excludeVegetationFromMatching)
         try values.encode(gpsPairNeighbours, forKey: .gpsPairNeighbours)
         try values.encode(frustumPairNeighbours, forKey: .frustumPairNeighbours)
         try values.encode(pairSearchDistance, forKey: .pairSearchDistance)

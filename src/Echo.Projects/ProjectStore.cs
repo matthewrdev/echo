@@ -93,7 +93,7 @@ public sealed class ProjectStore : IProjectStore
         var data = Load();
         action(data);
         data.Revision++;
-        fileOperations.AtomicJson(PathFor($"revisions/{data.Revision:D6}.json"), data);
+        SaveRevision(data);
         fileOperations.AtomicJson(PathFor("project.json"), data);
         return data;
     }
@@ -112,7 +112,9 @@ public sealed class ProjectStore : IProjectStore
             ".jpeg",
             ".png",
             ".tif",
-            ".tiff"
+            ".tiff",
+            ".heic",
+            ".heif"
         };
         var paths = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Where(p => extensions.Contains(Path.GetExtension(p))).Order(StringComparer.Ordinal).Take(limit).ToArray();
         if (paths.Length == 0)
@@ -121,105 +123,154 @@ public sealed class ProjectStore : IProjectStore
         }
 
         var added = new List<Photo>();
+        var knownPhotos = Load().Images.DistinctBy(photo => photo.Hash).ToDictionary(photo => photo.Hash, photo => photo.Id);
+        ProjectData? lastCheckpoint = null;
         var skipped = 0;
-        progress?.Invoke(new PhotoImportProgress("imageImportStarted", 0, 0, paths.Length, 0));
-        for (var index = 0; index < paths.Length; index++)
+        try
         {
-            var path = paths[index];
-            var hash = fileOperations.HashFile(path);
-            var duplicate = Load().Images.FirstOrDefault(i => i.Hash == hash);
-            if (duplicate != null)
+            progress?.Invoke(new PhotoImportProgress("imageImportStarted", 0, 0, paths.Length, 0));
+            for (var index = 0; index < paths.Length; index++)
             {
-                Edit(p =>
+                var path = paths[index];
+                var hash = fileOperations.HashFile(path);
+                if (knownPhotos.TryGetValue(hash, out var duplicateId))
                 {
-                    var i = p.Images.Single(i => i.Id == duplicate.Id);
-                    if (!i.Sets.Contains(set))
+                    lastCheckpoint = CheckpointImport(project =>
                     {
-                        i.Sets.Add(set);
-                    }
-                });
-                skipped++;
-                progress?.Invoke(new PhotoImportProgress("imageImportSkipped", added.Count, index + 1, paths.Length,
-                    skipped, duplicate.Id, Path.GetFileName(path)));
-                continue;
-            }
+                        var photo = project.Images.Single(photo => photo.Id == duplicateId);
+                        if (photo.Sets.Contains(set))
+                        {
+                            return false;
+                        }
 
-            var metadata = metadataReader.Read(path);
-            using var bitmap = rasterImageService.Decode(path);
-            var image = new Photo
-            {
-                Id = hash[..20],
-                Hash = hash,
-                Name = Path.GetFileName(path),
-                Width = bitmap.Width,
-                Height = bitmap.Height,
-                Source = $"sources/{hash[..20]}.jpg",
-                Preview = $"previews/{hash[..20]}.jpg",
-                Metadata = metadata,
-                Sets = [set],
-                Camera = Text(metadata, "Model") ?? "Unknown camera",
-                CapturedAt = Text(metadata, "DateTimeOriginal") ?? ""
-            };
-            var focal35 = Number(metadata, "FocalLengthIn35mmFormat");
-            image.FocalPixels = focal35 is > 0 ? Math.Max(image.Width, image.Height) * focal35.Value / 36 : image.Width * .8660254;
-            if (focal35 is > 0)
-            {
-                image.FocalSource = "EXIF 35mm equivalent (initial estimate; no distortion calibration)";
-            }
-
-            var lat = Number(metadata, "GPSLatitude");
-            var lon = Number(metadata, "GPSLongitude");
-            if (lat.HasValue && lon.HasValue)
-            {
-                image.Gps = new GeoPosition
-                {
-                    Latitude = lat.Value,
-                    Longitude = lon.Value,
-                    Altitude = Number(metadata, "AbsoluteAltitude") ?? Number(metadata, "GPSAltitude")
-                };
-                image.Gps.AltitudeDatum = AltitudeReferenceResolver.Resolve(image.Gps, metadata).Datum;
-            }
-
-            var yaw = Number(metadata, "GimbalYawDegree");
-            var pitch = Number(metadata, "GimbalPitchDegree");
-            if (yaw.HasValue && pitch.HasValue)
-            {
-                image.Attitude = new Attitude
-                {
-                    Yaw = yaw.Value,
-                    Pitch = pitch.Value,
-                    Roll = Number(metadata, "GimbalRollDegree") ?? 0
-                };
-            }
-
-            var sidecar = path + ".echo.json";
-            if (File.Exists(sidecar))
-            {
-                var supplied = jsonCodec.Read<Photo>(sidecar);
-                image.Gps = supplied.Gps ?? image.Gps;
-                image.Attitude = supplied.Attitude ?? image.Attitude;
-                if (supplied.FocalPixels > 0)
-                {
-                    image.FocalPixels = supplied.FocalPixels;
-                    image.FocalSource = "explicit sidecar";
+                        photo.Sets.Add(set);
+                        return true;
+                    }) ?? lastCheckpoint;
+                    skipped++;
+                    progress?.Invoke(new PhotoImportProgress("imageImportSkipped", added.Count, index + 1, paths.Length,
+                        skipped, duplicateId, Path.GetFileName(path)));
+                    continue;
                 }
-            }
 
-            image.Gps?.Validate();
-            rasterImageService.Save(bitmap, PathFor(image.Source), SKEncodedImageFormat.Jpeg);
-            image.SourceHash = fileOperations.HashFile(PathFor(image.Source));
-            using var thumb = rasterImageService.Resize(bitmap, 480);
-            rasterImageService.Save(thumb, PathFor(image.Preview), SKEncodedImageFormat.Jpeg);
-            // Each imported photo is a complete, restartable unit. Original bytes are retained separately.
-            var original = PathFor($"sources/{image.Id}.original{Path.GetExtension(path).ToLowerInvariant()}");
-            File.Copy(path, original, true);
-            Edit(p => p.Images.Add(image));
-            added.Add(image);
-            progress?.Invoke(new PhotoImportProgress("imageImported", added.Count, index + 1, paths.Length,
-                skipped, image.Id, image.Name));
+                var image = ImportPhoto(path, hash, set);
+                lastCheckpoint = CheckpointImport(project =>
+                {
+                    project.Images.Add(image);
+                    return true;
+                });
+                knownPhotos.Add(hash, image.Id);
+                added.Add(image);
+                progress?.Invoke(new PhotoImportProgress("imageImported", added.Count, index + 1, paths.Length,
+                    skipped, image.Id, image.Name));
+            }
+        }
+        finally
+        {
+            if (lastCheckpoint != null)
+            {
+                SaveRevision(lastCheckpoint);
+            }
         }
 
         return added;
+    }
+
+    private ProjectData? CheckpointImport(Func<ProjectData, bool> apply)
+    {
+        using var gate = Lock("edit");
+        var data = Load();
+        if (!apply(data))
+        {
+            return null;
+        }
+
+        // Keep committed photos restartable without archiving a copy of the full project for each one.
+        data.Revision++;
+        fileOperations.AtomicJson(PathFor("project.json"), data);
+        return data;
+    }
+
+    private void SaveRevision(ProjectData data)
+    {
+        fileOperations.AtomicJson(PathFor($"revisions/{data.Revision:D6}.json"), data);
+    }
+
+    private Photo ImportPhoto(string path, string hash, string set)
+    {
+        var metadata = metadataReader.Read(path);
+        using var bitmap = rasterImageService.Decode(path);
+        var image = new Photo
+        {
+            Id = hash[..20],
+            Hash = hash,
+            Name = Path.GetFileName(path),
+            Width = bitmap.Width,
+            Height = bitmap.Height,
+            Source = $"sources/{hash[..20]}.jpg",
+            Preview = $"previews/{hash[..20]}.jpg",
+            Metadata = metadata,
+            Sets = [set],
+            Camera = Text(metadata, "Model") ?? "Unknown camera",
+            CapturedAt = Text(metadata, "DateTimeOriginal") ?? ""
+        };
+        var focal35 = Number(metadata, "FocalLengthIn35mmFormat");
+        image.FocalPixels = focal35 is > 0 ? Math.Max(image.Width, image.Height) * focal35.Value / 36 : image.Width * .8660254;
+        if (focal35 is > 0)
+        {
+            image.FocalSource = "EXIF 35mm equivalent (initial estimate; no distortion calibration)";
+        }
+
+        var lat = Number(metadata, "GPSLatitude");
+        var lon = Number(metadata, "GPSLongitude");
+        if (lat.HasValue && lon.HasValue)
+        {
+            image.Gps = new GeoPosition
+            {
+                Latitude = lat.Value,
+                Longitude = lon.Value,
+                Altitude = Number(metadata, "AbsoluteAltitude") ?? Number(metadata, "GPSAltitude")
+            };
+            image.Gps.AltitudeDatum = AltitudeReferenceResolver.Resolve(image.Gps, metadata).Datum;
+        }
+
+        var yaw = Number(metadata, "GimbalYawDegree");
+        var pitch = Number(metadata, "GimbalPitchDegree");
+        if (yaw.HasValue && pitch.HasValue)
+        {
+            image.Attitude = new Attitude
+            {
+                Yaw = yaw.Value,
+                Pitch = pitch.Value,
+                Roll = Number(metadata, "GimbalRollDegree") ?? 0
+            };
+        }
+        else
+        {
+            image.Attitude = IPhoneCapturePose.Estimate(metadata);
+        }
+
+        var sidecar = path + ".echo.json";
+        if (File.Exists(sidecar))
+        {
+            var supplied = jsonCodec.Read<Photo>(sidecar);
+            image.Gps = supplied.Gps ?? image.Gps;
+            image.Attitude = supplied.Attitude ?? image.Attitude;
+            if (supplied.FocalPixels > 0)
+            {
+                image.FocalPixels = supplied.FocalPixels;
+                image.FocalSource = "explicit sidecar";
+            }
+        }
+
+        image.Gps?.Validate();
+        rasterImageService.Save(bitmap, PathFor(image.Source), SKEncodedImageFormat.Jpeg);
+        image.SourceHash = fileOperations.HashFile(PathFor(image.Source));
+        using var thumb = rasterImageService.Resize(bitmap, 480);
+        rasterImageService.Save(thumb, PathFor(image.Preview), SKEncodedImageFormat.Jpeg);
+        // Each imported photo is a complete, restartable unit. Original bytes are retained separately.
+        var original = PathFor($"sources/{image.Id}.original{Path.GetExtension(path).ToLowerInvariant()}");
+        File.Copy(path, original, true);
+        return image;
     }
 
     public void AddHints(List<Hint> hints)

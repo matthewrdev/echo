@@ -5,6 +5,60 @@ import XCTest
 
 final class PhotoMapCoordinatorTests: XCTestCase {
     @MainActor
+    func testBoxHighlightsMultipleCamerasWithoutOpeningACallout() throws {
+        let cameras = try cameras()
+        let coordinator = PhotoMapCoordinator(selection: { _ in })
+        let map = MKMapView()
+        coordinator.update(
+            map: map, cameras: cameras, identity: "project", selected: nil, boxed: Set(cameras.map(\.id)))
+        XCTAssertTrue(map.selectedAnnotations.isEmpty)
+        XCTAssertTrue(map.overlays.allSatisfy { coordinator.mapView(map, rendererFor: $0).alpha == 1 })
+        let renderer = PhotoMapRenderer(identity: "project", cameras: cameras, selected: nil, selection: { _ in })
+        XCTAssertEqual(renderer.cameraIDs(in: CGRect(origin: .zero, size: renderer.size)), Set(cameras.map(\.id)))
+        XCTAssertEqual(renderer.cameraIDs(in: CGRect(x: 0, y: 0, width: 600, height: 800)), [cameras[0].id])
+    }
+
+    @MainActor
+    func testDragMarqueeClipsToMapAndIgnoresClicks() {
+        let view = NSView(frame: CGRect(x: 0, y: 0, width: 400, height: 300))
+        let marquee = MapSelectionMarquee()
+        marquee.begin(at: CGPoint(x: 250, y: 220), in: view)
+        XCTAssertEqual(marquee.finish(at: CGPoint(x: -50, y: 100)), CGRect(x: 0, y: 100, width: 250, height: 120))
+        XCTAssertNil(marquee.superview)
+        marquee.begin(at: CGPoint(x: 10, y: 10), in: view)
+        XCTAssertNil(marquee.finish(at: CGPoint(x: 11, y: 11)))
+    }
+
+    @MainActor
+    func testShiftDragConsumesMapPanEventsAndFinishesSelection() throws {
+        let bounds = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let map = ScrollablePhotoMap(frame: bounds)
+        let window = NSWindow(contentRect: bounds, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = map
+        var selection: CGRect?
+        map.boxSelection = { selection = $0 }
+        func mouse(
+            _ type: NSEvent.EventType, at point: CGPoint, modifiers: NSEvent.ModifierFlags = []
+        ) throws -> NSEvent {
+            try XCTUnwrap(
+                NSEvent.mouseEvent(
+                    with: type, location: point, modifierFlags: modifiers, timestamp: 0,
+                    windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+        }
+        let start = CGPoint(x: 80, y: 60)
+        let end = CGPoint(x: 170, y: 130)
+        XCTAssertNotNil(map.handleMapEvent(try mouse(.leftMouseDown, at: start)))
+        XCTAssertNil(map.handleMapEvent(try mouse(.leftMouseDown, at: start, modifiers: .shift)))
+        XCTAssertNil(map.handleMapEvent(try mouse(.leftMouseDragged, at: end)))
+        XCTAssertNil(map.handleMapEvent(try mouse(.leftMouseUp, at: end)))
+        let startInMap = map.convert(start, from: nil)
+        let endInMap = map.convert(end, from: nil)
+        XCTAssertEqual(
+            selection,
+            CGRect(x: min(startInMap.x, endInMap.x), y: min(startInMap.y, endInMap.y), width: 90, height: 70))
+    }
+
+    @MainActor
     func testSelectionEnlargesOnlyItsFrustumAndKeepsCameraPositions() throws {
         let cameras = try cameras()
         let coordinator = PhotoMapCoordinator(selection: { _ in })

@@ -19,12 +19,14 @@ public sealed class CommandApplication : ICommandApplication
     echo-photo --project PATH project rename --name NAME
     echo-photo --project PATH project delete --confirm PROJECT_ID
     echo-photo --project PATH images import DIRECTORY [--set NAME] [--limit N]
+    echo-photo --project PATH images derive-iphone-poses
     echo-photo --project PATH images deduplicate [--apply]
     echo-photo --project PATH images restore IMAGE_ID
     echo-photo --project PATH images list [--set NAME] [--query TEXT]
     echo-photo --project PATH images metadata IMAGE_ID
     echo-photo --project PATH images payload IMAGE_ID GROUP:TAG
-    echo-photo --project PATH images enable IMAGE_ID --value true|false
+    echo-photo --project PATH images enable IMAGE_ID [IMAGE_ID ...] --value true|false
+    echo-photo --project PATH images delete IMAGE_ID [IMAGE_ID ...] --confirm PROJECT_ID
     echo-photo --project PATH sets list
     echo-photo --project PATH sets assign IMAGE_ID --set NAME
     echo-photo --project PATH pipeline reset --from STAGE

@@ -48,6 +48,15 @@ public sealed class ProjectInspector : IProjectInspector
                         ? jsonCodec.Read<ReconstructionOverview>(file).ToScene()
                         : jsonCodec.Read<ReconstructionScene>(file),
                     "alignment", summary, warnings);
+                if (key == "alignment" && scene != null)
+                {
+                    var enabled = run.Snapshot.Images.Where(photo => photo.Enabled).Select(photo => photo.Id).ToHashSet();
+                    var registered = scene.Cameras.Select(camera => camera.ImageId).Distinct().Count(enabled.Contains);
+                    if (enabled.Count > 0 && registered < enabled.Count / 2.0)
+                    {
+                        warnings.Add($"Weak alignment: {registered:N0} of {enabled.Count:N0} enabled photos registered. Depth and Cloud cover only the registered views.");
+                    }
+                }
             }
 
             if (!summary && run.Artifacts.TryGetValue("mesh", out var mesh))

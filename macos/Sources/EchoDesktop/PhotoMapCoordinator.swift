@@ -1,7 +1,7 @@
 import MapKit
 
 final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
-    private let selection: (String?) -> Void
+    var selection: (String?) -> Void
     private let palette = CameraTiltPalette()
     private var identity = ""
     private var signature = ""
@@ -9,6 +9,7 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     private var cameraIDs: [ObjectIdentifier: String] = [:]
     private var cameraOverlays: [String: [MKOverlay]] = [:]
     private var selectedPhotoID: String?
+    private var highlightedIDs: Set<String> = []
     private var updating = false
     private var model: ModelMapOverlay?
     private var modelOpacity = 0.8
@@ -61,16 +62,19 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         if let model { map.renderer(for: model)?.alpha = opacity }
     }
 
-    func update(map: MKMapView, cameras: [MapCamera], identity: String, selected: String?) {
+    func update(map: MKMapView, cameras: [MapCamera], identity: String, selected: String?, boxed: Set<String> = []) {
         let signature =
             cameras.map {
                 "\($0.id):\($0.position.latitude):\($0.position.longitude):\($0.pitchDegrees ?? 0):\($0.corners.first?.latitude ?? 0)"
             }.joined()
         let selected = cameras.contains { $0.id == selected } ? selected : nil
+        var highlighted = Set(cameras.lazy.map(\.id)).intersection(boxed)
+        if let selected { highlighted.insert(selected) }
         let camerasChanged = self.signature != signature || self.identity != identity
-        guard camerasChanged || selectedPhotoID != selected else { return }
+        guard camerasChanged || selectedPhotoID != selected || highlightedIDs != highlighted else { return }
         let shouldFit = self.identity != identity
         let previousSelection = selectedPhotoID
+        highlightedIDs = highlighted
         selectedPhotoID = selected
         self.identity = identity
         self.signature = signature
@@ -78,7 +82,7 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         defer { updating = false }
         if camerasChanged {
             rebuild(map: map, cameras: cameras, fit: shouldFit)
-        } else {
+        } else if previousSelection != selected {
             for id in [previousSelection, selected].compactMap({ $0 }) {
                 guard let camera = cameras.first(where: { $0.id == id }) else { continue }
                 let overlays = cameraOverlays.removeValue(forKey: id) ?? []
@@ -159,20 +163,20 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
                 let cameraID = cameraIDs[ObjectIdentifier(overlay)]
             else { continue }
             renderer.alpha = opacity(for: cameraID)
-            renderer.lineWidth = cameraID == selectedPhotoID ? 3 : 1
+            renderer.lineWidth = highlightedIDs.contains(cameraID) ? 3 : 1
             renderer.setNeedsDisplay()
         }
     }
 
     private func opacity(for cameraID: String) -> CGFloat {
-        selectedPhotoID == nil || selectedPhotoID == cameraID ? 1 : 0.18
+        highlightedIDs.isEmpty || highlightedIDs.contains(cameraID) ? 1 : 0.18
     }
 
     private func applyEmphasis(to view: MKAnnotationView, cameraID: String) {
         view.alphaValue = opacity(for: cameraID)
         if let marker = view as? MKMarkerAnnotationView {
             let highlighted = selectedPhotoID == cameraID
-            marker.titleVisibility = selectedPhotoID == nil ? .adaptive : highlighted ? .visible : .hidden
+            marker.titleVisibility = highlightedIDs.isEmpty ? .adaptive : highlighted ? .visible : .hidden
             marker.subtitleVisibility = highlighted ? .visible : .hidden
         }
     }
@@ -202,7 +206,7 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
         }
         renderer.strokeColor = colors[ObjectIdentifier(overlay)]
         if let cameraID = cameraIDs[ObjectIdentifier(overlay)] {
-            renderer.lineWidth = cameraID == selectedPhotoID ? 3 : 1
+            renderer.lineWidth = highlightedIDs.contains(cameraID) ? 3 : 1
             renderer.alpha = opacity(for: cameraID)
         }
         return renderer

@@ -619,6 +619,34 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         }
     }
 
+    func excludePhotos(_ photos: [Photo]) {
+        let ids = photos.filter(\.enabled).map(\.id).sorted()
+        guard !ids.isEmpty else { return }
+        requestEdit("Exclude selected photos from processing?", from: .features) {
+            self.execute("Excluding photos…", ["images", "enable"] + ids + ["--value", "false"])
+        }
+    }
+
+    func deletePhotos(_ photos: [Photo]) {
+        guard canEdit, let project = inspection?.project, !photos.isEmpty else { return }
+        let projectRoot = root
+        let ids = Set(photos.map(\.id))
+        let title = ids.count == 1 ? "Delete photo?" : "Delete \(ids.count) photos?"
+        let message =
+            "Delete the selection from this project’s input dataset? Photos outside the project are unaffected. "
+            + "Echo keeps files referenced by saved runs."
+        pendingChange = ProjectEditRequest(
+            title: title,
+            message: message,
+            apply: {
+                guard self.root == projectRoot else { return }
+                self.perform("Deleting project photos…") {
+                    try await self.executeCommand(["images", "delete"] + ids.sorted() + ["--confirm", project.id])
+                    if let selected = self.selectedPhotoID, ids.contains(selected) { self.selectedPhotoID = nil }
+                }
+            }, actionTitle: "Delete", destructive: true)
+    }
+
     func save(settings: ProcessingSettings) {
         perform("Saving processing settings…") {
             try await self.client.importValue(root: self.root, command: "config", value: settings)

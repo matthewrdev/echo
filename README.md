@@ -18,7 +18,7 @@ Install Xcode and the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet
 ./macos.command
 ```
 
-Create a project, import overlapping JPEG, PNG or TIFF photographs, and choose a processing stage. Convert camera RAW files before importing. Each stage's saved results remain available for inspection and reuse.
+Create a project, import overlapping JPEG, PNG, TIFF, HEIC or HEIF photographs, and choose a processing stage. On macOS, Echo imports HEIC and HEIF directly, keeping the originals and their metadata alongside the JPEGs used for processing. Convert camera RAW files before importing. Each stage's saved results remain available for inspection and reuse.
 
 To build a standalone Release app:
 

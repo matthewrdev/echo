@@ -19,9 +19,12 @@ public sealed class MatchingStage : IPipelineStage
     private readonly IFeatureSetCacheFactory cacheFactory;
     private readonly IComputeService? compute;
     private readonly IMatchingIndexStore indexes;
+    private readonly ISceneSemanticArtifacts semanticArtifacts;
 
     [ImportingConstructor]
-    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IFeatureMatcher featureMatcher, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory, IMatchingIndexStore indexes, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IFeatureMatcher featureMatcher,
+        IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory,
+        IMatchingIndexStore indexes, ISceneSemanticArtifacts semanticArtifacts, [Import(AllowDefault = true)] IComputeService? compute = null)
     {
         this.fileOperations = fileOperations;
         this.featureMatcher = featureMatcher;
@@ -31,6 +34,7 @@ public sealed class MatchingStage : IPipelineStage
         this.cacheFactory = cacheFactory;
         this.compute = compute;
         this.indexes = indexes;
+        this.semanticArtifacts = semanticArtifacts;
     }
 
     public string Name => "matching";
@@ -43,6 +47,13 @@ public sealed class MatchingStage : IPipelineStage
         var cancellation = context.Cancellation;
         var featureUnits = context.ReadArtifact<Dictionary<string, string>>("features", "units.json");
         var wanted = pairSelector.Select(project, images, featureUnits);
+        var maskVegetation = project.Settings.ExcludeVegetationFromMatching;
+        if (maskVegetation)
+        {
+            featureUnits = BuildFilteredFeatures(context, featureUnits);
+            context.ReportProgress(Name, "Matching vegetation-filtered keypoints", 0, wanted.Count);
+        }
+
         var photos = new Dictionary<string, Photo>(images.Count, StringComparer.Ordinal);
         foreach (var photo in images)
         {
@@ -79,13 +90,24 @@ public sealed class MatchingStage : IPipelineStage
             });
         }, cancellation);
 
-        context.Publish("matching", context.Build("matching", new
+        object matchingInputs = maskVegetation ? new
+        {
+            selectionVersion = 2,
+            pairUnits,
+            featureUnits
+        } : new
         {
             selectionVersion = 2,
             pairUnits
-        }, directory =>
+        };
+        context.Publish("matching", context.Build("matching", matchingInputs, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), pairUnits);
+            if (maskVegetation)
+            {
+                fileOperations.AtomicJson(Path.Combine(directory, "feature-units.json"), featureUnits);
+            }
+
             journal.CopyTo(Path.Combine(directory, "pairs.ndjson"));
             fileOperations.AtomicJson(Path.Combine(directory, "selection.json"), new
             {
@@ -95,6 +117,34 @@ public sealed class MatchingStage : IPipelineStage
                 pairs = wanted
             });
         }));
+    }
+
+    private Dictionary<string, string> BuildFilteredFeatures(RunContext context, IReadOnlyDictionary<string, string> originalUnits)
+    {
+        var maps = semanticArtifacts.Build(context, Name);
+        var masks = context.ReadArtifact<Dictionary<string, string>>("semantics", "units.json");
+        var units = new Dictionary<string, string>(context.Images.Count, StringComparer.Ordinal);
+        foreach (var photo in context.Images)
+        {
+            var original = originalUnits[photo.Id];
+            var filtered = context.Build("matching-feature-image", new
+            {
+                original,
+                photo.Width,
+                photo.Height,
+                mask = masks[photo.Id]
+            }, directory =>
+            {
+                var source = context.ReadData<FeatureSet>(context.Store.PathFor(original + "/features.json"));
+                var result = VegetationFeatureFilter.Filter(photo, source, maps[photo.Id]);
+                fileOperations.AtomicJson(Path.Combine(directory, "features.json"), result);
+                context.ReportProgress(Name,
+                    $"{photo.Name} · Excluded {source.Features.Count - result.Features.Count:N0} vegetation keypoints");
+            }, algorithmVersion: "echo-matching-vegetation1");
+            units.Add(photo.Id, filtered);
+        }
+
+        return units;
     }
 
     private string BuildPair(RunContext context, PairIdentity pair, IReadOnlyDictionary<string, Photo> photos, IReadOnlyDictionary<string, string> featureUnits, FeatureSetCache cache)

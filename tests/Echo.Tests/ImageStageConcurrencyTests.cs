@@ -25,11 +25,12 @@ public sealed class ImageStageConcurrencyTests
     private readonly IImagePairSelector selector;
     private readonly IOrderedWorkExecutor executor;
     private readonly IMatchingIndexStore indexes;
+    private readonly ISceneSemanticArtifacts semantics;
 
     [ImportingConstructor]
     public ImageStageConcurrencyTests(IProjectStoreFactory stores, IRunContextFactory contexts, IFileOperations files,
         IJsonCodec json, IRasterImageService images, IFeatureExtractor extractor, IFeatureMatcher matcher,
-        IImagePairSelector selector, IOrderedWorkExecutor executor, IMatchingIndexStore indexes)
+        IImagePairSelector selector, IOrderedWorkExecutor executor, IMatchingIndexStore indexes, ISceneSemanticArtifacts semantics)
     {
         this.stores = stores;
         this.contexts = contexts;
@@ -41,6 +42,7 @@ public sealed class ImageStageConcurrencyTests
         this.selector = selector;
         this.executor = executor;
         this.indexes = indexes;
+        this.semantics = semantics;
     }
 
     internal void Run(TestSuite tests)
@@ -89,7 +91,7 @@ public sealed class ImageStageConcurrencyTests
             Check(savedFeatures.Count is >= 1 and <= 4, "Keep committed work within the bounded look-ahead after cancellation");
             var resumed = contexts.Create(store, run, default, null);
             features.Execute(resumed);
-            var matching = new MatchingStage(selector, files, matcher, plan, executor, new FeatureSetCacheFactory(json), indexes);
+            var matching = new MatchingStage(selector, files, matcher, plan, executor, new FeatureSetCacheFactory(json), indexes, semantics);
             using (var cancelled = new CancellationTokenSource())
             {
                 var context = contexts.Create(store, run, cancelled.Token, record =>
@@ -123,9 +125,39 @@ public sealed class ImageStageConcurrencyTests
             var events = ReadEvents(store, run);
             Check(events.Any(record => record.GetProperty("type").GetString() == "artifactReused"), "Resume must reuse committed work");
         }));
+        tests.Run("Matching vegetation mask reuses features and semantic maps while retaining manual ties", () => WithProject(true, store =>
+        {
+            var baseline = RunStages(store, 1, 0, null);
+            var classifier = new TestSceneClassifier { VegetationProbability = 255 };
+            var semanticArtifacts = new SceneSemanticArtifacts(classifier, classifier, files, executor);
+            store.Edit(project => project.Settings.ExcludeVegetationFromMatching = true);
+            var masked = RunStages(store, 1, 0, null, semanticArtifacts);
+            Check(masked.Artifacts["features"] == baseline.Artifacts["features"], "Reuse unfiltered feature extraction");
+            Check(masked.Artifacts["matching"] != baseline.Artifacts["matching"], "Masked matching needs different checkpoints");
+
+            var matchingPath = masked.Artifacts["matching"];
+            var originalUnits = json.Read<Dictionary<string, string>>(store.PathFor(masked.Artifacts["features"] + "/units.json"));
+            var filteredUnits = json.Read<Dictionary<string, string>>(store.PathFor(matchingPath + "/feature-units.json"));
+            foreach (var (id, path) in filteredUnits)
+            {
+                Check(path != originalUnits[id], "Guided matching receives the filtered descriptor inputs");
+                var original = json.Read<FeatureSet>(store.PathFor(originalUnits[id] + "/features.json"));
+                var filtered = json.Read<FeatureSet>(store.PathFor(path + "/features.json"));
+                Check(filtered.Features.Count < original.Features.Count, "Remove keypoints in confident vegetation");
+                Check(filtered.Lines.Count == original.Lines.Count, "Preserve inspection line indices");
+            }
+
+            var pairs = json.Read<List<string>>(store.PathFor(matchingPath + "/units.json"));
+            Check(pairs.Select(path => json.Read<ImagePair>(store.PathFor(path + "/pair.json")))
+                .SelectMany(pair => pair.Matches).Count(match => match.Manual) == 1, "Do not filter manual tie points");
+            classifier.AllowProcessing = false;
+            var reused = RunStages(store, 1, 0, null, semanticArtifacts);
+            Check(reused.Artifacts["matching"] == matchingPath && classifier.Classifications == 4, "Reuse masks and filtered matches");
+        }));
     }
 
-    private RunData RunStages(IProjectStore store, int workers, long cacheBytes, IJsonCodec? cacheJson)
+    private RunData RunStages(IProjectStore store, int workers, long cacheBytes, IJsonCodec? cacheJson,
+        ISceneSemanticArtifacts? semanticArtifacts = null)
     {
         var run = NewRun(store);
         var context = contexts.Create(store, run, default, record =>
@@ -141,7 +173,8 @@ public sealed class ImageStageConcurrencyTests
         context.Start();
         var plan = new FixedImageWorkPlanner(workers, cacheBytes);
         new FeatureStage(files, extractor, json, plan, executor).Execute(context);
-        new MatchingStage(selector, files, matcher, plan, executor, new FeatureSetCacheFactory(cacheJson ?? json), indexes).Execute(context);
+        new MatchingStage(selector, files, matcher, plan, executor, new FeatureSetCacheFactory(cacheJson ?? json), indexes,
+            semanticArtifacts ?? semantics).Execute(context);
         return run;
     }
 

@@ -1,4 +1,5 @@
 enum ProcessingSettingsKey: String, CodingKey {
+    case excludeVegetationFromMatching
     case colourGrade
     case exclusionRegions, texturePriority
     case processingMemoryMode, processingMemoryBudgetMb, processingDiskBudgetMb

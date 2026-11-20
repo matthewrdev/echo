@@ -43,6 +43,11 @@ public sealed class Settings
     public double PairSearchDistance { get; set; } = 500;
     public double MatchRatioThreshold { get; set; } = .72;
     public double MatchDistanceThreshold { get; set; } = .65;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ExcludeVegetationFromMatching
+    {
+        get; set;
+    }
     public int CloudWorkerThreads { get; set; } = 0;
     public int CloudBatchRows { get; set; } = 8;
     public int CloudNeighbours { get; set; } = 16;

@@ -47,6 +47,11 @@ struct StageSettingsEditor: View {
                     "Corners and line junctions support alignment; line segments are for inspection only. Larger feature limits increase matching work quadratically."
                 ).font(.callout).foregroundStyle(.secondary)
             case .matching:
+                Toggle("Exclude vegetation from matching", isOn: $settings.excludeVegetationFromMatching)
+                Text(
+                    "Skips confidently identified vegetation in automatic point matches, including the guided pass. "
+                        + "Uses the same optional segmentation model as depth and mesh."
+                ).font(.caption).foregroundStyle(.secondary)
                 Toggle("Compare every image pair", isOn: $settings.matchAllPairs)
                 IntegerSettingSlider(
                     title: "Overlapping views per photo", value: $settings.frustumPairNeighbours, range: 0...100

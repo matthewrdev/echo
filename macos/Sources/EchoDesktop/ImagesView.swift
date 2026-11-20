@@ -174,6 +174,9 @@ struct ImagesView: View {
             ).disabled(!workspace.canEdit)
             Button("Open photograph & metadata", systemImage: "info.circle") { workspace.sheet = .photo }
                 .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).help("Open photograph & metadata")
+            Button("Delete photo…", systemImage: "trash", role: .destructive) { workspace.deletePhotos([photo]) }
+                .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).help("Delete from the project dataset")
+                .disabled(!workspace.canEdit)
             Button("Clear photo selection", systemImage: "xmark") { workspace.selectedPhotoID = nil }
                 .labelStyle(ViewerIconLabelStyle()).buttonStyle(.plain).help("Clear photo selection")
         }.controlSize(.small)

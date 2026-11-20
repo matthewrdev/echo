@@ -409,6 +409,9 @@ final class ProcessingSettingsTests: XCTestCase {
         changed.frustumPairNeighbours = 24
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .matching)
         changed = original
+        changed.excludeVegetationFromMatching = true
+        XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .matching)
+        changed = original
         changed.pairSearchDistance = 350
         XCTAssertEqual(impact.firstChangedStage(from: original, to: changed), .matching)
     }

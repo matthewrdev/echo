@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
+using System.Text;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using SkiaSharp;
@@ -100,6 +101,11 @@ public sealed class RasterImageService : IRasterImageService
 
     public SKBitmap Decode(string path)
     {
+        if (Path.GetExtension(path).ToLowerInvariant() is ".heic" or ".heif")
+        {
+            return DecodeHeif(path);
+        }
+
         using var codec = SKCodec.Create(path) ?? throw new EchoException($"Cannot decode image: {path}");
         var raw = SKBitmap.Decode(codec) ?? throw new EchoException($"Cannot decode image: {path}");
         var orientation = (int)codec.EncodedOrigin;
@@ -153,6 +159,71 @@ public sealed class RasterImageService : IRasterImageService
             }
 
             return output;
+        }
+    }
+
+    private SKBitmap DecodeHeif(string path)
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            throw new EchoException("HEIC and HEIF import requires macOS.", 2);
+        }
+
+        var pathBytes = Encoding.UTF8.GetBytes(Path.GetFullPath(path));
+        using var url = MacImageIo.CFURLCreateFromFileSystemRepresentation(0, pathBytes, pathBytes.Length, 0);
+        if (url.IsInvalid)
+        {
+            throw new EchoException($"Cannot open HEIF image: {path}", 2);
+        }
+
+        using var source = MacImageIo.CGImageSourceCreateWithURL(url, 0);
+        if (source.IsInvalid)
+        {
+            throw new EchoException($"Cannot open HEIF image: {path}", 2);
+        }
+
+        // Image I/O applies the primary item's orientation at full resolution when no size limit is set.
+        using var options = MacImageIo.CreateOrientedImageOptions();
+        if (options.IsInvalid)
+        {
+            throw new EchoException("Cannot configure the macOS HEIF decoder.", 2);
+        }
+
+        var index = MacImageIo.CGImageSourceGetPrimaryImageIndex(source);
+        using var image = MacImageIo.CGImageSourceCreateThumbnailAtIndex(source, index, options);
+        if (image.IsInvalid || !MacImageIo.HasDecodedPixels(image))
+        {
+            throw new EchoException($"Cannot decode HEIF image: {path}", 2);
+        }
+
+        var width = checked((int)MacImageIo.CGImageGetWidth(image));
+        var height = checked((int)MacImageIo.CGImageGetHeight(image));
+        var bitmap = new SKBitmap();
+        try
+        {
+            var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque);
+            if (!bitmap.TryAllocPixels(info))
+            {
+                throw new EchoException($"Cannot allocate pixels for HEIF image: {path}", 2);
+            }
+
+            using var colourSpace = MacImageIo.CreateSrgbColourSpace();
+            const uint alphaNoneSkipLast = 5;
+            using var context = MacImageIo.CGBitmapContextCreate(bitmap.GetPixels(), (nuint)width, (nuint)height,
+                8, (nuint)bitmap.RowBytes, colourSpace, alphaNoneSkipLast);
+            if (context.IsInvalid)
+            {
+                throw new EchoException($"Cannot render HEIF image: {path}", 2);
+            }
+
+            MacImageIo.CGContextDrawImage(context, new MacImageRect(0, 0, width, height), image);
+            bitmap.NotifyPixelsChanged();
+            return bitmap;
+        }
+        catch
+        {
+            bitmap.Dispose();
+            throw;
         }
     }
 

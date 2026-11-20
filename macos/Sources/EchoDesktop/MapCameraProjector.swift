@@ -24,7 +24,7 @@ struct MapCameraProjector {
                 source =
                     aligned
                     ? "Capture GPS (no aligned pose)"
-                    : hint == nil ? "Capture GPS / gimbal" : "Capture data with camera hint"
+                    : hint == nil ? photo.attitude?.source ?? "Capture GPS / gimbal" : "Capture data with camera hint"
             }
             guard let position else { return nil }
             var corners: [GeoPosition] = []
