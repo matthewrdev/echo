@@ -66,12 +66,25 @@ public sealed class DepthFusion : IDepthFusion
         var cleanup = project.Settings.FusionIslandMode != IslandTrimMode.Off;
         var plan = FusionIntegrationPlanning.Resolve(resources.MemoryBudgetBytes, compute?.MemoryBudgetBytes ?? 0,
             keys.Count, views.Sum(view => (long)view.Map.SampleCount));
+        var backend = plan.SelectBackend(project.Settings.ComputeBackend);
+        var usesTiles = plan.ResidentDepthCount == 0 || backend == ComputeBackend.Cpu || compute == null;
+        var masks = usesTiles ? views.Select(view => view.Map.Samples).OfType<ExcludedDepthSamples>().ToArray() : [];
+        var maskBytes = masks.Sum(mask => mask.MaskBytes);
+        var canFitMasks = maskBytes > 0 && maskBytes <= resources.MemoryBudgetBytes / 8;
+        using var maskMemory = canFitMasks ? work?.TryReserveMemory(maskBytes) : null;
         FusionBatchIntegrator PrepareIntegrator()
         {
+            if (canFitMasks && (work == null || maskMemory != null))
+            {
+                operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
+                    "Preparing crop masks for depth tiles…", 0, views.Length, "depth maps"));
+                Parallel.ForEach(masks, new ParallelOptions { CancellationToken = cancellation },
+                    mask => mask.PrepareMask(cancellation));
+            }
             operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
                 "Preparing depth maps for integration…", 0, views.Length, "depth maps"));
             var integrator = new FusionBatchIntegrator(views, voxel, project.Settings.CloudDepthTolerance, plan,
-                compute, plan.SelectBackend(project.Settings.ComputeBackend), cancellation, progress,
+                compute, backend, cancellation, progress,
                 (done, total) => operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation,
                     cleanup, $"Loading resident depth maps: {done:N0}/{total:N0}", done, total, "depth maps")));
             operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,

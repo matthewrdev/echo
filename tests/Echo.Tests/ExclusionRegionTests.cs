@@ -182,6 +182,12 @@ public sealed class ExclusionRegionTests
         included.ReadDepth(0, bulk);
         Check(included.DepthAt(centre) == 10 && included.DepthAt(0) == 0 && bulk[centre] == 10 && bulk[0] == 0,
             "Inverted depth mask must retain the inside on both CPU and GPU reads");
+        var cached = (ExcludedDepthSamples)included.Samples!;
+        cached.PrepareMask(default);
+        var tile = new float[bulk.Length - 17];
+        included.ReadDepth(15, tile);
+        Check(bulk.AsSpan(15, tile.Length).SequenceEqual(tile), "Cached masking changed a depth tile");
+        Check(included.DepthAt(centre) == 10 && included.DepthAt(0) == 0, "Cached masking changed individual depth reads");
         Check(source.DepthAt(centre) == 10, "Saved depth artifacts must remain reusable");
         Check(ReferenceEquals(source, DepthExclusions.Apply(fixture.Project.Images[0], fixture.Scene.Cameras[0], source, [])),
             "Projects without exclusions must keep the existing path");
