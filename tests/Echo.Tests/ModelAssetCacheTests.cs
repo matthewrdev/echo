@@ -1,14 +1,11 @@
-using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using Echo.Contracts;
 using Echo.SceneSemantics;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ModelAssetCacheTests
 {
-    [ImportingConstructor]
     public ModelAssetCacheTests()
     {
     }

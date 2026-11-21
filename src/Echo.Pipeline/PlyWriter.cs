@@ -1,17 +1,14 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using System.ComponentModel.Composition;
 using System.Text;
 using Echo.Storage;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPlyWriter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PlyWriter : IPlyWriter
 {
     private readonly IArtifactWriteObserver writes;
 
-    [ImportingConstructor]
     public PlyWriter(IArtifactWriteObserver writes)
     {
         this.writes = writes;

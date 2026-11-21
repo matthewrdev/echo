@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using System.Buffers;
 using System.Buffers.Binary;
@@ -6,14 +5,12 @@ using Echo.Contracts;
 
 namespace Echo.Storage;
 
-[Export(typeof(IBulkArtifactStore)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class BulkArtifactStore : IBulkArtifactStore
 {
     private readonly IArtifactWriteObserver writes;
     private readonly IFeatureArtifactStore features;
     private readonly IMatchArtifactStore matches;
 
-    [ImportingConstructor]
     public BulkArtifactStore(IArtifactWriteObserver writes, IFeatureArtifactStore features, IMatchArtifactStore matches)
     {
         this.writes = writes;

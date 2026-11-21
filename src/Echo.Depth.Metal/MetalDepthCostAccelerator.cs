@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using System.Text;
 using Echo.Telemetry;
 using System.Security.Cryptography;
 
 namespace Echo.Depth.Metal;
 
-[Export(typeof(IDepthCostAccelerator)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MetalDepthCostAccelerator : IDepthCostAccelerator
 {
     private readonly IPerformanceTrace trace;
 
-    [ImportingConstructor]
     public MetalDepthCostAccelerator(IPerformanceTrace trace)
     {
         this.trace = trace;

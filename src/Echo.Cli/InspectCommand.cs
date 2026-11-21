@@ -1,18 +1,15 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Pipeline;
 using Echo.Projects;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class InspectCommand : ICliCommand
 {
     private readonly IProjectStoreFactory storeFactory;
     private readonly ICommandOutput output;
     private readonly IProjectInspector inspector;
 
-    [ImportingConstructor]
     public InspectCommand(IProjectStoreFactory storeFactory, ICommandOutput output, IProjectInspector inspector)
     {
         this.storeFactory = storeFactory;

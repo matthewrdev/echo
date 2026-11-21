@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Compute;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -7,17 +6,15 @@ using Echo.Telemetry;
 
 namespace Echo.Reconstruction;
 
-[Export(typeof(IVisualReconstructor)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class VisualReconstructor : IVisualReconstructor
 {
     private readonly IBundleAdjuster bundleAdjuster;
     private readonly IComputeService? compute;
     private readonly IPerformanceTrace? trace;
 
-    [ImportingConstructor]
     public VisualReconstructor(IBundleAdjuster bundleAdjuster,
-        [Import(AllowDefault = true)] IComputeService? compute = null,
-        [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
+        IComputeService? compute = null,
+        IPerformanceTrace? trace = null)
     {
         this.bundleAdjuster = bundleAdjuster;
         this.compute = compute;

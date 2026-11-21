@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
 using Echo.Imaging;
@@ -9,7 +8,6 @@ using SkiaSharp;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class DepthSkyBenchmark
 {
     private readonly IRasterImageService images;
@@ -19,7 +17,6 @@ public sealed class DepthSkyBenchmark
     private readonly ISceneSegmenter segmenter;
     private readonly ISemanticModelProvider models;
 
-    [ImportingConstructor]
     public DepthSkyBenchmark(IRasterImageService images, IProjectStoreFactory stores, IJsonCodec json,
         IFileOperations files, ISceneSegmenter segmenter, ISemanticModelProvider models)
     {

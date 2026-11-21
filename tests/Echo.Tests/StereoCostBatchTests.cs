@@ -1,14 +1,11 @@
-using System.ComponentModel.Composition;
 using Echo.Depth;
 using Echo.Geometry;
 using Echo.Imaging;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class StereoCostBatchTests
 {
-    [ImportingConstructor]
     public StereoCostBatchTests()
     {
     }

@@ -1,14 +1,11 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Text.Json;
 using Echo.Contracts;
 
 namespace Echo.Rendering;
 
-[Export(typeof(IModelRenderer)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class NativeModelRenderer : IModelRenderer
 {
-    [ImportingConstructor]
     public NativeModelRenderer()
     {
     }

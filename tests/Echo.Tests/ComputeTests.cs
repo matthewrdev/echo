@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using Echo.Compute;
 using Echo.Contracts;
 using Echo.Matching;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ComputeTests
 {
     private readonly IComputeService compute;
 
-    [ImportingConstructor]
     public ComputeTests(IComputeService compute)
     {
         this.compute = compute;

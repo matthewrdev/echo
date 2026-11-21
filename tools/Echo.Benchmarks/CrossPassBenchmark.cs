@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Features;
@@ -11,7 +10,6 @@ using SkiaSharp;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class CrossPassBenchmark
 {
     private readonly IFeatureExtractor legacyFeatures;
@@ -22,7 +20,6 @@ public sealed class CrossPassBenchmark
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public CrossPassBenchmark(IFeatureExtractor legacyFeatures, IRasterImageService images, IFeatureMatcher matcher, IProjectStoreFactory stores, IFileOperations files, IJsonCodec json, IGuidedFeatureMatcher guided)
     {
         this.legacyFeatures = legacyFeatures;

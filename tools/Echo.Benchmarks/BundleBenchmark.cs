@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -7,14 +6,12 @@ using Echo.Optimization;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class BundleBenchmark
 {
     private readonly IBundleAdjuster bundle;
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public BundleBenchmark(IBundleAdjuster bundle, IFileOperations files, IJsonCodec json)
     {
         this.bundle = bundle;

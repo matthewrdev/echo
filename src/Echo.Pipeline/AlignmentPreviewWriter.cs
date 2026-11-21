@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -6,13 +5,11 @@ using Echo.Storage;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IAlignmentPreviewWriter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class AlignmentPreviewWriter : IAlignmentPreviewWriter
 {
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public AlignmentPreviewWriter(IFileOperations files, IJsonCodec json)
     {
         this.files = files;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Compute;
 using Echo.Contracts;
@@ -13,13 +12,11 @@ using Echo.Texturing;
 namespace Echo.Tests;
 
 // Opt-in microbenchmarks include staging and readback, after kernel warmup.
-[Export]
 public sealed class ComputeBenchmarks
 {
     private readonly IComputeService compute;
     private readonly IDepthEstimator depthEstimator;
 
-    [ImportingConstructor]
     public ComputeBenchmarks(IComputeService compute, IDepthEstimator depthEstimator)
     {
         this.compute = compute;

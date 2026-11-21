@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.ComponentModel.Composition;
 using System.Runtime.ExceptionServices;
 using Echo.Contracts;
 using Echo.Compute;
@@ -10,15 +9,13 @@ using SkiaSharp;
 
 namespace Echo.Features;
 
-[Export(typeof(IFeatureExtractor)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class FeatureExtractor : IFeatureExtractor
 {
     private readonly IRasterImageService rasterImageService;
     private readonly ILineDetector lines;
     private readonly IComputeService? compute;
 
-    [ImportingConstructor]
-    public FeatureExtractor(IRasterImageService rasterImageService, ILineDetector lines, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public FeatureExtractor(IRasterImageService rasterImageService, ILineDetector lines, IComputeService? compute = null)
     {
         this.rasterImageService = rasterImageService;
         this.lines = lines;

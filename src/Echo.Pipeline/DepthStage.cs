@@ -1,12 +1,10 @@
 using Echo.Compute;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
 using Echo.Infrastructure;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPipelineStage)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class DepthStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
@@ -16,7 +14,6 @@ public sealed class DepthStage : IPipelineStage
     private readonly ISceneSemanticArtifacts semanticArtifacts;
     private readonly ICliffRecoveryArtifacts cliffRecovery;
 
-    [ImportingConstructor]
     public DepthStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IDepthEstimator depthEstimator, IDepthExecutionPlanner executionPlanner, ISceneSemanticArtifacts semanticArtifacts, ICliffRecoveryArtifacts cliffRecovery)
     {
         this.fileOperations = fileOperations;

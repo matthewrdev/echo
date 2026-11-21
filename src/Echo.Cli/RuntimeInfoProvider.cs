@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime;
@@ -10,12 +9,10 @@ using Echo.Metadata;
 
 namespace Echo.Cli;
 
-[Export(typeof(IRuntimeInfoProvider)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class RuntimeInfoProvider : IRuntimeInfoProvider
 {
     private readonly IMetadataReader metadata;
 
-    [ImportingConstructor]
     public RuntimeInfoProvider(IMetadataReader metadata)
     {
         this.metadata = metadata;

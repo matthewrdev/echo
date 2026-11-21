@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using System.Text;
 using Echo.Contracts;
@@ -7,12 +6,10 @@ using Echo.Infrastructure;
 
 namespace Echo.Export;
 
-[Export(typeof(IRedpointGeoreferenceWriter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class RedpointGeoreferenceWriter : IRedpointGeoreferenceWriter
 {
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public RedpointGeoreferenceWriter(IFileOperations files)
     {
         this.files = files;

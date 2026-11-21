@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -7,12 +6,10 @@ using Echo.Validation;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ReconstructionValidationTests
 {
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public ReconstructionValidationTests(IJsonCodec json)
     {
         this.json = json;

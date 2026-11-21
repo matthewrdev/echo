@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.DenseCloud;
 using Echo.Fusion;
@@ -9,7 +8,6 @@ using System.Text;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class DiskIoTests
 {
     private readonly IBulkArtifactStore artifacts;
@@ -17,7 +15,6 @@ public sealed class DiskIoTests
     private readonly IPlyWriter plyWriter;
     private readonly IArtifactWriteObserver writes;
 
-    [ImportingConstructor]
     public DiskIoTests(IBulkArtifactStore artifacts, ICloudBuilder clouds, IPlyWriter plyWriter, IArtifactWriteObserver writes)
     {
         this.artifacts = artifacts;

@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IImageWorkPlanner)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ImageWorkPlanner : IImageWorkPlanner
 {
-    [ImportingConstructor]
     public ImageWorkPlanner()
     {
     }

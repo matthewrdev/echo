@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Imaging;
 using Echo.Infrastructure;
@@ -7,14 +6,12 @@ using SkiaSharp;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class FeatureOverlay
 {
     private readonly IProjectStoreFactory stores;
     private readonly IJsonCodec json;
     private readonly IRasterImageService images;
 
-    [ImportingConstructor]
     public FeatureOverlay(IProjectStoreFactory stores, IJsonCodec json, IRasterImageService images)
     {
         this.stores = stores;

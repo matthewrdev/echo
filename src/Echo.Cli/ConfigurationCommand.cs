@@ -1,18 +1,15 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ConfigurationCommand : ICliCommand
 {
     private readonly IProjectStoreFactory storeFactory;
     private readonly ICommandOutput output;
     private readonly IJsonCodec jsonCodec;
 
-    [ImportingConstructor]
     public ConfigurationCommand(IProjectStoreFactory storeFactory, ICommandOutput output, IJsonCodec jsonCodec)
     {
         this.storeFactory = storeFactory;

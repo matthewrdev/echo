@@ -1,12 +1,10 @@
 using Echo.Compute;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Features;
 using Echo.Infrastructure;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPipelineStage)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class FeatureStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
@@ -15,7 +13,6 @@ public sealed class FeatureStage : IPipelineStage
     private readonly IImageWorkPlanner workPlanner;
     private readonly IOrderedWorkExecutor workExecutor;
 
-    [ImportingConstructor]
     public FeatureStage(IFileOperations fileOperations, IFeatureExtractor featureExtractor, IJsonCodec jsonCodec, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor)
     {
         this.fileOperations = fileOperations;

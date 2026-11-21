@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.Fusion;
@@ -9,13 +8,11 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ExclusionRegionTests
 {
     private readonly IJsonCodec json;
     private readonly IComputeService compute;
 
-    [ImportingConstructor]
     public ExclusionRegionTests(IJsonCodec json, IComputeService compute)
     {
         this.json = json;

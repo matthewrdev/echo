@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Meshing;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class FinalHoleRepairTests
 {
     private readonly IMeshBuilder meshes;
 
-    [ImportingConstructor]
     public FinalHoleRepairTests(IMeshBuilder meshes)
     {
         this.meshes = meshes;

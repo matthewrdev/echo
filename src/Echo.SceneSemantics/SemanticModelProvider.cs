@@ -1,8 +1,6 @@
-using System.ComponentModel.Composition;
 
 namespace Echo.SceneSemantics;
 
-[Export(typeof(ISemanticModelProvider)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class SemanticModelProvider : ISemanticModelProvider
 {
     private readonly IModelAssetCache cache;
@@ -16,7 +14,6 @@ public sealed class SemanticModelProvider : ISemanticModelProvider
         MaximumBytes = 300L * 1024 * 1024
     };
 
-    [ImportingConstructor]
     public SemanticModelProvider(IModelAssetCache cache)
     {
         this.cache = cache;

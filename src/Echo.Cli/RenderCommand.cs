@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Globalization;
 using Echo.Contracts;
 using Echo.Projects;
@@ -6,14 +5,12 @@ using Echo.Rendering;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class RenderCommand : ICliCommand
 {
     private readonly IProjectStoreFactory stores;
     private readonly IModelRenderer renderer;
     private readonly ICommandOutput output;
 
-    [ImportingConstructor]
     public RenderCommand(IProjectStoreFactory stores, IModelRenderer renderer, ICommandOutput output)
     {
         this.stores = stores;

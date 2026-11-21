@@ -1,15 +1,12 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Storage;
 using Echo.Geometry;
 
 namespace Echo.Simplification;
 
-[Export(typeof(IEdgeCollapse)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class EdgeCollapse : IEdgeCollapse
 {
 
-    [ImportingConstructor]
     public EdgeCollapse()
     {
     }

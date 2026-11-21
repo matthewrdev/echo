@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Projects;
 
-[Export(typeof(IPhotoDeletionService)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PhotoDeletionService : IPhotoDeletionService
 {
-    [ImportingConstructor]
     public PhotoDeletionService()
     {
     }

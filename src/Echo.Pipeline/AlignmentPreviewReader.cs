@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -6,12 +5,10 @@ using Echo.Storage;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IAlignmentPreviewReader)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class AlignmentPreviewReader : IAlignmentPreviewReader
 {
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public AlignmentPreviewReader(IJsonCodec json)
     {
         this.json = json;

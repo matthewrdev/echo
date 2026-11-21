@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.Intrinsics;
@@ -11,7 +10,6 @@ using Echo.Projects;
 
 namespace Echo.Depth;
 
-[Export(typeof(IDepthEstimator)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class DepthEstimator : IDepthEstimator
 {
     private readonly IRasterImageService rasterImageService;
@@ -19,8 +17,7 @@ public sealed class DepthEstimator : IDepthEstimator
     private readonly IComputeService? compute;
     private readonly IPerformanceTrace? trace;
 
-    [ImportingConstructor]
-    public DepthEstimator(IRasterImageService rasterImageService, [ImportMany] IEnumerable<IDepthCostAccelerator> accelerators, [Import(AllowDefault = true)] IComputeService? compute = null, [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
+    public DepthEstimator(IRasterImageService rasterImageService, IEnumerable<IDepthCostAccelerator> accelerators, IComputeService? compute = null, IPerformanceTrace? trace = null)
     {
         this.rasterImageService = rasterImageService;
         this.accelerators = accelerators.ToArray();

@@ -1,13 +1,10 @@
-using System.ComponentModel.Composition;
 using Echo.Texturing;
 using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class SkyGuardTests
 {
-    [ImportingConstructor]
     public SkyGuardTests()
     {
     }

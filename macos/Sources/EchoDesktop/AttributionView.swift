@@ -61,7 +61,7 @@ struct AttributionView: View {
                             destination: URL(string: "https://github.com/microsoft/onnxruntime/blob/v1.23.2/LICENSE")!)
                         Text("Other Echo dependencies").font(.headline)
                         Text(
-                            "Echo also uses MetadataExtractor, XmpCore, SkiaSharp, MathNet.Numerics, System.ComponentModel.Composition and the bundled PoissonRecon worker. The packaged notices describe these dependencies and include the bundled license texts."
+                            "Echo also uses MetadataExtractor, XmpCore, SkiaSharp, MathNet.Numerics and the bundled PoissonRecon worker. The packaged notices describe these dependencies and include the bundled license texts."
                         )
                         if let resources = Bundle.main.resourceURL,
                             FileManager.default.fileExists(

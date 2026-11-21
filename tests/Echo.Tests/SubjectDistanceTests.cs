@@ -1,17 +1,14 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
 using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class SubjectDistanceTests
 {
     private readonly IDepthEstimator estimator;
     private readonly IProjectStoreFactory stores;
 
-    [ImportingConstructor]
     public SubjectDistanceTests(IDepthEstimator estimator, IProjectStoreFactory stores)
     {
         this.estimator = estimator;

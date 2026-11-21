@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using MetadataExtractor;
@@ -6,10 +5,8 @@ using MetadataExtractor.Formats.Jpeg;
 
 namespace Echo.Metadata;
 
-[Export(typeof(IMetadataReader)), Export(typeof(IMetadataPayloadReader)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MetadataReader : IMetadataReader, IMetadataPayloadReader
 {
-    [ImportingConstructor]
     public MetadataReader()
     {
     }

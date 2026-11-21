@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Pipeline;
@@ -6,14 +5,12 @@ using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class SemanticArtifactReuseTests
 {
     private readonly IProjectStoreFactory stores;
     private readonly IRunContextFactory contexts;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public SemanticArtifactReuseTests(IProjectStoreFactory stores, IRunContextFactory contexts, IFileOperations files)
     {
         this.stores = stores;

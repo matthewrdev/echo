@@ -1,17 +1,14 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Pipeline;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class FeatureSetCacheTests
 {
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public FeatureSetCacheTests(IJsonCodec json, IFileOperations files)
     {
         this.json = json;

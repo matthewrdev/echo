@@ -1,15 +1,12 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Telemetry;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class PerformanceDiagnosticsTests
 {
     private readonly IPerformanceTrace trace;
 
-    [ImportingConstructor]
     public PerformanceDiagnosticsTests(IPerformanceTrace trace)
     {
         this.trace = trace;

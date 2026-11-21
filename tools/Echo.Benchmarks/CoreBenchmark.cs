@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -14,7 +13,6 @@ using SkiaSharp;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class CoreBenchmark
 {
     private readonly IFeatureMatcher matching;
@@ -27,7 +25,6 @@ public sealed class CoreBenchmark
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public CoreBenchmark(IFeatureMatcher matching, IEdgeCollapse simplification, ITextureBaker texturing, IGlbWriter export, IProjectStoreFactory stores, IRasterImageService images, IFileOperations files, IJsonCodec json, IReconstructor reconstruction)
     {
         this.matching = matching;

@@ -1,13 +1,10 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class DepthSkyFilterTests
 {
-    [ImportingConstructor]
     public DepthSkyFilterTests()
     {
     }

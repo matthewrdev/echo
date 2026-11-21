@@ -1,15 +1,12 @@
-using System.ComponentModel.Composition;
 using Echo.Metadata;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class DoctorCommand : ICliCommand
 {
     private readonly IMetadataReader metadataReader;
     private readonly ICommandOutput output;
 
-    [ImportingConstructor]
     public DoctorCommand(IMetadataReader metadataReader, ICommandOutput output)
     {
         this.metadataReader = metadataReader;

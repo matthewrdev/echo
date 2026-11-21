@@ -1,15 +1,12 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Infrastructure;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICommandOutput)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class CommandOutput : ICommandOutput
 {
     private readonly IJsonCodec jsonCodec;
 
-    [ImportingConstructor]
     public CommandOutput(IJsonCodec jsonCodec)
     {
         this.jsonCodec = jsonCodec;

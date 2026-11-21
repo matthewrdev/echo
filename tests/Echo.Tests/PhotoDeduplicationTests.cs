@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Cli;
 using Echo.Contracts;
 using Echo.Imaging;
@@ -7,7 +6,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class PhotoDeduplicationTests
 {
     private readonly ICommandApplication application;
@@ -15,7 +13,6 @@ public sealed class PhotoDeduplicationTests
     private readonly IProjectStoreFactory stores;
     private readonly IRasterImageService images;
 
-    [ImportingConstructor]
     public PhotoDeduplicationTests(IPhotoDeduplicator deduplicator, IProjectStoreFactory stores, IRasterImageService images, ICommandApplication application)
     {
         this.deduplicator = deduplicator;

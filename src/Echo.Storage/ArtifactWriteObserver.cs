@@ -1,13 +1,10 @@
-using System.ComponentModel.Composition;
 
 namespace Echo.Storage;
 
-[Export(typeof(IArtifactWriteObserver)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ArtifactWriteObserver : IArtifactWriteObserver
 {
     private readonly AsyncLocal<ArtifactWriteScope?> current = new();
 
-    [ImportingConstructor]
     public ArtifactWriteObserver()
     {
     }

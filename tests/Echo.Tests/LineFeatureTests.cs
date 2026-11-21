@@ -1,17 +1,14 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Lines;
 using Echo.Matching;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class LineFeatureTests
 {
     private readonly ILineDetector detector;
     private readonly IFeatureMatcher matcher;
 
-    [ImportingConstructor]
     public LineFeatureTests(ILineDetector detector, IFeatureMatcher matcher)
     {
         this.detector = detector;

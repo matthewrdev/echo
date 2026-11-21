@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -6,12 +5,10 @@ using Echo.Texturing;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TexturePriorityTests
 {
     private readonly ITextureLayoutPlanner planner;
 
-    [ImportingConstructor]
     public TexturePriorityTests(ITextureLayoutPlanner planner)
     {
         this.planner = planner;

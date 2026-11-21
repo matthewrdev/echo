@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Telemetry;
 using Echo.Geometry;
@@ -7,13 +6,11 @@ using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace Echo.Optimization;
 
-[Export(typeof(IBundleAdjuster)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class BundleAdjuster : IBundleAdjuster
 {
     private readonly IPerformanceTrace? trace;
 
-    [ImportingConstructor]
-    public BundleAdjuster([Import(AllowDefault = true)] IPerformanceTrace? trace = null)
+    public BundleAdjuster(IPerformanceTrace? trace = null)
     {
         this.trace = trace;
     }

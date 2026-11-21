@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Projects;
 
-[Export(typeof(IProjectManagementService)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ProjectManagementService : IProjectManagementService
 {
-    [ImportingConstructor]
     public ProjectManagementService()
     {
     }

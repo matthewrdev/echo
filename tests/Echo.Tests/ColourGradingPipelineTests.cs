@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Imaging;
@@ -10,7 +9,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ColourGradingPipelineTests
 {
     private readonly IProjectStoreFactory stores;
@@ -20,9 +18,8 @@ public sealed class ColourGradingPipelineTests
     private readonly IGisExportService exports;
     private readonly IPipelineStage texture;
 
-    [ImportingConstructor]
     public ColourGradingPipelineTests(IProjectStoreFactory stores, IRunContextFactory contexts,
-        IFileOperations files, IRasterImageService images, IGisExportService exports, [ImportMany] IEnumerable<IPipelineStage> stages)
+        IFileOperations files, IRasterImageService images, IGisExportService exports, IEnumerable<IPipelineStage> stages)
     {
         this.stores = stores;
         this.contexts = contexts;

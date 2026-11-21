@@ -1,15 +1,12 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Telemetry;
 
-[Export(typeof(IPerformanceTrace)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PerformanceTraceService : IPerformanceTrace
 {
     private readonly AsyncLocal<PerformanceTraceSession?> session = new();
     private readonly AsyncLocal<PerformanceTraceScope?> scope = new();
 
-    [ImportingConstructor]
     public PerformanceTraceService()
     {
     }

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Matching;
@@ -6,13 +5,11 @@ using Echo.Pipeline;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ProcessingSettingsTests
 {
     private readonly IFeatureMatcher matcher;
     private readonly IImagePairSelector selector;
 
-    [ImportingConstructor]
     public ProcessingSettingsTests(IFeatureMatcher matcher, IImagePairSelector selector)
     {
         this.matcher = matcher;

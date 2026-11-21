@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
@@ -11,7 +10,6 @@ using Echo.Projects;
 namespace Echo.Benchmarks;
 
 // Experimental fixture export/validation only. The processing pipeline never selects Metal.
-[Export]
 public sealed class MetalDepthBenchmark
 {
     private readonly IDepthEstimator estimator;
@@ -19,7 +17,6 @@ public sealed class MetalDepthBenchmark
     private readonly IProjectStoreFactory stores;
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public MetalDepthBenchmark(IDepthEstimator estimator, IRasterImageService images, IProjectStoreFactory stores, IJsonCodec json)
     {
         this.estimator = estimator;

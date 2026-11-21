@@ -1,15 +1,12 @@
-using System.ComponentModel.Composition;
 using Echo.Export;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GlbCommand : ICliCommand
 {
     private readonly IGlbWriter glbWriter;
     private readonly ICommandOutput output;
 
-    [ImportingConstructor]
     public GlbCommand(IGlbWriter glbWriter, ICommandOutput output)
     {
         this.glbWriter = glbWriter;

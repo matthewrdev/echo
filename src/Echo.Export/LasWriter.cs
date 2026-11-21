@@ -1,14 +1,11 @@
-using System.ComponentModel.Composition;
 using System.Text;
 using Echo.Contracts;
 using Echo.Geometry;
 
 namespace Echo.Export;
 
-[Export(typeof(ILasWriter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class LasWriter : ILasWriter
 {
-    [ImportingConstructor]
     public LasWriter()
     {
     }

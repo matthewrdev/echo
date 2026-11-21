@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Compute;
@@ -6,15 +5,13 @@ using Echo.Telemetry;
 
 namespace Echo.Matching;
 
-[Export(typeof(IFeatureMatcher)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class FeatureMatcher : IFeatureMatcher
 {
     private readonly IComputeService? compute;
     private readonly IPerformanceTrace? trace;
 
-    [ImportingConstructor]
-    public FeatureMatcher([Import(AllowDefault = true)] IComputeService? compute = null,
-        [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
+    public FeatureMatcher(IComputeService? compute = null,
+        IPerformanceTrace? trace = null)
     {
         this.compute = compute;
         this.trace = trace;

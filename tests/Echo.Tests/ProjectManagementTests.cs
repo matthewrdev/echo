@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Cli;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -6,14 +5,12 @@ using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ProjectManagementTests
 {
     private readonly ICommandApplication application;
     private readonly IProjectStoreFactory storeFactory;
     private readonly IFileOperations fileOperations;
 
-    [ImportingConstructor]
     public ProjectManagementTests(ICommandApplication application, IProjectStoreFactory storeFactory, IFileOperations fileOperations)
     {
         this.application = application;

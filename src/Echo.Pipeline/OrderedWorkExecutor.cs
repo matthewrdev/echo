@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using System.Runtime.ExceptionServices;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IOrderedWorkExecutor)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class OrderedWorkExecutor : IOrderedWorkExecutor
 {
-    [ImportingConstructor]
     public OrderedWorkExecutor()
     {
     }

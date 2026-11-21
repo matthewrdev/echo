@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ReferenceDatasetTests
 {
     private readonly IProjectStoreFactory stores;
 
-    [ImportingConstructor]
     public ReferenceDatasetTests(IProjectStoreFactory stores)
     {
         this.stores = stores;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Features;
@@ -7,7 +6,6 @@ using Echo.Projects;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class FeatureBenchmark
 {
     private readonly IFeatureExtractor extractor;
@@ -15,7 +13,6 @@ public sealed class FeatureBenchmark
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public FeatureBenchmark(IFeatureExtractor extractor, IProjectStoreFactory stores, IJsonCodec json, IFileOperations files)
     {
         this.extractor = extractor;

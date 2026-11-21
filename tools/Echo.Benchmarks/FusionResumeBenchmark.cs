@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -13,7 +12,6 @@ using Echo.Storage;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class FusionResumeBenchmark
 {
     private readonly IProjectStoreFactory stores;
@@ -21,7 +19,6 @@ public sealed class FusionResumeBenchmark
     private readonly ICloudBuilder clouds;
     private readonly ProfileComputeService compute;
 
-    [ImportingConstructor]
     public FusionResumeBenchmark(IProjectStoreFactory stores, IJsonCodec json, ICloudBuilder clouds, IComputeService compute)
     {
         this.stores = stores;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
 using Echo.Geometry;
@@ -9,14 +8,12 @@ using Echo.Projects;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class DepthDiagnosticBenchmark
 {
     private readonly IRasterImageService images;
     private readonly IProjectStoreFactory stores;
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public DepthDiagnosticBenchmark(IRasterImageService images, IProjectStoreFactory stores, IJsonCodec json)
     {
         this.images = images;

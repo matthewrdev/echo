@@ -1,16 +1,13 @@
 using System.Buffers.Binary;
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
 namespace Echo.Storage;
 
-[Export(typeof(IBinaryArtifactFiles)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class BinaryArtifactFiles : IBinaryArtifactFiles
 {
     private readonly IArtifactWriteObserver writes;
 
-    [ImportingConstructor]
     public BinaryArtifactFiles(IArtifactWriteObserver writes)
     {
         this.writes = writes;

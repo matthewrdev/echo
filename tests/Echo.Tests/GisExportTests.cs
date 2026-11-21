@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Export;
@@ -10,7 +9,6 @@ using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GisExportTests
 {
     private readonly IGisWriter writer;
@@ -18,7 +16,6 @@ public sealed class GisExportTests
     private readonly IProjectStoreFactory stores;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public GisExportTests(IGisWriter writer, IGisExportService exporter, IProjectStoreFactory stores, IFileOperations files)
     {
         this.writer = writer;

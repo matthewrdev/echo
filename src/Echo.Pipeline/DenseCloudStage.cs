@@ -1,5 +1,4 @@
 using Echo.Compute;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.DenseCloud;
 using Echo.Infrastructure;
@@ -7,14 +6,12 @@ using Echo.Storage;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPipelineStage)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class DenseCloudStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
     private readonly ICloudBuilder cloudBuilder;
 
-    [ImportingConstructor]
     public DenseCloudStage(IFileOperations fileOperations, IJsonCodec jsonCodec, ICloudBuilder cloudBuilder)
     {
         this.fileOperations = fileOperations;

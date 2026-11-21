@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using SkiaSharp;
 
 namespace Echo.Texturing;
 
-[Export(typeof(ITextureChartOrienter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureChartOrienter : ITextureChartOrienter
 {
-    [ImportingConstructor]
     public TextureChartOrienter()
     {
     }

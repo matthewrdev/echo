@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Text;
 using Echo.Contracts;
@@ -9,7 +8,6 @@ using Echo.Storage;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class CloudPublicationBenchmark
 {
     private readonly ICloudBuilder clouds;
@@ -19,7 +17,6 @@ public sealed class CloudPublicationBenchmark
     private readonly IJsonCodec json;
     private readonly IProjectStoreFactory stores;
 
-    [ImportingConstructor]
     public CloudPublicationBenchmark(ICloudBuilder clouds, IBulkArtifactStore bulk, IArtifactWriteObserver writes,
         IFileOperations files, IJsonCodec json, IProjectStoreFactory stores)
     {

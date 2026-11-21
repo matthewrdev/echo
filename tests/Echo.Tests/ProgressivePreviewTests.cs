@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Fusion;
 using Echo.Infrastructure;
@@ -11,7 +10,6 @@ using System.Text.Json;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ProgressivePreviewTests
 {
     private readonly IProjectStoreFactory stores;
@@ -20,7 +18,6 @@ public sealed class ProgressivePreviewTests
     private readonly IJsonCodec json;
     private readonly IAlignmentPreviewWriter alignmentPreviews;
 
-    [ImportingConstructor]
     public ProgressivePreviewTests(IProjectStoreFactory stores, IRunContextFactory contexts, IFileOperations files, IJsonCodec json,
         IAlignmentPreviewWriter alignmentPreviews)
     {

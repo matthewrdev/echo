@@ -1,14 +1,11 @@
-using System.ComponentModel.Composition;
 using SkiaSharp;
 
 namespace Echo.Texturing;
 
-[Export(typeof(ITextureProfilePacker)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureProfilePacker : ITextureProfilePacker
 {
     private readonly ITextureProfileBuilder profiles;
 
-    [ImportingConstructor]
     public TextureProfilePacker(ITextureProfileBuilder profiles)
     {
         this.profiles = profiles;

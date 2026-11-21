@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -6,14 +5,12 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class SceneStorageTests
 {
     private readonly IBulkArtifactStore artifacts;
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public SceneStorageTests(IBulkArtifactStore artifacts, IJsonCodec json, IFileOperations files)
     {
         this.artifacts = artifacts;

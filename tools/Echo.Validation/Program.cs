@@ -1,10 +1,12 @@
 using Echo.Composition;
 using Echo.Validation;
+using Microsoft.Extensions.DependencyInjection;
 
-using var composition = new MefComposition(typeof(ValidationApplication).Assembly,
-    typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly,
-    typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly,
-    typeof(Echo.Texturing.Metal.MetalTexturePlacementAccelerator).Assembly);
+var services = new ServiceCollection();
+new ProcessingServices().Register(services);
+new ValidationServices().Register(services);
+using var provider = services.BuildServiceProvider();
+
 using var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, eventArgs) =>
 {
@@ -13,7 +15,7 @@ Console.CancelKeyPress += (_, eventArgs) =>
 };
 try
 {
-    return composition.Resolve<ValidationApplication>().Run(args, cancellation.Token);
+    return provider.GetRequiredService<ValidationApplication>().Run(args, cancellation.Token);
 }
 catch (OperationCanceledException)
 {

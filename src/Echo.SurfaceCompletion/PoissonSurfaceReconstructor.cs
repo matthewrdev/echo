@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Globalization;
 using Echo.Contracts;
@@ -7,12 +6,10 @@ using Echo.Geometry;
 
 namespace Echo.SurfaceCompletion;
 
-[Export(typeof(ISurfaceReconstructor)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
 {
     private readonly IPoissonSurfaceCodec codec;
 
-    [ImportingConstructor]
     public PoissonSurfaceReconstructor(IPoissonSurfaceCodec codec)
     {
         this.codec = codec;

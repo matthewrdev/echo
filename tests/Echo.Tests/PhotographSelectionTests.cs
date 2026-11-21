@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Meshing;
@@ -6,12 +5,10 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class PhotographSelectionTests
 {
     private readonly IMeshBuilder meshes;
 
-    [ImportingConstructor]
     public PhotographSelectionTests(IMeshBuilder meshes)
     {
         this.meshes = meshes;

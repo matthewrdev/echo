@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
@@ -8,14 +7,12 @@ using Echo.Storage;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(ICheckpointStore)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class CheckpointStore : ICheckpointStore
 {
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
     private readonly IArtifactWriteObserver writes;
 
-    [ImportingConstructor]
     public CheckpointStore(IFileOperations fileOperations, IJsonCodec jsonCodec, IArtifactWriteObserver writes)
     {
         this.fileOperations = fileOperations;

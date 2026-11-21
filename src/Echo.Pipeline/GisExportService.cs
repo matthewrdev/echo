@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.DenseCloud;
 using Echo.Export;
@@ -12,7 +11,6 @@ using SkiaSharp;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IGisExportService)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GisExportService : IGisExportService
 {
     private readonly IJsonCodec json;
@@ -25,7 +23,6 @@ public sealed class GisExportService : IGisExportService
     private readonly IBulkArtifactStore bulk;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public GisExportService(IJsonCodec json, IGisWriter writer, IGeoPackageWriter packages,
         IRedpointGeoreferenceWriter redpoint, ITilesetWriter tilesets, ILasWriter las,
         ICloudBuilder clouds, IBulkArtifactStore bulk, IFileOperations files)

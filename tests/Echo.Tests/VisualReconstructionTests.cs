@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -6,12 +5,10 @@ using Echo.Reconstruction;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class VisualReconstructionTests
 {
     private readonly IReconstructor reconstructor;
 
-    [ImportingConstructor]
     public VisualReconstructionTests(IReconstructor reconstructor)
     {
         this.reconstructor = reconstructor;

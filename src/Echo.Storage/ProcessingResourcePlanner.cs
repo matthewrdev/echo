@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Storage;
 
-[Export(typeof(IProcessingResourcePlanner)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ProcessingResourcePlanner : IProcessingResourcePlanner
 {
-    [ImportingConstructor]
     public ProcessingResourcePlanner()
     {
     }

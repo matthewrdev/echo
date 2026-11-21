@@ -1,10 +1,8 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICommandApplication)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class CommandApplication : ICommandApplication
 {
     private readonly IArgumentParser argumentParser;
@@ -73,8 +71,7 @@ public sealed class CommandApplication : ICommandApplication
     Render writes a new PNG without opening a window. Maximum size: 8192 per side, 16,777,216 pixels total.
     """;
 
-    [ImportingConstructor]
-    public CommandApplication(IArgumentParser argumentParser, ICommandOutput output, [ImportMany] IEnumerable<ICliCommand> commands)
+    public CommandApplication(IArgumentParser argumentParser, ICommandOutput output, IEnumerable<ICliCommand> commands)
     {
         this.argumentParser = argumentParser;
         this.output = output;

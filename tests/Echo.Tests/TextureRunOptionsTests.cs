@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Cli;
 using Echo.Contracts;
 using Echo.Imaging;
@@ -8,7 +7,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class TextureRunOptionsTests
 {
     private readonly ICommandApplication application;
@@ -17,7 +15,6 @@ public sealed class TextureRunOptionsTests
     private readonly IRasterImageService images;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public TextureRunOptionsTests(ICommandApplication application, IArgumentParser parser,
         IProjectStoreFactory stores, IRasterImageService images, IFileOperations files)
     {

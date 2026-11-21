@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Imaging;
@@ -7,12 +6,10 @@ using Echo.SceneSemantics;
 
 namespace Echo.Depth;
 
-[Export(typeof(ICliffDepthRecovery)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class CliffDepthRecovery : ICliffDepthRecovery
 {
     private readonly IRasterImageService images;
 
-    [ImportingConstructor]
     public CliffDepthRecovery(IRasterImageService images)
     {
         this.images = images;

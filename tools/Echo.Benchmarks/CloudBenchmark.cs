@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.DenseCloud;
@@ -7,7 +6,6 @@ using Echo.Projects;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class CloudBenchmark
 {
     private readonly ICloudBuilder builder;
@@ -15,7 +13,6 @@ public sealed class CloudBenchmark
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public CloudBenchmark(ICloudBuilder builder, IProjectStoreFactory stores, IJsonCodec json, IFileOperations files)
     {
         this.builder = builder;

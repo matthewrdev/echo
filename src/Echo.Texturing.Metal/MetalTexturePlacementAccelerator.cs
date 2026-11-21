@@ -1,15 +1,12 @@
-using System.ComponentModel.Composition;
 using System.Text;
 using System.Security.Cryptography;
 
 namespace Echo.Texturing.Metal;
 
-[Export(typeof(ITexturePlacementAccelerator)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MetalTexturePlacementAccelerator : ITexturePlacementAccelerator
 {
     private readonly string source;
 
-    [ImportingConstructor]
     public MetalTexturePlacementAccelerator()
     {
         using var stream = typeof(MetalTexturePlacementAccelerator).Assembly.GetManifestResourceStream("Echo.Texturing.Metal.Native.TexturePlacement.metal")!;

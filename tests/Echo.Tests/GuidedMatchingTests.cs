@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Infrastructure;
@@ -6,13 +5,11 @@ using Echo.Matching;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class GuidedMatchingTests
 {
     private readonly IGuidedFeatureMatcher guided;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public GuidedMatchingTests(IGuidedFeatureMatcher guided, IFileOperations files)
     {
         this.guided = guided;

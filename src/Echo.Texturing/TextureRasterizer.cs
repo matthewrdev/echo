@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Compute;
@@ -10,14 +9,12 @@ using SkiaSharp;
 
 namespace Echo.Texturing;
 
-[Export(typeof(ITextureRasterizer)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureRasterizer : ITextureRasterizer
 {
     private readonly IRasterImageService images;
     private readonly IComputeService? compute;
 
-    [ImportingConstructor]
-    public TextureRasterizer(IRasterImageService images, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public TextureRasterizer(IRasterImageService images, IComputeService? compute = null)
     {
         this.images = images;
         this.compute = compute;

@@ -1,18 +1,15 @@
 using Echo.Contracts;
 using Echo.Telemetry;
-using System.ComponentModel.Composition;
 
 namespace Echo.Compute;
 
-[Export(typeof(IComputeService)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ComputeService : IComputeService
 {
     private readonly IComputeDevice[] devices;
     private readonly IPerformanceTrace trace;
     private readonly AsyncLocal<ComputeScope?> scope = new();
 
-    [ImportingConstructor]
-    public ComputeService([ImportMany] IEnumerable<IComputeDevice> devices, IPerformanceTrace trace)
+    public ComputeService(IEnumerable<IComputeDevice> devices, IPerformanceTrace trace)
     {
         this.devices = devices.ToArray();
         this.trace = trace;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -9,7 +8,6 @@ using Echo.Projects;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class PairSelectionBenchmark
 {
     private readonly IImagePairSelector selector;
@@ -18,7 +16,6 @@ public sealed class PairSelectionBenchmark
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public PairSelectionBenchmark(IImagePairSelector selector, IFeatureMatcher matcher, IProjectStoreFactory stores, IJsonCodec json, IFileOperations files)
     {
         this.selector = selector;

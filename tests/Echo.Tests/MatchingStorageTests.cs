@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -6,7 +5,6 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class MatchingStorageTests
 {
     private readonly IFeatureArtifactStore features;
@@ -14,7 +12,6 @@ public sealed class MatchingStorageTests
     private readonly IMatchingIndexStore indexes;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public MatchingStorageTests(IFeatureArtifactStore features, IMatchArtifactStore matches, IMatchingIndexStore indexes, IFileOperations files)
     {
         this.features = features;

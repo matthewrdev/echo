@@ -1,5 +1,4 @@
 using Echo.Compute;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Pipeline;
@@ -7,7 +6,6 @@ using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ProcessingMetadataTests
 {
     private readonly IProjectStoreFactory stores;
@@ -16,7 +14,6 @@ public sealed class ProcessingMetadataTests
     private readonly IFileOperations files;
     private readonly IComputeService compute;
 
-    [ImportingConstructor]
     public ProcessingMetadataTests(IProjectStoreFactory stores, IRunContextFactory contexts, IJsonCodec json, IFileOperations files, IComputeService compute)
     {
         this.stores = stores;

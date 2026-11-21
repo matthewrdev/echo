@@ -1,13 +1,11 @@
 using Echo.Compute;
 using Echo.Contracts;
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Texturing;
 using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TexturePackingTests
 {
     private readonly ITexturePatchPacker packer;
@@ -15,9 +13,8 @@ public sealed class TexturePackingTests
     private readonly ITextureProfilePacker profiles;
     private readonly ITexturePlacementAccelerator[] accelerators;
 
-    [ImportingConstructor]
     public TexturePackingTests(ITexturePatchPacker packer, ITextureProfilePacker profiles,
-        [ImportMany] IEnumerable<ITexturePlacementAccelerator> accelerators, IComputeService compute)
+        IEnumerable<ITexturePlacementAccelerator> accelerators, IComputeService compute)
     {
         this.packer = packer;
         this.compute = compute;

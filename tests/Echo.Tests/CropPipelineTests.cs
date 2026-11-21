@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Compute;
 using Echo.Contracts;
 using Echo.DenseCloud;
@@ -11,7 +10,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class CropPipelineTests
 {
     private readonly IProjectStoreFactory stores;
@@ -24,10 +22,9 @@ public sealed class CropPipelineTests
     private readonly IPipelineStage cloudStage;
     private readonly IPipelineStage fusionStage;
 
-    [ImportingConstructor]
     public CropPipelineTests(IProjectStoreFactory stores, IRunContextFactory contexts, IFileOperations files,
         IJsonCodec json, ICloudBuilder clouds, IRasterImageService images, IComputeService compute,
-        [ImportMany] IEnumerable<IPipelineStage> stages)
+        IEnumerable<IPipelineStage> stages)
     {
         this.stores = stores;
         this.contexts = contexts;

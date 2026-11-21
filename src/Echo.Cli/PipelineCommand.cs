@@ -1,11 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Pipeline;
 using Echo.Projects;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PipelineCommand : ICliCommand
 {
     private readonly IProjectStoreFactory storeFactory;
@@ -13,7 +11,6 @@ public sealed class PipelineCommand : ICliCommand
     private readonly IProcessor processor;
     private readonly IStageResetService resetService;
 
-    [ImportingConstructor]
     public PipelineCommand(IProjectStoreFactory storeFactory, ICommandOutput output, IProcessor processor, IStageResetService resetService)
     {
         this.storeFactory = storeFactory;

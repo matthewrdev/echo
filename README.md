@@ -61,7 +61,7 @@ Subject distance defaults to automatic: the camera footprint and reliable foregr
 
 ## Development
 
-The desktop uses SwiftUI, AppKit and SceneKit/Metal. The CLI and processing subsystems use C#/.NET with MEF composition.
+The desktop uses SwiftUI, AppKit and SceneKit/Metal. The CLI and processing subsystems use C#/.NET with explicit service registration at their entry points.
 
 ```bash
 ./scripts/build.sh         # Build and run C# and native tests

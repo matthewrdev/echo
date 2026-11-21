@@ -1,15 +1,12 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Imaging;
 
 namespace Echo.Projects;
 
-[Export(typeof(IPhotoDeduplicator)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PhotoDeduplicator : IPhotoDeduplicator
 {
     private readonly IRasterImageService images;
 
-    [ImportingConstructor]
     public PhotoDeduplicator(IRasterImageService images)
     {
         this.images = images;

@@ -1,17 +1,14 @@
 using System.Buffers.Binary;
-using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Echo.Contracts;
 
 namespace Echo.Storage;
 
-[Export(typeof(IFeatureArtifactStore)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class FeatureArtifactStore : IFeatureArtifactStore
 {
     private readonly IBinaryArtifactFiles files;
 
-    [ImportingConstructor]
     public FeatureArtifactStore(IBinaryArtifactFiles files)
     {
         this.files = files;

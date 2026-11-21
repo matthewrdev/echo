@@ -1,17 +1,14 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Echo.Contracts;
 
 namespace Echo.SceneSemantics;
 
-[Export(typeof(IModelAssetCache)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ModelAssetCache : IModelAssetCache
 {
     private readonly string directory;
     private readonly HttpMessageHandler? handler;
 
-    [ImportingConstructor]
     public ModelAssetCache()
     {
         var root = OperatingSystem.IsMacOS()

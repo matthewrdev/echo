@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Features;
@@ -12,7 +11,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ImageStageConcurrencyTests
 {
     private readonly IProjectStoreFactory stores;
@@ -27,7 +25,6 @@ public sealed class ImageStageConcurrencyTests
     private readonly IMatchingIndexStore indexes;
     private readonly ISceneSemanticArtifacts semantics;
 
-    [ImportingConstructor]
     public ImageStageConcurrencyTests(IProjectStoreFactory stores, IRunContextFactory contexts, IFileOperations files,
         IJsonCodec json, IRasterImageService images, IFeatureExtractor extractor, IFeatureMatcher matcher,
         IImagePairSelector selector, IOrderedWorkExecutor executor, IMatchingIndexStore indexes, ISceneSemanticArtifacts semantics)

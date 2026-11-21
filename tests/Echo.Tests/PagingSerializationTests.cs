@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class PagingSerializationTests
 {
     private readonly IBulkArtifactStore artifacts;
 
-    [ImportingConstructor]
     public PagingSerializationTests(IBulkArtifactStore artifacts)
     {
         this.artifacts = artifacts;

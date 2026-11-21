@@ -1,15 +1,12 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Storage;
 
 namespace Echo.SurfaceCompletion;
 
-[Export(typeof(IPoissonSurfaceCodec)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
 {
-    [ImportingConstructor]
     public PoissonSurfaceCodec()
     {
     }

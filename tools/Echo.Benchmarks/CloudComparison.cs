@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Globalization;
 using System.Text;
 using Echo.Contracts;
@@ -7,12 +6,10 @@ using SkiaSharp;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class CloudComparison
 {
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public CloudComparison(IJsonCodec json)
     {
         this.json = json;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text;
 using System.Text.Json;
 using Echo.Contracts;
@@ -8,13 +7,11 @@ using Echo.Texturing;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class JsonDecodingTests
 {
     private readonly IJsonCodec json;
     private readonly IArgumentParser arguments;
 
-    [ImportingConstructor]
     public JsonDecodingTests(IJsonCodec json, IArgumentParser arguments)
     {
         this.json = json;

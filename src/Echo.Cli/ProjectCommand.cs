@@ -1,17 +1,14 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Projects;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ProjectCommand : ICliCommand
 {
     private readonly IProjectStoreFactory storeFactory;
     private readonly ICommandOutput output;
     private readonly IProjectManagementService management;
 
-    [ImportingConstructor]
     public ProjectCommand(IProjectStoreFactory storeFactory, ICommandOutput output, IProjectManagementService management)
     {
         this.storeFactory = storeFactory;

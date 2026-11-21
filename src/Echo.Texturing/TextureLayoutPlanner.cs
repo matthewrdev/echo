@@ -1,20 +1,17 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Storage;
 using Echo.Telemetry;
 
 namespace Echo.Texturing;
 
-[Export(typeof(ITextureLayoutPlanner)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
 {
     private readonly ITexturePatchBuilder builder;
     private readonly ITexturePatchPacker packer;
     private readonly IPerformanceTrace? trace;
 
-    [ImportingConstructor]
     public TextureLayoutPlanner(ITexturePatchBuilder builder, ITexturePatchPacker packer,
-        [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
+        IPerformanceTrace? trace = null)
     {
         this.builder = builder;
         this.packer = packer;

@@ -1,13 +1,10 @@
-using System.ComponentModel.Composition;
 using System.Runtime.CompilerServices;
 using Echo.Contracts;
 
 namespace Echo.DenseCloud;
 
-[Export(typeof(ICloudExecutionPlanner)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class CloudExecutionPlanner : ICloudExecutionPlanner
 {
-    [ImportingConstructor]
     public CloudExecutionPlanner()
     {
     }

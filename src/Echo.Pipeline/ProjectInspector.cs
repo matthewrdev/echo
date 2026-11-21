@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -6,13 +5,11 @@ using Echo.Projects;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IProjectInspector)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ProjectInspector : IProjectInspector
 {
     private readonly IJsonCodec jsonCodec;
     private readonly IAlignmentPreviewReader previewReader;
 
-    [ImportingConstructor]
     public ProjectInspector(IJsonCodec jsonCodec, IAlignmentPreviewReader previewReader)
     {
         this.jsonCodec = jsonCodec;

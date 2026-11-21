@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Pipeline;
@@ -6,7 +5,6 @@ using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TexturePriorityPipelineTests
 {
     private readonly IProjectStoreFactory stores;
@@ -14,9 +12,8 @@ public sealed class TexturePriorityPipelineTests
     private readonly IFileOperations files;
     private readonly IPipelineStage texture;
 
-    [ImportingConstructor]
     public TexturePriorityPipelineTests(IProjectStoreFactory stores, IRunContextFactory contexts,
-        IFileOperations files, [ImportMany] IEnumerable<IPipelineStage> stages)
+        IFileOperations files, IEnumerable<IPipelineStage> stages)
     {
         this.stores = stores;
         this.contexts = contexts;

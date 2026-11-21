@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.DenseCloud;
 using Echo.Imaging;
@@ -8,7 +7,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class CloudProcessingTests
 {
     private readonly ICloudBuilder builder;
@@ -16,7 +14,6 @@ public sealed class CloudProcessingTests
     private readonly IProjectStoreFactory stores;
     private readonly IRasterImageService images;
 
-    [ImportingConstructor]
     public CloudProcessingTests(ICloudBuilder builder, ICloudExecutionPlanner planner, IProjectStoreFactory stores, IRasterImageService images)
     {
         this.builder = builder;

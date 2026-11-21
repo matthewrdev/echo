@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Cli;
 using Echo.Contracts;
 using Echo.Depth;
@@ -9,7 +8,6 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class RunRecoveryTests
 {
     private readonly IRunStateRecovery recovery;
@@ -20,7 +18,6 @@ public sealed class RunRecoveryTests
     private readonly IDepthExecutionPlanner depthPlanner;
     private readonly IProcessingResourcePlanner resourcePlanner;
 
-    [ImportingConstructor]
     public RunRecoveryTests(IRunStateRecovery recovery, IProjectStoreFactory stores,
         IFileOperations files, ICommandApplication application, IRunContextFactory contexts, IDepthExecutionPlanner depthPlanner,
         IProcessingResourcePlanner resourcePlanner)

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Imaging;
 using Echo.Projects;
@@ -7,7 +6,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureTests
 {
     private readonly ITextureBaker baker;
@@ -18,7 +16,6 @@ public sealed class TextureTests
     private readonly ITextureSeamLeveler seamLeveler;
     private readonly ITexturePatchBuilder patchBuilder;
 
-    [ImportingConstructor]
     public TextureTests(ITextureBaker baker, IProjectStoreFactory stores, IRasterImageService images,
         ITexturePatchPacker packer, ITextureRasterizer rasterizer, ITextureSeamLeveler seamLeveler,
         ITexturePatchBuilder patchBuilder)

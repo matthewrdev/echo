@@ -1,20 +1,17 @@
 using Echo.Compute;
 using Echo.Telemetry;
 using Echo.Contracts;
-using System.ComponentModel.Composition;
 using SkiaSharp;
 
 namespace Echo.Texturing;
 
-[Export(typeof(ITextureGapPacker)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureGapPacker : ITextureGapPacker
 {
     private readonly ITexturePlacementAccelerator[] accelerators;
     private readonly IComputeService? compute;
     private readonly IPerformanceTrace? trace;
 
-    [ImportingConstructor]
-    public TextureGapPacker([ImportMany] IEnumerable<ITexturePlacementAccelerator> accelerators, [Import(AllowDefault = true)] IComputeService? compute = null, [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
+    public TextureGapPacker(IEnumerable<ITexturePlacementAccelerator> accelerators, IComputeService? compute = null, IPerformanceTrace? trace = null)
     {
         this.accelerators = accelerators.ToArray();
         this.compute = compute;

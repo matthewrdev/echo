@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Pipeline;
@@ -6,7 +5,6 @@ using Echo.Projects;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class RunCommand : ICliCommand
 {
     private readonly IProjectStoreFactory storeFactory;
@@ -16,7 +14,6 @@ public sealed class RunCommand : ICliCommand
     private readonly IProcessor processor;
     private readonly IRunStateRecovery runStateRecovery;
 
-    [ImportingConstructor]
     public RunCommand(IProjectStoreFactory storeFactory,
         ICommandOutput output,
         IJsonCodec jsonCodec,

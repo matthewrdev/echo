@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -8,7 +7,6 @@ using Echo.Meshing;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class SimplificationBenchmark
 {
     private readonly IEdgeCollapse simplifier;
@@ -17,7 +15,6 @@ public sealed class SimplificationBenchmark
     private readonly IJsonCodec json;
     private readonly IMeshBuilder meshes;
 
-    [ImportingConstructor]
     public SimplificationBenchmark(IEdgeCollapse simplifier, IBulkArtifactStore artifacts, IFileOperations files, IJsonCodec json, IMeshBuilder meshes)
     {
         this.simplifier = simplifier;

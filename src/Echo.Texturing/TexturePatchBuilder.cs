@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.Storage;
@@ -6,16 +5,14 @@ using Echo.Telemetry;
 
 namespace Echo.Texturing;
 
-[Export(typeof(ITexturePatchBuilder)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TexturePatchBuilder : ITexturePatchBuilder
 {
     private readonly ITextureChartOrienter orienter;
     private readonly IComputeService? compute;
     private readonly IPerformanceTrace? trace;
 
-    [ImportingConstructor]
-    public TexturePatchBuilder(ITextureChartOrienter orienter, [Import(AllowDefault = true)] IComputeService? compute = null,
-        [Import(AllowDefault = true)] IPerformanceTrace? trace = null)
+    public TexturePatchBuilder(ITextureChartOrienter orienter, IComputeService? compute = null,
+        IPerformanceTrace? trace = null)
     {
         this.orienter = orienter;
         this.compute = compute;

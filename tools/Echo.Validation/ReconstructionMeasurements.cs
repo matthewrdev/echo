@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Export;
 using Echo.Infrastructure;
@@ -8,14 +7,12 @@ using Echo.Storage;
 
 namespace Echo.Validation;
 
-[Export(typeof(IReconstructionMeasurements))]
 public sealed class ReconstructionMeasurements : IReconstructionMeasurements
 {
     private readonly IBulkArtifactStore bulk;
     private readonly IJsonCodec json;
     private readonly IGlbWriter glb;
 
-    [ImportingConstructor]
     public ReconstructionMeasurements(IBulkArtifactStore bulk, IJsonCodec json, IGlbWriter glb)
     {
         this.bulk = bulk;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Meshing;
@@ -6,13 +5,11 @@ using Echo.Simplification;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class MeshQualityTests
 {
     private readonly IMeshBuilder meshes;
     private readonly IEdgeCollapse simplifier;
 
-    [ImportingConstructor]
     public MeshQualityTests(IMeshBuilder meshes, IEdgeCollapse simplifier)
     {
         this.meshes = meshes;

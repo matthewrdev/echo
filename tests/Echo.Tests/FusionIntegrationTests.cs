@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Runtime.CompilerServices;
 using Echo.Compute;
 using Echo.Contracts;
@@ -8,12 +7,10 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class FusionIntegrationTests
 {
     private readonly IComputeService compute;
 
-    [ImportingConstructor]
     public FusionIntegrationTests(IComputeService compute)
     {
         this.compute = compute;

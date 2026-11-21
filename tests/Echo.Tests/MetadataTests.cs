@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -7,13 +6,11 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class MetadataTests
 {
     private readonly IMetadataReader reader;
     private readonly IMetadataPayloadReader payloads;
 
-    [ImportingConstructor]
     public MetadataTests(IMetadataReader reader, IMetadataPayloadReader payloads)
     {
         this.reader = reader;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Meshing;
@@ -7,14 +6,12 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class SurfaceCompletionTests
 {
     private readonly ISurfaceReconstructor reconstructor;
     private readonly IPoissonSurfaceCodec codec;
     private readonly IMeshBuilder meshes;
 
-    [ImportingConstructor]
     public SurfaceCompletionTests(ISurfaceReconstructor reconstructor, IPoissonSurfaceCodec codec, IMeshBuilder meshes)
     {
         this.reconstructor = reconstructor;

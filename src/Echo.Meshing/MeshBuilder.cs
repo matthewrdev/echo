@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.Storage;
@@ -6,13 +5,11 @@ using Echo.Geometry;
 
 namespace Echo.Meshing;
 
-[Export(typeof(IMeshBuilder)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MeshBuilder : IMeshBuilder
 {
     private readonly IComputeService? compute;
 
-    [ImportingConstructor]
-    public MeshBuilder([Import(AllowDefault = true)] IComputeService? compute = null)
+    public MeshBuilder(IComputeService? compute = null)
     {
         this.compute = compute;
     }

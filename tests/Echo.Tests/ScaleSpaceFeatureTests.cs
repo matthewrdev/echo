@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Features;
 using Echo.Infrastructure;
@@ -6,13 +5,11 @@ using Echo.Matching;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ScaleSpaceFeatureTests
 {
     private readonly IFeatureMatcher matcher;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public ScaleSpaceFeatureTests(IFeatureMatcher matcher, IFileOperations files)
     {
         this.matcher = matcher;

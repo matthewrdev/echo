@@ -1,13 +1,10 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Meshing;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class SurfaceIslandTests
 {
-    [ImportingConstructor]
     public SurfaceIslandTests()
     {
     }

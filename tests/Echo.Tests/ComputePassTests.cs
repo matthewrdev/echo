@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Compute;
 using Echo.Contracts;
 using Echo.DenseCloud;
@@ -13,13 +12,11 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ComputePassTests
 {
     private readonly IComputeService compute;
     private readonly IDepthEstimator depthEstimator;
 
-    [ImportingConstructor]
     public ComputePassTests(IComputeService compute, IDepthEstimator depthEstimator)
     {
         this.compute = compute;

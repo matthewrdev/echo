@@ -1,10 +1,13 @@
 using System.Globalization;
 using Echo.Cli;
 using Echo.Composition;
-using Echo.Pipeline;
+using Microsoft.Extensions.DependencyInjection;
 
 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
-using var composition = new MefComposition(typeof(CommandApplication).Assembly, typeof(Processor).Assembly,
-    typeof(Echo.Compute.Metal.MetalComputeDevice).Assembly, typeof(Echo.Depth.Metal.MetalDepthCostAccelerator).Assembly, typeof(Echo.Texturing.Metal.MetalTexturePlacementAccelerator).Assembly);
-return composition.Resolve<ICommandApplication>().Run(args);
+var services = new ServiceCollection();
+new ProcessingServices().Register(services);
+new CliServices().Register(services);
+using var provider = services.BuildServiceProvider();
+
+return provider.GetRequiredService<ICommandApplication>().Run(args);

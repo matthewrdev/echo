@@ -1,10 +1,8 @@
-using System.ComponentModel.Composition;
 using Echo.Compute;
 using Echo.Compute.Metal;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ComputeContractTests
 {
     internal void Run(TestSuite tests)

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
@@ -7,14 +6,12 @@ using System.Text.Json;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IRunStateRecovery)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class RunStateRecovery : IRunStateRecovery
 {
     private readonly IRunContextFactory contextFactory;
     private readonly IJsonCodec jsonCodec;
     private readonly IPerformanceTraceStore traces;
 
-    [ImportingConstructor]
     public RunStateRecovery(IRunContextFactory contextFactory, IJsonCodec jsonCodec, IPerformanceTraceStore traces)
     {
         this.contextFactory = contextFactory;

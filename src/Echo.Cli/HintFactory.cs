@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Cli;
 
-[Export(typeof(IHintFactory)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class HintFactory : IHintFactory
 {
-    [ImportingConstructor]
     public HintFactory()
     {
     }

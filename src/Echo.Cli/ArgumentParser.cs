@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Cli;
 
-[Export(typeof(IArgumentParser)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ArgumentParser : IArgumentParser
 {
-    [ImportingConstructor]
     public ArgumentParser()
     {
     }

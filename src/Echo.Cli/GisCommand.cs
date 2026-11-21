@@ -1,18 +1,15 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Pipeline;
 using Echo.Projects;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GisCommand : ICliCommand
 {
     private readonly IProjectStoreFactory stores;
     private readonly IGisExportService exporter;
     private readonly ICommandOutput output;
 
-    [ImportingConstructor]
     public GisCommand(IProjectStoreFactory stores, IGisExportService exporter, ICommandOutput output)
     {
         this.stores = stores;

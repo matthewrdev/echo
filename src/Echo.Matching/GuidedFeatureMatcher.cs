@@ -1,20 +1,17 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.Geometry;
 
 namespace Echo.Matching;
 
-[Export(typeof(IGuidedFeatureMatcher)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
 {
 
     private readonly IComputeService? compute;
 
-    [ImportingConstructor]
-    public GuidedFeatureMatcher([Import(AllowDefault = true)] IComputeService? compute = null)
+    public GuidedFeatureMatcher(IComputeService? compute = null)
     {
         this.compute = compute;
     }

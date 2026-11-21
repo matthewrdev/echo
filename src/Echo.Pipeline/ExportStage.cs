@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Export;
 using Echo.Geometry;
@@ -7,14 +6,12 @@ using Echo.Texturing;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPipelineStage)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ExportStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
     private readonly IGlbWriter glbWriter;
 
-    [ImportingConstructor]
     public ExportStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IGlbWriter glbWriter)
     {
         this.fileOperations = fileOperations;

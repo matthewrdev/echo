@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.Storage;
@@ -6,13 +5,11 @@ using Echo.Geometry;
 
 namespace Echo.Fusion;
 
-[Export(typeof(IDepthFusion)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class DepthFusion : IDepthFusion
 {
     private readonly IComputeService? compute;
 
-    [ImportingConstructor]
-    public DepthFusion([Import(AllowDefault = true)] IComputeService? compute = null)
+    public DepthFusion(IComputeService? compute = null)
     {
         this.compute = compute;
     }

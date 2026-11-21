@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Compute;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -9,7 +8,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ComputeTextureTests
 {
     private readonly IComputeService compute;
@@ -17,7 +15,6 @@ public sealed class ComputeTextureTests
     private readonly IRasterImageService images;
     private readonly ITextureRasterizer rasterizer;
 
-    [ImportingConstructor]
     public ComputeTextureTests(IComputeService compute, IProjectStoreFactory stores, IRasterImageService images, ITextureRasterizer rasterizer)
     {
         this.compute = compute;

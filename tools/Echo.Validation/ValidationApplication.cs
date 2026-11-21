@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -11,7 +10,6 @@ using Echo.Telemetry;
 
 namespace Echo.Validation;
 
-[Export]
 public sealed class ValidationApplication
 {
     private readonly IValidationInputs inputs;
@@ -22,7 +20,6 @@ public sealed class ValidationApplication
     private readonly IFileOperations files;
     private readonly IPerformanceTraceStore traces;
 
-    [ImportingConstructor]
     public ValidationApplication(IValidationInputs inputs, IReconstructionMeasurements measurements, IProcessor processor,
         IProjectStoreFactory stores, IJsonCodec json, IFileOperations files, IPerformanceTraceStore traces)
     {

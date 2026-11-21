@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using Echo.Cli;
 using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ResetCommandTests
 {
     private readonly ICommandApplication application;
     private readonly IProjectStoreFactory storeFactory;
 
-    [ImportingConstructor]
     public ResetCommandTests(ICommandApplication application, IProjectStoreFactory storeFactory)
     {
         this.application = application;

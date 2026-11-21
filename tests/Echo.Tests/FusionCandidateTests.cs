@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Fusion;
 using Echo.Geometry;
@@ -6,10 +5,8 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class FusionCandidateTests
 {
-    [ImportingConstructor]
     public FusionCandidateTests()
     {
     }

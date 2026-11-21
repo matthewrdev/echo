@@ -1,17 +1,14 @@
-using System.ComponentModel.Composition;
 using Echo.Infrastructure;
 using Echo.Projects;
 
 namespace Echo.Validation;
 
-[Export(typeof(IValidationInputs))]
 public sealed class ValidationInputs : IValidationInputs
 {
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
     private readonly IProjectStoreFactory stores;
 
-    [ImportingConstructor]
     public ValidationInputs(IJsonCodec json, IFileOperations files, IProjectStoreFactory stores)
     {
         this.json = json;

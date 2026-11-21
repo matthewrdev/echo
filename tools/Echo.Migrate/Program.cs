@@ -1,14 +1,18 @@
 using Echo.Composition;
 using Echo.Migrate;
-using Echo.Pipeline;
+using Microsoft.Extensions.DependencyInjection;
 
 if (args.Length == 0)
 {
     Console.Error.WriteLine("Usage: Echo.Migrate PROJECT [PROJECT ...]");
     return 2;
 }
-using var composition = new MefComposition(typeof(MatchingProjectMigrator).Assembly, typeof(Processor).Assembly);
-var migrator = composition.Resolve<MatchingProjectMigrator>();
+var services = new ServiceCollection();
+new ProcessingServices().Register(services);
+new MigrationServices().Register(services);
+using var provider = services.BuildServiceProvider();
+
+var migrator = provider.GetRequiredService<MatchingProjectMigrator>();
 foreach (var path in args)
 {
     migrator.Migrate(Path.GetFullPath(path));

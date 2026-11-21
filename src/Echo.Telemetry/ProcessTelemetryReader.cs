@@ -1,15 +1,12 @@
 using System.ComponentModel;
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
 
 namespace Echo.Telemetry;
 
-[Export(typeof(IProcessTelemetryReader)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ProcessTelemetryReader : IProcessTelemetryReader
 {
-    [ImportingConstructor]
     public ProcessTelemetryReader()
     {
     }

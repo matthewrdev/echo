@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Storage;
 using Echo.Imaging;
@@ -7,7 +6,6 @@ using SkiaSharp;
 
 namespace Echo.Texturing;
 
-[Export(typeof(ITextureBaker)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureBaker : ITextureBaker
 {
     private readonly ITextureLayoutPlanner layoutPlanner;
@@ -15,7 +13,6 @@ public sealed class TextureBaker : ITextureBaker
     private readonly IRasterImageService images;
     private readonly ITextureSeamLeveler seamLeveler;
 
-    [ImportingConstructor]
     public TextureBaker(ITextureLayoutPlanner layoutPlanner, ITextureRasterizer rasterizer,
         IRasterImageService images, ITextureSeamLeveler seamLeveler)
     {

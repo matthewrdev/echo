@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Globalization;
 using System.Text.Json;
 using Echo.Contracts;
@@ -7,7 +6,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ReconstructionTests
 {
     private readonly Echo.Imaging.IRasterImageService rasterImageService;
@@ -29,7 +27,6 @@ public sealed class ReconstructionTests
     private readonly CloudProcessingTests cloudProcessingTests;
     private readonly VisualReconstructionTests visualReconstructionTests;
     private readonly Echo.Pipeline.IStageResetService resetService;
-    [ImportingConstructor]
     public ReconstructionTests(Echo.Imaging.IRasterImageService rasterImageService, Echo.Infrastructure.IJsonCodec jsonCodec, Echo.Infrastructure.IFileOperations fileOperations, Echo.Reconstruction.IReconstructor reconstructor, Echo.Optimization.IBundleAdjuster bundleAdjuster, Echo.Meshing.IMeshBuilder meshBuilder, Echo.Simplification.IEdgeCollapse edgeCollapse, Echo.Export.IGlbWriter glbWriter, Echo.Projects.IProjectStoreFactory storeFactory, Echo.Pipeline.IProcessor processor, ProcessingSettingsTests settingsTests, TextureTests textureTests, Echo.Pipeline.IStageResetService resetService, ProcessingEfficiencyTests efficiencyTests, LineFeatureTests lineTests, ResetCommandTests resetCommandTests, FeatureExtractionTests featureExtractionTests, CloudProcessingTests cloudProcessingTests, VisualReconstructionTests visualReconstructionTests)
     {
         this.rasterImageService = rasterImageService;
@@ -65,7 +62,7 @@ public sealed class ReconstructionTests
         featureExtractionTests.Run(tests);
         cloudProcessingTests.Run(tests);
         visualReconstructionTests.Run(tests);
-        tests.Run("MEF composes all processing stages in dependency order", () =>
+        tests.Run("Composition registers all processing stages in dependency order", () =>
         {
             var expected = new[]
             {
@@ -79,7 +76,7 @@ public sealed class ReconstructionTests
                 "texture",
                 "export"
             };
-            Check(processor.Stages.SequenceEqual(expected), "Incomplete or incorrectly ordered MEF composition");
+            Check(processor.Stages.SequenceEqual(expected), "Incomplete or incorrectly ordered stage registration");
         });
         tests.Run("WGS84 axes and DJI camera convention", () =>
         {

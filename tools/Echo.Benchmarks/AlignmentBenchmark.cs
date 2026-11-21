@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -8,7 +7,6 @@ using Echo.Reconstruction;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class AlignmentBenchmark
 {
     private readonly IProjectStoreFactory stores;
@@ -17,7 +15,6 @@ public sealed class AlignmentBenchmark
     private readonly IReconstructor reconstructor;
     private readonly IBundleAdjuster bundle;
 
-    [ImportingConstructor]
     public AlignmentBenchmark(IProjectStoreFactory stores, IJsonCodec json, IFileOperations files, IReconstructor reconstructor, IBundleAdjuster bundle)
     {
         this.stores = stores;

@@ -1,13 +1,10 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Optimization;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class Matrix3InverterTests
 {
-    [ImportingConstructor]
     public Matrix3InverterTests()
     {
     }

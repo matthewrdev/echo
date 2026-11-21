@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.Infrastructure;
@@ -8,7 +7,6 @@ using Echo.Telemetry;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IRunContextFactory)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class RunContextFactory : IRunContextFactory
 {
     private readonly ICheckpointStore checkpointStore;
@@ -21,9 +19,8 @@ public sealed class RunContextFactory : IRunContextFactory
     private readonly IPerformanceTrace trace;
     private readonly IPerformanceTraceStore traces;
 
-    [ImportingConstructor]
     public RunContextFactory(ICheckpointStore checkpointStore, IJsonCodec jsonCodec, IFileOperations fileOperations,
-        IBulkArtifactStore bulk, IProcessingResourcePlanner resources, IProcessTelemetryReader telemetry, IPerformanceTrace trace, IPerformanceTraceStore traces, [Import(AllowDefault = true)] IComputeService? compute = null)
+        IBulkArtifactStore bulk, IProcessingResourcePlanner resources, IProcessTelemetryReader telemetry, IPerformanceTrace trace, IPerformanceTraceStore traces, IComputeService? compute = null)
     {
         this.checkpointStore = checkpointStore;
         this.jsonCodec = jsonCodec;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Compute;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -8,7 +7,6 @@ using Echo.Telemetry;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class PerformanceTraceTests
 {
     private readonly IPerformanceTrace trace;
@@ -19,7 +17,6 @@ public sealed class PerformanceTraceTests
     private readonly IJsonCodec json;
     private readonly IComputeService compute;
 
-    [ImportingConstructor]
     public PerformanceTraceTests(IPerformanceTrace trace, IPerformanceTraceStore traces, IProjectStoreFactory stores,
         IRunContextFactory contexts, IFileOperations files, IJsonCodec json, IComputeService compute)
     {

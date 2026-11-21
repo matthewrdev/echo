@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Reconstruction;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class AlignmentVerificationTests
 {
     private readonly IReconstructor reconstructor;
 
-    [ImportingConstructor]
     public AlignmentVerificationTests(IReconstructor reconstructor)
     {
         this.reconstructor = reconstructor;

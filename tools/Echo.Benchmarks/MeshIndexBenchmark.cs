@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
@@ -9,10 +8,8 @@ using Echo.Storage;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class MeshIndexBenchmark
 {
-    [ImportingConstructor]
     public MeshIndexBenchmark()
     {
     }

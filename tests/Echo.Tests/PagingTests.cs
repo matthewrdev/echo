@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Fusion;
@@ -10,7 +9,6 @@ using Echo.Pipeline;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class PagingTests
 {
     private readonly IBulkArtifactStore artifacts;
@@ -18,7 +16,6 @@ public sealed class PagingTests
     private readonly IMeshBuilder meshes;
     private readonly IEdgeCollapse simplifier;
 
-    [ImportingConstructor]
     public PagingTests(IBulkArtifactStore artifacts, IDepthFusion fusion, IMeshBuilder meshes, IEdgeCollapse simplifier)
     {
         this.artifacts = artifacts;

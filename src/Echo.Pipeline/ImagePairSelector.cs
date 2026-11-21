@@ -1,13 +1,10 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IImagePairSelector)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ImagePairSelector : IImagePairSelector
 {
-    [ImportingConstructor]
     public ImagePairSelector()
     {
     }

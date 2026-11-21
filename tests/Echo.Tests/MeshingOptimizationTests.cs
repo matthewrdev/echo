@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using Echo.Contracts;
 using Echo.Compute;
@@ -9,13 +8,11 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class MeshingOptimizationTests
 {
     private readonly IBulkArtifactStore artifacts;
     private readonly IArtifactWriteObserver writes;
 
-    [ImportingConstructor]
     public MeshingOptimizationTests(IBulkArtifactStore artifacts, IArtifactWriteObserver writes)
     {
         this.artifacts = artifacts;

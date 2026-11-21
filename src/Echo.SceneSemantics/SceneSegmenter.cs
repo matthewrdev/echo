@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Imaging;
 using Echo.Telemetry;
 using Echo.Contracts;
@@ -6,13 +5,11 @@ using Microsoft.ML.OnnxRuntime;
 
 namespace Echo.SceneSemantics;
 
-[Export(typeof(ISceneSegmenter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class SceneSegmenter : ISceneSegmenter
 {
     private readonly IRasterImageService images;
     private readonly IPerformanceTrace trace;
 
-    [ImportingConstructor]
     public SceneSegmenter(IRasterImageService images, IPerformanceTrace trace)
     {
         this.images = images;

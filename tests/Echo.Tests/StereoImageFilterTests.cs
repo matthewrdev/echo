@@ -1,13 +1,10 @@
-using System.ComponentModel.Composition;
 using Echo.Depth;
 using Echo.Features;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class StereoImageFilterTests
 {
-    [ImportingConstructor]
     public StereoImageFilterTests()
     {
     }

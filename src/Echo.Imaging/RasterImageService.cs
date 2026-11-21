@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using System.Text;
 using Echo.Contracts;
@@ -7,12 +6,10 @@ using SkiaSharp;
 
 namespace Echo.Imaging;
 
-[Export(typeof(IRasterImageService)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class RasterImageService : IRasterImageService
 {
     private readonly IFileOperations fileOperations;
 
-    [ImportingConstructor]
     public RasterImageService(IFileOperations fileOperations)
     {
         this.fileOperations = fileOperations;

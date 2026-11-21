@@ -1,19 +1,16 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IProcessor)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class Processor : IProcessor
 {
     private readonly IReadOnlyList<IPipelineStage> stages;
     private readonly IRunContextFactory contextFactory;
     private readonly IFileOperations fileOperations;
 
-    [ImportingConstructor]
-    public Processor([ImportMany] IEnumerable<IPipelineStage> stages,
+    public Processor(IEnumerable<IPipelineStage> stages,
         IRunContextFactory contextFactory,
         IFileOperations fileOperations)
     {

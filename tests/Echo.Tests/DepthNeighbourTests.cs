@@ -1,14 +1,11 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
 using Echo.Geometry;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class DepthNeighbourTests
 {
-    [ImportingConstructor]
     public DepthNeighbourTests()
     {
     }

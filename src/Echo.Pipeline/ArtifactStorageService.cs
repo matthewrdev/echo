@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -9,7 +8,6 @@ using Echo.Storage;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IArtifactStorageService)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ArtifactStorageService : IArtifactStorageService
 {
     private readonly IJsonCodec json;
@@ -17,8 +15,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
     private readonly IMatchingIndexStore matchingIndexes;
     private readonly string[] stages;
 
-    [ImportingConstructor]
-    public ArtifactStorageService(IJsonCodec json, IFileOperations files, IMatchingIndexStore matchingIndexes, [ImportMany] IEnumerable<IPipelineStage> stages)
+    public ArtifactStorageService(IJsonCodec json, IFileOperations files, IMatchingIndexStore matchingIndexes, IEnumerable<IPipelineStage> stages)
     {
         this.json = json;
         this.files = files;

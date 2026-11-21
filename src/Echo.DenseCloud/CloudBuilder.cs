@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Globalization;
@@ -13,7 +12,6 @@ using SkiaSharp;
 
 namespace Echo.DenseCloud;
 
-[Export(typeof(ICloudBuilder)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class CloudBuilder : ICloudBuilder
 {
     private readonly IRasterImageService rasterImageService;
@@ -21,8 +19,7 @@ public sealed class CloudBuilder : ICloudBuilder
     private readonly IArtifactWriteObserver writes;
     private readonly IComputeService? compute;
 
-    [ImportingConstructor]
-    public CloudBuilder(IRasterImageService rasterImageService, ICloudExecutionPlanner executionPlanner, IArtifactWriteObserver writes, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public CloudBuilder(IRasterImageService rasterImageService, ICloudExecutionPlanner executionPlanner, IArtifactWriteObserver writes, IComputeService? compute = null)
     {
         this.rasterImageService = rasterImageService;
         this.executionPlanner = executionPlanner;

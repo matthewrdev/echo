@@ -1,11 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Metadata;
 using Echo.Projects;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ImagesCommand : ICliCommand
 {
     private readonly IProjectStoreFactory storeFactory;
@@ -15,7 +13,6 @@ public sealed class ImagesCommand : ICliCommand
     private readonly IPhotoDeduplicator deduplicator;
     private readonly IPhotoDeletionService deletion;
 
-    [ImportingConstructor]
     public ImagesCommand(IProjectStoreFactory storeFactory, ICommandOutput output, IMetadataReader metadataReader,
         IMetadataPayloadReader payloadReader, IPhotoDeduplicator deduplicator, IPhotoDeletionService deletion)
     {

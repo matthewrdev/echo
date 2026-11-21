@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Depth;
@@ -11,7 +10,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class DepthBackendTests
 {
     private readonly IRasterImageService images;
@@ -25,10 +23,9 @@ public sealed class DepthBackendTests
     private readonly ICliffRecoveryArtifacts recovery;
     private readonly IDepthCostAccelerator[] accelerators;
 
-    [ImportingConstructor]
     public DepthBackendTests(IRasterImageService images, IProjectStoreFactory stores, IDepthEstimator composedEstimator,
         IRunContextFactory contexts, IFileOperations files, IJsonCodec json, IDepthExecutionPlanner planner, ISceneSemanticArtifacts semantics,
-        ICliffRecoveryArtifacts recovery, [ImportMany] IEnumerable<IDepthCostAccelerator> accelerators)
+        ICliffRecoveryArtifacts recovery, IEnumerable<IDepthCostAccelerator> accelerators)
     {
         this.images = images;
         this.stores = stores;

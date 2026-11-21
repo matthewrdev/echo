@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using System.Text;
 using System.Text.Json;
 using Echo.Contracts;
 
 namespace Echo.Storage;
 
-[Export(typeof(IMatchingIndexStore)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MatchingIndexStore : IMatchingIndexStore
 {
     private readonly IMatchArtifactStore matches;
 
-    [ImportingConstructor]
     public MatchingIndexStore(IMatchArtifactStore matches)
     {
         this.matches = matches;

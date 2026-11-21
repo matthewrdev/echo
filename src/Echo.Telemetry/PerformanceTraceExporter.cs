@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text;
 using System.Text.Json;
 using System.Text.Encodings.Web;
@@ -7,13 +6,11 @@ using Echo.Infrastructure;
 
 namespace Echo.Telemetry;
 
-[Export(typeof(IPerformanceTraceExporter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PerformanceTraceExporter : IPerformanceTraceExporter
 {
     private readonly IPerformanceTraceStore traces;
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public PerformanceTraceExporter(IPerformanceTraceStore traces, IJsonCodec json)
     {
         this.traces = traces;

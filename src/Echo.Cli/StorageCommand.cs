@@ -1,18 +1,15 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Pipeline;
 using Echo.Projects;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class StorageCommand : ICliCommand
 {
     private readonly IProjectStoreFactory stores;
     private readonly IArtifactStorageService storage;
     private readonly ICommandOutput output;
 
-    [ImportingConstructor]
     public StorageCommand(IProjectStoreFactory stores, IArtifactStorageService storage, ICommandOutput output)
     {
         this.stores = stores;

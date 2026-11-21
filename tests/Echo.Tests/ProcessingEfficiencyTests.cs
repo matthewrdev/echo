@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -11,7 +10,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ProcessingEfficiencyTests
 {
     private readonly IRasterImageService images;
@@ -19,7 +17,6 @@ public sealed class ProcessingEfficiencyTests
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public ProcessingEfficiencyTests(IRasterImageService images, IDepthExecutionPlanner planner, IJsonCodec json, IFileOperations files)
     {
         this.images = images;

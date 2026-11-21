@@ -1,14 +1,11 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Imaging;
 using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ColourGradingTests
 {
-    [ImportingConstructor]
     public ColourGradingTests()
     {
     }

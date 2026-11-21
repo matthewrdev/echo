@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -8,7 +7,6 @@ using Echo.Storage;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ProjectInspectionTests
 {
     private readonly IProjectStoreFactory stores;
@@ -17,7 +15,6 @@ public sealed class ProjectInspectionTests
     private readonly IBulkArtifactStore bulk;
     private readonly IAlignmentPreviewWriter previews;
 
-    [ImportingConstructor]
     public ProjectInspectionTests(IProjectStoreFactory stores, IProjectInspector inspector, IJsonCodec json, IBulkArtifactStore bulk,
         IAlignmentPreviewWriter previews)
     {

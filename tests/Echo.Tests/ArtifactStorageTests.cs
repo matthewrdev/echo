@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Pipeline;
@@ -6,14 +5,12 @@ using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ArtifactStorageTests
 {
     private readonly IArtifactStorageService storage;
     private readonly IProjectStoreFactory stores;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public ArtifactStorageTests(IArtifactStorageService storage, IProjectStoreFactory stores, IFileOperations files)
     {
         this.storage = storage;

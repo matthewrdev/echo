@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Echo.Storage;
@@ -6,14 +5,12 @@ using Echo.Contracts;
 
 namespace Echo.Infrastructure;
 
-[Export(typeof(IFileOperations)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class FileOperations : IFileOperations
 {
     private readonly IJsonCodec jsonCodec;
     private readonly IBulkArtifactStore bulk;
     private readonly IArtifactWriteObserver writes;
 
-    [ImportingConstructor]
     public FileOperations(IJsonCodec jsonCodec, IBulkArtifactStore bulk, IArtifactWriteObserver writes)
     {
         this.jsonCodec = jsonCodec;

@@ -1,17 +1,14 @@
-using System.ComponentModel.Composition;
 using Echo.Metadata;
 using Echo.Projects;
 using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class HeifImportTests
 {
     private readonly IProjectStoreFactory storeFactory;
     private readonly IMetadataReader metadataReader;
 
-    [ImportingConstructor]
     public HeifImportTests(IProjectStoreFactory storeFactory, IMetadataReader metadataReader)
     {
         this.storeFactory = storeFactory;

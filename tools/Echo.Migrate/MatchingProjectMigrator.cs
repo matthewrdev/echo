@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
@@ -6,7 +5,6 @@ using Echo.Storage;
 
 namespace Echo.Migrate;
 
-[Export]
 public sealed class MatchingProjectMigrator
 {
     private readonly IProjectStoreFactory stores;
@@ -15,7 +13,6 @@ public sealed class MatchingProjectMigrator
     private readonly IMatchingIndexStore indexes;
     private readonly MatchingArtifactMigration artifacts;
 
-    [ImportingConstructor]
     public MatchingProjectMigrator(IProjectStoreFactory stores, IFileOperations files, IJsonCodec json,
         IMatchingIndexStore indexes, MatchingArtifactMigration artifacts)
     {

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Cli;
 using Echo.Contracts;
 using Echo.Imaging;
@@ -8,7 +7,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class SubjectDistanceRunOptionsTests
 {
     private readonly ICommandApplication application;
@@ -18,7 +16,6 @@ public sealed class SubjectDistanceRunOptionsTests
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
 
-    [ImportingConstructor]
     public SubjectDistanceRunOptionsTests(ICommandApplication application, IArgumentParser parser,
         IProjectStoreFactory stores, IRasterImageService images, IFileOperations files, IJsonCodec json)
     {

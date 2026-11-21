@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Fusion;
 using Echo.Geometry;
@@ -6,13 +5,11 @@ using Echo.Infrastructure;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class FusionSettingsTests
 {
     private readonly IJsonCodec json;
     private readonly IFusionResourcePlanner resourcePlanner;
 
-    [ImportingConstructor]
     public FusionSettingsTests(IJsonCodec json, IFusionResourcePlanner resourcePlanner)
     {
         this.json = json;

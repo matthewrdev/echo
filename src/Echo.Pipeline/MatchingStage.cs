@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.Infrastructure;
@@ -8,7 +7,6 @@ using Echo.Storage;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPipelineStage)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MatchingStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
@@ -21,10 +19,9 @@ public sealed class MatchingStage : IPipelineStage
     private readonly IMatchingIndexStore indexes;
     private readonly ISceneSemanticArtifacts semanticArtifacts;
 
-    [ImportingConstructor]
     public MatchingStage(IImagePairSelector pairSelector, IFileOperations fileOperations, IFeatureMatcher featureMatcher,
         IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory,
-        IMatchingIndexStore indexes, ISceneSemanticArtifacts semanticArtifacts, [Import(AllowDefault = true)] IComputeService? compute = null)
+        IMatchingIndexStore indexes, ISceneSemanticArtifacts semanticArtifacts, IComputeService? compute = null)
     {
         this.fileOperations = fileOperations;
         this.featureMatcher = featureMatcher;

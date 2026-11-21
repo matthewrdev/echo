@@ -1,12 +1,10 @@
 using Echo.Compute;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Texturing;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPipelineStage)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
@@ -14,8 +12,7 @@ public sealed class TextureStage : IPipelineStage
     private readonly ITextureBaker textureBaker;
     private readonly ITexturePlacementAccelerator[] packingAccelerators;
 
-    [ImportingConstructor]
-    public TextureStage(IFileOperations fileOperations, IJsonCodec jsonCodec, ITextureBaker textureBaker, [ImportMany] IEnumerable<ITexturePlacementAccelerator> packingAccelerators)
+    public TextureStage(IFileOperations fileOperations, IJsonCodec jsonCodec, ITextureBaker textureBaker, IEnumerable<ITexturePlacementAccelerator> packingAccelerators)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;

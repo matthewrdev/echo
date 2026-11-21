@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -7,14 +6,12 @@ using Echo.Contracts;
 
 namespace Echo.Infrastructure;
 
-[Export(typeof(IJsonCodec)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class JsonCodec : IJsonCodec
 {
     private readonly IReadOnlyList<IJsonReadMetadata> metadata;
     private readonly IBulkArtifactStore bulk;
 
-    [ImportingConstructor]
-    public JsonCodec([ImportMany] IEnumerable<IJsonReadMetadata> metadata, IBulkArtifactStore bulk)
+    public JsonCodec(IEnumerable<IJsonReadMetadata> metadata, IBulkArtifactStore bulk)
     {
         this.metadata = metadata.ToArray();
         this.bulk = bulk;

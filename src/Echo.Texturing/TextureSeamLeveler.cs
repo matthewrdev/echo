@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.Storage;
@@ -9,14 +8,12 @@ using SkiaSharp;
 
 namespace Echo.Texturing;
 
-[Export(typeof(ITextureSeamLeveler)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureSeamLeveler : ITextureSeamLeveler
 {
     private readonly IRasterImageService images;
     private readonly IComputeService? compute;
 
-    [ImportingConstructor]
-    public TextureSeamLeveler(IRasterImageService images, [Import(AllowDefault = true)] IComputeService? compute = null)
+    public TextureSeamLeveler(IRasterImageService images, IComputeService? compute = null)
     {
         this.images = images;
         this.compute = compute;

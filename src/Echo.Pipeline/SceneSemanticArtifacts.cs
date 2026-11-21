@@ -1,11 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.SceneSemantics;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(ISceneSemanticArtifacts)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
 {
     private readonly ISemanticModelProvider modelProvider;
@@ -13,7 +11,6 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
     private readonly IFileOperations files;
     private readonly IOrderedWorkExecutor workExecutor;
 
-    [ImportingConstructor]
     public SceneSemanticArtifacts(ISemanticModelProvider modelProvider, ISceneSegmenter segmenter, IFileOperations files, IOrderedWorkExecutor workExecutor)
     {
         this.modelProvider = modelProvider;

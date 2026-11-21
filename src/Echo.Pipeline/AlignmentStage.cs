@@ -1,5 +1,4 @@
 using Echo.Compute;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Matching;
@@ -8,7 +7,6 @@ using Echo.Reconstruction;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPipelineStage)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class AlignmentStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
@@ -22,7 +20,6 @@ public sealed class AlignmentStage : IPipelineStage
     private readonly IFeatureSetCacheFactory cacheFactory;
     private readonly IAlignmentPreviewWriter previewWriter;
 
-    [ImportingConstructor]
     public AlignmentStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IReconstructor reconstructor, IPlyWriter plyWriter,
         IGuidedFeatureMatcher guidedMatcher, IBundleAdjuster bundleAdjuster, IImageWorkPlanner workPlanner,
         IOrderedWorkExecutor workExecutor, IFeatureSetCacheFactory cacheFactory, IAlignmentPreviewWriter previewWriter)

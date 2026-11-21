@@ -1,5 +1,4 @@
 using Echo.Compute;
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.DenseCloud;
 using Echo.Fusion;
@@ -7,7 +6,6 @@ using Echo.Infrastructure;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPipelineStage)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class FusionStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
@@ -16,7 +14,6 @@ public sealed class FusionStage : IPipelineStage
     private readonly IDepthFusion depthFusion;
     private readonly IFusionResourcePlanner resourcePlanner;
 
-    [ImportingConstructor]
     public FusionStage(IFileOperations fileOperations, IJsonCodec jsonCodec, ICloudBuilder cloudBuilder,
         IDepthFusion depthFusion, IFusionResourcePlanner resourcePlanner)
     {

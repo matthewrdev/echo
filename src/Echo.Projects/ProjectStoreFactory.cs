@@ -1,11 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Imaging;
 using Echo.Infrastructure;
 using Echo.Metadata;
 
 namespace Echo.Projects;
 
-[Export(typeof(IProjectStoreFactory)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class ProjectStoreFactory : IProjectStoreFactory
 {
     private readonly IFileOperations fileOperations;
@@ -13,7 +11,6 @@ public sealed class ProjectStoreFactory : IProjectStoreFactory
     private readonly IMetadataReader metadataReader;
     private readonly IRasterImageService rasterImageService;
 
-    [ImportingConstructor]
     public ProjectStoreFactory(IFileOperations fileOperations,
         IJsonCodec jsonCodec,
         IMetadataReader metadataReader,

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using System.Text;
@@ -6,7 +5,6 @@ using System.Text.Json;
 
 namespace Echo.Telemetry;
 
-[Export(typeof(IPerformanceTraceStore)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PerformanceTraceStore : IPerformanceTraceStore
 {
     private readonly IJsonCodec json;
@@ -15,7 +13,6 @@ public sealed class PerformanceTraceStore : IPerformanceTraceStore
     private readonly JsonSerializerOptions compact;
     private readonly CoreJsonReadContext metadata;
 
-    [ImportingConstructor]
     public PerformanceTraceStore(IJsonCodec json, IFileOperations files)
     {
         this.json = json;

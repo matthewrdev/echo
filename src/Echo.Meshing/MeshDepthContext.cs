@@ -5,7 +5,7 @@ using Echo.Storage;
 namespace Echo.Meshing;
 
 // One immutable-input mesh run owns this preparation. Never retain it on the
-// shared MEF builder: another run may have different poses, maps or exclusions.
+// shared mesh builder: another run may have different poses, maps or exclusions.
 public sealed class MeshDepthContext : IDisposable
 {
     private readonly PageMemoryReservation? reservation;

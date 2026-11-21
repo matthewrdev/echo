@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Cli;
 using Echo.Contracts;
@@ -8,7 +7,6 @@ using Echo.Rendering;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class RenderCommandTests
 {
     private readonly IArgumentParser parser;
@@ -17,7 +15,6 @@ public sealed class RenderCommandTests
     private readonly ICommandOutput output;
     private readonly IModelRenderer native;
 
-    [ImportingConstructor]
     public RenderCommandTests(IArgumentParser parser, IProjectStoreFactory stores, IFileOperations files,
         ICommandOutput output, IModelRenderer native)
     {

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Texturing;
@@ -6,13 +5,11 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureParameterizationTests
 {
     private readonly ITexturePatchBuilder builder;
     private readonly ITextureLayoutPlanner planner;
 
-    [ImportingConstructor]
     public TextureParameterizationTests(ITexturePatchBuilder builder, ITextureLayoutPlanner planner)
     {
         this.builder = builder;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using Echo.Contracts;
 using Echo.Depth;
@@ -7,7 +6,6 @@ using Echo.Projects;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class DepthBenchmark
 {
     private readonly IDepthEstimator estimator;
@@ -16,7 +14,6 @@ public sealed class DepthBenchmark
     private readonly IFileOperations files;
     private readonly IDepthExecutionPlanner executionPlanner;
 
-    [ImportingConstructor]
     public DepthBenchmark(IDepthEstimator estimator, IProjectStoreFactory stores, IJsonCodec json, IFileOperations files, IDepthExecutionPlanner executionPlanner)
     {
         this.estimator = estimator;

@@ -1,15 +1,12 @@
-using System.ComponentModel.Composition;
 using Echo.Imaging;
 using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class GrayscaleSamplerTests
 {
     private readonly IRasterImageService images;
 
-    [ImportingConstructor]
     public GrayscaleSamplerTests(IRasterImageService images)
     {
         this.images = images;

@@ -1,17 +1,14 @@
 using System.Buffers;
-using System.ComponentModel.Composition;
 using System.Runtime.InteropServices;
 using Echo.Contracts;
 using Echo.Imaging;
 
 namespace Echo.Lines;
 
-[Export(typeof(ILineDetector)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class LineDetector : ILineDetector
 {
     private readonly IRasterImageService images;
 
-    [ImportingConstructor]
     public LineDetector(IRasterImageService images)
     {
         this.images = images;

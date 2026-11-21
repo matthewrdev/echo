@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Projects;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IStageResetService)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class StageResetService : IStageResetService
 {
     private readonly IReadOnlyList<string> stages;
 
-    [ImportingConstructor]
-    public StageResetService([ImportMany] IEnumerable<IPipelineStage> stages)
+    public StageResetService(IEnumerable<IPipelineStage> stages)
     {
         this.stages = stages.OrderBy(stage => stage.Order).Select(stage => stage.Name).ToArray();
     }

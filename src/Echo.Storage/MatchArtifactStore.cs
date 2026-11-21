@@ -1,16 +1,13 @@
 using System.Buffers.Binary;
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 
 namespace Echo.Storage;
 
-[Export(typeof(IMatchArtifactStore)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MatchArtifactStore : IMatchArtifactStore
 {
     private readonly IBinaryArtifactFiles files;
 
-    [ImportingConstructor]
     public MatchArtifactStore(IBinaryArtifactFiles files)
     {
         this.files = files;

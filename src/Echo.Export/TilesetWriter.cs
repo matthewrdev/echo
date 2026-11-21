@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Infrastructure;
 
 namespace Echo.Export;
 
-[Export(typeof(ITilesetWriter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TilesetWriter : ITilesetWriter
 {
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public TilesetWriter(IFileOperations files)
     {
         this.files = files;

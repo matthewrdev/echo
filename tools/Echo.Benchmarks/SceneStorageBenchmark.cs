@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -8,7 +7,6 @@ using Echo.Storage;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class SceneStorageBenchmark
 {
     private readonly IBulkArtifactStore bulk;
@@ -17,9 +15,8 @@ public sealed class SceneStorageBenchmark
     private readonly JsonTypeInfo<ReconstructionScene> sceneType;
     private readonly JsonTypeInfo<ReconstructionOverview> overviewType;
 
-    [ImportingConstructor]
     public SceneStorageBenchmark(IBulkArtifactStore bulk, IFileOperations files, IJsonCodec json,
-        [ImportMany] IEnumerable<IJsonReadMetadata> metadata)
+        IEnumerable<IJsonReadMetadata> metadata)
     {
         this.bulk = bulk;
         this.files = files;

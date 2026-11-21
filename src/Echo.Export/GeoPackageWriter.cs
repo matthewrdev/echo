@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Globalization;
 using Echo.Contracts;
 using Echo.Geometry;
@@ -7,10 +6,8 @@ using Microsoft.Data.Sqlite;
 
 namespace Echo.Export;
 
-[Export(typeof(IGeoPackageWriter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GeoPackageWriter : IGeoPackageWriter
 {
-    [ImportingConstructor]
     public GeoPackageWriter()
     {
     }

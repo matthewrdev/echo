@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Features;
 using Echo.Imaging;
@@ -8,7 +7,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class FeatureExtractionTests
 {
     private readonly IFeatureExtractor extractor;
@@ -16,7 +14,6 @@ public sealed class FeatureExtractionTests
     private readonly IProjectStoreFactory stores;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public FeatureExtractionTests(IFeatureExtractor extractor, IRasterImageService images, IProjectStoreFactory stores, IFileOperations files)
     {
         this.extractor = extractor;

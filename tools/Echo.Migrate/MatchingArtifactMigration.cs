@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -6,7 +5,6 @@ using Echo.Storage;
 
 namespace Echo.Migrate;
 
-[Export]
 public sealed class MatchingArtifactMigration
 {
     private readonly IFileOperations files;
@@ -14,7 +12,6 @@ public sealed class MatchingArtifactMigration
     private readonly IFeatureArtifactStore features;
     private readonly IMatchArtifactStore matches;
 
-    [ImportingConstructor]
     public MatchingArtifactMigration(IFileOperations files, IJsonCodec json, IFeatureArtifactStore features, IMatchArtifactStore matches)
     {
         this.files = files;

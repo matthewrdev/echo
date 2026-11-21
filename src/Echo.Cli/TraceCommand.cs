@@ -1,11 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Projects;
 using Echo.Telemetry;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TraceCommand : ICliCommand
 {
     private readonly IProjectStoreFactory stores;
@@ -13,7 +11,6 @@ public sealed class TraceCommand : ICliCommand
     private readonly ICommandOutput output;
     private readonly IPerformanceTraceExporter exporter;
 
-    [ImportingConstructor]
     public TraceCommand(IProjectStoreFactory stores, IPerformanceTraceStore traces, ICommandOutput output, IPerformanceTraceExporter exporter)
     {
         this.stores = stores;

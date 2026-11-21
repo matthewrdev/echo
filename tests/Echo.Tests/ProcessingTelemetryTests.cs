@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Text.Json;
 using Echo.Contracts;
@@ -7,12 +6,10 @@ using Echo.Telemetry;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class ProcessingTelemetryTests
 {
     private readonly IProcessTelemetryReader reader;
 
-    [ImportingConstructor]
     public ProcessingTelemetryTests(IProcessTelemetryReader reader)
     {
         this.reader = reader;

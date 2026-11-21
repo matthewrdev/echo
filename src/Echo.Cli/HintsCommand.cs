@@ -1,11 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Infrastructure;
 using Echo.Projects;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class HintsCommand : ICliCommand
 {
     private readonly IProjectStoreFactory storeFactory;
@@ -13,7 +11,6 @@ public sealed class HintsCommand : ICliCommand
     private readonly IJsonCodec jsonCodec;
     private readonly IHintFactory hintFactory;
 
-    [ImportingConstructor]
     public HintsCommand(IProjectStoreFactory storeFactory, ICommandOutput output, IJsonCodec jsonCodec, IHintFactory hintFactory)
     {
         this.storeFactory = storeFactory;

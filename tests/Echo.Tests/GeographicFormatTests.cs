@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -14,7 +13,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GeographicFormatTests
 {
     private readonly IGisExportService exporter;
@@ -25,7 +23,6 @@ public sealed class GeographicFormatTests
     private readonly ICloudBuilder clouds;
     private readonly IGeoPackageWriter packages;
 
-    [ImportingConstructor]
     public GeographicFormatTests(IGisExportService exporter, IGlbWriter models, IProjectStoreFactory stores, IFileOperations files, ILasWriter las, ICloudBuilder clouds, IGeoPackageWriter packages)
     {
         this.exporter = exporter;

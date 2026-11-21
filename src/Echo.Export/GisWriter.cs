@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Globalization;
 using System.Text.Json;
 using Echo.Contracts;
@@ -8,12 +7,10 @@ using Echo.Metadata;
 
 namespace Echo.Export;
 
-[Export(typeof(IGisWriter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GisWriter : IGisWriter
 {
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public GisWriter(IFileOperations files)
     {
         this.files = files;

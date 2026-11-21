@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
 using Echo.Imaging;
@@ -7,14 +6,12 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class DepthRangeTests
 {
     private readonly IDepthEstimator estimator;
     private readonly IProjectStoreFactory stores;
     private readonly IRasterImageService images;
 
-    [ImportingConstructor]
     public DepthRangeTests(IDepthEstimator estimator, IProjectStoreFactory stores, IRasterImageService images)
     {
         this.estimator = estimator;

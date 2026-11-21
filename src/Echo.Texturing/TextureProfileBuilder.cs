@@ -1,10 +1,7 @@
-using System.ComponentModel.Composition;
 namespace Echo.Texturing;
 
-[Export(typeof(ITextureProfileBuilder)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TextureProfileBuilder : ITextureProfileBuilder
 {
-    [ImportingConstructor]
     public TextureProfileBuilder()
     {
     }

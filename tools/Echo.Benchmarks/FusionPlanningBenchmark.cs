@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
@@ -13,14 +12,12 @@ using Echo.Storage;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class FusionPlanningBenchmark
 {
     private readonly IProjectStoreFactory stores;
     private readonly IJsonCodec json;
     private readonly ICloudBuilder clouds;
 
-    [ImportingConstructor]
     public FusionPlanningBenchmark(IProjectStoreFactory stores, IJsonCodec json, ICloudBuilder clouds)
     {
         this.stores = stores;

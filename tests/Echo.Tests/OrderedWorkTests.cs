@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Pipeline;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class OrderedWorkTests
 {
     private readonly IOrderedWorkExecutor executor;
     private readonly IImageWorkPlanner planner;
 
-    [ImportingConstructor]
     public OrderedWorkTests(IOrderedWorkExecutor executor, IImageWorkPlanner planner)
     {
         this.executor = executor;

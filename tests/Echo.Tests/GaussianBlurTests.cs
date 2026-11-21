@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Features;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class GaussianBlurTests
 {
-    [ImportingConstructor]
     public GaussianBlurTests()
     {
     }

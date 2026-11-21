@@ -1,12 +1,9 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 
 namespace Echo.Depth;
 
-[Export(typeof(IDepthExecutionPlanner)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
 {
-    [ImportingConstructor]
     public DepthExecutionPlanner()
     {
     }

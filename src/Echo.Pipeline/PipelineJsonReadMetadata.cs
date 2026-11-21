@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -7,12 +6,10 @@ using Echo.Infrastructure;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IJsonReadMetadata)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class PipelineJsonReadMetadata : IJsonReadMetadata
 {
     private readonly PipelineJsonReadContext context;
 
-    [ImportingConstructor]
     public PipelineJsonReadMetadata()
     {
         context = new PipelineJsonReadContext(new JsonSerializerOptions

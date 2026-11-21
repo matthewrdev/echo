@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Geometry;
 using Echo.Infrastructure;
@@ -6,14 +5,12 @@ using Echo.Projects;
 
 namespace Echo.Benchmarks;
 
-[Export]
 public sealed class PairVerificationBenchmark
 {
     private readonly IProjectStoreFactory stores;
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public PairVerificationBenchmark(IProjectStoreFactory stores, IJsonCodec json, IFileOperations files)
     {
         this.stores = stores;

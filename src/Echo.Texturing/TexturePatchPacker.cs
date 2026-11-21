@@ -1,16 +1,13 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using SkiaSharp;
 
 namespace Echo.Texturing;
 
-[Export(typeof(ITexturePatchPacker)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class TexturePatchPacker : ITexturePatchPacker
 {
     private readonly ITextureProfilePacker profiles;
     private readonly ITextureGapPacker gaps;
 
-    [ImportingConstructor]
     public TexturePatchPacker(ITextureProfilePacker profiles, ITextureGapPacker gaps)
     {
         this.profiles = profiles;

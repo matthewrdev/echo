@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Cli;
 using Echo.Contracts;
 using Echo.Infrastructure;
@@ -6,7 +5,6 @@ using Echo.Projects;
 
 namespace Echo.Tests;
 
-[Export, PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GisCommandTests
 {
     private readonly ICommandApplication application;
@@ -15,7 +13,6 @@ public sealed class GisCommandTests
     private readonly IProjectStoreFactory stores;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public GisCommandTests(ICommandApplication application, IArgumentParser parser, IHintFactory hints, IProjectStoreFactory stores, IFileOperations files)
     {
         this.application = application;

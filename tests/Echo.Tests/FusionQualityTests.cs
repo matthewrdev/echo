@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Fusion;
 using Echo.Geometry;
@@ -8,13 +7,11 @@ using Grid = Echo.Fusion.Grid;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class FusionQualityTests
 {
     private readonly IDepthFusion fusion;
     private readonly IMeshBuilder meshes;
 
-    [ImportingConstructor]
     public FusionQualityTests(IDepthFusion fusion, IMeshBuilder meshes)
     {
         this.fusion = fusion;

@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using System.Text;
 using System.Text.Json;
 using Echo.Contracts;
@@ -6,13 +5,11 @@ using Echo.Infrastructure;
 
 namespace Echo.Export;
 
-[Export(typeof(IGlbWriter)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class GlbWriter : IGlbWriter
 {
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
 
-    [ImportingConstructor]
     public GlbWriter(IFileOperations fileOperations, IJsonCodec jsonCodec)
     {
         this.fileOperations = fileOperations;

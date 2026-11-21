@@ -1,9 +1,7 @@
-using System.ComponentModel.Composition;
 using System.Text;
 
 namespace Echo.Compute.Metal;
 
-[Export(typeof(IComputeDevice)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MetalComputeDevice : IComputeDevice, IDisposable
 {
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -12,7 +10,6 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
     private string device = "";
     private bool unavailable;
 
-    [ImportingConstructor]
     public MetalComputeDevice()
     {
         var assembly = typeof(MetalComputeDevice).Assembly;

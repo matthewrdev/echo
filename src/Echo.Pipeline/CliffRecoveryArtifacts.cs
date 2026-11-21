@@ -1,18 +1,15 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
 using Echo.Infrastructure;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(ICliffRecoveryArtifacts)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
 {
     private readonly ICliffDepthRecovery recovery;
     private readonly IJsonCodec json;
     private readonly IFileOperations files;
 
-    [ImportingConstructor]
     public CliffRecoveryArtifacts(ICliffDepthRecovery recovery, IJsonCodec json, IFileOperations files)
     {
         this.recovery = recovery;

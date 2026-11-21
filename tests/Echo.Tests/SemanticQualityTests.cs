@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Depth;
 using Echo.Geometry;
@@ -12,7 +11,6 @@ using SkiaSharp;
 
 namespace Echo.Tests;
 
-[Export]
 public sealed class SemanticQualityTests
 {
     private readonly IEdgeCollapse simplifier;
@@ -22,7 +20,6 @@ public sealed class SemanticQualityTests
     private readonly IProjectStoreFactory stores;
     private readonly IRasterImageService images;
 
-    [ImportingConstructor]
     public SemanticQualityTests(IEdgeCollapse simplifier, ICliffDepthRecovery recovery, IProjectStoreFactory stores, IRasterImageService images, ITexturePatchBuilder charts, ITextureLayoutPlanner layouts)
     {
         this.simplifier = simplifier;

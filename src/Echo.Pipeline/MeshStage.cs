@@ -1,4 +1,3 @@
-using System.ComponentModel.Composition;
 using Echo.Contracts;
 using Echo.Compute;
 using Echo.SceneSemantics;
@@ -9,7 +8,6 @@ using Echo.SurfaceCompletion;
 
 namespace Echo.Pipeline;
 
-[Export(typeof(IPipelineStage)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class MeshStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
@@ -20,14 +18,13 @@ public sealed class MeshStage : IPipelineStage
     private readonly ISurfaceReconstructor surfaceReconstructor;
     private readonly IComputeService? compute;
 
-    [ImportingConstructor]
     public MeshStage(IFileOperations fileOperations,
         IJsonCodec jsonCodec,
         IMeshBuilder meshBuilder,
         IEdgeCollapse edgeCollapse,
         IPlyWriter plyWriter,
         ISurfaceReconstructor surfaceReconstructor,
-        [Import(AllowDefault = true)] IComputeService? compute = null)
+        IComputeService? compute = null)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;

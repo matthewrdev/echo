@@ -1,14 +1,11 @@
-using System.ComponentModel.Composition;
 
 namespace Echo.Cli;
 
-[Export(typeof(ICliCommand)), PartCreationPolicy(CreationPolicy.Shared)]
 public sealed class RuntimeInfoCommand : ICliCommand
 {
     private readonly IRuntimeInfoProvider runtime;
     private readonly ICommandOutput output;
 
-    [ImportingConstructor]
     public RuntimeInfoCommand(IRuntimeInfoProvider runtime, ICommandOutput output)
     {
         this.runtime = runtime;
