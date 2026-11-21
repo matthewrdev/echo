@@ -15,6 +15,13 @@ public sealed class DoctorCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["doctor"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("doctor",
+            "doctor",
+            "Check processing dependencies and capabilities."),
+    ];
+
     public int Execute(Arguments arguments)
     {
         var metadataEngine = metadataReader.Description;

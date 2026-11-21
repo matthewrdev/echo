@@ -16,6 +16,16 @@ public sealed class SetsCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["sets"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("sets list",
+            "--project PATH sets list",
+            "List image sets."),
+        new("sets assign",
+            "--project PATH sets assign IMAGE_ID --set NAME",
+            "Assign a photo to an image set."),
+    ];
+
     public int Execute(Arguments args)
     {
         var action = args.Word(1, "");

@@ -8,6 +8,7 @@ public sealed class TestServices
     {
         services.AddSingleton<AlignmentVerificationTests>();
         services.AddSingleton<ArtifactStorageTests>();
+        services.AddSingleton<CommandHelpTests>();
         services.AddSingleton<CloudProcessingTests>();
         services.AddSingleton<ColourGradingPipelineTests>();
         services.AddSingleton<ColourGradingTests>();

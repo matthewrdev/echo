@@ -7,5 +7,10 @@ public interface ICliCommand
         get;
     }
 
+    IReadOnlyList<CommandUsage> Usage
+    {
+        get;
+    }
+
     int Execute(Arguments arguments);
 }

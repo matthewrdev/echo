@@ -20,6 +20,13 @@ public sealed class RenderCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["render"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("render",
+            "render FILE.glb --output NEW_FILE.png\n  echo-photo --project PATH render --output NEW_FILE.png [--run RUN_ID]\n    [--width 1600 --height 1000] [--view front|back|left|right|top|oblique]\n    [--mode textured|solid|wireframe|normals]",
+            "Render an Echo-exported GLB to a new PNG using macOS and Metal. The project default is the latest run.\nMaximum size is 8192 per side and 16,777,216 pixels total."),
+    ];
+
     public int Execute(Arguments arguments)
     {
         var supported = new HashSet<string> { "project", "run", "output", "width", "height", "view", "mode", "json" };

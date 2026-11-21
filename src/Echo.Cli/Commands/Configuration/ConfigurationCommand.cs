@@ -19,6 +19,16 @@ public sealed class ConfigurationCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["config"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("config show",
+            "--project PATH config show",
+            "Read the project settings."),
+        new("config import",
+            "--project PATH config import FILE",
+            "Replace project settings with validated JSON from a file."),
+    ];
+
     public int Execute(Arguments args)
     {
         var action = args.Word(1, "");

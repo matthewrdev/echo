@@ -32,6 +32,28 @@ public sealed class RunCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["run"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("run start",
+            "--project PATH run start [--target STAGE] [--events ndjson]\n    [--colour-tuning on|off|0..1] [--edge-softening on|off|0..16]\n    [--subject-distance auto|off|METRES]",
+            "Start a run without changing the saved project settings. The default target is alignment.\nStages are features, matching, alignment, depth, cloud, fusion, mesh, texture and export.\nTexture defaults are 0.5 colour tuning and 4 pixels of edge softening."),
+        new("run resume",
+            "--project PATH run resume RUN_ID [--events ndjson]",
+            "Resume from saved checkpoints using the original inputs."),
+        new("run list",
+            "--project PATH run list",
+            "List saved runs."),
+        new("run status",
+            "--project PATH run status [RUN_ID]",
+            "Read the run status. The default is latest."),
+        new("run cancel",
+            "--project PATH run cancel [RUN_ID]",
+            "Request cancellation. The default is latest."),
+        new("run events",
+            "--project PATH run events [RUN_ID]",
+            "Read saved run events. The default is latest."),
+    ];
+
     public int Execute(Arguments args)
     {
         var projectPath = args.Get("project", null)

@@ -22,6 +22,7 @@ if (referenceAssetsIndex >= 0)
         Console.Error.WriteLine("Pass --reference-assets PATH or set ECHO_REFERENCE_ASSETS_ROOT to the downloaded 3d-assets directory.");
         return 2;
     }
+
     var referenceTests = new TestSuite();
     provider.GetRequiredService<ReferenceDatasetTests>().Run(referenceTests, assetsRoot);
     return referenceTests.Finish();
@@ -31,6 +32,7 @@ if (args.Contains("--reconstruction", StringComparer.Ordinal))
     return provider.GetRequiredService<ReconstructionTests>().Run();
 }
 var scaleTests = new TestSuite();
+provider.GetRequiredService<CommandHelpTests>().Run(scaleTests);
 provider.GetRequiredService<ColourGradingTests>().Run(scaleTests);
 provider.GetRequiredService<ColourGradingPipelineTests>().Run(scaleTests);
 provider.GetRequiredService<ReconstructionValidationTests>().Run(scaleTests);
@@ -76,6 +78,7 @@ if (args.Contains("--compute", StringComparer.Ordinal))
     {
         provider.GetRequiredService<ComputeBenchmarks>().Run();
     }
+
     return scaleTests.Finish();
 }
 if (args.Contains("--texture", StringComparer.Ordinal))

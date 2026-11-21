@@ -20,6 +20,13 @@ public sealed class GisCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["export-gis"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("export-gis",
+            "--project PATH export-gis --output NEW_DIRECTORY [--run RUN_ID]",
+            "Export geographic artifacts to a new directory."),
+    ];
+
     public int Execute(Arguments arguments)
     {
         var project = arguments.Get("project", null) ?? throw new EchoException("--project PATH is required.", 2);

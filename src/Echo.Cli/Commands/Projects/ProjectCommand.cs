@@ -18,6 +18,22 @@ public sealed class ProjectCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["project"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("project init",
+            "project init PATH [--name NAME]",
+            "Create an Echo project."),
+        new("project info",
+            "--project PATH project info",
+            "Read the project and its current revision."),
+        new("project rename",
+            "--project PATH project rename --name NAME",
+            "Change the project display name."),
+        new("project delete",
+            "--project PATH project delete --confirm PROJECT_ID",
+            "Delete the project after confirming its ID."),
+    ];
+
     public int Execute(Arguments arguments)
     {
         var action = arguments.Word(1, "");

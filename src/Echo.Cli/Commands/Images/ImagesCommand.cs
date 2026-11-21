@@ -26,6 +26,37 @@ public sealed class ImagesCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["images"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("images import",
+            "--project PATH images import DIRECTORY [--set NAME] [--limit N]",
+            "Import supported photos and retain their original metadata."),
+        new("images derive-iphone-poses",
+            "--project PATH images derive-iphone-poses",
+            "Derive camera pose hints from supported iPhone photos."),
+        new("images deduplicate",
+            "--project PATH images deduplicate [--apply]",
+            "Find duplicate photos. Pass --apply to mark duplicates."),
+        new("images list",
+            "--project PATH images list [--set NAME] [--query TEXT]",
+            "List photos with optional set and text filters."),
+        new("images restore",
+            "--project PATH images restore IMAGE_ID",
+            "Restore a discarded photo."),
+        new("images delete",
+            "--project PATH images delete IMAGE_ID [IMAGE_ID ...] --confirm PROJECT_ID",
+            "Delete photos after confirming the project ID."),
+        new("images enable",
+            "--project PATH images enable IMAGE_ID [IMAGE_ID ...] --value true|false",
+            "Select which photos can be used for processing."),
+        new("images metadata",
+            "--project PATH images metadata IMAGE_ID",
+            "Read a photo’s original metadata tags."),
+        new("images payload",
+            "--project PATH images payload IMAGE_ID GROUP:TAG",
+            "Read the original binary value of a metadata tag."),
+    ];
+
     public int Execute(Arguments args)
     {
         var action = args.Word(1, "");

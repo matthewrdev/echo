@@ -22,6 +22,16 @@ public sealed class PipelineCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["pipeline"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("pipeline plan",
+            "--project PATH pipeline plan [--target export]",
+            "Show which stages are needed for a target."),
+        new("pipeline reset",
+            "--project PATH pipeline reset --from STAGE",
+            "Invalidate saved processing work starting at the given stage."),
+    ];
+
     public int Execute(Arguments args)
     {
         var action = args.Word(1, "");

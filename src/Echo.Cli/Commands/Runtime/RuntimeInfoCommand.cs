@@ -14,6 +14,13 @@ public sealed class RuntimeInfoCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["runtime-info"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("runtime-info",
+            "runtime-info",
+            "Read runtime, system and build information."),
+    ];
+
     public int Execute(Arguments arguments)
     {
         output.Write(runtime.Read());

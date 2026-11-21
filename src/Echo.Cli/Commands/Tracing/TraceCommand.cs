@@ -21,6 +21,19 @@ public sealed class TraceCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["trace"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("trace list",
+            "--project PATH trace list [--all] [--run RUN_ID]",
+            "List performance trace attempts."),
+        new("trace show",
+            "--project PATH trace show ATTEMPT_ID [--run RUN_ID] [--summary]",
+            "Read a performance trace or its summary."),
+        new("trace export",
+            "--project PATH trace export ATTEMPT_ID --output NEW_FILE [--format html|json] [--run RUN_ID]",
+            "Write a performance trace to a new file."),
+    ];
+
     public int Execute(Arguments args)
     {
         var store = stores.Open(args.Get("project", null) ?? throw new EchoException("--project PATH is required.", 2));
@@ -34,6 +47,7 @@ public sealed class TraceCommand : ICliCommand
             output.Write(summaries);
             return 0;
         }
+
         var run = store.GetRun(args.Get("run", "latest")!);
         var directory = store.PathFor($"runs/{run.Id}");
         switch (args.Word(1, "list"))
@@ -52,6 +66,7 @@ public sealed class TraceCommand : ICliCommand
             default:
                 throw new EchoException("Use trace list, trace show ATTEMPT_ID, or trace export ATTEMPT_ID --output FILE --format html|json.", 2);
         }
+
         return 0;
     }
 }

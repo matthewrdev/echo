@@ -15,6 +15,16 @@ public sealed class GlbCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["inspect-glb", "compare-glb"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("inspect-glb",
+            "inspect-glb FILE",
+            "Read mesh and texture properties from a GLB."),
+        new("compare-glb",
+            "compare-glb FILE REFERENCE",
+            "Compare exported model properties against a reference GLB."),
+    ];
+
     public int Execute(Arguments arguments)
     {
         var inspection = glbWriter.Inspect(arguments.RequiredWord(1));

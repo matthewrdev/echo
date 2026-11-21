@@ -20,6 +20,16 @@ public sealed class InspectCommand : ICliCommand
 
     public IReadOnlyCollection<string> Names => ["inspect", "geo"];
 
+    public IReadOnlyList<CommandUsage> Usage =>
+    [
+        new("inspect",
+            "--project PATH inspect [--run RUN_ID] [--summary]",
+            "Inspect project reconstruction and georeference data."),
+        new("geo",
+            "--project PATH geo [--run RUN_ID] [--summary]",
+            "Alias for inspect."),
+    ];
+
     public int Execute(Arguments args)
     {
         var store = storeFactory.Open(args.Get("project", null) ?? throw new EchoException("--project PATH is required.", 2));
