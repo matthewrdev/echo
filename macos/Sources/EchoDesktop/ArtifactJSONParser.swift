@@ -1,3 +1,4 @@
+import EchoRendering
 import Foundation
 
 // Explicit bulk contracts avoid a keyed Decodable container for every numeric sample.

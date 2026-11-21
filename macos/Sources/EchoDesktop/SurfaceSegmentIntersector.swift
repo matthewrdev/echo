@@ -1,3 +1,4 @@
+import EchoRendering
 import simd
 
 // Tests the saved geometry directly, independently of renderer preparation and

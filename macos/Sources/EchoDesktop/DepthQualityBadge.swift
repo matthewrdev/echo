@@ -1,3 +1,4 @@
+import EchoRendering
 import SwiftUI
 
 struct DepthQualityBadge: View {

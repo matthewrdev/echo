@@ -130,6 +130,8 @@ stage_processor() {
 
 stage_processor
 cp "$native_bin/EchoDesktop" "$staged_app/Contents/MacOS/EchoDesktop"
+cp "$native_bin/EchoRender" "$staged_app/Contents/MacOS/EchoRender"
+ln -s "../../MacOS/EchoRender" "$processor_dir/EchoRender"
 cp THIRD_PARTY_NOTICES.md "$staged_app/Contents/Resources/THIRD_PARTY_NOTICES.md"
 cp -R licenses "$staged_app/Contents/Resources/licenses"
 cp scripts/Info.plist "$staged_app/Contents/Info.plist"

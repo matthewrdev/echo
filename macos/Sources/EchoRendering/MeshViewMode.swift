@@ -1,4 +1,4 @@
-enum MeshViewMode: String, CaseIterable {
+package enum MeshViewMode: String, CaseIterable {
     case textured = "Textured"
     case solid = "Solid"
     case wireframe = "Wireframe"

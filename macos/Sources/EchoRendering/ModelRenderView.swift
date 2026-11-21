@@ -1,9 +1,9 @@
 import SceneKit
 
-enum ModelRenderView: String, Codable, CaseIterable {
+package enum ModelRenderView: String, Codable, CaseIterable {
     case front, back, left, right, top, oblique
 
-    var offset: SCNVector3 {
+    package var offset: SCNVector3 {
         switch self {
         case .front: return SCNVector3(0, 0, 1)
         case .back: return SCNVector3(0, 0, -1)
@@ -16,7 +16,7 @@ enum ModelRenderView: String, Codable, CaseIterable {
         }
     }
 
-    var up: SCNVector3 {
+    package var up: SCNVector3 {
         self == .top ? SCNVector3(0, 0, -1) : SCNVector3(0, 1, 0)
     }
 }

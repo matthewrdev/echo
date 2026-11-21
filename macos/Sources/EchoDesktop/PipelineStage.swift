@@ -1,3 +1,4 @@
+import EchoRendering
 import Foundation
 
 enum PipelineStage: String, CaseIterable, Identifiable {

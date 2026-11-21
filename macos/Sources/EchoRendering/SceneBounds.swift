@@ -1,11 +1,11 @@
 import SceneKit
 import simd
 
-struct SceneBounds {
-    let minimum: SCNVector3
-    let maximum: SCNVector3
+package struct SceneBounds {
+    package let minimum: SCNVector3
+    package let maximum: SCNVector3
 
-    init(positions: [[Double]]) {
+    package init(positions: [[Double]]) {
         var low = SCNVector3(Double.infinity, Double.infinity, Double.infinity)
         var high = SCNVector3(-Double.infinity, -Double.infinity, -Double.infinity)
         for p in positions where p.count == 3 && p.allSatisfy(\.isFinite) {
@@ -20,19 +20,19 @@ struct SceneBounds {
         maximum = high.x.isFinite ? high : SCNVector3(1, 1, 1)
     }
 
-    var centre: SCNVector3 {
+    package var centre: SCNVector3 {
         SCNVector3((minimum.x + maximum.x) / 2, (minimum.y + maximum.y) / 2, (minimum.z + maximum.z) / 2)
     }
 
-    var span: Double {
+    package var span: Double {
         max(0.01, max(maximum.x - minimum.x, max(maximum.y - minimum.y, maximum.z - minimum.z)))
     }
 
-    func fit(camera: SCNNode, size: CGSize, direction: SceneViewDirection = .north) {
+    package func fit(camera: SCNNode, size: CGSize, direction: SceneViewDirection = .north) {
         fit(camera: camera, size: size, offset: direction.offset, up: direction.up)
     }
 
-    func fit(camera: SCNNode, size: CGSize, offset: SCNVector3, up: SCNVector3) {
+    package func fit(camera: SCNNode, size: CGSize, offset: SCNVector3, up: SCNVector3) {
         let aspect = max(0.1, Double(size.width / max(1, size.height)))
         let tangent = tan(25 * Double.pi / 180)
         camera.position = SCNVector3(centre.x + offset.x, centre.y + offset.y, centre.z + offset.z)

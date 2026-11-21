@@ -1,4 +1,5 @@
 import AppKit
+import EchoRendering
 
 struct GeoreferenceArtifactReader {
     func load(root: URL, run: RunData) throws -> GeoreferenceArtifact {

@@ -1,3 +1,4 @@
+import EchoRendering
 import SwiftUI
 
 struct FusionLegendView: View {

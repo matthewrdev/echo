@@ -2,17 +2,19 @@ import AppKit
 import Metal
 import SceneKit
 
-final class ModelImageRenderer {
-    func render(_ request: ModelRenderRequest) throws -> ModelRenderResult {
+package final class ModelImageRenderer {
+    package init() {}
+
+    package func render(_ request: ModelRenderRequest) throws -> ModelRenderResult {
         try request.validate()
         guard let device = MTLCreateSystemDefaultDevice() else {
-            throw CLIError(message: "Rendering requires an available Metal GPU.")
+            throw ModelRenderError(message: "Rendering requires an available Metal GPU.")
         }
         let asset = try GlbAssetReader().read(URL(fileURLWithPath: request.input))
         guard !asset.surface.faces.isEmpty,
             asset.surface.vertices.allSatisfy({ $0.allSatisfy(\.isFinite) }),
             asset.uvs.allSatisfy({ $0.allSatisfy(\.isFinite) })
-        else { throw CLIError(message: "The model must have finite geometry and at least one triangle.") }
+        else { throw ModelRenderError(message: "The model must have finite geometry and at least one triangle.") }
 
         let scene = SCNScene()
         scene.background.contents = NSColor(calibratedRed: 0.075, green: 0.085, blue: 0.10, alpha: 1)
@@ -31,7 +33,7 @@ final class ModelImageRenderer {
         let image = renderer.snapshot(atTime: 0, with: size, antialiasingMode: .multisampling4X)
         guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
             let png = bitmap.representation(using: .png, properties: [:])
-        else { throw CLIError(message: "Could not encode the rendered PNG.") }
+        else { throw ModelRenderError(message: "Could not encode the rendered PNG.") }
         try png.write(to: URL(fileURLWithPath: request.output), options: .withoutOverwriting)
         return ModelRenderResult(
             input: request.input, output: request.output, width: request.width, height: request.height,

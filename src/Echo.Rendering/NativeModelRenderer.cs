@@ -57,7 +57,6 @@ public sealed class NativeModelRenderer : IModelRenderer
             RedirectStandardError = true,
             CreateNoWindow = true
         };
-        start.ArgumentList.Add("--render");
         using var process = Process.Start(start) ?? throw new EchoException("Could not start the native renderer.", 5);
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
@@ -103,35 +102,11 @@ public sealed class NativeModelRenderer : IModelRenderer
         if (!string.IsNullOrWhiteSpace(configured))
         {
             return File.Exists(configured) ? Path.GetFullPath(configured)
-                : throw new EchoException("ECHO_RENDERER does not name an existing EchoDesktop executable.", 5);
+                : throw new EchoException("ECHO_RENDERER does not name an existing EchoRender executable.", 5);
         }
 
-        foreach (var relative in new[] { "EchoDesktop", "../../MacOS/EchoDesktop" })
-        {
-            var candidate = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, relative));
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory != null; directory = directory.Parent)
-        {
-            if (!File.Exists(Path.Combine(directory.FullName, "macos", "Package.swift")))
-            {
-                continue;
-            }
-
-            foreach (var configuration in new[] { "release", "debug" })
-            {
-                var candidate = Path.Combine(directory.FullName, "macos", ".build", configuration, "EchoDesktop");
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-        }
-
-        throw new EchoException("Native renderer not found. Use Echo.app's bundled CLI, build with 'swift build --package-path macos -c release', or set ECHO_RENDERER to EchoDesktop.", 5);
+        var bundled = Path.Combine(AppContext.BaseDirectory, "EchoRender");
+        return File.Exists(bundled) ? bundled
+            : throw new EchoException("Native renderer not found. Run scripts/echo-photo, use Echo.app's bundled CLI, or set ECHO_RENDERER to EchoRender.", 5);
     }
 }

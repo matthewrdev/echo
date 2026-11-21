@@ -1,4 +1,5 @@
 import AppKit
+import EchoRendering
 import Metal
 import XCTest
 

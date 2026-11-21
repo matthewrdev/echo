@@ -1,4 +1,5 @@
 import AppKit
+import EchoRendering
 import SceneKit
 import XCTest
 import simd

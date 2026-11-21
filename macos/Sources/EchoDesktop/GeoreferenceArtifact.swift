@@ -1,3 +1,4 @@
+import EchoRendering
 import SceneKit
 
 struct GeoreferenceArtifact {

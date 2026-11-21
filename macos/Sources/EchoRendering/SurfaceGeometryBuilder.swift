@@ -2,8 +2,10 @@ import AppKit
 import SceneKit
 import simd
 
-struct SurfaceGeometryBuilder {
-    func make(surface: Surface, uvs: [[Double]], texture: NSImage?, mode: MeshViewMode) -> SCNGeometry {
+package struct SurfaceGeometryBuilder {
+    package init() {}
+
+    package func make(surface: Surface, uvs: [[Double]], texture: NSImage?, mode: MeshViewMode) -> SCNGeometry {
         if mode == .normals { return normalGeometry(surface) }
 
         let vertices = surface.vertices.map { SCNVector3($0[0], $0[1], $0[2]) }

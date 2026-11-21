@@ -1,3 +1,5 @@
+import EchoRendering
+
 enum FusionViewMode: String, CaseIterable {
     case surface = "Surface"
     case support = "Support"

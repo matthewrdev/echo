@@ -1,4 +1,5 @@
 import AppKit
+import EchoRendering
 
 actor SavedFusionArtifactReader {
     private let json: ArtifactJSONReader

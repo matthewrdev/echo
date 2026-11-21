@@ -1,3 +1,4 @@
+import EchoRendering
 import Foundation
 
 /// Internal, windowless entry point called by the C# render command.

@@ -1,5 +1,7 @@
+import EchoRendering
 import SwiftUI
 
+@main
 struct EchoApplication: App {
     @NSApplicationDelegateAdaptor(EchoApplicationDelegate.self) private var appDelegate
     @StateObject private var workspace: WorkspaceViewModel
