@@ -49,6 +49,7 @@ public sealed class RunRecoveryTests
             {
                 context.ReportProgress("mesh", $"Incremental event {index}");
             }
+
             Check(File.ReadAllBytes(path).SequenceEqual(original), "A progress event rewrote the full run snapshot");
             Check(File.ReadAllBytes(progressPath).SequenceEqual(firstProgress), "Polling snapshots were rewritten for every event");
             Check(File.ReadLines(store.PathFor($"runs/{context.Run.Id}/events.ndjson")).Count() == 102, "Incremental progress history was lost or buffered from readers");
@@ -69,6 +70,7 @@ public sealed class RunRecoveryTests
                     accepted.Add(count);
                 }
             }
+
             Check(accepted.First() == 0 && accepted.Last() == 10000, "Start and final completion must always be published");
             Check(accepted.Count <= 82, "Progress exceeded eight updates per second plus start/completion");
             for (var index = 1; index < accepted.Count - 1; index++)
@@ -88,6 +90,7 @@ public sealed class RunRecoveryTests
                     published++;
                 }
             }
+
             Check(published == 80, "Unknown totals must publish at most eight updates per second");
             var now = TimeSpan.FromSeconds(10);
             Check(filter.Accept("mesh", new OperationProgress("Compact", "Compacting", 0, 100), now), "Operation change was lost");
@@ -319,6 +322,7 @@ public sealed class RunRecoveryTests
             {
                 Check(error.Message.Contains("DepthMemoryBudgetMb", StringComparison.Ordinal), "Identify the depth-specific limit");
             }
+
             var plan = depthPlanner.Plan(project, 190, 16L * 1024 * 1048576, 4096);
             Check(plan.ConcurrentImages == 2 && plan.MemoryBudgetBytes == 4096L * 1048576, "Updated depth budget was not used");
             var automatic = depthPlanner.Plan(project, 190, 24L * 1024 * 1048576, 0);
@@ -357,6 +361,7 @@ public sealed class RunRecoveryTests
                     recovery.Recover(store);
                     Check(store.GetRun(run.Id).Status == "running", "A live lease protects the run regardless of progress age");
                 }
+
                 recovery.Recover(store);
                 var recovered = store.GetRun(run.Id);
                 Check(recovered.Status == "failed", "An orphaned run must become resumable");

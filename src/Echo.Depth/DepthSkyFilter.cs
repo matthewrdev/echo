@@ -23,6 +23,7 @@ public static class DepthSkyFilter
                 cells[y * semantics.Width + x] = IsSkyCell(semantics, x, y);
             }
         }
+
         var removed = 0;
         for (var y = 0; y < map.Height; y++)
         {
@@ -36,11 +37,13 @@ public static class DepthSkyFilter
                 {
                     continue;
                 }
+
                 map.Depth[index] = 0;
                 map.Confidence[index] = 0;
                 removed++;
             }
         }
+
         return removed;
     }
 

@@ -10,6 +10,7 @@ public static class DepthExclusions
         {
             return map;
         }
+
         return new DepthMap
         {
             ImageId = map.ImageId,

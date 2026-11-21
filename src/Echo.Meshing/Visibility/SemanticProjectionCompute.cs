@@ -15,11 +15,13 @@ internal static class SemanticProjectionCompute
         {
             return null;
         }
+
         var session = DepthCompute.Open(compute, project.Settings.ComputeBackend, views, origin, cancellation);
         if (session == null)
         {
             return null;
         }
+
         var pixels = ArrayPool<byte>.Shared.Rent(checked((int)count * 2));
         try
         {
@@ -40,6 +42,7 @@ internal static class SemanticProjectionCompute
                     pixels[offset++] = map.RockSamples[pixel];
                 }
             }
+
             session.Upload<byte>(5, pixels.AsSpan(0, offset));
             session.Upload<float>(6, metadata);
             return session;
@@ -81,6 +84,7 @@ internal static class SemanticProjectionCompute
                 points[i * 8 + 6] = (float)normal.Z;
                 points[i * 8 + 7] = 0;
             }
+
             session.Upload<float>(2, points.AsSpan(0, count * 8));
             session.Allocate(3, checked(result.Length * sizeof(float)));
             session.Dispatch(ComputeKernel.SemanticProject, count * views, [views, faceCount]);

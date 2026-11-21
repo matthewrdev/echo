@@ -50,6 +50,7 @@ public static class SimilarityEstimator
         {
             result = Fit(Inliers(positions, result)) ?? result;
         }
+
         return result;
     }
 
@@ -64,6 +65,7 @@ public static class SimilarityEstimator
                 result.Add(position);
             }
         }
+
         return result;
     }
 
@@ -81,6 +83,7 @@ public static class SimilarityEstimator
             sourceMean += position.Source;
             targetMean += position.Target;
         }
+
         sourceMean /= positions.Count;
         targetMean /= positions.Count;
 

@@ -38,6 +38,7 @@ internal sealed class BinaryCut
         {
             throw new ArgumentOutOfRangeException(nameof(nodes));
         }
+
         nodeCount = nodes + 2;
         arcCount = 0;
         RecordListOperations.Fill(heads, nodeCount, -1);
@@ -58,6 +59,7 @@ internal sealed class BinaryCut
             next.Add(0);
             capacities.Add(0);
         }
+
         destinations[arcCount] = second;
         capacities[arcCount] = forward;
         next[arcCount] = heads[first];
@@ -76,6 +78,7 @@ internal sealed class BinaryCut
         {
             throw new ArgumentException("Expected one output per active node.", nameof(expansion));
         }
+
         while (Levels(source, sink, cancellation))
         {
             RecordListOperations.Copy(heads, current, nodeCount);
@@ -99,12 +102,14 @@ internal sealed class BinaryCut
                             restart = Math.Min(restart, index);
                         }
                     }
+
                     depth = restart;
                     node = depth == 0 ? source : destinations[path[depth - 1]];
                     for (var index = 0; index < depth; index++)
                     {
                         bottlenecks[index + 1] = Math.Min(bottlenecks[index], capacities[path[index]]);
                     }
+
                     continue;
                 }
 
@@ -115,8 +120,10 @@ internal sealed class BinaryCut
                     {
                         break;
                     }
+
                     edge = next[edge];
                 }
+
                 current[node] = edge;
                 if (edge < 0)
                 {
@@ -125,17 +132,20 @@ internal sealed class BinaryCut
                     {
                         break;
                     }
+
                     depth--;
                     node = depth == 0 ? source : destinations[path[depth - 1]];
                     current[node] = next[path[depth]];
                     continue;
                 }
+
                 path[depth] = edge;
                 bottlenecks[depth + 1] = Math.Min(bottlenecks[depth], capacities[edge]);
                 node = destinations[edge];
                 depth++;
             }
         }
+
         for (var index = 0; index < source; index++)
         {
             expansion[index] = levels[index] < 0;
@@ -162,6 +172,7 @@ internal sealed class BinaryCut
                 }
             }
         }
+
         return levels[sink] >= 0;
     }
 }

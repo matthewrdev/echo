@@ -26,6 +26,7 @@ public sealed class FeatureOverlay
             Console.Error.WriteLine("Usage: Echo.Benchmarks feature-overlay PROJECT FEATURES.json OUTPUT_DIRECTORY");
             return 2;
         }
+
         var store = stores.Open(args[0]);
         var project = store.Load();
         var results = json.Read<FeatureSet[]>(args[1]);
@@ -44,6 +45,7 @@ public sealed class FeatureOverlay
                 canvas.DrawLine((float)(line.Start[0] * scale), (float)(line.Start[1] * scale),
                     (float)(line.End[0] * scale), (float)(line.End[1] * scale), paint);
             }
+
             using var font = new SKFont(SKTypeface.Default, 22);
             paint.Color = new SKColor(0, 0, 0, 200);
             canvas.DrawRect(0, 0, bitmap.Width, 38, paint);
@@ -51,6 +53,7 @@ public sealed class FeatureOverlay
             canvas.DrawText($"{photo.Name} · {result.Lines.Count} line candidates", 12, 27, font, paint);
             images.Save(bitmap, Path.Combine(args[2], result.ImageId + ".png"), SKEncodedImageFormat.Png);
         }
+
         return 0;
     }
 }

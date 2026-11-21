@@ -27,6 +27,7 @@ internal static class SurfaceBoundaryLoops
             {
                 progress?.Invoke(new OperationProgress("Boundary detection", "Finding open surface boundaries…", index, faceCount, "triangles"));
             }
+
             var face = reader.Face(index);
             var a = reader.Vertex(face.A);
             normals[index] = (reader.Vertex(face.B) - a).Cross(reader.Vertex(face.C) - a).Unit;
@@ -57,6 +58,7 @@ internal static class SurfaceBoundaryLoops
                         edges.Add(key, slot);
                     }
                 }
+
                 if (!found)
                 {
                     continue;
@@ -75,8 +77,10 @@ internal static class SurfaceBoundaryLoops
                         {
                             twins[twins[other]] = -2;
                         }
+
                         twins[other] = -2;
                     }
+
                     twins[slot] = -2;
                     if (repairEdges != null)
                     {
@@ -101,6 +105,7 @@ internal static class SurfaceBoundaryLoops
             {
                 continue;
             }
+
             var boundary = new List<int>();
             var current = start;
             do
@@ -109,6 +114,7 @@ internal static class SurfaceBoundaryLoops
                 {
                     break;
                 }
+
                 visited[current] = true;
                 boundary.Add(current);
                 current = Next(current);
@@ -117,6 +123,7 @@ internal static class SurfaceBoundaryLoops
                 {
                     current = Next(twins[current]);
                 }
+
                 if (twins[current] != -1 || steps >= twins.Count)
                 {
                     break;
@@ -145,19 +152,23 @@ internal static class SurfaceBoundaryLoops
                         {
                             normal += normals[edge / 3];
                         }
+
                         yield return new SurfaceBoundaryLoop
                         {
                             Vertices = cycle.Select(edge => reader.Face(edge / 3)[edge % 3]).ToList(),
                             AdjacentNormal = normal.Unit
                         };
                     }
+
                     for (var index = first; index < path.Count; index++)
                     {
                         var edge = path[index];
                         positions.Remove(reader.Face(edge / 3)[edge % 3]);
                     }
+
                     path.RemoveRange(first, path.Count - first);
                 }
+
                 positions[vertex] = path.Count;
                 path.Add(halfedge);
             }

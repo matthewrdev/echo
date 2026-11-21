@@ -29,10 +29,12 @@ public sealed class DepthFusion : IDepthFusion
         {
             photos.Add(photo.Id, photo);
         }
+
         foreach (var camera in scene.Cameras)
         {
             cameras.Add(camera.ImageId, camera);
         }
+
         var views = new DepthView[maps.Count];
         for (var index = 0; index < maps.Count; index++)
         {
@@ -40,6 +42,7 @@ public sealed class DepthFusion : IDepthFusion
             var map = DepthExclusions.Apply(photos[source.ImageId], cameras[source.ImageId], source, project.Settings.ExclusionRegions);
             views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
         }
+
         cloud = FusionExclusions.Filter(cloud, project.Settings.ExclusionRegions, cancellation, work);
         FusionGrid BuildGrid() => FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress, work, operationProgress);
         var grid = grids?.ReadOrBuild(BuildGrid) ?? BuildGrid();
@@ -80,6 +83,7 @@ public sealed class DepthFusion : IDepthFusion
                 Parallel.ForEach(masks, new ParallelOptions { CancellationToken = cancellation },
                     mask => mask.PrepareMask(cancellation));
             }
+
             operationProgress?.Invoke(FusionProgressPlan.Create(FusionPhase.DepthPreparation, cleanup,
                 "Preparing depth maps for integration…", 0, views.Length, "depth maps"));
             var integrator = new FusionBatchIntegrator(views, voxel, project.Settings.CloudDepthTolerance, plan,
@@ -122,14 +126,17 @@ public sealed class DepthFusion : IDepthFusion
             {
                 batches.Skip(count);
             }
+
             appender.Append(completed);
             if (preview != null && Environment.TickCount64 - lastPreview >= 3000)
             {
                 preview(previewSamples!.Snapshot(result));
                 lastPreview = Environment.TickCount64;
             }
+
             integrationProgress.Advance(first + count);
         }
+
         progress?.Invoke($"Integrated {keys.Count:N0} grid samples; {result.Samples.Count:N0} retained.");
         if (result.Samples.Count < 100)
         {

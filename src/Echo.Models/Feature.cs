@@ -24,6 +24,7 @@ public sealed class Feature : IFeatureDescriptor
                 descriptor = descriptorData.ToArray();
                 descriptorData = descriptor;
             }
+
             return descriptor;
         }
         set

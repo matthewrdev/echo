@@ -2,4 +2,6 @@ using SkiaSharp;
 
 namespace Echo.Texturing.Layout;
 
-internal sealed record TexturePatchPlacement(SKRect Bounds, int QuarterTurns);
+internal sealed record TexturePatchPlacement(
+    SKRect Bounds,
+    int QuarterTurns);

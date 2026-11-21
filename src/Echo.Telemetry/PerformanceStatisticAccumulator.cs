@@ -33,6 +33,7 @@ internal sealed class PerformanceStatisticAccumulator
         {
             busySince = now;
         }
+
         Statistic.MaximumConcurrency = Math.Max(Statistic.MaximumConcurrency ?? 0, active);
     }
 
@@ -42,6 +43,7 @@ internal sealed class PerformanceStatisticAccumulator
         {
             busyMilliseconds += now - busySince;
         }
+
         var micros = (ulong)Math.Clamp(Math.Ceiling(span.DurationMilliseconds * 1000), 1, uint.MaxValue);
         var bucket = micros <= 1 ? 0 : BitOperations.Log2(micros - 1) + 1;
         histogram[bucket]++;
@@ -76,6 +78,7 @@ internal sealed class PerformanceStatisticAccumulator
         {
             return null;
         }
+
         var rank = (long)Math.Ceiling(Statistic.Count * percentile);
         long count = 0;
         for (var index = 0; index < histogram.Length; index++)
@@ -87,6 +90,7 @@ internal sealed class PerformanceStatisticAccumulator
                     : Math.Min(Statistic.MaximumMilliseconds, (1L << index) / 1000.0);
             }
         }
+
         return Statistic.MaximumMilliseconds;
     }
 

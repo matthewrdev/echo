@@ -39,6 +39,7 @@ public sealed class GuidedMatchingTests
                     correct++;
                 }
             }
+
             Check(correct >= 55 && correct >= result.Inliers.Count * .95, $"Recovered {correct}/{result.Inliers.Count} true matches");
             Check(result.Iterations > 128, "Low overlap must not truncate the search after a tiny early consensus");
             var photos = new Dictionary<string, Photo>
@@ -60,6 +61,7 @@ public sealed class GuidedMatchingTests
             {
                 degenerate.Add(new Match { A = [index, index], B = [index * 2, index * 2] });
             }
+
             Check(FundamentalMatrixEstimator.Estimate(degenerate, 1, default) == null, "Collinear correspondences cannot determine epipolar geometry");
         });
         tests.Run("Guided second pass recovers known correspondences and rejects descriptor aliases off the epipolar line", () =>
@@ -77,14 +79,17 @@ public sealed class GuidedMatchingTests
                     descriptor[index] = (float)(random.NextDouble() * 2 - 1);
                     norm += descriptor[index] * descriptor[index];
                 }
+
                 for (var index = 0; index < descriptor.Length; index++)
                 {
                     descriptor[index] /= (float)Math.Sqrt(norm);
                 }
+
                 left.Features.Add(new Feature { X = match.A[0], Y = match.A[1], Descriptor = descriptor });
                 right.Features.Add(new Feature { X = match.B[0], Y = match.B[1], Descriptor = descriptor });
                 right.Features.Add(new Feature { X = match.B[0] + 35, Y = match.B[1] + 190, Descriptor = descriptor });
             }
+
             var seed = truth.GetRange(0, 25);
             var inputs = files.Hash(new
             {
@@ -99,6 +104,7 @@ public sealed class GuidedMatchingTests
                 Check(truth.Exists(candidate => candidate.A[0] == match.A[0] && candidate.B[0] == match.B[0]
                     && candidate.B[1] == match.B[1]), "Guidance must not admit descriptor aliases");
             }
+
             var expected = files.Hash(recovered);
             Parallel.For(0, 4, _ =>
             {
@@ -136,6 +142,7 @@ public sealed class GuidedMatchingTests
             var point = new V3(random.NextDouble() * 5 - 2, random.NextDouble() * 3 - 1, 6 + random.NextDouble() * 8);
             result.Add(new Match { A = CameraGeometry.Project(photo, left, point)![..2], B = CameraGeometry.Project(photo, right, point)![..2] });
         }
+
         return result;
     }
 

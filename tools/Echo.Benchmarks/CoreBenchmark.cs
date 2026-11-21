@@ -45,6 +45,7 @@ public sealed class CoreBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks core OUTPUT_DIRECTORY [TEXTURE_SIZE]");
             return 2;
         }
+
         var textureSize = args.Length == 2 ? int.Parse(args[1]) : 512;
         var store = stores.Open(Path.GetFullPath(args[0]));
         store.Init();
@@ -58,9 +59,11 @@ public sealed class CoreBenchmark
             {
                 descriptor[j] = (float)random.NextDouble();
             }
+
             a.Features.Add(new Feature { X = i, Descriptor = descriptor });
             b.Features.Add(new Feature { X = i + 10, Descriptor = (float[])descriptor.Clone() });
         }
+
         Measure("matching", () => files.Hash(matching.Match(a, b, new Settings(), default)));
         var photo = new Photo { Id = "a", Width = 256, Height = 192, FocalPixels = 256, Source = "photo.png" };
         var cameraA = new CameraPose { ImageId = "a" };
@@ -73,6 +76,7 @@ public sealed class CoreBenchmark
             var second = CameraGeometry.Project(photo, cameraB, point)!;
             observations.Add(new Match { A = [first[0], first[1]], B = i % 7 == 0 ? [random.NextDouble() * 256, random.NextDouble() * 192] : [second[0], second[1]] });
         }
+
         Measure("relative-pose", () => files.Hash(CameraGeometry.EstimateRelative(photo, photo, observations)
             ?? throw new EchoException("The reference camera pair could not be estimated.", 5)));
         MeasureAlignment();
@@ -94,6 +98,7 @@ public sealed class CoreBenchmark
                 }
             }
         }
+
         Measure("simplification", () => files.Hash(simplification.Reduce(surface, 800, default)));
         using var source = new SKBitmap(256, 192);
         var pixels = new SKColor[256 * 192];
@@ -104,6 +109,7 @@ public sealed class CoreBenchmark
                 pixels[y * 256 + x] = new SKColor((byte)x, (byte)y, (byte)((x / 8 + y / 8) % 2 * 220));
             }
         }
+
         source.Pixels = pixels;
         images.Save(source, store.PathFor(photo.Source), SKEncodedImageFormat.Png);
         var project = new ProjectData { Images = [photo], Settings = new Settings { TextureSize = textureSize } };
@@ -140,6 +146,7 @@ public sealed class CoreBenchmark
             firstPair.Matches.Add(new Match { A = CameraGeometry.Project(first, poseA, point)![..2], B = CameraGeometry.Project(second, poseB, point)![..2] });
             groundPair.Matches.Add(new Match { A = CameraGeometry.Project(second, poseB, point)![..2], B = CameraGeometry.Project(ground, poseGround, point)![..2] });
         }
+
         var project = new ProjectData { Images = [first, second, ground] };
         List<ImagePair> pairs = [firstPair, groundPair];
         Measure("alignment", () => files.Hash(reconstruction.Align(project, pairs, default)));

@@ -16,6 +16,7 @@ internal static class GroundSurfaceCompletion
         {
             return;
         }
+
         using var scratch = work?.CreateScope(preferResident: true);
         var reader = new SurfaceGeometryReader(mesh);
         IList<V3> points = scratch?.List(new V3RecordCodec()) ?? new List<V3>(mesh.Vertices.Count);
@@ -49,6 +50,7 @@ internal static class GroundSurfaceCompletion
                 IndexFace(groundFaces, index, a, b, c, span);
             }
         }
+
         var boundaryVertices = new HashSet<int>();
         var pending = new Queue<SurfaceEdge>();
         var incoming = new Dictionary<int, List<int>>();
@@ -65,11 +67,13 @@ internal static class GroundSurfaceCompletion
                 AddIncoming(incoming, edge.From, edge.To);
             }
         }
+
         var vertexCells = new Dictionary<Grid, List<int>>();
         foreach (var vertex in boundaryVertices)
         {
             Add(vertexCells, Cell(points[vertex], span), vertex);
         }
+
         var visited = new HashSet<SurfaceEdge>();
         var candidates = new List<GroundCandidate>();
         var nearbyFaces = new HashSet<int>();
@@ -81,6 +85,7 @@ internal static class GroundSurfaceCompletion
             {
                 continue;
             }
+
             var edge = edges[key];
             var a = points[edge.To];
             var b = points[edge.From];
@@ -89,6 +94,7 @@ internal static class GroundSurfaceCompletion
             {
                 continue;
             }
+
             candidates.Clear();
             var centre = Cell((a + b) * .5, span);
             for (var z = -1; z <= 1; z++)
@@ -99,12 +105,14 @@ internal static class GroundSurfaceCompletion
                     {
                         continue;
                     }
+
                     foreach (var vertex in vertices)
                     {
                         if (vertex == edge.From || vertex == edge.To)
                         {
                             continue;
                         }
+
                         var c = points[vertex];
                         var ac = (c - a).Length;
                         var bc = (c - b).Length;
@@ -118,6 +126,7 @@ internal static class GroundSurfaceCompletion
                     }
                 }
             }
+
             candidates.Sort((first, second) => first.Radius.CompareTo(second.Radius));
             foreach (var candidate in candidates)
             {
@@ -126,6 +135,7 @@ internal static class GroundSurfaceCompletion
                 {
                     continue;
                 }
+
                 var c = points[vertex];
                 triangle[0] = a;
                 triangle[1] = b;
@@ -135,11 +145,13 @@ internal static class GroundSurfaceCompletion
                 {
                     continue;
                 }
+
                 var supported = observed((a + b + c) / 3) && observed((a + c) * .5) && observed((b + c) * .5);
                 if (!supported)
                 {
                     continue;
                 }
+
                 var face = new[] { edge.To, edge.From, vertex };
                 int[]? bridge = null;
                 var joinsAtVertexOnly = !edges.ContainsKey(Key(edge.From, vertex)) && !edges.ContainsKey(Key(vertex, edge.To));
@@ -155,6 +167,7 @@ internal static class GroundSurfaceCompletion
                         continue;
                     }
                 }
+
                 var index = mesh.Faces.Count;
                 mesh.Faces.Add(face);
                 AddEdges(edges, face, (b - a).Cross(c - a).Unit);
@@ -167,6 +180,7 @@ internal static class GroundSurfaceCompletion
                     AddEdges(edges, bridge, (c - a).Cross(d - a).Unit);
                     QueueBoundary(edges, bridge, pending, incoming);
                 }
+
                 QueueBoundary(edges, face, pending, incoming);
                 break;
             }
@@ -181,6 +195,7 @@ internal static class GroundSurfaceCompletion
         {
             return null;
         }
+
         ReadOnlySpan<V3> first = [points[a], points[b], points[c]];
         Span<V3> second = stackalloc V3[3];
         foreach (var d in predecessors)
@@ -190,6 +205,7 @@ internal static class GroundSurfaceCompletion
             {
                 continue;
             }
+
             var ac = points[c] - points[a];
             var ad = points[d] - points[a];
             var cd = points[d] - points[c];
@@ -200,6 +216,7 @@ internal static class GroundSurfaceCompletion
             {
                 continue;
             }
+
             second[0] = points[a];
             second[1] = points[c];
             second[2] = points[d];
@@ -208,6 +225,7 @@ internal static class GroundSurfaceCompletion
             {
                 continue;
             }
+
             var supported = observed((points[a] + points[c] + points[d]) / 3)
                 && observed((points[a] + points[d]) * .5) && observed((points[c] + points[d]) * .5);
             if (supported)
@@ -215,6 +233,7 @@ internal static class GroundSurfaceCompletion
                 return [a, c, d];
             }
         }
+
         return null;
     }
 
@@ -241,6 +260,7 @@ internal static class GroundSurfaceCompletion
             vertices = [];
             incoming.Add(to, vertices);
         }
+
         if (!vertices.Contains(from))
         {
             vertices.Add(from);
@@ -264,11 +284,13 @@ internal static class GroundSurfaceCompletion
                     return false;
                 }
             }
+
             if (GroundProjection.Overlaps(triangle, other))
             {
                 return false;
             }
         }
+
         return true;
     }
 
@@ -278,6 +300,7 @@ internal static class GroundSurfaceCompletion
         {
             return true;
         }
+
         return edge.Count == 1 && edge.From == to && edge.To == from;
     }
 
@@ -336,6 +359,7 @@ internal static class GroundSurfaceCompletion
             values = [];
             cells.Add(key, values);
         }
+
         values.Add(value);
     }
 

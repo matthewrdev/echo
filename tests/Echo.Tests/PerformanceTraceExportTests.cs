@@ -109,6 +109,7 @@ public sealed class PerformanceTraceExportTests
                 pair!.Measure(100, 256, 2.5);
                 trace.Measurement("descriptors", 1000, "descriptors");
             }
+
             var document = session.Snapshot();
             traces.Save(store.PathFor($"runs/{run.Id}"), document);
             action(store, document);

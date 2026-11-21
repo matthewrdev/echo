@@ -37,6 +37,7 @@ public sealed class OrderedWorkTests
                     {
                         secondStarted.Set();
                     }
+
                     return index;
                 }
                 finally
@@ -66,6 +67,7 @@ public sealed class OrderedWorkTests
                         {
                             throw new EchoException("checkpoint failed", 5);
                         }
+
                         return index;
                     }
                     finally
@@ -79,6 +81,7 @@ public sealed class OrderedWorkTests
             {
                 Check(error.ExitCode == 5, "Preserve needs-input classification");
             }
+
             Check(active == 0 && published == 0, "Failed wave must join all workers without publishing an incomplete index");
         });
         tests.Run("Cancellation stops later work and leaves no workers running", () =>
@@ -102,6 +105,7 @@ public sealed class OrderedWorkTests
             catch (OperationCanceledException)
             {
             }
+
             Check(executed <= 4 && published == 1, "Cancellation must stop publication and bounded look-ahead");
         });
         tests.Run("Image work plans respect CPU nesting, unit counts and large image memory", () =>
@@ -134,10 +138,12 @@ public sealed class OrderedWorkTests
                 {
                     Check(later.Wait(TimeSpan.FromSeconds(10)), "An early straggler blocked the next job");
                 }
+
                 if (index == 2)
                 {
                     later.Set();
                 }
+
                 return index;
             }, (_, result) => published.Add(result), default);
             Check(published.SequenceEqual(Enumerable.Range(0, 6)), "Rolling work changed publication order");
@@ -168,6 +174,7 @@ public sealed class OrderedWorkTests
             catch (OperationCanceledException)
             {
             }
+
             Check(active == 0 && published == 0, "Cancellation must join all workers before returning");
         });
     }

@@ -32,6 +32,7 @@ internal struct VertexFaceEnumerator : IEnumerator<int>
                 return true;
             }
         }
+
         return false;
     }
 

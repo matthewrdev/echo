@@ -23,10 +23,12 @@ public static class OrientedSurfaceSamples
                 throw new ArgumentOutOfRangeException(nameof(interiorSampleEdgeThreshold));
             }
         }
+
         if (mesh.SourceImages.Count != mesh.Faces.Count)
         {
             throw new EchoException("Surface completion requires a verified photograph for each input face.", 5);
         }
+
         var cameras = scene.Cameras.ToDictionary(camera => camera.ImageId, camera => new V3(camera.Centre));
         using var scratch = work?.CreateScope(preferResident: true);
         var normals = new BinaryHashIndex<V3, V3>(mesh.Vertices.Count, new Vector3RecordCodec(), new Vector3RecordCodec(), scratch, cancellation);
@@ -41,6 +43,7 @@ public static class OrientedSurfaceSamples
             {
                 throw new EchoException("A surface photograph has no reconstructed camera.", 5);
             }
+
             var resample = interiorSampleEdgeThreshold.HasValue
                 && LongestEdge(a, b, c) > interiorSampleEdgeThreshold.Value;
             if (resample)
@@ -55,6 +58,7 @@ public static class OrientedSurfaceSamples
                 AccumulateTriangle(normals, a, b, c, camera);
             }
         }
+
         IList<OrientedSurfaceSample> samples = work?.List(new OrientedSurfaceSampleCodec()) ?? new List<OrientedSurfaceSample>();
         foreach (var entry in normals)
         {
@@ -64,6 +68,7 @@ public static class OrientedSurfaceSamples
                 samples.Add(new OrientedSurfaceSample(entry.Key, entry.Value.Unit));
             }
         }
+
         return (IReadOnlyList<OrientedSurfaceSample>)samples;
     }
 

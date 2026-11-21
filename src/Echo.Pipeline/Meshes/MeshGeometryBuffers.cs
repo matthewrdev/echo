@@ -33,6 +33,7 @@ internal sealed class MeshGeometryBuffers : IDisposable
                 current = next;
                 surface = result;
             }
+
             return result;
         }
         catch

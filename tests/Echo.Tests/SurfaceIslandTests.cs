@@ -91,6 +91,7 @@ public sealed class SurfaceIslandTests
             {
                 Expect<ArgumentOutOfRangeException>(() => SurfaceIslandTrimmer.Trim(source, IslandTrimMode.Small, value, default));
             }
+
             Expect<OperationCanceledException>(() => SurfaceIslandTrimmer.Trim(source, IslandTrimMode.Main, .1, new CancellationToken(true)));
             source.SourceImages.RemoveAt(0);
             Expect<ArgumentException>(() => SurfaceIslandTrimmer.Trim(source, IslandTrimMode.Small, .1, default));
@@ -107,6 +108,7 @@ public sealed class SurfaceIslandTests
                 source.Vertices.Add([offset + size * x / divisions, size * y / divisions, 0]);
             }
         }
+
         for (var y = 0; y < divisions; y++)
         {
             for (var x = 0; x < divisions; x++)
@@ -130,6 +132,7 @@ public sealed class SurfaceIslandTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected " + typeof(T).Name);
     }
 

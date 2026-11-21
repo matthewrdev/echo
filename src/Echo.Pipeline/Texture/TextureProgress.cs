@@ -16,21 +16,25 @@ internal sealed class TextureProgress
         {
             plan.Add("Vegetation budget");
         }
+
         plan.AddRange(["UV mesh", "Seam indexing", "Seam sampling", "Exposure correction", "Local seam correction",
             "Texture projection", "Inferred texture completion"]);
         if (settings.TextureSeamBlendPixels > 0)
         {
             plan.Add("Seam softening");
         }
+
         plan.AddRange(["Atlas gutters", "Atlas background", "Atlas pixels"]);
         if (settings.TextureColourEnhancement > 0)
         {
             plan.Add("Colour enhancement");
         }
+
         if (settings.ColourGrade is { IsIdentity: false })
         {
             plan.Add("Colour grading");
         }
+
         plan.AddRange(["Atlas encoding", "Atlas variants", "Save texture"]);
         steps = plan.ToArray();
     }
@@ -42,6 +46,7 @@ internal sealed class TextureProgress
         {
             index = next;
         }
+
         report(progress with
         {
             StageSteps = steps,

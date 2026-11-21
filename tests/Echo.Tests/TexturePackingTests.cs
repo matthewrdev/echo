@@ -96,6 +96,7 @@ public sealed class TexturePackingTests
                 Check(patches[index].AtlasBounds == saved[index].Bounds && patches[index].QuarterTurns == saved[index].QuarterTurns,
                     "Failed attempts restore every placement");
             }
+
             ValidatePixels(patches, 128, 2, scale);
         });
         tests.Run("Packing budgets retain complete layouts and agree across CPU and Metal", () =>
@@ -117,6 +118,7 @@ public sealed class TexturePackingTests
                     Check(scale == baseline && cpu.Select(patch => new TexturePatchPlacement(patch.AtlasBounds, patch.QuarterTurns)).SequenceEqual(saved),
                         "Partial candidates must restore every baseline placement");
                 }
+
                 if (probe != null)
                 {
                     var gpu = CavityFixture();
@@ -128,6 +130,7 @@ public sealed class TexturePackingTests
                     {
                         Check(cpu[i].AtlasBounds == gpu[i].AtlasBounds && cpu[i].QuarterTurns == gpu[i].QuarterTurns, "Budget changed backend placement parity");
                     }
+
                     if (budget > 1)
                     {
                         Check(scope.Executions.Any(execution => execution.Operation == ComputeOperation.TexturePacking
@@ -165,6 +168,7 @@ public sealed class TexturePackingTests
             {
                 return;
             }
+
             Console.WriteLine("  Verified backend: " + session.Backend);
             var random = new Random(7921);
             for (var attempt = 0; attempt < 48; attempt++)
@@ -176,6 +180,7 @@ public sealed class TexturePackingTests
                     var height = random.Next(1, 24);
                     atlas.Place(SolidMask(width, height), random.Next(66 - width), random.Next(66 - height));
                 }
+
                 var patch = attempt % 2 == 0 ? CavityFixture()[0] : Rectangle(15.7f, 5.3f);
                 var masks = Masks(patch, attempt % 2 == 0 ? .31 : 1, attempt % 3);
                 var maximumBottom = attempt % 4 == 0 ? 20 : 65;
@@ -183,6 +188,7 @@ public sealed class TexturePackingTests
                 var actual = session.Find(atlas, masks, maximumBottom, default);
                 Check(actual == expected, $"CPU/Metal placement mismatch for fragmentation case {attempt}: {expected} / {actual}");
             }
+
             var incremental = new TextureAtlasOccupancy(65);
             var small = Masks(Rectangle(4, 3), 1, 0);
             for (var step = 0; step < 24; step++)
@@ -201,6 +207,7 @@ public sealed class TexturePackingTests
                     }
                 }
             }
+
             var full = new TextureAtlasOccupancy(65);
             full.Place(SolidMask(65, 65), 0, 0);
             Check(session.Find(full, Masks(Rectangle(1, 1), 1, 0), 65, default) == null, "Metal reports exhausted atlas");
@@ -215,6 +222,7 @@ public sealed class TexturePackingTests
             {
                 throw new TextureAccelerationException("No accelerator composed");
             }
+
             return accelerators[0].Open(size, default);
         }
         catch (TextureAccelerationException error) when (!required)
@@ -285,6 +293,7 @@ public sealed class TexturePackingTests
                         {
                             continue;
                         }
+
                         for (var dy = -gutter; dy <= gutter; dy++)
                         {
                             for (var dx = -gutter; dx <= gutter; dx++)
@@ -312,6 +321,7 @@ public sealed class TexturePackingTests
             positive |= cross > 0;
             negative |= cross < 0;
         }
+
         return !positive || !negative;
     }
 

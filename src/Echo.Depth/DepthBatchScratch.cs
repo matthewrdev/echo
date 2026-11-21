@@ -61,6 +61,7 @@ internal sealed class DepthBatchScratch : IDisposable
             refinement.CopyTo(hypotheses.AsSpan(depthOffset, refinement.Length));
             depths = hypotheses.AsMemory(depthOffset, refinement.Length);
         }
+
         sampleCount++;
         return new DepthSearchSample
         {

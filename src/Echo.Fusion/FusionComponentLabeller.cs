@@ -47,6 +47,7 @@ public static class FusionComponentLabeller
                     }
                 }
             }
+
             if (index % 50000 == 0)
             {
                 progress?.Invoke($"Linking fusion regions: {index:N0}/{samples.Count:N0} samples");
@@ -61,6 +62,7 @@ public static class FusionComponentLabeller
             parents[index] = root;
             sizes[root]++;
         }
+
         var largest = 0;
         var regions = 0;
         for (var index = 0; index < sizes.Count; index++)
@@ -70,11 +72,13 @@ public static class FusionComponentLabeller
             {
                 regions++;
             }
+
             if (sizes[index] > sizes[largest])
             {
                 largest = index;
             }
         }
+
         return new FusionComponentLabels { Labels = parents, Sizes = sizes, Largest = largest, RegionCount = regions };
     }
 
@@ -85,6 +89,7 @@ public static class FusionComponentLabeller
             parents[index] = parents[parents[index]];
             index = parents[index];
         }
+
         return index;
     }
 }

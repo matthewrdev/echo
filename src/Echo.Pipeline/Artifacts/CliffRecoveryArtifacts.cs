@@ -61,6 +61,7 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
                 algorithmVersion: "echo-cliff-recovery4-overlap-sky-subject1");
             context.ReportProgress("depth", $"Cliff recovery checked · {photo.Name} · {index + 1}/{maps.Length}", index + 1, maps.Length);
         }
+
         return units;
     }
 }

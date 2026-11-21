@@ -16,6 +16,7 @@ public sealed class TextureChartOrienter : ITextureChartOrienter
         {
             unique.Add(new SKPoint((float)point[0], (float)point[1]));
         }
+
         var points = new SKPoint[unique.Count];
         unique.CopyTo(points);
         Array.Sort(points, (a, b) => a.X != b.X ? a.X.CompareTo(b.X) : a.Y.CompareTo(b.Y));
@@ -43,6 +44,7 @@ public sealed class TextureChartOrienter : ITextureChartOrienter
                 top = Math.Min(top, y);
                 bottom = Math.Max(bottom, y);
             }
+
             var width = right - left;
             var height = bottom - top;
             if (width * height < bestArea)
@@ -68,6 +70,7 @@ public sealed class TextureChartOrienter : ITextureChartOrienter
             maximumX = Math.Max(maximumX, x);
             maximumY = Math.Max(maximumY, y);
         }
+
         patch.Bounds = new SKRect((float)minimumX, (float)minimumY, (float)maximumX, (float)maximumY);
     }
 

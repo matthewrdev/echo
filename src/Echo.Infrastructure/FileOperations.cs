@@ -53,6 +53,7 @@ public sealed class FileOperations : IFileOperations
             bulk.Write(path, value);
             return;
         }
+
         AtomicWrite(path, stream => jsonCodec.Write(stream, value));
     }
 

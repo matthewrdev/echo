@@ -139,6 +139,7 @@ public static class CameraGeometry
         {
             return null;
         }
+
         var best = verified.Inliers;
         var matrix = DenseMatrix.Create(3, 3, (row, column) => verified.Matrix[row * 3 + column]);
         var leftCalibration = Calibration(leftPhoto);
@@ -191,6 +192,7 @@ public static class CameraGeometry
                         count++;
                     }
                 }
+
                 if (count > most)
                 {
                     most = count;

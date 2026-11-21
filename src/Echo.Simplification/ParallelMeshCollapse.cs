@@ -19,10 +19,12 @@ internal static class ParallelMeshCollapse
         {
             throw new ArgumentOutOfRangeException(nameof(detailTolerance));
         }
+
         if (tolerances != null && (tolerances.Count != source.Vertices.Count || tolerances.Any(value => !double.IsFinite(value) || value < 0)))
         {
             throw new ArgumentException("Expected a finite nonnegative tolerance per source vertex.", nameof(tolerances));
         }
+
         var targetAlreadyMet = source.Faces.Count <= target && detailTolerance == 0 && tolerances == null;
         if (targetAlreadyMet || source.Vertices.Count == 0)
         {
@@ -44,6 +46,7 @@ internal static class ParallelMeshCollapse
                 maximum[axis] = Math.Max(maximum[axis], Coordinate(position, axis));
             }
         }
+
         var longest = 0;
         for (var axis = 1; axis < 3; axis++)
         {
@@ -52,6 +55,7 @@ internal static class ParallelMeshCollapse
                 longest = axis;
             }
         }
+
         var extent = maximum[longest] - minimum[longest];
         if (!double.IsFinite(extent) || extent <= 0)
         {
@@ -75,6 +79,7 @@ internal static class ParallelMeshCollapse
                 var owner = owners[vertex];
                 owners[vertex] = owner == -1 ? region : owner == region ? owner : -2;
             }
+
             if (++indexed % 65536 == 0)
             {
                 progress?.Invoke(new OperationProgress("Partition mesh", $"Assigned {indexed:N0} triangles to independent regions.", indexed, source.Faces.Count, "triangles"));
@@ -91,6 +96,7 @@ internal static class ParallelMeshCollapse
                 var face = region.Faces[index];
                 region.Faces[index] = new FaceVertices(LocalVertex(face.A), LocalVertex(face.B), LocalVertex(face.C));
             }
+
             foreach (var original in region.OriginalVertices)
             {
                 localIndices[original] = -1;
@@ -108,9 +114,11 @@ internal static class ParallelMeshCollapse
                     region.Locked.Add(owners[original] == -2);
                     region.Tolerances?.Add(tolerances![original]);
                 }
+
                 return local;
             }
         }
+
         (positions as IDisposable)?.Dispose();
         (owners as IDisposable)?.Dispose();
         (localIndices as IDisposable)?.Dispose();
@@ -169,17 +177,22 @@ internal static class ParallelMeshCollapse
                             state[row * 4 + column] += contribution[row * 4 + column];
                         }
                     }
+
                     joinedStates[mapped] = state;
                 }
+
                 region.OutputVertices[index] = mapped;
             }
+
             foreach (var face in reduced.Faces)
             {
                 cancellation.ThrowIfCancellationRequested();
                 joined.Faces.Add([region.OutputVertices[face[0]], region.OutputVertices[face[1]], region.OutputVertices[face[2]]]);
             }
+
             region.Work?.Dispose();
         }
+
         (remap as IDisposable)?.Dispose();
         if (joined.Faces.Count <= target && detailTolerance == 0 && joinedTolerances == null)
         {

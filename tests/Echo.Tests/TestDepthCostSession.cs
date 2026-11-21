@@ -27,14 +27,17 @@ internal sealed class TestDepthCostSession : IDepthCostSession
         {
             throw new DepthAccelerationException("Test command failed");
         }
+
         if (mode == "cancel")
         {
             throw new OperationCanceledException();
         }
+
         if (mode == "invalid-count")
         {
             return 0;
         }
+
         var count = samples.Sum(sample => sample.Hypotheses.Length);
         var value = mode switch
         {

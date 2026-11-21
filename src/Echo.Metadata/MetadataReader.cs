@@ -20,6 +20,7 @@ public sealed class MetadataReader : IMetadataReader, IMetadataPayloadReader
         {
             return document.Fields;
         }
+
         var fields = new Dictionary<string, JsonElement>(document.Fields.Count, StringComparer.Ordinal);
         foreach (var field in document.Fields)
         {
@@ -31,6 +32,7 @@ public sealed class MetadataReader : IMetadataReader, IMetadataPayloadReader
                 fields.TryAdd(name, field.Value);
             }
         }
+
         return fields;
     }
 
@@ -41,6 +43,7 @@ public sealed class MetadataReader : IMetadataReader, IMetadataPayloadReader
         {
             return exact;
         }
+
         byte[]? found = null;
         foreach (var payload in document.Payloads)
         {
@@ -51,9 +54,11 @@ public sealed class MetadataReader : IMetadataReader, IMetadataPayloadReader
                 {
                     throw new EchoException("Multiple metadata fields have this name. Select the group-qualified field.", 2);
                 }
+
                 found = payload.Value;
             }
         }
+
         return found ?? throw new EchoException("No binary payload was found for " + tag + ".", 2);
     }
 
@@ -68,6 +73,7 @@ public sealed class MetadataReader : IMetadataReader, IMetadataPayloadReader
                 MetadataFields.Add(directory, document);
                 jpeg |= directory is JpegDirectory;
             }
+
             if (jpeg)
             {
                 // This vendor APP7 block is separate from EXIF maker notes.
@@ -76,6 +82,7 @@ public sealed class MetadataReader : IMetadataReader, IMetadataPayloadReader
                     DjiDebugMetadata.Decode(segment.Bytes, document);
                 }
             }
+
             return document;
         }
         catch (Exception error) when (error is ImageProcessingException or IOException or UnauthorizedAccessException)

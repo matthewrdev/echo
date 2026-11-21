@@ -19,6 +19,7 @@ internal sealed class FusionTestChunkStore : IFusionChunkStore, IFusionGridStore
         {
             return grid;
         }
+
         grid = build();
         GridBuilds++;
         return grid;
@@ -35,6 +36,7 @@ internal sealed class FusionTestChunkStore : IFusionChunkStore, IFusionGridStore
         {
             return existing;
         }
+
         var samples = build().ToArray();
         Builds++;
         saved.Add(first, samples);

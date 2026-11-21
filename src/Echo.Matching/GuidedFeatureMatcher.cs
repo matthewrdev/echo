@@ -24,6 +24,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
         {
             return null;
         }
+
         var candidates = Search(left, right, seed.Matrix, settings, thresholdPixels * 2, cancellation);
         // The seed stays independent of the guided search. New correspondences must
         // also survive a fresh robust model, rather than being accepted by the guide.
@@ -32,6 +33,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
         {
             unique.Add(Key(candidate));
         }
+
         foreach (var match in seed.Inliers)
         {
             if (unique.Add(Key(match)))
@@ -39,11 +41,13 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
                 candidates.Add(match);
             }
         }
+
         var verified = FundamentalMatrixEstimator.Estimate(candidates, thresholdPixels, cancellation, compute, settings.ComputeBackend);
         if (verified == null || verified.Inliers.Count <= seed.Inliers.Count)
         {
             return null;
         }
+
         return new ImagePair { A = left.ImageId, B = right.ImageId, Matches = verified.Inliers };
     }
 
@@ -55,6 +59,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
         {
             return accelerated;
         }
+
         var leftCount = left.Features.Count;
         var rightCount = right.Features.Count;
         var distances = ArrayPool<double>.Shared.Rent(rightCount + leftCount * 2);
@@ -83,6 +88,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
                 {
                     continue;
                 }
+
                 for (var rightIndex = 0; rightIndex < rightCount; rightIndex++)
                 {
                     var other = right.Features[rightIndex];
@@ -90,12 +96,14 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
                     {
                         continue;
                     }
+
                     var distance = Distance(feature.DescriptorData.Span, other.DescriptorData.Span);
                     if (distance < rightBest[rightIndex])
                     {
                         rightBest[rightIndex] = distance;
                         rightToLeft[rightIndex] = leftIndex;
                     }
+
                     if (distance < leftBest[leftIndex])
                     {
                         leftSecond[leftIndex] = leftBest[leftIndex];
@@ -108,6 +116,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
                     }
                 }
             }
+
             var result = new List<Match>();
             for (var leftIndex = 0; leftIndex < leftCount; leftIndex++)
             {
@@ -116,6 +125,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
                 {
                     continue;
                 }
+
                 var comparable = double.IsFinite(leftSecond[leftIndex]) || leftBest[leftIndex] <= settings.MatchDistanceThreshold * .25;
                 var accepted = comparable && leftBest[leftIndex] < leftSecond[leftIndex] * settings.MatchRatioThreshold
                     && leftBest[leftIndex] <= settings.MatchDistanceThreshold;
@@ -126,6 +136,7 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
                     result.Add(new Match { A = [first.X, first.Y], B = [second.X, second.Y], Score = leftBest[leftIndex], Kind = first.Kind });
                 }
             }
+
             return result;
         }
         finally
@@ -141,12 +152,14 @@ public sealed class GuidedFeatureMatcher : IGuidedFeatureMatcher
         {
             return double.PositiveInfinity;
         }
+
         double distance = 0;
         for (var index = 0; index < left.Length; index++)
         {
             var difference = left[index] - right[index];
             distance += difference * difference;
         }
+
         return distance;
     }
 

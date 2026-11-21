@@ -38,6 +38,7 @@ internal static class SceneGeoreferencer
             camera.Rotation = CameraGeometry.Multiply(transform.Rotation, camera.Rotation);
             camera.Source += "; GPS similarity reference";
         }
+
         foreach (var point in scene.Points)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -51,10 +52,12 @@ internal static class SceneGeoreferencer
             scene.Bundle.MaximumCameraMovementMetres = positions
                 .Select(position => (transform.Apply(position.Source) - position.Target).Length).Max();
         }
+
         if (origin.AltitudeDatum == "unknown")
         {
             scene.Warnings.Add("Absolute elevation datum is unknown; altitude offsets are approximate. Horizontal referencing is not survey validated.");
         }
+
         return true;
     }
 }

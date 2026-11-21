@@ -74,6 +74,7 @@ public sealed class TextureStage : IPipelineStage
                 colourGrade = grade
             };
         }
+
         var texture = context.Build("texture", fingerprint, dir =>
                 {
                     var surface = context.ReadData<Surface>(store.PathFor(meshPath + "/mesh.json"));

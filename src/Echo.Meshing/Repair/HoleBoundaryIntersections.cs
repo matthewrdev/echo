@@ -24,6 +24,7 @@ internal static class HoleBoundaryIntersections
                 segments[index] = new HoleSegment(index, Math.Min(ax, bx) - 1e-8, Math.Max(ax, bx) + 1e-8,
                     Math.Min(ay, by) - 1e-8, Math.Max(ay, by) + 1e-8);
             }
+
             Array.Sort(segments, 0, points.Length, Comparer<HoleSegment>.Create((a, b) => a.MinimumX.CompareTo(b.MinimumX)));
             for (var first = 0; first < points.Length; first++)
             {
@@ -39,6 +40,7 @@ internal static class HoleBoundaryIntersections
                     {
                         break;
                     }
+
                     var secondEnd = (right.Index + 1) % points.Length;
                     var adjacent = firstEnd == right.Index || secondEnd == left.Index;
                     var separated = right.MinimumY > left.MaximumY || left.MinimumY > right.MaximumY;
@@ -46,6 +48,7 @@ internal static class HoleBoundaryIntersections
                     {
                         continue;
                     }
+
                     var c = points[right.Index];
                     var d = points[secondEnd];
                     var oppositeFirst = (b - a).Cross(c - a).Dot(normal) * (b - a).Cross(d - a).Dot(normal) < -1e-12;
@@ -56,6 +59,7 @@ internal static class HoleBoundaryIntersections
                     }
                 }
             }
+
             return false;
         }
         finally

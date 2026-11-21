@@ -43,12 +43,14 @@ internal sealed class SurfaceIndexBuffers : IDisposable
                 Order = scratch.Filled(count, 0, new IntRecordCodec(), cancellation);
                 Nodes = scratch.List(new SurfaceSearchNodeCodec());
             }
+
             for (var index = 0; index < count; index++)
             {
                 if ((index & 4095) == 0)
                 {
                     cancellation.ThrowIfCancellationRequested();
                 }
+
                 Order[index] = index;
             }
         }
@@ -67,6 +69,7 @@ internal sealed class SurfaceIndexBuffers : IDisposable
         {
             return centres = ArrayPool<double>.Shared.Rent(count);
         }
+
         centreScratch = scratch.CreateScope(preferResident: true);
         return centreScratch.Filled(count, 0.0, new DoubleRecordCodec(), cancellation);
     }
@@ -78,6 +81,7 @@ internal sealed class SurfaceIndexBuffers : IDisposable
             ArrayPool<double>.Shared.Return(centres);
             centres = null;
         }
+
         centreReservation?.Dispose();
         centreReservation = null;
         centreScratch?.Dispose();

@@ -22,6 +22,7 @@ public sealed class ProcessingMemoryTracker : IDisposable
         {
             workers.Add(id, Process.GetProcessById(id));
         }
+
         return new WorkerMemoryRegistration(this, id);
     }
 
@@ -54,6 +55,7 @@ public sealed class ProcessingMemoryTracker : IDisposable
                     // A worker can finish between Refresh and the memory query.
                 }
             }
+
             peak = Math.Max(peak, current);
             return new MemoryUsage(current, peak, GC.GetTotalMemory(false));
         }
@@ -78,6 +80,7 @@ public sealed class ProcessingMemoryTracker : IDisposable
             {
                 worker.Dispose();
             }
+
             workers.Clear();
             process.Dispose();
         }

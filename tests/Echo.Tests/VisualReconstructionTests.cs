@@ -44,6 +44,7 @@ public sealed class VisualReconstructionTests
             {
                 pixel = [random.NextDouble() * 1000, random.NextDouble() * 700];
             }
+
             double[] key = [i, i * 2];
             points.Add(new CloudPoint
             {
@@ -85,8 +86,10 @@ public sealed class VisualReconstructionTests
             {
                 target += new V3(100, -200, 300);
             }
+
             positions.Add(new PositionCorrespondence(source, target, .1));
         }
+
         var result = SimilarityEstimator.Estimate(positions, new Random(817), default);
         Check(result != null, "Consistent geographic reference was rejected");
         foreach (var position in positions)
@@ -149,6 +152,7 @@ public sealed class VisualReconstructionTests
                 {
                     pair.Matches.Add(new Match { A = pixels[a][point], B = pixels[b][point] });
                 }
+
                 pairs.Add(pair);
             }
         }
@@ -184,6 +188,7 @@ public sealed class VisualReconstructionTests
             var error = Math.Sqrt(Math.Pow(pixel![0] - point.PixelA[0], 2) + Math.Pow(pixel[1] - point.PixelA[1], 2));
             Check(error < .1, "Geographic referencing changed the visual projection");
         }
+
         Check(JsonSerializer.Serialize(project) == snapshot, "Alignment changed imported metadata or the run snapshot");
     }
 

@@ -22,6 +22,7 @@ public sealed class SceneSegmenter : ISceneSegmenter
         {
             return "onnx-cpu-1";
         }
+
         return OrtEnv.Instance().GetAvailableProviders().Contains("CoreMLExecutionProvider", StringComparer.Ordinal)
             ? "onnx-coreml-mlprogram-all-static-1" : "onnx-cpu-1";
     }

@@ -37,11 +37,13 @@ public sealed class CloudPublicationBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks cloud-publication PROJECT RUN NEW_OUTPUT");
             return 2;
         }
+
         var output = Path.GetFullPath(args[2]);
         if (Directory.Exists(output) || File.Exists(output))
         {
             throw new IOException("Choose a new output directory.");
         }
+
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
         var folder = store.PathFor(run.Artifacts["cloud"]);
@@ -75,14 +77,17 @@ public sealed class CloudPublicationBenchmark
                     WritePrevious(path, cloud);
                     checksum = files.HashFile(path);
                 }
+
                 var elapsed = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                 if (checksum != expected)
                 {
                     throw new InvalidDataException("Cloud PLY bytes changed.");
                 }
+
                 measurements.Add(new CloudPublicationMeasurement(implementation, trial, elapsed, streamed ? 0 : bytes, checksum));
             }
         }
+
         foreach (var path in Directory.EnumerateFiles(output, "*.ply"))
         {
             if (files.HashFile(path) != expected)
@@ -90,6 +95,7 @@ public sealed class CloudPublicationBenchmark
                 throw new InvalidDataException("Persisted cloud checksum differs from the publication result.");
             }
         }
+
         var result = new
         {
             source,

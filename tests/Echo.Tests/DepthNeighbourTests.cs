@@ -185,6 +185,7 @@ public sealed class DepthNeighbourTests
             {
                 return false;
             }
+
             var p = pixel.Value;
             var inside = p.X >= 3 && p.X < photo.Width - 3 && p.Y >= 3 && p.Y < photo.Height - 3;
             return inside;

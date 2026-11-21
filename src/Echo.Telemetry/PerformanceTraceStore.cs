@@ -62,12 +62,14 @@ public sealed class PerformanceTraceStore : IPerformanceTraceStore
                     JsonSerializer.Serialize(stream, span, metadata.PerformanceSpan);
                     stream.WriteByte((byte)'\n');
                 }
+
                 length = stream.Position;
                 if (length != committed)
                 {
                     stream.Flush(true);
                 }
             }
+
             var header = new PerformanceTraceHeader
             {
                 Summary = trace.Summary,
@@ -100,22 +102,27 @@ public sealed class PerformanceTraceStore : IPerformanceTraceStore
             {
                 legacy.Spans.Clear();
             }
+
             return legacy;
         }
+
         if (header.SchemaVersion != 2 || header.SpanBytes < 0)
         {
             throw new InvalidDataException("Unsupported performance trace storage.");
         }
+
         if (!includeSpans)
         {
             return new PerformanceTraceDocument { Summary = header.Summary, Statistics = header.Statistics, Measurements = header.Measurements };
         }
+
         var spans = new Dictionary<long, PerformanceSpan>();
         using var stream = new FileStream(Path.ChangeExtension(path, ".spans.ndjson"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         if (header.SpanBytes > stream.Length)
         {
             throw new InvalidDataException("Truncated performance trace journal.");
         }
+
         using var reader = new StreamReader(stream, Encoding.UTF8);
         long consumed = 0;
         while (consumed < header.SpanBytes)
@@ -126,10 +133,12 @@ public sealed class PerformanceTraceStore : IPerformanceTraceStore
             {
                 throw new InvalidDataException("Invalid performance trace commit boundary.");
             }
+
             var span = JsonSerializer.Deserialize(line, metadata.PerformanceSpan)
                 ?? throw new InvalidDataException("Empty performance span.");
             spans[span.Id] = span;
         }
+
         foreach (var span in header.ActiveSpans)
         {
             spans[span.Id] = span;
@@ -150,6 +159,7 @@ public sealed class PerformanceTraceStore : IPerformanceTraceStore
         {
             throw new EchoException("Invalid performance trace identifier.", 2);
         }
+
         return Path.Combine(runDirectory, "traces", attemptId + ".json");
     }
 }

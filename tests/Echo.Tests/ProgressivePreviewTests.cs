@@ -87,6 +87,7 @@ public sealed class ProgressivePreviewTests
                     Check(point.Position.SequenceEqual(scene.Points[0].Position) && point.PixelA.SequenceEqual(new double[] { 12, 34 })
                         && point.ImageB == "second" && point.Colour!.SequenceEqual(new byte[] { 83, 210, 185 }), "Preview lost observation data");
                 }
+
                 Check(new FileInfo(saved).Length < scene.Points.Count * 77L, "Preview storage should stay compact");
                 var output = Environment.GetEnvironmentVariable("ECHO_TEST_ALIGNMENT_PREVIEW_OUTPUT");
                 if (!string.IsNullOrEmpty(output))
@@ -95,6 +96,7 @@ public sealed class ProgressivePreviewTests
                     File.Copy(saved, Path.Combine(output, "preview.bin"), true);
                     Console.WriteLine($"  Sparse preview: {scene.Points.Count:N0} points, {new FileInfo(saved).Length:N0} bytes, {timer.ElapsedMilliseconds} ms publication");
                 }
+
                 var original = files.HashFile(saved);
                 using var cancelled = new CancellationTokenSource();
                 cancelled.Cancel();
@@ -106,11 +108,13 @@ public sealed class ProgressivePreviewTests
                 catch (OperationCanceledException)
                 {
                 }
+
                 Check(files.HashFile(saved) == original, "Cancellation damaged a readable snapshot");
                 for (var index = 0; index < 4; index++)
                 {
                     publisher.PublishAlignment(AlignmentPreviewSampler.Sample(scene, 100), alignmentPreviews);
                 }
+
                 Check(Directory.GetFiles(store.PathFor($"runs/{run.Id}/previews"), "*", SearchOption.AllDirectories).Length == 2,
                     "Binary preview updates accumulated files");
                 Check(!publisher.IsDue && Directory.GetFileSystemEntries(store.PathFor("artifacts")).Length == 0,
@@ -131,6 +135,7 @@ public sealed class ProgressivePreviewTests
                 volume.Samples.Add(sample);
                 sampler.Add(sample);
             }
+
             var preview = sampler.Snapshot(volume);
             Check(preview.Volume.Samples.Count <= 100 && preview.TotalSamples == 10001, "Fusion preview grew without bound");
             Check(preview.Volume.Samples[0].X == 0 && preview.Volume.Samples[^1].X > 9800, "Preview lost spatial coverage of completed work");
@@ -153,6 +158,7 @@ public sealed class ProgressivePreviewTests
                     {
                         individual.Add(sample);
                     }
+
                     batched.AddRange([]);
                     batched.AddRange(values);
                     Check(batched.Snapshot(volume).Volume.Samples.SequenceEqual(individual.Snapshot(volume).Volume.Samples),
@@ -178,6 +184,7 @@ public sealed class ProgressivePreviewTests
                     var preview = json.Read<AlignmentPreview>(store.PathFor(run.Artifacts["alignmentPreview"] + "/preview.json"));
                     Check(preview.TotalPoints == index, "Published reference does not match saved snapshot");
                 }
+
                 Check(!publisher.IsDue, "Preview writes should be throttled");
                 Check(Directory.GetFiles(store.PathFor($"runs/{run.Id}/previews"), "*", SearchOption.AllDirectories).Length == 2,
                     "Preview files accumulated across updates");

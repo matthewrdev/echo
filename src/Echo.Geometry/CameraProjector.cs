@@ -45,6 +45,7 @@ public sealed class CameraProjector
                 return false;
             }
         }
+
         return true;
     }
 

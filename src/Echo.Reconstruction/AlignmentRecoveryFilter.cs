@@ -16,16 +16,19 @@ public static class AlignmentRecoveryFilter
         {
             photos.Add(photo.Id, photo);
         }
+
         foreach (var camera in scene.Cameras)
         {
             cameras.Add(camera.ImageId, camera);
         }
+
         foreach (var point in scene.Points)
         {
             var position = new V3(point.Position);
             landmarks.TryAdd(Key(point.ImageA, point.PixelA), position);
             landmarks.TryAdd(Key(point.ImageB, point.PixelB), position);
         }
+
         var output = new List<ImagePair>(originalPairs.Count);
         var reportClock = Stopwatch.StartNew();
         for (var index = 0; index < originalPairs.Count; index++)
@@ -36,6 +39,7 @@ public static class AlignmentRecoveryFilter
                 progress?.Invoke(index + 1, originalPairs.Count);
                 reportClock.Restart();
             }
+
             var original = originalPairs[index];
             var proposed = proposedPairs[index];
             var left = photos[original.A];
@@ -46,11 +50,13 @@ public static class AlignmentRecoveryFilter
             {
                 continue;
             }
+
             var accepted = new HashSet<MatchObservationKey>();
             foreach (var match in filtered.Matches)
             {
                 accepted.Add(new MatchObservationKey(Key(original.A, match.A), Key(original.B, match.B)));
             }
+
             foreach (var match in proposed.Matches)
             {
                 var leftKey = Key(original.A, match.A);
@@ -67,19 +73,23 @@ public static class AlignmentRecoveryFilter
                 {
                     continue;
                 }
+
                 if (landmarks.TryGetValue(rightKey, out var rightPoint) && !Agrees(left, leftCamera, rightPoint, match.A))
                 {
                     continue;
                 }
+
                 var tolerance = 2.0 * Math.Min(left.Width, right.Width) / 1000;
                 if (CameraGeometry.Triangulate(left, right, leftCamera, rightCamera, match, tolerance) == null)
                 {
                     continue;
                 }
+
                 accepted.Add(key);
                 filtered.Matches.Add(match);
             }
         }
+
         return output;
     }
 
@@ -90,6 +100,7 @@ public static class AlignmentRecoveryFilter
         {
             return false;
         }
+
         var dx = projected.Value.X - pixel[0];
         var dy = projected.Value.Y - pixel[1];
         var tolerance = 2.0 * photo.Width / 1000;

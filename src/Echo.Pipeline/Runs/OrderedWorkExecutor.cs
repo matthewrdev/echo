@@ -17,6 +17,7 @@ public sealed class OrderedWorkExecutor : IOrderedWorkExecutor
         {
             return;
         }
+
         if (workers == 1)
         {
             for (var index = 0; index < count; index++)
@@ -26,6 +27,7 @@ public sealed class OrderedWorkExecutor : IOrderedWorkExecutor
                 cancellation.ThrowIfCancellationRequested();
                 publish(index, result);
             }
+
             return;
         }
 
@@ -68,6 +70,7 @@ public sealed class OrderedWorkExecutor : IOrderedWorkExecutor
             {
                 pending[index] = Start(index);
             }
+
             for (var index = 0; index < count; index++)
             {
                 var slot = index % capacity;
@@ -97,6 +100,7 @@ public sealed class OrderedWorkExecutor : IOrderedWorkExecutor
                 // All workers have joined; report the original failure below.
             }
         }
+
         failure?.Throw();
         cancellation.ThrowIfCancellationRequested();
     }

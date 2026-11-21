@@ -21,6 +21,7 @@ internal static class SparseTriangulator
         {
             cameras.Add(camera.ImageId, camera);
         }
+
         foreach (var pair in pairs)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -49,9 +50,11 @@ internal static class SparseTriangulator
                     });
                 }
             }
+
             checkpoint?.Invoke(scene);
             reporting.Report(new OperationProgress("Triangulation", "Constructing sparse points", completed, pairs.Count, "image pairs"));
         }
+
         reporting.Report(new OperationProgress("Triangulation", "Sparse points triangulated.", pairs.Count, pairs.Count, "image pairs"));
     }
 }

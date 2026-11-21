@@ -29,6 +29,7 @@ public sealed class BundleBenchmark
         {
             points[i] = new V3(random.NextDouble() * 6, random.NextDouble() * 4 - 2, 14 + random.NextDouble() * 8);
         }
+
         var pixels = new double[12][][];
         for (var i = 0; i < 12; i++)
         {
@@ -43,6 +44,7 @@ public sealed class BundleBenchmark
                 pixels[i][p] = [projected[0] + (random.NextDouble() - .5) * .6, projected[1] + (random.NextDouble() - .5) * .6];
             }
         }
+
         var pairs = new List<ImagePair>();
         for (var i = 0; i < cameras.Count - 1; i++)
         {
@@ -51,8 +53,10 @@ public sealed class BundleBenchmark
             {
                 pair.Matches.Add(new Match { A = pixels[i][p], B = pixels[i + 1][p], Manual = true });
             }
+
             pairs.Add(pair);
         }
+
         for (var iteration = 0; iteration < 6; iteration++)
         {
             var scene = new ReconstructionScene();
@@ -67,6 +71,7 @@ public sealed class BundleBenchmark
                     FocalPixels = 850
                 });
             }
+
             GC.Collect();
             var allocated = GC.GetTotalAllocatedBytes(true);
             var watch = Stopwatch.StartNew();
@@ -82,6 +87,7 @@ public sealed class BundleBenchmark
                 scene.Bundle
             }));
         }
+
         return 0;
     }
 }

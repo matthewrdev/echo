@@ -98,6 +98,7 @@ public sealed class ProjectInspector : IProjectInspector
         {
             scene.Points = [];
         }
+
         return scene;
     }
 

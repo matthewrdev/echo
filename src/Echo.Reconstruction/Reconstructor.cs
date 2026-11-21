@@ -52,6 +52,7 @@ public sealed class Reconstructor : IReconstructor
             {
                 continue;
             }
+
             result.Origin ??= prior.Position;
             result.Cameras.Add(new CameraPose
             {
@@ -135,6 +136,7 @@ public sealed class Reconstructor : IReconstructor
                 {
                     continue;
                 }
+
                 cancellation.ThrowIfCancellationRequested();
                 var pose = CameraRegistrar.Register(image, pairs, result.Points, new Random(93), cancellation);
                 if (pose == null)
@@ -172,6 +174,7 @@ public sealed class Reconstructor : IReconstructor
                 result.Unplaced.Add(id);
             }
         }
+
         if (result.Points.Count < 12)
         {
             throw new EchoException($"Only {result.Points.Count} triangulated points. Check overlap, attitude conventions and focal estimates before generating surfaces.", 5);

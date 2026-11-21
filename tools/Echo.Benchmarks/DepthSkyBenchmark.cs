@@ -35,6 +35,7 @@ public sealed class DepthSkyBenchmark
             Console.Error.WriteLine("Usage: depth-sky PROJECT RUN IMAGE_NAME OUTPUT_DIRECTORY [CANDIDATE_DEPTH_JSON]");
             return 2;
         }
+
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
         var photo = run.Snapshot.Images.Single(photo => photo.Name == args[2]);
@@ -75,10 +76,12 @@ public sealed class DepthSkyBenchmark
                 {
                     continue;
                 }
+
                 var colour = pixels[y * overlay.Width + x];
                 pixels[y * overlay.Width + x] = new SKColor((byte)(colour.Red / 2), (byte)((colour.Green + 255) / 2), (byte)((colour.Blue + 255) / 2));
             }
         }
+
         overlay.Pixels = pixels;
         images.Save(overlay, Path.Combine(directory, "sky-mask.png"), SKEncodedImageFormat.Png);
         files.AtomicJson(Path.Combine(directory, "report.json"), new
@@ -113,12 +116,14 @@ public sealed class DepthSkyBenchmark
                 {
                     continue;
                 }
+
                 var colour = SKColor.FromHsv(240 - 220 * Math.Clamp((depth - near) / Math.Max(.001f, far - near), 0, 1), 100, 100);
                 var original = pixels[y * output.Width + x];
                 pixels[y * output.Width + x] = new SKColor((byte)(original.Red * .45 + colour.Red * .55),
                     (byte)(original.Green * .45 + colour.Green * .55), (byte)(original.Blue * .45 + colour.Blue * .55));
             }
         }
+
         output.Pixels = pixels;
         images.Save(output, path, SKEncodedImageFormat.Png);
     }

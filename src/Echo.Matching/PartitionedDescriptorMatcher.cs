@@ -15,16 +15,19 @@ internal static class PartitionedDescriptorMatcher
         {
             return null;
         }
+
         var length = left[0].DescriptorData.Span.Length;
         var mixed = false;
         foreach (var feature in left)
         {
             mixed |= feature.DescriptorData.Span.Length != length;
         }
+
         foreach (var feature in right)
         {
             mixed |= feature.DescriptorData.Span.Length != length;
         }
+
         if (!mixed)
         {
             return null;
@@ -37,12 +40,14 @@ internal static class PartitionedDescriptorMatcher
             group.Left.Add(left[index]);
             group.LeftIndices.Add(index);
         }
+
         for (var index = 0; index < right.Length; index++)
         {
             var group = Group(groups, right[index].DescriptorData.Span.Length);
             group.Right.Add(right[index]);
             group.RightIndices.Add(index);
         }
+
         var diagnostics = new MatchingDiagnostics
         {
             FeaturesA = left.Length,
@@ -71,8 +76,10 @@ internal static class PartitionedDescriptorMatcher
                         diagnostics.RejectedNonMutual++;
                     }
                 }
+
                 continue;
             }
+
             var first = CollectionsMarshal.AsSpan(group.Left);
             var second = CollectionsMarshal.AsSpan(group.Right);
             var matches = AcceleratedDescriptorMatcher.TryMatch<T>(first, second, settings, reverse, compute, cancellation)
@@ -86,6 +93,7 @@ internal static class PartitionedDescriptorMatcher
                 result.Matches.Add(new DescriptorCorrespondence(group.LeftIndices[match.A], group.RightIndices[match.B], match.Distance));
             }
         }
+
         result.Matches.Sort((first, second) => first.A.CompareTo(second.A));
         return result;
     }
@@ -97,6 +105,7 @@ internal static class PartitionedDescriptorMatcher
             group = new DescriptorGroup<T>();
             groups.Add(length, group);
         }
+
         return group;
     }
 
@@ -111,12 +120,14 @@ internal static class PartitionedDescriptorMatcher
             {
                 distance = Math.Min(distance, DescriptorMatcher.Distance(left[candidate].DescriptorData.Span, right, true));
             }
+
             if (distance < best)
             {
                 best = distance;
                 index = candidate;
             }
         }
+
         return index;
     }
 }

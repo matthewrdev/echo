@@ -14,6 +14,7 @@ internal static class TextureHarmonicMap
         {
             return null;
         }
+
         var points = chart.Points;
         var edges = new HashSet<TextureEdge>();
         foreach (var triangle in chart.Triangles)
@@ -25,6 +26,7 @@ internal static class TextureHarmonicMap
                 edges.Add(new TextureEdge(Math.Min(a, b), Math.Max(a, b)));
             }
         }
+
         var system = new TextureLinearSystem(points.Length);
         foreach (var edge in edges)
         {
@@ -33,16 +35,19 @@ internal static class TextureHarmonicMap
             system.Add(edge.A, edge.B, -1);
             system.Add(edge.B, edge.A, -1);
         }
+
         var lengths = new double[chart.Boundary.Length];
         for (var index = 0; index < lengths.Length; index++)
         {
             lengths[index] = (points[chart.Boundary[index]] - points[chart.Boundary[(index + 1) % lengths.Length]]).Length;
         }
+
         var circumference = lengths.Sum();
         if (!(circumference > 0))
         {
             return null;
         }
+
         var u = new Dictionary<int, double>();
         var v = new Dictionary<int, double>();
         var distance = 0.0;
@@ -53,18 +58,21 @@ internal static class TextureHarmonicMap
             v[chart.Boundary[index]] = Math.Sin(angle);
             distance += lengths[index];
         }
+
         var x = system.Solve(u, cancellation, compute, backend);
         var y = system.Solve(v, cancellation, compute, backend);
         if (x == null || y == null)
         {
             return null;
         }
+
         var coordinates = new double[points.Length * 2];
         for (var vertex = 0; vertex < points.Length; vertex++)
         {
             coordinates[vertex * 2] = x[vertex];
             coordinates[vertex * 2 + 1] = y[vertex];
         }
+
         return coordinates;
     }
 }

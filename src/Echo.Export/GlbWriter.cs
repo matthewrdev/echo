@@ -40,6 +40,7 @@ public sealed class GlbWriter : IGlbWriter
                 maximum[axis] = Math.Max(maximum[axis], value);
             }
         }
+
         var document = new
         {
             asset = new
@@ -198,6 +199,7 @@ public sealed class GlbWriter : IGlbWriter
         {
             throw new EchoException("GLB exceeds the format's 4 GB limit.");
         }
+
         fileOperations.AtomicWrite(output, stream =>
         {
             using var glb = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
@@ -211,6 +213,7 @@ public sealed class GlbWriter : IGlbWriter
             {
                 glb.Write((byte)32);
             }
+
             glb.Write((uint)binaryLength);
             glb.Write(0x004e4942u);
             foreach (var vertex in mesh.Vertices)
@@ -219,17 +222,20 @@ public sealed class GlbWriter : IGlbWriter
                 glb.Write((float)vertex[1]);
                 glb.Write((float)vertex[2]);
             }
+
             foreach (var uv in uvs)
             {
                 glb.Write((float)uv[0]);
                 glb.Write((float)uv[1]);
             }
+
             foreach (var face in mesh.Faces)
             {
                 glb.Write((uint)face[0]);
                 glb.Write((uint)face[1]);
                 glb.Write((uint)face[2]);
             }
+
             glb.Write(texture);
             for (var i = imageOffset + (long)texture.Length; i < binaryLength; i++)
             {

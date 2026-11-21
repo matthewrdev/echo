@@ -19,6 +19,7 @@ internal static class SurfaceFragments
         {
             parents.Add(index);
         }
+
         for (var faceIndex = 0; faceIndex < source.Faces.Count; faceIndex++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -73,10 +74,13 @@ internal static class SurfaceFragments
                     remap[vertex] = index;
                     writer.AddVertex(reader.Vertex(vertex));
                 }
+
                 output[corner] = index;
             }
+
             writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
         }
+
         return result;
     }
 
@@ -87,6 +91,7 @@ internal static class SurfaceFragments
             parents[vertex] = parents[parents[vertex]];
             vertex = parents[vertex];
         }
+
         return vertex;
     }
 }

@@ -30,12 +30,14 @@ internal sealed class FusionGridRuns
         {
             return records.Write([]);
         }
+
         while (pending.Count > 1)
         {
             var group = pending.Take(FanIn).ToArray();
             pending.RemoveRange(0, group.Length);
             pending.Add(Merge(group));
         }
+
         return pending[0];
     }
 
@@ -46,6 +48,7 @@ internal sealed class FusionGridRuns
         {
             levels.Add([]);
         }
+
         var pending = levels[level];
         pending.Add(run);
         if (pending.Count == FanIn)
@@ -63,6 +66,7 @@ internal sealed class FusionGridRuns
         {
             records.Delete(input);
         }
+
         return merged;
     }
 
@@ -87,6 +91,7 @@ internal sealed class FusionGridRuns
                     queue.Enqueue(reader, reader.Current);
                 }
             }
+
             while (queue.TryDequeue(out var reader, out var span))
             {
                 yield return span;
@@ -116,6 +121,7 @@ internal sealed class FusionGridRuns
             {
                 cancellation.ThrowIfCancellationRequested();
             }
+
             if (pending is { } previous)
             {
                 if (previous.Joins(span))
@@ -123,21 +129,26 @@ internal sealed class FusionGridRuns
                     pending = previous.Union(span);
                     continue;
                 }
+
                 cells = checked(cells + previous.CellCount);
                 if (cells > maximumCells)
                 {
                     throw new FusionGridCapacityException();
                 }
+
                 yield return previous;
             }
+
             pending = span;
         }
+
         if (pending is { } last)
         {
             if (last.CellCount > maximumCells - cells)
             {
                 throw new FusionGridCapacityException();
             }
+
             yield return last;
         }
     }

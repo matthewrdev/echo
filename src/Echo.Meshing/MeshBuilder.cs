@@ -32,6 +32,7 @@ public sealed class MeshBuilder : IMeshBuilder
         {
             throw new EchoException("No connected surface could be extracted from the fused cloud.", 5);
         }
+
         scratch?.Dispose();
         SurfaceHoleRepair.Fill(result, volume.VoxelSize, cancellation, work: work, progress: operationProgress);
         return SurfaceFragments.RemoveSmall(result, volume.VoxelSize, cancellation, work);
@@ -64,6 +65,7 @@ public sealed class MeshBuilder : IMeshBuilder
                 reporter.Increment();
                 continue;
             }
+
             var face = reader.Face(faceIndex);
             // An empty source means inferred colour, not a photograph through
             // an occluder. Completed geometry must survive missing imagery.
@@ -86,6 +88,7 @@ public sealed class MeshBuilder : IMeshBuilder
             result.SourceImages.Add(image);
             reporter.Increment();
         }
+
         reporter.Complete();
 
         if (!selection.Any(view => view >= 0))
@@ -135,6 +138,7 @@ public sealed class MeshBuilder : IMeshBuilder
                     }
                 }
             }
+
             return false;
         }
         GroundSurfaceCompletion.Fill(geometry, voxelSize, Observed, cancellation, work);
@@ -148,6 +152,7 @@ public sealed class MeshBuilder : IMeshBuilder
         {
             throw new ArgumentOutOfRangeException(nameof(voxelSize));
         }
+
         if (geometry.SourceImages.Count != 0)
         {
             throw new EchoException("Complete surface geometry before assigning texture photographs.", 5);

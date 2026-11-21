@@ -26,6 +26,7 @@ public sealed class PlyWriter : IPlyWriter
         {
             header += FormattableString.Invariant($"element face {faces.Count}\nproperty list uchar int vertex_indices\n");
         }
+
         stream.Write(Encoding.ASCII.GetBytes(header + "end_header\n"));
         var input = ArrayPool<byte>.Shared.Rent(65536);
         var output = ArrayPool<byte>.Shared.Rent(65536);
@@ -42,6 +43,7 @@ public sealed class PlyWriter : IPlyWriter
             ArrayPool<byte>.Shared.Return(input);
             ArrayPool<byte>.Shared.Return(output);
         }
+
         outputFile.Flush(true);
         var checksum = stream.CompleteChecksum();
         if (checksum != null)
@@ -62,6 +64,7 @@ public sealed class PlyWriter : IPlyWriter
             {
                 paged!.ReadEncodedRecords(start, input.AsSpan(0, count * 24));
             }
+
             for (var index = 0; index < count; index++)
             {
                 var point = encoded ? null : points[start + index];
@@ -73,6 +76,7 @@ public sealed class PlyWriter : IPlyWriter
                     BinaryPrimitives.WriteSingleLittleEndian(output.AsSpan(index * 12 + axis * 4, 4), (float)coordinate);
                 }
             }
+
             stream.Write(output.AsSpan(0, count * 12));
             start += count;
         }
@@ -90,6 +94,7 @@ public sealed class PlyWriter : IPlyWriter
             {
                 paged!.ReadEncodedRecords(start, input.AsSpan(0, count * 12));
             }
+
             for (var index = 0; index < count; index++)
             {
                 var record = output.AsSpan(index * 13, 13);
@@ -107,6 +112,7 @@ public sealed class PlyWriter : IPlyWriter
                     }
                 }
             }
+
             stream.Write(output.AsSpan(0, count * 13));
             start += count;
         }

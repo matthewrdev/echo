@@ -23,6 +23,7 @@ public sealed class RedpointGeoreferenceWriter : IRedpointGeoreferenceWriter
         {
             throw new EchoException("Redpoint calibration requires a local site within 85 degrees latitude and a footprint under 10 km.", 2);
         }
+
         using var model = File.OpenRead(Path.Combine(directory, "cliff.glb"));
         var result = new RedpointGeoreferenceExport
         {
@@ -50,6 +51,7 @@ public sealed class RedpointGeoreferenceWriter : IRedpointGeoreferenceWriter
                 Elevation = GeographicCoordinates.HasEllipsoidalHeight(origin) ? gps.Altitude : null
             });
         }
+
         var points = result.GeoReference.ReferencePoints;
         var crossesBoundary = points.Max(point => point.Longitude) - points.Min(point => point.Longitude) > 1
             || points.Any(point => Math.Abs(point.Latitude) > 85);
@@ -57,6 +59,7 @@ public sealed class RedpointGeoreferenceWriter : IRedpointGeoreferenceWriter
         {
             throw new EchoException("This site crosses Redpoint's supported geographic bounds.", 2);
         }
+
         files.AtomicJson(Path.Combine(directory, "redpoint.georeference.json"), result);
     }
 }

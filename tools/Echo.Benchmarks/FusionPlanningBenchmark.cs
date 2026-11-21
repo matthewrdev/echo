@@ -35,6 +35,7 @@ public sealed class FusionPlanningBenchmark
         {
             throw new EchoException("Usage: fusion-planning PROJECT RUN POINT_LIMIT WORKERS NEW_OUTPUT_DIRECTORY (zero limit/workers uses all/auto).", 2);
         }
+
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
         var pointLimit = int.Parse(args[2]);
@@ -44,6 +45,7 @@ public sealed class FusionPlanningBenchmark
         {
             throw new EchoException("Use nonnegative limits and a new benchmark output directory.", 2);
         }
+
         Directory.CreateDirectory(directory);
         using var session = new BulkDataSession(64 * 1024 * 1024, 0);
         var work = new WorkBuffers(session, directory);
@@ -62,6 +64,7 @@ public sealed class FusionPlanningBenchmark
             ((PagedList<DenseSample>)cloud.Samples).ReadRange(0, subset);
             cloud.Samples = subset;
         }
+
         var resources = FusionMemoryBudget.Resolve(run.Snapshot.Settings.FusionMemoryBudgetMb, 32L * 1024 * 1024 * 1024);
         var options = FusionGridPlanning.Resolve(resources, cloud.Samples.Count);
         if (workers > 0)
@@ -71,6 +74,7 @@ public sealed class FusionPlanningBenchmark
                 Workers = workers
             };
         }
+
         var settings = run.Snapshot.Settings;
         var voxel = settings.FusionVoxelSize > 0 ? settings.FusionVoxelSize : footprint * .8 / Math.Sqrt(settings.FusionDetailMultiplier);
         var byId = views.ToDictionary(view => view.Map.ImageId, StringComparer.Ordinal);
@@ -118,6 +122,7 @@ public sealed class FusionPlanningBenchmark
             stream.Write(bytes.AsSpan(0, count * codec.Size));
             hash.AppendData(bytes.AsSpan(0, count * codec.Size));
         }
+
         return Convert.ToHexString(hash.GetHashAndReset());
     }
 

@@ -28,14 +28,17 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         {
             throw new ArgumentException("Expected one classification per surface face.", nameof(vegetationFaces));
         }
+
         if (project.Settings.TextureChartFaces < 1)
         {
             throw new ArgumentOutOfRangeException(nameof(project), "A chart must allow at least one triangle.");
         }
+
         if (priorityBands != null && priorityBands.Count != mesh.Faces.Count)
         {
             throw new ArgumentException("Expected one priority band per surface face.", nameof(priorityBands));
         }
+
         string[] steps = ["Chart geometry", "Partition regions", "Parameterize charts", "Merge charts", "Orient charts"];
         operationProgress?.Invoke(new OperationProgress("UV charts", "Building texture chart geometry…") { Steps = steps, StepIndex = 0 });
         var groups = vegetationFaces == null && priorityBands == null ? null
@@ -47,6 +50,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
             geometry = new TextureChartGeometry(mesh, cancellation, work);
             building?.Measure(mesh.Faces.Count);
         }
+
         List<List<int>> regions;
         operationProgress?.Invoke(new OperationProgress("UV charts", "Partitioning connected chart regions…") { Steps = steps, StepIndex = 1 });
         using (trace?.Begin("Partition texture chart regions", PerformanceSpanKind.Operation))
@@ -54,6 +58,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
             regions = TextureChartRegions.Build(geometry, project.Settings.TextureChartFaces,
                 project.Settings.TextureChartAngle, groups, cancellation);
         }
+
         var patches = new List<TexturePatch>();
         progress?.Invoke($"Parameterizing {regions.Count:N0} connected surface regions…");
         var completed = 0;
@@ -70,6 +75,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
                     operationProgress?.Invoke(new OperationProgress("UV charts", "Parameterizing connected surface regions…", completed, regions.Count, "regions") { Steps = steps, StepIndex = 2 });
                 }
             }
+
             unwrapping?.Measure(regions.Count);
         }
 
@@ -78,6 +84,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         {
             patches = TextureChartMerger.Merge(geometry, patches, project.Settings.TextureChartFaces, groups, cancellation, progress, compute, project.Settings.ComputeBackend);
         }
+
         operationProgress?.Invoke(new OperationProgress("UV charts", "Orienting UV charts…") { Steps = steps, StepIndex = 4 });
         using (trace?.Begin("Orient texture charts", PerformanceSpanKind.Operation))
         {
@@ -86,6 +93,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
                 orienter.Orient(patch);
             }
         }
+
         trace?.Measurement("Texture charts per layout", patches.Count, "charts");
         return patches.OrderByDescending(patch => patch.Bounds.Height).ToArray();
     }
@@ -110,6 +118,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
                 {
                     Unwrap(geometry, part, patches, cancellation, backend);
                 }
+
                 return;
             }
         }

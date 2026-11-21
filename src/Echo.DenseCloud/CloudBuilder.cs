@@ -44,11 +44,13 @@ public sealed class CloudBuilder : ICloudBuilder
         {
             photos.Add(photo.Id, photo);
         }
+
         var cameras = new Dictionary<string, CameraPose>(scene.Cameras.Count, StringComparer.Ordinal);
         foreach (var camera in scene.Cameras)
         {
             cameras.Add(camera.ImageId, camera);
         }
+
         var views = new DepthView[maps.Count];
         var cloud = new DenseCloudData { Samples = samples ?? [] };
         cloud.ImageIds.EnsureCapacity(maps.Count);
@@ -64,11 +66,13 @@ public sealed class CloudBuilder : ICloudBuilder
             maximumWidth = Math.Max(maximumWidth, map.Width);
             maximumHeight = Math.Max(maximumHeight, map.Height);
         }
+
         var neighbours = new DepthView[views.Length][];
         for (var index = 0; index < views.Length; index++)
         {
             neighbours[index] = SelectNeighbours(views, index, project.Settings.CloudNeighbours);
         }
+
         var plan = executionPlanner.Plan(project.Settings, maximumWidth, maximumHeight);
         var batches = new CloudRowBatch[plan.Workers];
         var previewSamples = preview == null ? null : new CloudPreviewSampler();
@@ -81,6 +85,7 @@ public sealed class CloudBuilder : ICloudBuilder
             {
                 batches[slot] = new CloudRowBatch(maximumWidth * plan.RowsPerBatch);
             }
+
             for (var index = 0; index < views.Length; index++)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -91,6 +96,7 @@ public sealed class CloudBuilder : ICloudBuilder
                 {
                     throw new EchoException($"Depth-map dimensions do not match the source photograph: {photos[view.Map.ImageId].Name}.", 5);
                 }
+
                 var support = CloudSupportCompute.TryCalculate(compute, view, neighbours[index], project.Settings, cancellation);
                 ProcessImage(view, neighbours[index], index, colours.Pixels, project.Settings, plan, batches, cloud, status, options, previewSamples, support);
             }
@@ -107,6 +113,7 @@ public sealed class CloudBuilder : ICloudBuilder
         {
             throw new EchoException("Fewer than 30 depth samples agree between views. Inspect alignment and depth before meshing.", 5);
         }
+
         return cloud;
     }
 
@@ -122,25 +129,30 @@ public sealed class CloudBuilder : ICloudBuilder
             {
                 continue;
             }
+
             var distance = (views[candidate].Centre - views[imageIndex].Centre).Length;
             var position = filled;
             while (position > 0 && distance.CompareTo(distances[position - 1]) < 0)
             {
                 position--;
             }
+
             if (position >= count)
             {
                 continue;
             }
+
             for (var move = Math.Min(filled, count - 1); move > position; move--)
             {
                 distances[move] = distances[move - 1];
                 result[move] = result[move - 1];
             }
+
             distances[position] = distance;
             result[position] = views[candidate];
             filled = Math.Min(count, filled + 1);
         }
+
         return result;
     }
 
@@ -169,6 +181,7 @@ public sealed class CloudBuilder : ICloudBuilder
                     cloud.Samples.Add(batch.Samples[sample]);
                     previewSamples?.Add(batch.Samples[sample]);
                 }
+
                 cloud.InputSamples += batch.InputSamples;
                 completedRows += batch.Rows;
             }
@@ -199,6 +212,7 @@ public sealed class CloudBuilder : ICloudBuilder
                 {
                     continue;
                 }
+
                 input++;
                 var point = view.Point(x, y, depth);
                 var referenceRay = point - view.Centre;
@@ -213,21 +227,25 @@ public sealed class CloudBuilder : ICloudBuilder
                     {
                         continue;
                     }
+
                     var consistentDepth = other.TrySurfacePoint(point, settings.CloudDepthTolerance, out var surface, preserveDepthEdges: true);
                     if (consistentDepth && view.ReprojectsTo(surface, x, y, settings.CloudReprojectionTolerancePixels))
                     {
                         support++;
                     }
                 }
+
                 if (support < settings.CloudMinimumSupport)
                 {
                     continue;
                 }
+
                 var colour = rowColours[x];
                 samples[accepted++] = new DenseSample((float)point.X, (float)point.Y, (float)point.Z,
                     colour.Red, colour.Green, colour.Blue, imageIndex, (float)support / neighbours.Length);
             }
         }
+
         batch.Count = accepted;
         batch.InputSamples = input;
         batch.Rows = lastRow - firstRow;
@@ -270,6 +288,7 @@ public sealed class CloudBuilder : ICloudBuilder
         {
             WriteSamples(stream, cloud.Samples);
         }
+
         output.Flush(true);
         var checksum = stream.CompleteChecksum();
         if (checksum != null)
@@ -292,6 +311,7 @@ public sealed class CloudBuilder : ICloudBuilder
                 {
                     codec.Encode(samples[start + index], buffer.AsSpan(index * codec.Size, codec.Size));
                 }
+
                 stream.Write(buffer.AsSpan(0, count * codec.Size));
                 start += count;
             }
@@ -345,10 +365,12 @@ public sealed class CloudBuilder : ICloudBuilder
             cloud.Samples = session.Open(path, new DenseRecordCodec(), offset: stream.Position, count: count);
             return cloud;
         }
+
         if (cloud.Samples is List<DenseSample> samples)
         {
             samples.EnsureCapacity(count);
         }
+
         for (var i = 0; i < count; i++)
         {
             cloud.Samples.Add(new DenseSample(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadByte(), reader.ReadByte(), reader.ReadByte(), reader.ReadInt32(), reader.ReadSingle()));

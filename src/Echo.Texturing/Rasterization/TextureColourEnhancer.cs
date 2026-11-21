@@ -12,15 +12,18 @@ public static class TextureColourEnhancer
         {
             throw new ArgumentOutOfRangeException(nameof(strength));
         }
+
         if (strength == 0)
         {
             return;
         }
+
         var byteColour = atlas.ColorType is SKColorType.Bgra8888 or SKColorType.Rgba8888;
         if (!BitConverter.IsLittleEndian || !byteColour)
         {
             throw new ArgumentException("Colour enhancement requires an RGBA or BGRA byte atlas.", nameof(atlas));
         }
+
         var swap = atlas.ColorType == SKColorType.Rgba8888;
         var options = new ParallelOptions
         {
@@ -37,10 +40,12 @@ public static class TextureColourEnhancer
                 {
                     continue;
                 }
+
                 if (swap)
                 {
                     colour = new SKColor(colour.Blue, colour.Green, colour.Red, colour.Alpha);
                 }
+
                 var enhanced = Enhance(colour, strength);
                 pixels[column] = swap
                     ? new SKColor(enhanced.Blue, enhanced.Green, enhanced.Red, enhanced.Alpha) : enhanced;

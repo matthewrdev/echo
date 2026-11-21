@@ -99,10 +99,12 @@ public sealed class Settings
         {
             throw new EchoException("Exclusion regions must be an array of regions.", 2);
         }
+
         foreach (var region in ExclusionRegions)
         {
             region.Validate();
         }
+
         if (ExclusionRegions.Select(region => region.Id).Distinct(StringComparer.Ordinal).Count() != ExclusionRegions.Count)
         {
             throw new EchoException("Exclusion region IDs must be unique.", 2);

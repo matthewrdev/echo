@@ -56,11 +56,13 @@ public sealed class TexturePriorityPipelineTests
                 {
                     throw new Exception("Painting must change the texture checkpoint, with deterministic reuse afterward.");
                 }
+
                 if (store.GetRun(original.Id).Snapshot.Settings.TexturePriority != null
                     || original.Artifacts["mesh"] != painted.Artifacts["mesh"])
                 {
                     throw new Exception("Existing snapshots and upstream geometry must stay unchanged.");
                 }
+
                 if (!File.Exists(store.PathFor(painted.Artifacts["texture"] + "/atlas.jpg")))
                 {
                     throw new Exception("Painted texture was not baked to disk.");

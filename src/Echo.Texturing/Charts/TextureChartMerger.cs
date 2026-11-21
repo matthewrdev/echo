@@ -17,6 +17,7 @@ internal static class TextureChartMerger
                 owner[face] = index;
             }
         }
+
         var versions = new int[patches.Count];
         var rejected = new HashSet<TextureChartMergeKey>();
         var active = patches.Select(patch => (TexturePatch?)patch).ToArray();
@@ -34,6 +35,7 @@ internal static class TextureChartMerger
                 {
                     continue;
                 }
+
                 var neighbours = new Dictionary<int, double>();
                 foreach (var face in patch.Faces)
                 {
@@ -44,6 +46,7 @@ internal static class TextureChartMerger
                         {
                             continue;
                         }
+
                         var other = owner[adjacent];
                         var differentMaterial = materials != null && materials[face] != materials[adjacent];
                         if (!differentMaterial && patch.Faces.Count + active[other]!.Faces.Count <= maximumFaces)
@@ -54,6 +57,7 @@ internal static class TextureChartMerger
                         }
                     }
                 }
+
                 foreach (var other in neighbours.OrderByDescending(entry => entry.Value).ThenBy(entry => entry.Key).Take(4).Select(entry => entry.Key))
                 {
                     var key = index < other
@@ -63,6 +67,7 @@ internal static class TextureChartMerger
                     {
                         continue;
                     }
+
                     var faces = patch.Faces.Concat(active[other]!.Faces).ToList();
                     var chart = new TextureChartMesh(geometry, faces);
                     var coordinates = TextureConformalMap.Solve(chart, cancellation, compute, backend);
@@ -70,6 +75,7 @@ internal static class TextureChartMerger
                     {
                         continue;
                     }
+
                     var union = TextureChartPatch.Create(geometry, chart, faces, coordinates);
                     active[index] = union;
                     active[other] = null;
@@ -78,16 +84,19 @@ internal static class TextureChartMerger
                     {
                         owner[face] = index;
                     }
+
                     merged++;
                     break;
                 }
             }
+
             progress?.Invoke($"Merging compatible UV charts: pass {pass + 1}/4, {patches.Count - merged:N0} charts remaining.");
             if (merged == previous)
             {
                 break;
             }
         }
+
         return active.Where(patch => patch != null).Select(patch => patch!).ToList();
     }
 }

@@ -13,6 +13,7 @@ public static class CropHullGeometry
                 return false;
             }
         }
+
         return true;
     }
 
@@ -38,20 +39,25 @@ public static class CropHullGeometry
                 {
                     scratch[written++] = previous + (point - previous) * (previousDistance / (previousDistance - distance));
                 }
+
                 if (distance <= 0)
                 {
                     scratch[written++] = point;
                 }
+
                 previous = point;
                 previousDistance = distance;
             }
+
             if (written == 0)
             {
                 return false;
             }
+
             scratch[..written].CopyTo(polygon);
             count = written;
         }
+
         return true;
     }
 

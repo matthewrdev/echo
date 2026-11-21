@@ -36,12 +36,15 @@ public sealed class MatchingIndexJournal : IDisposable
             {
                 throw new InvalidDataException("Matching journal does not belong to these run inputs.");
             }
+
             return;
         }
+
         if (entry.Sequence != entries.Count)
         {
             throw new InvalidDataException("Matching journal entries must be published in order.");
         }
+
         var bytes = JsonSerializer.SerializeToUtf8Bytes(entry, MatchingStorageJsonContext.Default.MatchingIndexEntry);
         stream.Write(bytes);
         stream.WriteByte((byte)'\n');
@@ -85,15 +88,18 @@ public sealed class MatchingIndexJournal : IDisposable
             {
                 break;
             }
+
             var entry = JsonSerializer.Deserialize(line, MatchingStorageJsonContext.Default.MatchingIndexEntry)
                 ?? throw new InvalidDataException("Invalid matching journal record.");
             if (entry.Sequence != entries.Count)
             {
                 throw new InvalidDataException("Invalid matching journal sequence.");
             }
+
             entries.Add(entry);
             committed += bytes;
         }
+
         stream.SetLength(committed);
         stream.Position = committed;
     }

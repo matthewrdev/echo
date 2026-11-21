@@ -42,11 +42,13 @@ public static class MetadataFields
                 var value = directory.GetObject(tag.Type);
                 result.Add(group, name, name == "ExifVersion" && value is byte[] version ? Encoding.ASCII.GetString(version) : Value(value));
             }
+
             if (directory is GpsDirectory gps)
             {
                 AddGps(gps, result);
             }
         }
+
         if (directory.HasError)
         {
             result.Add(Group(directory), "ReaderWarnings", string.Join("; ", directory.Errors));
@@ -64,6 +66,7 @@ public static class MetadataFields
                 result.Add("GPS", "GPSLongitude", location.Longitude);
             }
         }
+
         if (gps.GetObject(GpsDirectory.TagAltitude) is Rational rational && double.IsFinite(rational.ToDouble()))
         {
             var belowReference = gps.TryGetInt32(GpsDirectory.TagAltitudeRef, out var reference) && reference is 1 or 3;
@@ -106,10 +109,12 @@ public static class MetadataFields
                 _ => Compact(name)
             };
         }
+
         if (!directory.HasTagName(tag))
         {
             return Compact(directory.Name.Replace(" Makernote", "")) + "_0x" + tag.ToString("x4", CultureInfo.InvariantCulture);
         }
+
         return Compact(name);
     }
 
@@ -123,6 +128,7 @@ public static class MetadataFields
                 name.Append(character);
             }
         }
+
         return name.ToString();
     }
 

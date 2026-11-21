@@ -8,6 +8,7 @@ internal static class TextureChartValidation
         {
             return false;
         }
+
         var area = 0.0;
         foreach (var triangle in chart.Triangles)
         {
@@ -16,8 +17,10 @@ internal static class TextureChartValidation
             {
                 return false;
             }
+
             area += determinant * .5;
         }
+
         if (!(chart.Area > 0) || !double.IsFinite(area))
         {
             return false;
@@ -29,6 +32,7 @@ internal static class TextureChartValidation
         {
             coordinates[index] *= scale;
         }
+
         var distortedArea = 0.0;
         foreach (var triangle in chart.Triangles)
         {
@@ -44,6 +48,7 @@ internal static class TextureChartValidation
             {
                 return false;
             }
+
             var x = edge.Dot(other) / length;
             var y = doubledArea / length;
             var j00 = (coordinates[b * 2] - coordinates[a * 2]) / length;
@@ -59,12 +64,14 @@ internal static class TextureChartValidation
             {
                 return false;
             }
+
             var appreciableStretch = minimum < .5 || maximum > 2 || maximum > minimum * 3;
             if (appreciableStretch)
             {
                 distortedArea += doubledArea * .5;
             }
         }
+
         if (distortedArea > chart.Area * .05)
         {
             return false;
@@ -94,6 +101,7 @@ internal static class TextureChartValidation
             maximumX = Math.Max(maximumX, coordinates[vertex]);
             maximumY = Math.Max(maximumY, coordinates[vertex + 1]);
         }
+
         var extent = Math.Max(maximumX - minimumX, maximumY - minimumY);
         var tolerance = extent * extent * 1e-14;
         for (var first = 0; first < boundary.Length; first++)
@@ -105,6 +113,7 @@ internal static class TextureChartValidation
                 {
                     continue;
                 }
+
                 if (Intersects(coordinates, boundary[first], boundary[(first + 1) % boundary.Length],
                     boundary[second], boundary[(second + 1) % boundary.Length], tolerance))
                 {
@@ -112,6 +121,7 @@ internal static class TextureChartValidation
                 }
             }
         }
+
         return true;
     }
 
@@ -125,6 +135,7 @@ internal static class TextureChartValidation
         {
             return false;
         }
+
         var first = Cross(uv, a, b, c);
         var second = Cross(uv, a, b, d);
         var third = Cross(uv, c, d, a);

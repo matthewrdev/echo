@@ -31,6 +31,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
         {
             return new TextureSeamCorrections();
         }
+
         var imageIndices = imageIds.Select((id, index) => new KeyValuePair<string, int>(id, index)).ToDictionary();
         var topology = SurfaceTopologyBuilder.Build(mesh, cancellation, work);
         var corners = new int[mesh.Faces.Count * 3];
@@ -43,6 +44,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             {
                 progress?.Invoke(new OperationProgress("Seam indexing", "Indexing photographic seam vertices…", face, mesh.Faces.Count, "triangles"));
             }
+
             var image = imageIndices[mesh.SourceImages[face]];
             for (var corner = 0; corner < 3; corner++)
             {
@@ -54,8 +56,10 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                     lookup.Add(key, node);
                     nodes.Add(new TextureSeamNode { Image = image, Vertex = vertex });
                 }
+
                 corners[face * 3 + corner] = node;
             }
+
             for (var corner = 0; corner < 3; corner++)
             {
                 var a = corners[face * 3 + corner];
@@ -80,10 +84,12 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                 {
                     continue;
                 }
+
                 if (string.IsNullOrEmpty(mesh.SourceImages[face]) || string.IsNullOrEmpty(mesh.SourceImages[other]))
                 {
                     continue;
                 }
+
                 seamEdges++;
                 for (var end = 0; end < 2; end++)
                 {
@@ -102,10 +108,12 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                 }
             }
         }
+
         if (seamEdges == 0)
         {
             return new TextureSeamCorrections();
         }
+
         progress?.Invoke(new OperationProgress("Seam indexing", "Photographic seams indexed.", mesh.Faces.Count, mesh.Faces.Count, "triangles"));
         ReadColours(store, project, scene, imageIds, samples, nodes, cancellation, progress);
         progress?.Invoke(new OperationProgress("Seam sampling", "Photographic seam colours sampled.", imageIds.Length, imageIds.Length, "photographs"));
@@ -121,6 +129,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                 }
             }
         }
+
         var global = GlobalOffsets(nodes, links, imageIds.Length, cancellation, progress);
         progress?.Invoke(new OperationProgress("Exposure correction", "Photograph exposure offsets solved.", 160, 160, "iterations"));
         progress?.Invoke(new OperationProgress("Local seam correction", "Diffusing local seam corrections…", 0, 32, "iterations"));
@@ -132,6 +141,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             var node = corners[corner];
             offsets[corner] = global[nodes[node].Image] + local[node];
         }
+
         var before = 0.0;
         var after = 0.0;
         foreach (var link in links)
@@ -141,6 +151,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             before += (a.Colour - b.Colour).Length / Math.Sqrt(3);
             after += (a.Colour + global[a.Image] + local[link.First] - b.Colour - global[b.Image] - local[link.Second]).Length / Math.Sqrt(3);
         }
+
         return new TextureSeamCorrections
         {
             CornerOffsets = offsets,
@@ -162,6 +173,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
             {
                 continue;
             }
+
             progress?.Invoke(new OperationProgress("Seam sampling", $"Sampling seam colours from photograph {image + 1}/{imageIds.Length}…", image, imageIds.Length, "photographs"));
             var photo = photos[imageIds[image]];
             var projection = new CameraProjector(photo, cameras[photo.Id]);
@@ -177,13 +189,16 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                 {
                     continue;
                 }
+
                 var colour = TextureSampling.Bilinear(pixels, bitmap.Width, bitmap.Height, pixel.Value.X, pixel.Value.Y, skyGuard);
                 var value = new V3(swap ? colour.Blue : colour.Red, colour.Green, swap ? colour.Red : colour.Blue);
                 nodes[sample.Node].Colour += value * sample.Weight;
                 nodes[sample.Node].Weight += sample.Weight;
             }
+
             GC.KeepAlive(bitmap);
         }
+
         foreach (var node in nodes)
         {
             if (node.Weight > 0)
@@ -223,6 +238,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                 sums[pair.First] += offsets[pair.Second] * constraint.Count + constraint.Difference;
                 sums[pair.Second] += offsets[pair.First] * constraint.Count - constraint.Difference;
             }
+
             for (var image = 0; image < images; image++)
             {
                 if (weights[image] > 0)
@@ -231,6 +247,7 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                 }
             }
         }
+
         return offsets;
     }
 
@@ -246,18 +263,21 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                 mean += nodes[index].Colour + global[nodes[index].Image];
                 count++;
             }
+
             mean /= count;
             foreach (var index in group)
             {
                 local[index] = Clamp(mean - nodes[index].Colour - global[nodes[index].Image], 32);
             }
         }
+
         var accelerated = SeamDiffusionCompute.TryDiffuse(compute, backend, nodes, local, cancellation);
         if (accelerated != null)
         {
             progress?.Invoke(new OperationProgress("Local seam correction", "Diffused colour corrections with Metal.", 32, 32, "iterations"));
             return accelerated;
         }
+
         var next = new V3[local.Length];
         for (var pass = 0; pass < 32; pass++)
         {
@@ -271,17 +291,21 @@ public sealed class TextureSeamLeveler : ITextureSeamLeveler
                     next[index] = local[index];
                     continue;
                 }
+
                 var sum = new V3();
                 foreach (var neighbour in node.Neighbours)
                 {
                     sum += local[neighbour];
                 }
+
                 next[index] = sum / (node.Neighbours.Count + .05);
             }
+
             var previous = local;
             local = next;
             next = previous;
         }
+
         return local;
     }
 

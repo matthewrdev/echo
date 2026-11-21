@@ -20,12 +20,14 @@ internal static class FaceViewOptimizer
                 offsets[candidates.Get(face, option).View + 1]++;
             }
         }
+
         var maximumActive = 0;
         for (var view = 0; view < viewCount; view++)
         {
             maximumActive = Math.Max(maximumActive, offsets[view + 1]);
             offsets[view + 1] = checked(offsets[view + 1] + offsets[view]);
         }
+
         IList<FaceViewChoice> available = scratch?.Filled(offsets[^1], default(FaceViewChoice), new FaceViewChoiceCodec(), cancellation) ?? new FaceViewChoice[offsets[^1]];
         var writeOffsets = (int[])offsets.Clone();
         for (var face = 0; face < candidates.FaceCount; face++)
@@ -36,6 +38,7 @@ internal static class FaceViewOptimizer
                 available[writeOffsets[candidates.Get(face, option).View]++] = new FaceViewChoice(face, option);
             }
         }
+
         IList<int> active = scratch?.Filled(maximumActive, 0, new IntRecordCodec(), cancellation) ?? new int[maximumActive];
         IList<double> keep = scratch?.Filled(maximumActive, 0d, new DoubleRecordCodec(), cancellation) ?? new double[maximumActive];
         IList<double> change = scratch?.Filled(maximumActive, 0d, new DoubleRecordCodec(), cancellation) ?? new double[maximumActive];
@@ -72,14 +75,17 @@ internal static class FaceViewOptimizer
                         viewCosts[count++] = candidates.Get(choice.Face, choice.Option).Cost;
                     }
                 }
+
                 if (count == 0)
                 {
                     continue;
                 }
+
                 for (var index = 0; index < count; index++)
                 {
                     activeIndex[active[index]] = index;
                 }
+
                 RecordListOperations.Fill(keep, count, 0d);
                 RecordListOperations.Fill(change, count, 0d);
                 cut ??= new BinaryCut(maximumActive, scratch, cancellation);
@@ -97,6 +103,7 @@ internal static class FaceViewOptimizer
                         {
                             continue;
                         }
+
                         var penalty = penalties[slot];
                         var otherIndex = activeIndex[other];
                         if (otherIndex < 0)
@@ -113,14 +120,17 @@ internal static class FaceViewOptimizer
                                 change[index] -= capacity;
                                 change[otherIndex] -= capacity;
                             }
+
                             cut.Pair(index, otherIndex, capacity, capacity);
                         }
                     }
                 }
+
                 for (var index = 0; index < count; index++)
                 {
                     cut.Unary(index, keep[index], change[index]);
                 }
+
                 cut.Solve(expansion, cancellation);
                 var improvement = 0.0;
                 for (var index = 0; index < count; index++)
@@ -129,6 +139,7 @@ internal static class FaceViewOptimizer
                     {
                         continue;
                     }
+
                     var face = active[index];
                     improvement += viewCosts[index] - selectedCosts[face];
                     for (var corner = 0; corner < 3; corner++)
@@ -139,17 +150,20 @@ internal static class FaceViewOptimizer
                         {
                             continue;
                         }
+
                         var otherIndex = activeIndex[other];
                         var otherChanges = otherIndex >= 0 && expansion[otherIndex];
                         if (otherChanges && index > otherIndex)
                         {
                             continue;
                         }
+
                         var before = selected[face] == selected[other] ? 0 : penalties[slot];
                         var after = otherChanges || view == selected[other] ? 0 : penalties[slot];
                         improvement += after - before;
                     }
                 }
+
                 if (improvement < -1e-8)
                 {
                     for (var index = 0; index < count; index++)
@@ -162,11 +176,13 @@ internal static class FaceViewOptimizer
                         }
                     }
                 }
+
                 for (var index = 0; index < count; index++)
                 {
                     activeIndex[active[index]] = -1;
                 }
             }
+
             if (changes == 0)
             {
                 break;
@@ -184,6 +200,7 @@ internal static class FaceViewOptimizer
                 return candidate.Cost;
             }
         }
+
         throw new InvalidOperationException("A texture expansion selected an unavailable view.");
     }
 }

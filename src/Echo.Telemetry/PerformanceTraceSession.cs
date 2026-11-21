@@ -68,6 +68,7 @@ public sealed class PerformanceTraceSession : IDisposable
                 accumulator = new PerformanceStatisticAccumulator(key);
                 statistics.Add(key, accumulator);
             }
+
             accumulator.Begin(span.StartMilliseconds);
             return scope;
         }
@@ -81,6 +82,7 @@ public sealed class PerformanceTraceSession : IDisposable
             {
                 return;
             }
+
             var now = clock.Elapsed.TotalMilliseconds;
             span.DurationMilliseconds = Math.Max(0, now - span.StartMilliseconds);
             span.Status = status;
@@ -104,6 +106,7 @@ public sealed class PerformanceTraceSession : IDisposable
             {
                 summary.DroppedSpans++;
             }
+
             var key = new PerformanceStatisticKey(span.Stage, span.Name, span.Kind, span.Backend);
             var accumulator = statistics[key];
             accumulator.End(span, now);
@@ -124,6 +127,7 @@ public sealed class PerformanceTraceSession : IDisposable
                     statistic.GpuMilliseconds = (statistic.GpuMilliseconds ?? 0) + gpuMilliseconds.Value - (span.GpuMilliseconds ?? 0);
                 }
             }
+
             span.Items = items;
             span.Bytes = bytes;
             span.GpuMilliseconds = gpuMilliseconds;
@@ -149,12 +153,14 @@ public sealed class PerformanceTraceSession : IDisposable
         {
             return;
         }
+
         lock (gate)
         {
             if (summary.Status != PerformanceStatus.Running)
             {
                 return;
             }
+
             var key = new PerformanceMeasurementKey(stage, name, unit);
             if (!measurements.TryGetValue(key, out var measurement))
             {
@@ -163,9 +169,11 @@ public sealed class PerformanceTraceSession : IDisposable
                     summary.DroppedMeasurements++;
                     return;
                 }
+
                 measurement = new PerformanceMeasurement { Stage = stage, Name = name, Unit = unit, Minimum = value, Maximum = value };
                 measurements.Add(key, measurement);
             }
+
             measurement.Count++;
             measurement.Total += value;
             measurement.Minimum = Math.Min(measurement.Minimum, value);
@@ -181,6 +189,7 @@ public sealed class PerformanceTraceSession : IDisposable
             {
                 UpdateSummary();
             }
+
             return new PerformanceTraceCheckpoint
             {
                 CompletedCount = pending.Count,
@@ -214,6 +223,7 @@ public sealed class PerformanceTraceSession : IDisposable
             {
                 UpdateSummary();
             }
+
             return new PerformanceTraceDocument
             {
                 Summary = summary with { },
@@ -235,10 +245,12 @@ public sealed class PerformanceTraceSession : IDisposable
             {
                 return;
             }
+
             foreach (var scope in active.Values.ToArray())
             {
                 scope.Complete(status == PerformanceStatus.Completed ? PerformanceStatus.Interrupted : status);
             }
+
             UpdateSummary();
             summary.Status = status;
             clock.Stop();
@@ -259,6 +271,7 @@ public sealed class PerformanceTraceSession : IDisposable
         {
             return;
         }
+
         Finish(PerformanceStatus.Interrupted);
         disposed = true;
         process.Dispose();

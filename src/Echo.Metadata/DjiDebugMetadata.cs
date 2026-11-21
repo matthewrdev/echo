@@ -12,6 +12,7 @@ public static class DjiDebugMetadata
         {
             return;
         }
+
         var remaining = packet[8..];
         while (!remaining.IsEmpty && remaining[0] == '[')
         {
@@ -21,6 +22,7 @@ public static class DjiDebugMetadata
                 result.Add("DJI", "Warning", "Truncated DJI debug metadata record.");
                 return;
             }
+
             var record = remaining[1..end];
             var colon = record.IndexOf((byte)':');
             if (colon > 0 && colon <= 128 && IsText(record[..colon]))
@@ -37,6 +39,7 @@ public static class DjiDebugMetadata
                     result.Add("DJI", name, value.ToArray());
                 }
             }
+
             remaining = remaining[(end + 1)..];
         }
     }
@@ -50,6 +53,7 @@ public static class DjiDebugMetadata
                 return index;
             }
         }
+
         return -1;
     }
 
@@ -62,6 +66,7 @@ public static class DjiDebugMetadata
                 return false;
             }
         }
+
         return true;
     }
 

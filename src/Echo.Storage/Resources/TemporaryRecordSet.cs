@@ -56,10 +56,12 @@ public sealed class TemporaryRecordSet<T> : IDisposable
             {
                 return;
             }
+
             foreach (var file in files)
             {
                 file.Delete();
             }
+
             files.Clear();
             Directory.Delete(directory);
             disposed = true;

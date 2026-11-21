@@ -19,11 +19,13 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
             {
                 continue;
             }
+
             largestSource = Math.Max(largestSource, (long)photo.Width * photo.Height);
             var scale = Math.Min(1.0, (double)settings.DepthWidth / Math.Max(1, photo.Width));
             var pixels = (long)Math.Ceiling(photo.Width * scale) * (long)Math.Ceiling(photo.Height * scale);
             largestMap = Math.Max(largestMap, pixels);
         }
+
         var neighbours = DepthNeighbourSelector.MaximumNeighbours(settings.DepthNeighbours, cameraCount);
         // Decoded sources, transient decoder storage, pyramid levels and output arrays.
         // Pooled grayscale buffers can round up to twice the requested pixel count.
@@ -39,6 +41,7 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
             workerBytes = DepthBatchSizing.WorkerBytes(settings.DepthWidth,
                 Math.Max(settings.DepthPlanes, settings.DepthRefinementSamples), settings.DepthRefinementSamples);
         }
+
         var configured = depthMemoryBudgetMb ?? settings.DepthMemoryBudgetMb;
         var memoryBudgetBytes = configured == 0 && jobBudgetBytes > 0
             ? jobBudgetBytes
@@ -47,6 +50,7 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
         {
             memoryBudgetBytes = Math.Min(memoryBudgetBytes, jobBudgetBytes);
         }
+
         var requestedImages = settings.DepthConcurrency == 0 ? Math.Min(8, Math.Max(1, workers / 2)) : settings.DepthConcurrency;
         var maximumImages = Math.Max(1, Math.Min(Math.Min(requestedImages, cameraCount), workers));
         // Schedule the actual worker share for each candidate, not all workers per image.
@@ -59,12 +63,14 @@ public sealed class DepthExecutionPlanner : IDepthExecutionPlanner
             {
                 perImageWorkers = (int)Math.Min(perImageWorkers, Math.Max(0, (perImageBudget - baseBytes) / workerBytes));
             }
+
             var bytesPerImage = baseBytes + workerBytes * perImageWorkers;
             if (perImageWorkers >= 1 && bytesPerImage <= perImageBudget)
             {
                 return new DepthExecutionPlan(images, perImageWorkers, bytesPerImage, memoryBudgetBytes);
             }
         }
+
         var minimumBytes = baseBytes + workerBytes;
         var jobIsSmaller = jobBudgetBytes > 0 && jobBudgetBytes <= configured * 1048576L;
         var limitedByJob = configured == 0 || jobIsSmaller;

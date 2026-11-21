@@ -20,6 +20,7 @@ internal static class TexturePadding
             {
                 progress?.Invoke(new OperationProgress("Atlas gutters", "Extending nearest source texels around chart edges…", y, size, "rows"));
             }
+
             for (var x = 0; x < size; x++)
             {
                 var source = y * size + x;
@@ -38,6 +39,7 @@ internal static class TexturePadding
                     {
                         continue;
                     }
+
                     for (var dx = -gutter; dx <= gutter; dx++)
                     {
                         var targetX = x + dx;
@@ -53,6 +55,7 @@ internal static class TexturePadding
                         {
                             continue;
                         }
+
                         if (!padding.TryGetValue(target, out var nearest) || distance < nearest.DistanceSquared)
                         {
                             padding[target] = new PaddingTexel(source, distance);
@@ -83,6 +86,7 @@ internal static class TexturePadding
                 }
             }
         }
+
         return false;
     }
 }

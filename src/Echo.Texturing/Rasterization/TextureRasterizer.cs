@@ -81,6 +81,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
             {
                 continue;
             }
+
             progress?.Invoke(new OperationProgress("Texture projection", $"Projecting photograph {photos[group.Key].Name}…", completedFaces, photographedFaces, "triangles"));
             var photo = photos[group.Key];
             var camera = cameras[group.Key];
@@ -98,6 +99,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 {
                     progress?.Invoke(new OperationProgress("Texture projection", "Projecting source pixels into the atlas…", completedFaces, photographedFaces, "triangles"));
                 }
+
                 var face = mesh.Faces[index];
                 for (var corner = 0; corner < 3; corner++)
                 {
@@ -117,6 +119,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
                         colourWeights[vertex]++;
                     }
                 }
+
                 if (projectionCompute != null)
                 {
                     projectionCompute.Add(uv, projected, corrections);
@@ -126,6 +129,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
                     painted += PaintTriangle(target, size, pixels, source.Width, source.Height, uv, projected, corrections, swapRedBlue, skyGuard: skyGuard);
                 }
             }
+
             GC.KeepAlive(source);
         }
 
@@ -137,6 +141,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 painted += pixel.Alpha == 0 ? 0 : 1;
             }
         }
+
         painting?.Dispose();
         progress?.Invoke(new OperationProgress("Texture projection", "Photographic projection complete.", completedFaces, photographedFaces, "triangles"));
 
@@ -152,6 +157,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 {
                     continue;
                 }
+
                 var face = mesh.Faces[index];
                 for (var corner = 0; corner < 3; corner++)
                 {
@@ -159,6 +165,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
                     uv[corner] = new TextureCoordinate(coordinate[0], coordinate[1]);
                     fill[corner] = colours[welded[face[corner]]];
                 }
+
                 painted += PaintTriangle(target, size, [], 0, 0, uv, [], [], false, fill);
             }
         }
@@ -172,17 +179,20 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 target[index] = target[index].WithAlpha(255);
             }
         }
+
         if (project.Settings.TextureSeamBlendPixels > 0)
         {
             progress?.Invoke(new OperationProgress("Seam softening", "Softening residual photographic seams…"));
             TextureSeamSoftener.Apply(target, size, mesh, texture.Uvs, project.Settings.TextureSeamBlendPixels, cancellation, work);
         }
+
         var gutter = texture.GutterPixels > 0 ? texture.GutterPixels : project.Settings.TextureGutter;
         progress?.Invoke(new OperationProgress("Atlas gutters", "Extending colour into atlas gutters…"));
         if (!useCompute || !TexturePaddingCompute.TryExtend(compute, project.Settings.ComputeBackend, target, size, gutter, cancellation))
         {
             TexturePadding.Extend(target, size, gutter, cancellation, progress);
         }
+
         TextureBackground.Fill(target, size, cancellation, progress);
 
         progress?.Invoke(new OperationProgress("Atlas pixels", "Finalising atlas pixels…", 0, target.Length, "pixels"));
@@ -198,6 +208,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
         {
             atlas.Pixels = managedTarget;
         }
+
         GC.KeepAlive(atlas);
         progress?.Invoke(new OperationProgress("Atlas pixels", "Atlas pixels finalised.", target.Length, target.Length, "pixels"));
         return (double)painted / (size * size);
@@ -265,9 +276,11 @@ public sealed class TextureRasterizer : ITextureRasterizer
                             green += (int)Math.Clamp(colour.Green + correction.Y, 0, 255);
                             blue += (int)Math.Clamp((swapRedBlue ? colour.Red : colour.Blue) + correction.Z, 0, 255);
                         }
+
                         coverage++;
                     }
                 }
+
                 if (coverage == 0)
                 {
                     continue;
@@ -279,6 +292,7 @@ public sealed class TextureRasterizer : ITextureRasterizer
                 {
                     painted++;
                 }
+
                 var total = previous.Alpha + coverage;
                 target[index] = new SKColor((byte)((red + previous.Red * previous.Alpha) / total),
                     (byte)((green + previous.Green * previous.Alpha) / total),

@@ -24,6 +24,7 @@ internal static class CurvedHoleTriangulation
             var b = loop[after[index]];
             normals[index] = edges[new SurfaceEdge(Math.Min(a, b), Math.Max(a, b))].Normal;
         }
+
         var active = Enumerable.Repeat(true, count).ToArray();
         var pending = new PriorityQueue<int, double>();
         var patch = new List<int[]>();
@@ -45,6 +46,7 @@ internal static class CurvedHoleTriangulation
         {
             Enqueue(index);
         }
+
         while (remaining > 3)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -52,10 +54,12 @@ internal static class CurvedHoleTriangulation
             {
                 return null;
             }
+
             if (!active[index])
             {
                 continue;
             }
+
             var first = before[index];
             var last = after[index];
             var triangle = new SurfaceTriangle(points[first], points[index], points[last]);
@@ -68,6 +72,7 @@ internal static class CurvedHoleTriangulation
             {
                 continue;
             }
+
             var crosses = patchGeometry.Intersects(triangle);
             for (var vertex = 0; vertex < count && !crosses; vertex++)
             {
@@ -76,6 +81,7 @@ internal static class CurvedHoleTriangulation
                 {
                     continue;
                 }
+
                 crosses = SurfaceTriangleIntersection.Crosses(points[vertex], points[after[vertex]], triangle);
                 var offset = points[vertex] - triangle.A;
                 if (Math.Abs(offset.Dot(normal)) < 1e-8)
@@ -86,10 +92,12 @@ internal static class CurvedHoleTriangulation
                     crosses |= inside;
                 }
             }
+
             if (crosses)
             {
                 continue;
             }
+
             patch.Add([loop[first], loop[index], loop[last]]);
             patchGeometry.Add(triangle);
             active[index] = false;
@@ -100,6 +108,7 @@ internal static class CurvedHoleTriangulation
             Enqueue(first);
             Enqueue(last);
         }
+
         var start = Array.FindIndex(active, value => value);
         var middle = after[start];
         var end = after[middle];
@@ -110,6 +119,7 @@ internal static class CurvedHoleTriangulation
         {
             return null;
         }
+
         patch.Add([loop[start], loop[middle], loop[end]]);
         return patch;
     }

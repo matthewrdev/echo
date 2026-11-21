@@ -13,6 +13,7 @@ public static class DescriptorMatcher
         {
             return partitioned;
         }
+
         var accelerated = AcceleratedDescriptorMatcher.TryMatch(leftFeatures, rightFeatures, settings, allowReversedDescriptor, compute, cancellation);
         if (accelerated != null)
         {
@@ -128,6 +129,7 @@ public static class DescriptorMatcher
         {
             return double.PositiveInfinity;
         }
+
         double distance = 0;
         if (reverseRightDescriptor)
         {
@@ -145,6 +147,7 @@ public static class DescriptorMatcher
                 distance += difference * difference;
             }
         }
+
         return distance;
     }
 

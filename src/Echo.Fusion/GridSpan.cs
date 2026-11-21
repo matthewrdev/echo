@@ -13,6 +13,7 @@ public readonly record struct GridSpan(int X, int Y, int FirstZ, int LastZ) : IC
         {
             order = Y.CompareTo(other.Y);
         }
+
         return order != 0 ? order : FirstZ.CompareTo(other.FirstZ);
     }
 

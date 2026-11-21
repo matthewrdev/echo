@@ -55,11 +55,13 @@ public sealed class SemanticQualityTests
                     {
                         vegetation += probability;
                     }
+
                     if (label is 16 or 34)
                     {
                         rock += probability;
                     }
                 }
+
                 Check(map.Vegetation[pixel] == (byte)Math.Round(255 * vegetation / total), "Vegetation rounding changed");
                 Check(map.Rock[pixel] == (byte)Math.Round(255 * rock / total), "Rock rounding changed");
                 Check(map.Sky[pixel] == (byte)Math.Round(255 * Math.Exp(logits[2 * pixels + pixel] - maximum) / total), "Sky rounding changed");
@@ -145,6 +147,7 @@ public sealed class SemanticQualityTests
                 maps.Add(new DepthMap { ImageId = id, Width = 32, Height = 32, Depth = Enumerable.Repeat(10f, 1024).ToArray() });
                 semantics.Add(id, new SemanticMap { ImageId = id, Width = 4, Height = 4, Vegetation = Enumerable.Repeat((byte)255, 16).ToArray(), Rock = new byte[16] });
             }
+
             var surface = new Surface { Vertices = [[0, 0, 10]] };
             Check(SurfaceVegetationClassifier.Classify(surface, project, scene, maps, semantics, default)[0], "Three consistent vegetation views");
             semantics["2"].Rock = Enumerable.Repeat((byte)255, 16).ToArray();
@@ -174,6 +177,7 @@ public sealed class SemanticQualityTests
                     Rock = new byte[16]
                 });
             }
+
             var surface = new Surface
             {
                 Vertices = [[-.5, -.5, 10], [.5, -.5, 10], [0, .5, 10]],
@@ -208,6 +212,7 @@ public sealed class SemanticQualityTests
                     texture.SetPixel(x, y, new SKColor(value, value, value));
                 }
             }
+
             foreach (var shift in new[] { 0, -12, 12 })
             {
                 var id = shift.ToString();
@@ -219,6 +224,7 @@ public sealed class SemanticQualityTests
                         image.SetPixel(x, y, texture.GetPixel(Math.Clamp(x + shift, 0, 319), y));
                     }
                 }
+
                 images.Save(image, store.PathFor(id + ".png"), SKEncodedImageFormat.Png);
                 project.Images.Add(new Photo { Id = id, Source = id + ".png", Width = 320, Height = 192, FocalPixels = 240 });
                 scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [shift / 24.0, 0, 0] });
@@ -231,6 +237,7 @@ public sealed class SemanticQualityTests
                     Confidence = Enumerable.Repeat(.9f, 160 * 96).ToArray()
                 });
             }
+
             var source = maps[0];
             for (var y = 45; y < 49; y++)
             {
@@ -240,6 +247,7 @@ public sealed class SemanticQualityTests
                     source.Confidence[y * 160 + x] = 0;
                 }
             }
+
             var semantics = new SemanticMap
             {
                 ImageId = "0",
@@ -261,6 +269,7 @@ public sealed class SemanticQualityTests
                     Check(Math.Abs(recovered.Map.Depth[index] - 10) < .03, "Recovered samples agree with the known ten-metre plane");
                 }
             }
+
             semantics.Sky = Enumerable.Repeat((byte)255, 256).ToArray();
             Check(recovery.Recover(store, project, scene, source, maps, semantics, default).RecoveredSamples == 0, "Sky veto prevents recovery from refilling masked pixels even with conflicting rock labels");
             semantics.Sky = [];
@@ -275,6 +284,7 @@ public sealed class SemanticQualityTests
                     unsupported.Depth[y * 160 + x] = 0;
                 }
             }
+
             Check(CliffRecoverySearch.Anchor(unsupported, 79, 46) == 0, "One-sided silhouettes cannot seed recovery");
             using var blank = new SKBitmap(320, 192);
             blank.Erase(new SKColor(127, 127, 127));
@@ -299,6 +309,7 @@ public sealed class SemanticQualityTests
                 mesh.Vertices.Add([x, y, .02 * Math.Sin(x) * Math.Sin(y)]);
             }
         }
+
         for (var y = 0; y < 12; y++)
         {
             for (var x = 0; x < 12; x++)
@@ -308,6 +319,7 @@ public sealed class SemanticQualityTests
                 mesh.Faces.Add([a + 1, a + 14, a + 13]);
             }
         }
+
         return mesh;
     }
 

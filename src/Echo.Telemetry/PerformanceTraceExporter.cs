@@ -23,11 +23,13 @@ public sealed class PerformanceTraceExporter : IPerformanceTraceExporter
         {
             throw new EchoException("Trace export format must be json or html.", 2);
         }
+
         var path = System.IO.Path.GetFullPath(destination);
         if (System.IO.Path.Exists(path))
         {
             throw new EchoException("Trace export output already exists. Choose a new file.", 2);
         }
+
         var document = traces.Read(runDirectory, attemptId);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -43,8 +45,10 @@ public sealed class PerformanceTraceExporter : IPerformanceTraceExporter
                 {
                     WriteHtml(stream, document);
                 }
+
                 stream.Flush(true);
             }
+
             File.Move(temporary, path, overwrite: false);
             return new PerformanceTraceExport(path, format, document.Summary.RunId, document.Summary.Id,
                 document.Spans.Count, document.Summary.DroppedSpans, new FileInfo(path).Length);
@@ -67,6 +71,7 @@ public sealed class PerformanceTraceExporter : IPerformanceTraceExporter
         {
             throw new InvalidOperationException("The trace viewer has no data placeholder.");
         }
+
         output.Write(Encoding.UTF8.GetBytes(template[..location]));
         // Keep script end tags, HTML and Unicode line separators inside JSON data.
         // The viewer inserts all user-provided labels with textContent, never HTML.

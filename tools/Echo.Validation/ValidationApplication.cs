@@ -50,13 +50,16 @@ public sealed class ValidationApplication
                 using var output = new FileStream(args[3], FileMode.CreateNew, FileAccess.Write);
                 json.Write(output, report);
             }
+
             return 0;
         }
+
         if (args.Length < 4 || args[0] != "run" || args.Length % 2 != 0)
         {
             Console.Error.WriteLine("Usage: Echo.Validation run CASE.json ASSETS OUTPUT [--memory-mib N] [--max-seconds N] [--max-peak-mib N]\n       Echo.Validation measure|topology PROJECT RUN OUTPUT.json");
             return 2;
         }
+
         var fixture = json.Read<ReconstructionCase>(args[1]);
         QualityGate.Validate(fixture.Limits);
         var options = ReadOptions(args, fixture.Settings);
@@ -66,6 +69,7 @@ public sealed class ValidationApplication
         {
             throw new IOException("Output already exists. Use a new directory to guarantee a fresh reconstruction.");
         }
+
         Directory.CreateDirectory(outputRoot);
         var result = CreateResult(fixture, args[1], options);
         var reportPath = Path.Combine(outputRoot, "validation.json");
@@ -92,6 +96,7 @@ public sealed class ValidationApplication
                     events.WriteLine(System.Text.Json.JsonSerializer.Serialize(value, eventOptions));
                 });
             }
+
             result.ProcessingSeconds = watch.Elapsed.TotalSeconds;
             process.Refresh();
             result.PeakProcessWorkingSetBytes = AvailablePeak(process.PeakWorkingSet64);
@@ -107,6 +112,7 @@ public sealed class ValidationApplication
             {
                 result.ProcessingSeconds = watch.Elapsed.TotalSeconds;
             }
+
             process.Refresh();
             result.PeakProcessWorkingSetBytes = AvailablePeak(Math.Max(result.PeakProcessWorkingSetBytes ?? 0, process.PeakWorkingSet64));
             ReadFailureSummary(result, prepared);
@@ -132,17 +138,20 @@ public sealed class ValidationApplication
                 throw new ArgumentException("Unknown, repeated or invalid validation option: " + name);
             }
         }
+
         if (options.TryGetValue("--memory-mib", out var memory))
         {
             if (memory != Math.Truncate(memory) || memory is < 256 or > 524287)
             {
                 throw new ArgumentException("--memory-mib must be a whole number from 256 to 524287.");
             }
+
             settings.ProcessingMemoryBudgetMb = (int)memory;
             settings.DepthMemoryBudgetMb = 0;
             settings.FusionMemoryBudgetMb = 0;
             settings.DepthConcurrency = 0;
         }
+
         return options;
     }
 
@@ -177,6 +186,7 @@ public sealed class ValidationApplication
                 result.StageSeconds[span.Stage] = span.DurationMilliseconds / 1000;
             }
         }
+
         result.Checks = QualityGate.Evaluate(measurements.Read(store, run, cancellation), fixture.Limits);
         result.ExportSha256 = files.HashFile(store.PathFor(run.Artifacts["export"] + "/cliff.glb"));
     }
@@ -192,10 +202,12 @@ public sealed class ValidationApplication
         {
             Console.Error.WriteLine($"FAIL {check.Metric}: {check.Actual} outside [{check.Minimum}, {check.Maximum}]");
         }
+
         if (!timePassed || !memoryPassed)
         {
             Console.Error.WriteLine("FAIL performance limit or missing memory measurement; see validation.json.");
         }
+
         Console.WriteLine($"{result.Status}: {result.ProcessingSeconds:F1}s, peak measured memory {result.PeakWorkingSetBytes / 1073741824.0:F2} GiB. {reportPath}");
         return result.Status == "passed" ? 0 : 1;
     }

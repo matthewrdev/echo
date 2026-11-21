@@ -28,6 +28,7 @@ internal sealed class CountingFeatureJsonCodec : IJsonCodec
         {
             reads.AddOrUpdate(path, 1, (_, count) => count + 1);
         }
+
         return inner.Read<T>(path);
     }
 }

@@ -23,6 +23,7 @@ public sealed class ColourGradingTests
                 Check(bytes.SequenceEqual(bitmap.GetPixelSpan().ToArray()), "Identity must preserve every channel and alpha byte.");
                 Expect<OperationCanceledException>(() => new ColourGradeTransform(null).Apply(bitmap, new CancellationToken(true)));
             }
+
             foreach (var grade in new[] { new ColourGrade { Version = 2 }, new ColourGrade { Exposure = double.NaN },
                 new ColourGrade { BlackPoint = .5 }, new ColourGrade { WhitePoint = .5 }, new ColourGrade { Saturation = -1 },
                 new ColourGrade { Temperature = double.PositiveInfinity }, new ColourGrade { Vibrance = 2 } })
@@ -66,6 +67,7 @@ public sealed class ColourGradingTests
                 Check(bitmap.GetPixel(0, 0) == grade.Apply(source), "RGBA and BGRA must match the scalar grading path.");
                 Check(bitmap.GetPixel(1, 0) == transparent, "Transparent pixels remain unchanged.");
             }
+
             using var premultiplied = new SKBitmap(1, 1, SKColorType.Bgra8888, SKAlphaType.Premul);
             premultiplied.SetPixel(0, 0, new SKColor(100, 80, 60, 128));
             var expected = grade.Apply(premultiplied.GetPixel(0, 0));
@@ -95,6 +97,7 @@ public sealed class ColourGradingTests
         {
             return;
         }
+
         throw new Exception($"Expected {typeof(T).Name}.");
     }
 }

@@ -17,6 +17,7 @@ public sealed class CloudPreviewSampler
         {
             throw new ArgumentOutOfRangeException(nameof(capacity));
         }
+
         this.capacity = capacity;
         samples = new List<DenseSample>(capacity);
     }
@@ -28,6 +29,7 @@ public sealed class CloudPreviewSampler
         {
             return;
         }
+
         if (samples.Count == capacity)
         {
             var retained = 0;
@@ -35,9 +37,11 @@ public sealed class CloudPreviewSampler
             {
                 samples[retained++] = samples[source];
             }
+
             samples.RemoveRange(retained, samples.Count - retained);
             stride *= 2;
         }
+
         if (index % stride == 0)
         {
             samples.Add(sample);
@@ -62,6 +66,7 @@ public sealed class CloudPreviewSampler
                 Colour = [point.Red, point.Green, point.Blue]
             });
         }
+
         return report;
     }
 }

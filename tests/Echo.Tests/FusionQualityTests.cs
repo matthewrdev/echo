@@ -31,6 +31,7 @@ public sealed class FusionQualityTests
                 AddPlane(fixture, "distant-" + index, 98, 0);
                 fixture.Scene.Cameras[^1].Centre = [0, 0, -90];
             }
+
             var volume = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud,
                 new FusionResourcePlan(25600000, 100000), default);
             var mesh = meshes.Extract(volume, default);
@@ -44,10 +45,12 @@ public sealed class FusionQualityTests
             {
                 Array.Fill(map.Depth, 8f);
             }
+
             for (var view = 0; view < 4; view++)
             {
                 AddPlane(fixture, "background-" + view, 10, (view - 1.5) * .2);
             }
+
             var original = fixture.Cloud.Samples.ToArray();
             foreach (var point in original)
             {
@@ -101,6 +104,7 @@ public sealed class FusionQualityTests
                     }
                 }
             }
+
             var main = meshes.Extract(volume, default);
             var original = volume.Samples.ToArray();
             volume.Samples.Add(new VolumeSample { X = 50, Y = 50, Z = 50, Distance = -.1f, Views = 3 });
@@ -136,6 +140,7 @@ public sealed class FusionQualityTests
                     volume.Samples.Add(new VolumeSample { X = index, Y = index, Z = index, Distance = index * .01f, Views = 3 });
                     volume.Samples.Add(new VolumeSample { X = index, Y = index, Z = index + 10000, Distance = index * -.01f, Views = 4 });
                 }
+
                 var expected = FusionIslandTrimmer.Trim(volume, IslandTrimMode.Main, 0, default);
                 Check(expected.InputRegions == 2 && expected.RemovedSamples == 5000 && expected.Volume.Samples[0].Z == 4999,
                     "Equal-sized regions retain the first input region, including reverse input order and diagonal connectivity");
@@ -170,6 +175,7 @@ public sealed class FusionQualityTests
                 Check(a.X == b.X && a.Y == b.Y && a.Z == b.Z, "Stable sample ordering");
                 Check(a.Distance == b.Distance && a.Views == b.Views, "Stable observed field");
             }
+
             Check(first.Samples.All(s => s.Views == 2 && float.IsFinite(s.Distance)), "Only supported finite samples are retained");
             var mesh = meshes.Extract(first, default);
             Check(mesh.Vertices.All(p => Math.Abs(p[2] - 10) < 1e-6), "The fused zero crossing stays on the measured plane");
@@ -181,6 +187,7 @@ public sealed class FusionQualityTests
             {
                 photo.FocalPixels = 640;
             }
+
             Array.Fill(fixture.Maps[0].Depth, 9.955f);
             Array.Fill(fixture.Maps[1].Depth, 10.045f);
             fixture.Cloud.Samples.Clear();
@@ -191,6 +198,7 @@ public sealed class FusionQualityTests
                     fixture.Cloud.Samples.Add(new DenseSample(x * .025f, y * .025f, 9.955f, 0, 0, 0, 0, 1));
                 }
             }
+
             var volume = fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud,
                 new FusionResourcePlan(25600000, 100000), default);
             Check(volume.VoxelSize == .025, "Fine source resolution stops at the 2.5 cm minimum");
@@ -206,6 +214,7 @@ public sealed class FusionQualityTests
             {
                 Array.Fill(map.Depth, 10000f);
             }
+
             Check(FusionFootprint.Measure(fixture.Views, fixture.Cloud, default) == 10.0 / 64, "Background pixels do not coarsen the surface grid");
             fixture.Cloud.Samples[0] = new DenseSample(0, 0, .0001f, 0, 0, 0, 0, 1);
             Check(FusionFootprint.Measure(fixture.Views, fixture.Cloud, default) == 10.0 / 64, "A near-camera outlier does not dictate grid resolution");
@@ -253,6 +262,7 @@ public sealed class FusionQualityTests
             catch (EchoException)
             {
             }
+
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
             try

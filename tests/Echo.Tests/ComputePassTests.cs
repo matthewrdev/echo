@@ -39,6 +39,7 @@ public sealed class ComputePassTests
                 return;
             }
         }
+
         tests.Run("Metal Gaussian matches the scalar filter including borders and aliased planes", Gaussian);
         tests.Run("Concurrent Metal feature pyramids retain deterministic descriptors", ConcurrentFeatures);
         tests.Run("Metal depth filtering preserves missing, isolated and boundary samples", DepthFilter);
@@ -79,6 +80,7 @@ public sealed class ComputePassTests
                 : origin + new V3(random.NextDouble() * 12, random.NextDouble() * 12, random.NextDouble() * 12);
             rays[ray] = new SurfaceRay(origin + new V3(random.NextDouble() * 12, random.NextDouble() * 12, -2), end);
         }
+
         using var index = new SurfaceTriangleIndex(mesh, default);
         using (var acceleration = SurfaceOcclusionPreparation.Open(compute, ComputeBackend.Metal, index, default))
         {
@@ -89,6 +91,7 @@ public sealed class ComputePassTests
             {
                 Check(actual[ray] == index.HasOccluder(rays[ray].Start, rays[ray].End), "Occlusion differs for ray " + ray);
             }
+
             using var cancelled = new CancellationTokenSource();
             cancelled.Cancel();
             try
@@ -100,6 +103,7 @@ public sealed class ComputePassTests
             {
             }
         }
+
         var layers = new Surface();
         for (var layer = 0; layer < 100; layer++)
         {
@@ -109,6 +113,7 @@ public sealed class ComputePassTests
             layers.Vertices.Add([0, 1, layer]);
             layers.Faces.Add([first, first + 1, first + 2]);
         }
+
         using var layeredIndex = new SurfaceTriangleIndex(layers, default);
         using var layered = SurfaceOcclusionPreparation.Open(compute, ComputeBackend.Metal, layeredIndex, default);
         var overflow = new bool[1];
@@ -173,6 +178,7 @@ public sealed class ComputePassTests
         {
             neighbour.Map.Depth[i] = i % 2 == 0 ? 0 : 30;
         }
+
         var settings = fixture.Project.Settings;
         var gpu = CloudSupportCompute.TryCalculate(compute, reference, [neighbour], settings, default)!;
         Check(gpu != null, "GPU cloud path was skipped");
@@ -225,6 +231,7 @@ public sealed class ComputePassTests
                 }
             }
         }
+
         samples.Remove(new Echo.Meshing.Volumes.Grid(20000009, -19999993, 9));
         var cpu = TetrahedralSurface.Extract(samples, .1, default);
         var gpu = TetrahedralSurface.Extract(samples, .1, default, compute: compute, backend: ComputeBackend.Metal);
@@ -247,6 +254,7 @@ public sealed class ComputePassTests
             using var rejected = SparseVolumeCompute.Open(compute, ComputeBackend.Auto, samples, default, out _);
             Check(rejected == null, "A volume index exceeded its memory budget");
         }
+
         var allocated = GC.GetAllocatedBytesForCurrentThread();
         using var session = SparseVolumeCompute.Open(compute, ComputeBackend.Metal, samples, default, out var mask);
         Check(session != null, "The old four-million-sample limit still disabled Metal");
@@ -261,6 +269,7 @@ public sealed class ComputePassTests
         {
             keys[index] = new Echo.Meshing.Volumes.Grid(random.Next(-1, 163) - 20000001, random.Next(-1, 163) + 20000001, random.Next(-1, 163));
         }
+
         foreach (var count in new[] { keys.Length, 17 })
         {
             SparseVolumeCompute.Read(session!, keys.AsSpan(0, count), values.AsSpan(0, count * 8), mask);
@@ -291,6 +300,7 @@ public sealed class ComputePassTests
             maps.Add(new DepthMap { ImageId = id, Width = 64, Height = 64, Depth = Enumerable.Repeat(10f, 4096).ToArray() });
             semantics.Add(id, new SemanticMap { ImageId = id, Width = 8, Height = 8, Vegetation = Enumerable.Repeat((byte)255, 64).ToArray(), Rock = new byte[64] });
         }
+
         var surface = new Surface { Vertices = [[-.5, -.5, 10], [.5, -.5, 10], [0, .5, 10], [-1, -1, 8], [1, -1, 8], [0, 1, 8]], Faces = [[0, 1, 2], [3, 4, 5]] };
         project.Settings.ComputeBackend = ComputeBackend.Cpu;
         var cpu = SurfaceVisibilityFilter.Filter(surface, project, scene, maps, default);
@@ -303,6 +313,7 @@ public sealed class ComputePassTests
             batched.Faces.Add(surface.Faces[face % 2]);
             batched.SourceImages.Add("face-" + face);
         }
+
         project.Settings.ComputeBackend = ComputeBackend.Cpu;
         var expectedBatch = SurfaceVisibilityFilter.Filter(batched, project, scene, maps, default);
         project.Settings.ComputeBackend = ComputeBackend.Metal;
@@ -321,6 +332,7 @@ public sealed class ComputePassTests
         {
             cpu.Vertices.Add([vertex % 2 == 0 ? 0 : 100, 0, 10]);
         }
+
         for (var variation = 0; variation < 3; variation++)
         {
             project.Settings.ComputeBackend = ComputeBackend.Cpu;
@@ -361,6 +373,7 @@ public sealed class ComputePassTests
                 seed.Add(new Match { A = [a.X, a.Y], B = [b.X, b.Y] });
             }
         }
+
         var matcher = new GuidedFeatureMatcher(compute);
         var cpu = matcher.Recover(left, right, seed, new Settings { ComputeBackend = ComputeBackend.Cpu }, 1, default)!;
         var gpu = matcher.Recover(left, right, seed, new Settings { ComputeBackend = ComputeBackend.Metal }, 1, default)!;
@@ -382,6 +395,7 @@ public sealed class ComputePassTests
             var right = CameraGeometry.ProjectPoint(photo, b, point)!.Value;
             matches.Add(new Match { A = [left.X, left.Y], B = [right.X, i % 5 == 0 ? right.Y + 100 : right.Y] });
         }
+
         var cpu = FundamentalMatrixEstimator.Estimate(matches, 2, default)!;
         var gpu = FundamentalMatrixEstimator.Estimate(matches, 2, default, compute, ComputeBackend.Metal)!;
         Check(cpu.Inliers.SequenceEqual(gpu.Inliers) && cpu.Iterations == gpu.Iterations, "RANSAC result or adaptive stop differs");
@@ -401,6 +415,7 @@ public sealed class ComputePassTests
             var right = CameraGeometry.ProjectPoint(photo, b, point)!.Value;
             matches.Add(new Match { A = [left.X, left.Y], B = [right.X, right.Y + (i % 11 == 0 ? 40 : 0)] });
         }
+
         var gpu = TriangulationCompute.TryCalculate(compute, ComputeBackend.Metal, photo, photo, a, b, matches, 2, default)!;
         Check(gpu != null, "Triangulation was skipped");
         for (var i = 0; i < matches.Count; i++)
@@ -425,11 +440,13 @@ public sealed class ComputePassTests
             {
                 system.Add(i, i - 1, -1);
             }
+
             if (i + 1 < count)
             {
                 system.Add(i, i + 1, -1);
             }
         }
+
         var constraints = new Dictionary<int, double> { [0] = 0, [count - 1] = 1 };
         var gpu = system.Solve(constraints, default, compute, ComputeBackend.Metal);
         Check(gpu != null, "UV solve failed to converge");
@@ -449,6 +466,7 @@ public sealed class ComputePassTests
             nodes[i].Neighbours.Add((i + nodes.Count - 1) % nodes.Count);
             local[i] = nodes[i].Weight > 0 ? new V3(.3, -.2, .1) : default;
         }
+
         var expected = local.ToArray();
         for (var pass = 0; pass < 32; pass++)
         {
@@ -457,8 +475,10 @@ public sealed class ComputePassTests
             {
                 next[i] = nodes[i].Weight > 0 ? local[i] : (expected[nodes[i].Neighbours[0]] + expected[nodes[i].Neighbours[1]]) / 2.05;
             }
+
             expected = next;
         }
+
         var actual = SeamDiffusionCompute.TryDiffuse(compute, ComputeBackend.Metal, nodes, local, default)!;
         Check(actual != null && expected.Zip(actual).All(pair => (pair.First - pair.Second).Length < 1e-6), "Seam propagation differs");
     }
@@ -474,6 +494,7 @@ public sealed class ComputePassTests
                 cpu[y * size + x] = new SKColor((byte)x, (byte)y, 99, 255);
             }
         }
+
         var gpu = cpu.ToArray();
         TexturePadding.Extend(cpu, size, 8, default);
         Check(TexturePaddingCompute.TryExtend(compute, ComputeBackend.Metal, gpu, size, 8, default), "Padding was skipped");

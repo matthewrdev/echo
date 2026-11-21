@@ -64,6 +64,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                         run.Artifacts.Remove(key);
                     }
                 }
+
                 run.Status = "cancelled";
                 run.Progress = null;
                 run.Error = "Generated results removed from " + affected.Value + ". Process again to rebuild missing stages.";
@@ -83,11 +84,13 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                 File.Delete(fullPath);
             }
         }
+
         if (plan.Kind == ArtifactDeletionKind.AllGenerated)
         {
             Directory.CreateDirectory(store.PathFor("artifacts"));
             Directory.CreateDirectory(store.PathFor("runs"));
         }
+
         return plan;
     }
 
@@ -105,6 +108,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                 result.Bytes += Scan(path, folder, hash);
             }
         }
+
         result.Token = Convert.ToHexString(hash.GetHashAndReset());
         var artifactRoot = store.PathFor("artifacts");
         if (Directory.Exists(artifactRoot))
@@ -123,6 +127,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                         item.Bytes += new FileInfo(file).Length;
                         item.FileCount++;
                     }
+
                     foreach (var name in new[] { "units.json", "recovery.json", "original-units.json", "processing.json" })
                     {
                         var index = Path.Combine(directory, name);
@@ -132,10 +137,12 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                             References(document.RootElement, item.Dependencies);
                         }
                     }
+
                     result.Artifacts.Add(item);
                 }
             }
         }
+
         var byPath = result.Artifacts.ToDictionary(item => item.Path, StringComparer.Ordinal);
         foreach (var run in Runs(store))
         {
@@ -146,6 +153,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                 MarkUsage(path, run.Id, byPath, visited);
             }
         }
+
         return result;
     }
 
@@ -156,6 +164,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         {
             throw new EchoException("Storage cleanup refuses symbolic links: " + relative, 2);
         }
+
         AddHash(hash, relative + ":" + info.LastWriteTimeUtc.Ticks);
         var bytes = 0L;
         foreach (var entry in info.GetFileSystemInfos().OrderBy(entry => entry.Name, StringComparer.Ordinal))
@@ -165,6 +174,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
             {
                 throw new EchoException("Storage cleanup refuses symbolic links: " + child, 2);
             }
+
             if (entry is DirectoryInfo)
             {
                 bytes += Scan(entry.FullName, child, hash);
@@ -175,6 +185,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                 AddHash(hash, child + ":" + file.Length + ":" + file.LastWriteTimeUtc.Ticks);
             }
         }
+
         return bytes;
     }
 
@@ -186,10 +197,12 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         {
             throw new EchoException("Choose one artifact, unused results, or all generated results.", 2);
         }
+
         if (request.RetainedRuns != null && request.Kind != ArtifactDeletionKind.Unused)
         {
             throw new EchoException("Saved run retention applies only to unused-result cleanup.", 2);
         }
+
         if (plan.Kind == ArtifactDeletionKind.Unused)
         {
             PlanUnused(store, inventory, request, plan);
@@ -205,6 +218,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                     plan.Paths.Add(path);
                 }
             }
+
             plan.Bytes = inventory.Bytes;
             foreach (var run in Runs(store))
             {
@@ -217,6 +231,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
             {
                 throw new EchoException("Select an existing artifact directory from storage list.", 2);
             }
+
             var removed = new HashSet<string>(StringComparer.Ordinal) { artifact! };
             // Index artifacts cannot survive deletion of a referenced per-image unit.
             var changed = true;
@@ -231,6 +246,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                     }
                 }
             }
+
             foreach (var item in inventory.Artifacts)
             {
                 if (removed.Contains(item.Path))
@@ -239,6 +255,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                     plan.Bytes += item.Bytes;
                 }
             }
+
             foreach (var run in Runs(store))
             {
                 var first = stages.Length;
@@ -249,12 +266,14 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                         first = Math.Min(first, StageOrder(entry.Key));
                     }
                 }
+
                 if (first < stages.Length)
                 {
                     plan.AffectedRuns.Add(run.Id, stages[first]);
                 }
             }
         }
+
         plan.Token = files.Hash(new
         {
             inventory.Token,
@@ -277,12 +296,14 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         {
             throw new EchoException("Saved runs changed. Refresh the cleanup preview.", 2);
         }
+
         var latest = runs.FirstOrDefault();
         plan.LogCutoff = latest?.Created ?? DateTimeOffset.MaxValue;
         if (latest != null)
         {
             retained.Add(latest.Id);
         }
+
         plan.RetainedRuns.AddRange(retained.Order(StringComparer.Ordinal));
         // Remove obsolete history first; an interrupted cleanup must not leave
         // a saved run pointing at an artifact that has already been deleted.
@@ -299,6 +320,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                 AddCleanupPath(store, plan, $"runs/{run.Id}/traces");
             }
         }
+
         foreach (var artifact in inventory.Artifacts)
         {
             if (!artifact.Runs.Any(retained.Contains))
@@ -307,6 +329,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                 plan.Bytes += artifact.Bytes;
             }
         }
+
         AddCleanupPath(store, plan, "work");
     }
 
@@ -325,6 +348,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         {
             return;
         }
+
         plan.Paths.Add(path);
     }
 
@@ -334,6 +358,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         {
             yield return path;
         }
+
         var preview = $"runs/{run.Id}/previews/matching";
         var matchingJournal = store.PathFor(preview + "/pairs.ndjson");
         if (run.Artifacts.GetValueOrDefault("matchingPreview") == preview && File.Exists(matchingJournal))
@@ -365,6 +390,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         {
             return Array.IndexOf(stages, "depth");
         }
+
         var stage = key.EndsWith("Preview", StringComparison.Ordinal) ? key[..^7] : key;
         var index = Array.IndexOf(stages, stage);
         return index < 0 ? stages.Length : index;
@@ -377,6 +403,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         {
             yield break;
         }
+
         foreach (var path in Directory.GetFiles(directory, "run.json", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
         {
             var run = json.Read<RunData>(path);
@@ -384,6 +411,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
             {
                 throw new EchoException("Invalid saved run path: " + path, 2);
             }
+
             yield return run;
         }
     }
@@ -420,6 +448,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         {
             return;
         }
+
         artifact.Runs.Add(run);
         foreach (var dependency in artifact.Dependencies)
         {

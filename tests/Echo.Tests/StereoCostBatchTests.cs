@@ -29,6 +29,7 @@ public sealed class StereoCostBatchTests
                         patch[index] = (float)random.NextDouble();
                         mean += patch[index];
                     }
+
                     mean /= patch.Length;
                     var norm = 0.0;
                     for (var index = 0; index < patch.Length; index++)
@@ -36,6 +37,7 @@ public sealed class StereoCostBatchTests
                         patch[index] -= mean;
                         norm += patch[index] * patch[index];
                     }
+
                     var centre = new V3(.3, -.2, .1);
                     var ray = new V3(random.NextDouble() * 1.4 - .7, random.NextDouble() - .5, 1);
                     var firstDepth = .1 + random.NextDouble() * 20;
@@ -50,6 +52,7 @@ public sealed class StereoCostBatchTests
                     rejected += double.IsPositiveInfinity(expectedSecond) ? 1 : 0;
                 }
             }
+
             Check(finite > 100 && rejected > 100, "Exercise successful sampling and invalid hypotheses");
         });
         tests.Run("SIMD rejects constant patches and cannot revive an invalid lane", () =>
@@ -60,6 +63,7 @@ public sealed class StereoCostBatchTests
             {
                 Array.Fill(view.Gray, .5f);
             }
+
             var patch = Enumerable.Range(0, 25).Select(index => index / 25.0 - .5).ToArray();
             var norm = patch.Sum(value => value * value);
             var costs = StereoCostBatch.Calculate(views, new V3(0, 0, 0), new V3(0, 0, 1), -5, 5, patch, norm);
@@ -100,6 +104,7 @@ public sealed class StereoCostBatchTests
             {
                 continue;
             }
+
             double sum = 0;
             double squared = 0;
             double dot = 0;
@@ -110,6 +115,7 @@ public sealed class StereoCostBatchTests
             {
                 columns[column] = p + view.PatchRight * ((column - 2) * depth);
             }
+
             for (var dy = -2; dy <= 2 && valid; dy++)
             {
                 var down = view.PatchDown * (dy * depth);
@@ -124,16 +130,19 @@ public sealed class StereoCostBatchTests
                         valid = false;
                         break;
                     }
+
                     sum += sample;
                     squared += sample * sample;
                     dot += patch[n++] * sample;
                 }
             }
+
             var variance = squared - sum * sum / 25;
             if (!valid || variance < .0002)
             {
                 continue;
             }
+
             var cost = 1 - Math.Clamp(dot / Math.Sqrt(norm * variance), -1, 1);
             count++;
             if (cost < firstView)
@@ -146,6 +155,7 @@ public sealed class StereoCostBatchTests
                 secondView = cost;
             }
         }
+
         return count < Math.Min(2, views.Length) ? double.PositiveInfinity : count == 1 ? firstView : (firstView + secondView) * .5;
     }
 

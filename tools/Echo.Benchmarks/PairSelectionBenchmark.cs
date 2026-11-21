@@ -33,6 +33,7 @@ public sealed class PairSelectionBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks pairs PROJECT RUN OUTPUT.json FOCUS_IMAGE_NAME");
             return 2;
         }
+
         var store = stores.Open(args[0]);
         var run = json.Read<RunData>(store.PathFor($"runs/{args[1]}/run.json"));
         var project = run.Snapshot;
@@ -45,6 +46,7 @@ public sealed class PairSelectionBenchmark
             var pair = json.Read<ImagePair>(store.PathFor(path + "/pair.json"));
             savedPairs.Add(pair.A + ":" + pair.B, pair);
         }
+
         var watch = Stopwatch.StartNew();
         var selected = selector.Select(project, images, featureUnits);
         watch.Stop();
@@ -57,6 +59,7 @@ public sealed class PairSelectionBenchmark
             {
                 continue;
             }
+
             var key = pair.A + ":" + pair.B;
             var alreadyTested = savedPairs.TryGetValue(key, out var matches);
             matches ??= matcher.Match(
@@ -74,6 +77,7 @@ public sealed class PairSelectionBenchmark
                 geometricallyVerified = relative?.Inliers.Count ?? 0
             });
         }
+
         var result = new
         {
             focus.Name,

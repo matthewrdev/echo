@@ -13,10 +13,12 @@ internal static class DepthFilterCompute
         {
             return null;
         }
+
         if (!compute.CanAllocate((long)map.Depth.Length * 4 * sizeof(float), backend))
         {
             return null;
         }
+
         var count = map.Depth.Length;
         var depth = ArrayPool<float>.Shared.Rent(count);
         var confidence = ArrayPool<float>.Shared.Rent(count);
@@ -28,6 +30,7 @@ internal static class DepthFilterCompute
             {
                 return null;
             }
+
             session.Upload<float>(0, map.Depth);
             session.Upload<float>(1, map.Depth);
             session.Upload<float>(2, map.Confidence);
@@ -44,6 +47,7 @@ internal static class DepthFilterCompute
             {
                 total += retained[i];
             }
+
             return total;
         }
         catch (ComputeException) when (backend == ComputeBackend.Auto)

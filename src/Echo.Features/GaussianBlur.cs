@@ -12,6 +12,7 @@ public static class GaussianBlur
             GaussianCompute.Apply(acceleration, source, destination, width, height, sigma, cancellation);
             return;
         }
+
         var radius = (int)Math.Ceiling(4 * sigma);
         Span<double> kernel = stackalloc double[2 * radius + 1];
         double total = 0;
@@ -21,6 +22,7 @@ public static class GaussianBlur
             kernel[offset + radius] = weight;
             total += weight;
         }
+
         for (var index = 0; index < kernel.Length; index++)
         {
             kernel[index] /= total;
@@ -43,8 +45,10 @@ public static class GaussianBlur
                     {
                         value += source[row + Math.Clamp(x + offset, 0, width - 1)] * kernel[offset + radius];
                     }
+
                     intermediate[row + x] = (float)value;
                 }
+
                 for (var x = interiorStart; x < interiorEnd; x++)
                 {
                     double value = 0;
@@ -52,8 +56,10 @@ public static class GaussianBlur
                     {
                         value += source[row + x + offset] * kernel[offset + radius];
                     }
+
                     intermediate[row + x] = (float)value;
                 }
+
                 for (var x = interiorEnd; x < width; x++)
                 {
                     double value = 0;
@@ -61,9 +67,11 @@ public static class GaussianBlur
                     {
                         value += source[row + Math.Clamp(x + offset, 0, width - 1)] * kernel[offset + radius];
                     }
+
                     intermediate[row + x] = (float)value;
                 }
             }
+
             Span<int> rows = stackalloc int[kernel.Length];
             for (var y = 0; y < height; y++)
             {
@@ -74,6 +82,7 @@ public static class GaussianBlur
                 {
                     rows[offset + radius] = Math.Clamp(y + offset, 0, height - 1) * width;
                 }
+
                 for (var x = 0; x < width; x++)
                 {
                     double value = 0;
@@ -81,6 +90,7 @@ public static class GaussianBlur
                     {
                         value += intermediate[rows[offset + radius] + x] * kernel[offset + radius];
                     }
+
                     destination[y * width + x] = (float)value;
                 }
             }

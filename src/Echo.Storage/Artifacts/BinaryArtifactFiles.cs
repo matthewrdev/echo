@@ -33,6 +33,7 @@ public sealed class BinaryArtifactFiles : IBinaryArtifactFiles
                 output.Flush(true);
                 checksum = hashing.CompleteChecksum()!;
             }
+
             var filename = Path.GetFileNameWithoutExtension(path) + "-" + checksum + ".bin";
             var target = Path.Combine(Path.GetDirectoryName(path)!, filename);
             File.Move(temporary, target, true);
@@ -58,6 +59,7 @@ public sealed class BinaryArtifactFiles : IBinaryArtifactFiles
                 output.Flush(true);
                 checksum = hashing.CompleteChecksum()!;
             }
+
             File.Move(temporary, path, true);
             writes.Record(path, checksum);
         }
@@ -75,6 +77,7 @@ public sealed class BinaryArtifactFiles : IBinaryArtifactFiles
         {
             throw new InvalidDataException("Invalid matching payload path or length.");
         }
+
         var stream = new FileStream(Path.Combine(Path.GetDirectoryName(path)!, payload), FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.RandomAccess);
         try
         {
@@ -87,6 +90,7 @@ public sealed class BinaryArtifactFiles : IBinaryArtifactFiles
             {
                 throw new InvalidDataException("Invalid matching binary header or length.");
             }
+
             return stream;
         }
         catch

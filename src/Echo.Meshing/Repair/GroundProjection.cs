@@ -26,12 +26,14 @@ internal static class GroundProjection
                     minimumB = Math.Min(minimumB, b);
                     maximumB = Math.Max(maximumB, b);
                 }
+
                 if (Math.Min(maximumA, maximumB) - Math.Max(minimumA, minimumB) <= axis.Length * 1e-9)
                 {
                     return false;
                 }
             }
         }
+
         return true;
     }
 
@@ -46,6 +48,7 @@ internal static class GroundProjection
                 return false;
             }
         }
+
         return true;
     }
 }

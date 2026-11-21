@@ -25,11 +25,13 @@ internal static class DepthCoverageGrid
             {
                 continue;
             }
+
             var pixel = projector.Project(new V3(point.Position));
             if (!pixel.HasValue)
             {
                 continue;
             }
+
             var p = pixel.Value;
             var inside = p.X >= 0 && p.X < photo.Width && p.Y >= 0 && p.Y < photo.Height;
             var inRange = double.IsFinite(p.Z) && p.Z >= range.Near && p.Z <= range.Far;
@@ -37,6 +39,7 @@ internal static class DepthCoverageGrid
             {
                 continue;
             }
+
             var x = p.X * columns / photo.Width;
             var y = p.Y * rows / photo.Height;
             var cell = (int)y * columns + (int)x;
@@ -69,6 +72,7 @@ internal static class DepthCoverageGrid
                     values.Sort();
                     depth = values[values.Length / 2];
                 }
+
                 if (depth > 0)
                 {
                     samples.Add(new DepthCoverageSample(centre + ray * depth, 1, requiredViews));
@@ -86,6 +90,7 @@ internal static class DepthCoverageGrid
                 }
             }
         }
+
         return samples.ToArray();
     }
 
@@ -99,16 +104,19 @@ internal static class DepthCoverageGrid
         {
             index--;
         }
+
         if (index >= observationsPerCell)
         {
             return;
         }
+
         var newCount = Math.Min(count + 1, observationsPerCell);
         for (var i = newCount - 1; i > index; i--)
         {
             depths[offset + i] = depths[offset + i - 1];
             distances[offset + i] = distances[offset + i - 1];
         }
+
         depths[offset + index] = depth;
         distances[offset + index] = distance;
         counts[cell] = newCount;
@@ -120,6 +128,7 @@ internal static class DepthCoverageGrid
         {
             return 0;
         }
+
         var x = (int)(u * prior.Width);
         var y = (int)(v * prior.Height);
         var count = 0;
@@ -136,10 +145,12 @@ internal static class DepthCoverageGrid
                 }
             }
         }
+
         if (count < 3)
         {
             return 0;
         }
+
         values[..count].Sort();
         return values[count / 2];
     }

@@ -163,6 +163,7 @@ public sealed class ReferenceDatasetTests
                 var source = SafePath(Path.Combine(directory, "photos"), photo.File);
                 File.Copy(source, Path.Combine(inputs, index + Path.GetExtension(source)));
             }
+
             var store = stores.Open(Path.Combine(temporary, "fixture.echo"));
             store.Init(dataset.Name);
             var imported = store.Import(inputs, dataset.Folder, int.MaxValue);
@@ -200,6 +201,7 @@ public sealed class ReferenceDatasetTests
         {
             directory += Path.DirectorySeparatorChar;
         }
+
         var path = Path.GetFullPath(Path.Combine(root, relative));
         Check(path.StartsWith(directory, StringComparison.Ordinal), "Reference path escapes its dataset");
         return path;

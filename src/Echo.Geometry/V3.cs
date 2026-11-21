@@ -1,6 +1,9 @@
 namespace Echo.Geometry;
 
-public readonly record struct V3(double X, double Y, double Z)
+public readonly record struct V3(
+    double X,
+    double Y,
+    double Z)
 {
     public V3(double[] values) : this(values[0], values[1], values[2])
     {

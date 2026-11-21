@@ -18,6 +18,7 @@ internal static class FusionGridAxes
             {
                 continue;
             }
+
             var ray = new V3(point.X, point.Y, point.Z) - view.Centre;
             var length = ray.Length;
             if (length > 0 && double.IsFinite(length))
@@ -25,10 +26,12 @@ internal static class FusionGridAxes
                 weights += new V3(Math.Abs(ray.X), Math.Abs(ray.Y), Math.Abs(ray.Z)) / length;
             }
         }
+
         if (weights.X > weights.Y && weights.X > weights.Z)
         {
             return GridAxis.X;
         }
+
         return weights.Y > weights.Z ? GridAxis.Y : GridAxis.Z;
     }
 

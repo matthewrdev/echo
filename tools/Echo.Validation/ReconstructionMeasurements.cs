@@ -29,6 +29,7 @@ public sealed class ReconstructionMeasurements : IReconstructionMeasurements
         {
             throw new InvalidDataException("Quality validation requires a completed export run.");
         }
+
         string Artifact(string stage, string file) => ValidationPaths.ContainedPath(store.Root, run.Artifacts[stage] + "/" + file);
         using var session = bulk.OpenSession(32 * 1024 * 1024, 0);
         var scene = session.Read<ReconstructionScene>(Artifact("alignment", "scene.json"));
@@ -37,6 +38,7 @@ public sealed class ReconstructionMeasurements : IReconstructionMeasurements
         {
             throw new InvalidDataException("Missing enabled photographs or bundle adjustment measurements.");
         }
+
         var result = new Dictionary<QualityMetric, double>
         {
             [QualityMetric.RegisteredCameraFraction] = (double)scene.Cameras.Count / enabled,
@@ -84,6 +86,7 @@ public sealed class ReconstructionMeasurements : IReconstructionMeasurements
             {
                 throw new InvalidDataException("Depth map does not belong to its registered camera.");
             }
+
             var accepted = 0;
             for (var index = 0; index < map.SampleCount; index++)
             {
@@ -95,17 +98,21 @@ public sealed class ReconstructionMeasurements : IReconstructionMeasurements
                 {
                     throw new InvalidDataException("Depth maps contain invalid samples.");
                 }
+
                 if (value > 0)
                 {
                     accepted++;
                 }
             }
+
             coverage.Add((double)accepted / map.SampleCount);
         }
+
         if (coverage.Count == 0 || !measured.SetEquals(expected))
         {
             throw new InvalidDataException("No depth maps were measured.");
         }
+
         coverage.Sort();
         result[QualityMetric.MeanDepthCoverage] = coverage.Average();
         result[QualityMetric.LowerDecileDepthCoverage] = coverage[(coverage.Count - 1) / 10];
@@ -117,6 +124,7 @@ public sealed class ReconstructionMeasurements : IReconstructionMeasurements
         {
             throw new InvalidDataException("Exported surface must contain vertices, faces and photographic assignments.");
         }
+
         var minimum = new[] { double.PositiveInfinity, double.PositiveInfinity, double.PositiveInfinity };
         var maximum = new[] { double.NegativeInfinity, double.NegativeInfinity, double.NegativeInfinity };
         foreach (var vertex in mesh.Vertices)
@@ -125,12 +133,14 @@ public sealed class ReconstructionMeasurements : IReconstructionMeasurements
             {
                 throw new InvalidDataException("Surface contains invalid vertices.");
             }
+
             for (var axis = 0; axis < 3; axis++)
             {
                 minimum[axis] = Math.Min(minimum[axis], vertex[axis]);
                 maximum[axis] = Math.Max(maximum[axis], vertex[axis]);
             }
         }
+
         foreach (var face in mesh.Faces)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -139,6 +149,7 @@ public sealed class ReconstructionMeasurements : IReconstructionMeasurements
                 throw new InvalidDataException("Surface contains invalid triangle indices.");
             }
         }
+
         var coverage = SurfacePhotographCoverage.Measure(mesh, cancellation);
         result[QualityMetric.MeshFaces] = mesh.Faces.Count;
         result[QualityMetric.MeshArea] = coverage.Area;

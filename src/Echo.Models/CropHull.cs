@@ -17,6 +17,7 @@ public sealed class CropHull
         {
             throw new EchoException("Painted crop hulls need finite near/far rings, unit plane normals and a positive tolerance.", 2);
         }
+
         if (Planes!.Length != Vertices!.Length / 2 + 2 || Vertices.Any(vertex => Planes.Any(plane =>
             vertex[0] * plane.NormalX + vertex[1] * plane.NormalY + vertex[2] * plane.NormalZ > plane.Offset + Tolerance)))
         {
@@ -30,6 +31,7 @@ public sealed class CropHull
         {
             return false;
         }
+
         var lengthSquared = plane.NormalX * plane.NormalX + plane.NormalY * plane.NormalY + plane.NormalZ * plane.NormalZ;
         return double.IsFinite(lengthSquared) && Math.Abs(lengthSquared - 1) < 0.000001;
     }

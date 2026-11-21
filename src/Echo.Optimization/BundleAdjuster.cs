@@ -28,6 +28,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
         {
             imageLookup.Add(photo.Id, photo);
         }
+
         var photos = new Photo[cameras.Count];
         var initial = new CameraState[cameras.Count];
         var oldCameras = new CameraState[cameras.Count];
@@ -44,6 +45,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                     position = hint.Position ?? position;
                 }
             }
+
             if (scene.Origin != null && position != null)
             {
                 initial[i] = initial[i] with
@@ -52,6 +54,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 };
             }
         }
+
         for (var i = 0; i < cameras.Count; i++)
         {
             if (cameras[i].FocalPixels <= 0)
@@ -298,6 +301,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
             {
                 matrix = DenseMatrix.Create(parameter, parameter, (r, c) => h[r * parameter + c]);
             }
+
             Vector<double> delta;
             try
             {
@@ -306,6 +310,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 {
                     factor = matrix.Cholesky();
                 }
+
                 using (trace?.Begin("Back-substitute bundle update", PerformanceSpanKind.Operation))
                 {
                     delta = factor.Solve(DenseVector.OfArray(b));
@@ -329,10 +334,12 @@ public sealed class BundleAdjuster : IBundleAdjuster
             {
                 oldCameras[i] = new CameraState(cameras[i]);
             }
+
             for (var i = 0; i < tracks.Count; i++)
             {
                 oldPoints[i] = tracks[i].Point;
             }
+
             for (var i = 0; i < cameras.Count; i++)
             {
                 var step = cameraStep;
@@ -341,6 +348,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                     var index = cameraIndices[i][axis];
                     step[axis] = index < 0 ? 0 : delta[index];
                 }
+
                 var translation = new V3(step[0], step[1], step[2]);
                 if (translation.Length > 3)
                 {
@@ -675,6 +683,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                     visible.Add(observation);
                 }
             }
+
             if (visible.Count < 3)
             {
                 continue;

@@ -22,6 +22,7 @@ public static class SurfaceTopologyBuilder
                 id = positions.Count;
                 positions.Add(point, id);
             }
+
             welded[index] = id;
         }
 
@@ -61,12 +62,14 @@ public static class SurfaceTopologyBuilder
                                 neighbours[second * 3 + edge] = -1;
                             }
                         }
+
                         neighbours[other] = -1;
                         edges[key] = -1;
                     }
                 }
             }
         }
+
         return new SurfaceTopology { WeldedVertices = welded, Neighbours = neighbours };
     }
 }

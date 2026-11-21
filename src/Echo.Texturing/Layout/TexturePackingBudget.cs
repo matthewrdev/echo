@@ -22,6 +22,7 @@ internal sealed class TexturePackingBudget
             Exhausted = true;
             return false;
         }
+
         remaining -= candidates;
         return true;
     }

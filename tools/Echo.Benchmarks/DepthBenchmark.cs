@@ -37,6 +37,7 @@ public sealed class DepthBenchmark
         {
             run.Snapshot.Settings = json.Read<Settings>(Path.GetFullPath(args[10]));
         }
+
         var scene = json.Read<ReconstructionScene>(store.PathFor(run.Artifacts["alignment"] + "/scene.json"));
         run.Snapshot.Settings.DepthWidth = int.Parse(args[2]);
         var cameraCount = args.Length >= 6 ? Math.Min(int.Parse(args[5]), scene.Cameras.Count) : 1;
@@ -44,10 +45,12 @@ public sealed class DepthBenchmark
         {
             run.Snapshot.Settings.DepthConcurrency = int.Parse(args[6]);
         }
+
         if (args.Length >= 9)
         {
             run.Snapshot.Settings.DepthMemoryBudgetMb = int.Parse(args[8]);
         }
+
         run.Snapshot.Settings.Validate();
         if (args.Length >= 10)
         {
@@ -67,6 +70,7 @@ public sealed class DepthBenchmark
                 throw new ArgumentException("Requested image range is not present in the saved alignment.");
             }
         }
+
         for (var iteration = 0; iteration < int.Parse(args[3]); iteration++)
         {
             GC.Collect();
@@ -118,6 +122,7 @@ public sealed class DepthBenchmark
                 hash = files.Hash(cameraCount == 1 ? (object)maps[0] : maps)
             }));
         }
+
         return 0;
     }
 }

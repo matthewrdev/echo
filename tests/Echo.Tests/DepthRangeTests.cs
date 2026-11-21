@@ -39,6 +39,7 @@ public sealed class DepthRangeTests
             {
                 scene.Points.Add(Point(photo.Id, -20 + index, 0, 100));
             }
+
             var clean = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             for (var index = 0; index < 12; index++)
             {
@@ -46,6 +47,7 @@ public sealed class DepthRangeTests
                 // used to override global trimming despite almost no parallax.
                 scene.Points.Add(Point(photo.Id, .02, .02, .1, "stationary"));
             }
+
             scene.Points.Add(Point(photo.Id, 0, 0, .001, "missing"));
             scene.Points.Add(Point(photo.Id, 0, 0, .001, photo.Id));
             var filtered = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
@@ -58,6 +60,7 @@ public sealed class DepthRangeTests
             {
                 scene.Points.Add(Point(photo.Id, .02, .02, .1, "close"));
             }
+
             var nearby = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(nearby.Near < .1 && nearby.Far == clean.Far,
                 "Genuinely close geometry with strong parallax must remain in the range; no metric near clamp");
@@ -79,10 +82,12 @@ public sealed class DepthRangeTests
             {
                 scene.Points.Add(Point(photo.Id, -15, 0, 80));
             }
+
             for (var index = 0; index < 12; index++)
             {
                 scene.Points.Add(Point(photo.Id, 100, index * .1, 220));
             }
+
             scene.Points.Add(Point(photo.Id, -15000, 0, 80000));
             scene.Points.Add(Point(photo.Id, 0, 0, -100));
             scene.Points.Add(Point(photo.Id, 500, 0, 100));
@@ -94,10 +99,12 @@ public sealed class DepthRangeTests
             {
                 point.Position = point.Position.Select(value => value * 10).ToArray();
             }
+
             foreach (var pose in scene.Cameras)
             {
                 pose.Centre = pose.Centre.Select(value => value * 10).ToArray();
             }
+
             var scaled = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(Math.Abs(scaled.Near - range.Near * 10) < 1e-8, "Near range follows scene scale");
             Check(Math.Abs(scaled.Far - range.Far * 10) < 1e-8, "Far range has no fixed metric ceiling");
@@ -139,10 +146,12 @@ public sealed class DepthRangeTests
             {
                 scene.Points.Add(Point("other", 0, 0, 200, "remote"));
             }
+
             for (var index = 0; index < 9; index++)
             {
                 scene.Points.Add(Point(photo.Id, 0, 0, 50));
             }
+
             var visible = DepthRangeEstimator.Estimate(project, scene, photo, camera, default);
             Check(visible.SampleCount == 10009 && visible.Near == 150 && visible.Far == 250,
                 "Fewer than ten observed points must fall back to all visible samples and preserve trimming");
@@ -155,6 +164,7 @@ public sealed class DepthRangeTests
             {
                 Check(DepthRangeEstimator.Estimate(project, scene, photo, camera, default) == observed, "Reused buffers retain no previous samples");
             }
+
             Check(GC.GetAllocatedBytesForCurrentThread() - allocated < 100000,
                 "Warm estimates must not allocate point-sized arrays or growing tile lists");
             Parallel.For(0, 32, index =>
@@ -187,6 +197,7 @@ public sealed class DepthRangeTests
                         texture.SetPixel(x, y, new SKColor(value, value, value));
                     }
                 }
+
                 foreach (var shift in new[] { 0, -8, 8 })
                 {
                     var id = "view" + shift;
@@ -198,14 +209,17 @@ public sealed class DepthRangeTests
                             bitmap.SetPixel(x, y, texture.GetPixel(Math.Clamp(x + shift, 0, texture.Width - 1), y));
                         }
                     }
+
                     images.Save(bitmap, store.PathFor(id + ".png"), SKEncodedImageFormat.Png);
                     project.Images.Add(new Photo { Id = id, Source = id + ".png", Width = 160, Height = 96, FocalPixels = 120 });
                     scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [shift * 1.25, 0, 0] });
                 }
+
                 for (var index = 0; index < 20; index++)
                 {
                     scene.Points.Add(Point("view0", -30 + index * 3, 0, 150, "view-8"));
                 }
+
                 var map = estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2);
                 var accepted = map.Depth.Where(value => value > 0).ToArray();
                 Check(accepted.Length > 9000, "Recover most visible texture at 150 metres");

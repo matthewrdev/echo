@@ -27,6 +27,7 @@ public sealed class BinaryHashIndex<TKey, TValue> : IReadOnlyDictionary<TKey, TV
         {
             count *= 2;
         }
+
         buckets = work?.Filled(count, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, count).ToArray();
         entries = work?.List(new HashIndexEntryCodec<TKey, TValue>(keys, values)) ?? new List<HashIndexEntry<TKey, TValue>>();
     }
@@ -85,6 +86,7 @@ public sealed class BinaryHashIndex<TKey, TValue> : IReadOnlyDictionary<TKey, TV
         {
             return false;
         }
+
         Append(key, value, bucket, head);
         return true;
     }
@@ -125,6 +127,7 @@ public sealed class BinaryHashIndex<TKey, TValue> : IReadOnlyDictionary<TKey, TV
             bucket = Bucket(key);
             head = buckets[bucket];
         }
+
         var index = entries.Count;
         entries.Add(new HashIndexEntry<TKey, TValue>(key, value, head));
         buckets[bucket] = index;
@@ -146,6 +149,7 @@ public sealed class BinaryHashIndex<TKey, TValue> : IReadOnlyDictionary<TKey, TV
             };
             buckets[bucket] = index;
         }
+
         (previous as IDisposable)?.Dispose();
     }
 
@@ -158,8 +162,10 @@ public sealed class BinaryHashIndex<TKey, TValue> : IReadOnlyDictionary<TKey, TV
             {
                 return index;
             }
+
             index = entry.Next;
         }
+
         entry = default;
         return -1;
     }

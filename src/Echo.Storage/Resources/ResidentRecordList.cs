@@ -38,6 +38,7 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
+
             return paged != null ? paged[index] : blocks[index / blockSize][index % blockSize];
         }
         set
@@ -46,6 +47,7 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
+
             if (paged != null)
             {
                 paged[index] = value;
@@ -64,11 +66,13 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(start));
         }
+
         if (paged != null)
         {
             paged.ReadRange(start, destination);
             return;
         }
+
         while (!destination.IsEmpty)
         {
             var length = Math.Min(destination.Length, blockSize - start % blockSize);
@@ -85,11 +89,13 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(start));
         }
+
         if (paged != null)
         {
             paged.WriteRange(start, source);
             return;
         }
+
         while (!source.IsEmpty)
         {
             var length = Math.Min(source.Length, blockSize - start % blockSize);
@@ -106,6 +112,7 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
         {
             throw new InvalidDataException("Record count exceeds the supported index range.");
         }
+
         if (paged == null && count == blocks.Count * (long)blockSize)
         {
             var reservation = session.TryReserveMemory(blockSize * (long)Unsafe.SizeOf<T>() + 128);
@@ -127,6 +134,7 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
                 }
             }
         }
+
         if (paged != null)
         {
             paged.Add(value);
@@ -148,6 +156,7 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
             blocks[index] = [];
             reservations[index].Dispose();
         }
+
         blocks.Clear();
         reservations.Clear();
     }
@@ -165,15 +174,18 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }
+
         if (paged != null)
         {
             paged.RemoveAt(index);
             return;
         }
+
         for (var move = index; move < count - 1; move++)
         {
             this[move] = this[move + 1];
         }
+
         count--;
         blocks[count / blockSize][count % blockSize] = default!;
     }
@@ -184,11 +196,13 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }
+
         Add(item);
         for (var move = Count - 1; move > index; move--)
         {
             this[move] = this[move - 1];
         }
+
         this[index] = item;
     }
 
@@ -201,6 +215,7 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
                 return index;
             }
         }
+
         return -1;
     }
 
@@ -213,6 +228,7 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
         {
             return false;
         }
+
         RemoveAt(index);
         return true;
     }
@@ -242,6 +258,7 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
         {
             reservation.Dispose();
         }
+
         reservations.Clear();
     }
 
@@ -251,6 +268,7 @@ internal sealed class ResidentRecordList<T> : IRecordList<T>, IDisposable
         {
             return;
         }
+
         disposed = true;
         try
         {

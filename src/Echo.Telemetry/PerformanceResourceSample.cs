@@ -33,6 +33,7 @@ internal sealed class PerformanceResourceSample
         {
             span.ThreadAllocatedBytes = Math.Max(0, GC.GetAllocatedBytesForCurrentThread() - threadAllocated);
         }
+
         if (span.Kind == PerformanceSpanKind.Stage)
         {
             span.ProcessAllocatedBytes = Math.Max(0, GC.GetTotalAllocatedBytes(precise: false) - processAllocated);

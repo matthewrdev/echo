@@ -26,6 +26,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
         {
             throw new ArgumentException("Expected one classification per surface face.", nameof(vegetationFaces));
         }
+
         progress?.Invoke("Unwrapping and packing connected surface charts…");
         operationProgress?.Invoke(new OperationProgress("UV charts", "Preparing surface charts and texture priorities…") { Steps = [] });
         var resolution = new TextureResolutionPlan(project.Settings.TextureSize, project.Settings.TextureGutter);
@@ -34,6 +35,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
         {
             progress?.Invoke($"Applying painted texture priorities to {priorities.Count(band => band != 0):N0} surface faces…");
         }
+
         var patches = builder.Build(project, scene, mesh, cancellation, progress: progress, work: work, priorityBands: priorities, operationProgress: operationProgress);
         TexturePriorityBudget.Apply(patches, priorities);
         double baseline;
@@ -42,6 +44,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
             baseline = packer.Pack(patches, resolution.MinimumSize, resolution.MinimumGutter, cancellation, progress, project.Settings.ComputeBackend, operationProgress);
             packing?.Measure(patches.Count);
         }
+
         var best = new TextureLayout { Patches = patches, TexelsPerWorldUnit = baseline, BaselineTexelsPerWorldUnit = baseline };
         var optimise = vegetationFaces != null && vegetationFaces.Any(value => value) && project.Settings.VegetationTextureScale < 1;
         if (!optimise)
@@ -63,17 +66,20 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
             {
                 TexturePriorityBudget.Apply(candidate, priorities);
             }
+
             var count = TextureVegetationBudget.Apply(candidate, vegetationFaces, project.Settings.VegetationTextureScale);
             if (count == 0)
             {
                 continue;
             }
+
             double? scale;
             using (var packing = trace?.Begin("Pack vegetation texture candidate", PerformanceSpanKind.Operation, PerformanceBackend.Mixed))
             {
                 scale = packer.TryPack(candidate, resolution.MinimumSize, resolution.MinimumGutter, cancellation, progress, project.Settings.ComputeBackend, candidateProgress);
                 packing?.Measure(candidate.Count);
             }
+
             if (scale.HasValue && scale.Value >= best.TexelsPerWorldUnit)
             {
                 best = new TextureLayout
@@ -85,6 +91,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
                 };
             }
         }
+
         progress?.Invoke($"Vegetation budget: {best.VegetationChartCount:N0} reduced charts; rock texel density {100 * (best.TexelsPerWorldUnit / baseline - 1):F2}% above the unchanged layout.");
         return Scale(best, resolution);
     }
@@ -98,6 +105,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
                 (float)(bounds.Top * resolution.Scale), (float)(bounds.Right * resolution.Scale),
                 (float)(bounds.Bottom * resolution.Scale));
         }
+
         return new TextureLayout
         {
             Patches = layout.Patches,
@@ -120,6 +128,7 @@ public sealed class TextureLayoutPlanner : ITextureLayoutPlanner
             {
                 copy.Coordinates.Add(entry.Key, (double[])entry.Value.Clone());
             }
+
             return copy;
         }).ToArray();
     }

@@ -20,6 +20,7 @@ public static class FrustumOverlap
                 return 0;
             }
         }
+
         foreach (var axis in rightView.FaceNormals)
         {
             if (Separates(axis, leftView.Vertices, rightView.Vertices, tolerance))
@@ -27,6 +28,7 @@ public static class FrustumOverlap
                 return 0;
             }
         }
+
         foreach (var leftEdge in leftView.EdgeDirections)
         {
             foreach (var rightEdge in rightView.EdgeDirections)
@@ -52,6 +54,7 @@ public static class FrustumOverlap
         {
             return false;
         }
+
         axis /= length;
         var leftMinimum = double.PositiveInfinity;
         var leftMaximum = double.NegativeInfinity;
@@ -63,12 +66,14 @@ public static class FrustumOverlap
             leftMinimum = Math.Min(leftMinimum, projection);
             leftMaximum = Math.Max(leftMaximum, projection);
         }
+
         foreach (var vertex in rightVertices)
         {
             var projection = vertex.Dot(axis);
             rightMinimum = Math.Min(rightMinimum, projection);
             rightMaximum = Math.Max(rightMaximum, projection);
         }
+
         return leftMinimum > rightMaximum + tolerance || rightMinimum > leftMaximum + tolerance;
     }
 
@@ -88,6 +93,7 @@ public static class FrustumOverlap
                 }
             }
         }
+
         return count;
     }
 }

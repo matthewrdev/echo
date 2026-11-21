@@ -28,6 +28,7 @@ internal sealed class DynamicTriangleIndex
         {
             return added;
         }
+
         var node = nodes[index];
         var triangle = nodes[added].Triangle;
         var first = triangle.A.X / 3 + triangle.B.X / 3 + triangle.C.X / 3;
@@ -51,8 +52,10 @@ internal sealed class DynamicTriangleIndex
                     Left = RotateLeft(node.Left)
                 });
             }
+
             return RotateRight(index);
         }
+
         if (balance < -1)
         {
             var right = nodes[node.Right];
@@ -63,8 +66,10 @@ internal sealed class DynamicTriangleIndex
                     Right = RotateRight(node.Right)
                 });
             }
+
             return RotateLeft(index);
         }
+
         return index;
     }
 
@@ -80,10 +85,12 @@ internal sealed class DynamicTriangleIndex
             {
                 continue;
             }
+
             var value = nodes[child];
             minimum = new V3(Math.Min(minimum.X, value.Minimum.X), Math.Min(minimum.Y, value.Minimum.Y), Math.Min(minimum.Z, value.Minimum.Z));
             maximum = new V3(Math.Max(maximum.X, value.Maximum.X), Math.Max(maximum.Y, value.Maximum.Y), Math.Max(maximum.Z, value.Maximum.Z));
         }
+
         nodes[index] = node with
         {
             Minimum = minimum,
@@ -130,6 +137,7 @@ internal sealed class DynamicTriangleIndex
         {
             return false;
         }
+
         var node = nodes[index];
         var x = minimum.X <= node.Maximum.X + 1e-8 && maximum.X >= node.Minimum.X - 1e-8;
         var y = minimum.Y <= node.Maximum.Y + 1e-8 && maximum.Y >= node.Minimum.Y - 1e-8;
@@ -138,6 +146,7 @@ internal sealed class DynamicTriangleIndex
         {
             return false;
         }
+
         return SurfaceTriangleIntersection.Intersects(triangle, node.Triangle)
             || Intersects(node.Left, triangle, minimum, maximum) || Intersects(node.Right, triangle, minimum, maximum);
     }

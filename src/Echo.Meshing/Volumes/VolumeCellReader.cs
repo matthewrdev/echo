@@ -36,10 +36,12 @@ internal sealed class VolumeCellReader : IDisposable
         {
             Prefetch();
         }
+
         if (next.Count == 0)
         {
             return null;
         }
+
         next.Accelerated = pending != null;
         next.ActiveCount = next.Count;
         if (pending != null)
@@ -56,6 +58,7 @@ internal sealed class VolumeCellReader : IDisposable
                 next.Accelerated = false;
             }
         }
+
         var previous = current;
         current = next;
         next = previous;
@@ -71,6 +74,7 @@ internal sealed class VolumeCellReader : IDisposable
         {
             next.Keys[next.Count++] = keys.Current;
         }
+
         if (session != null && !failed && next.Count > 0)
         {
             var batch = next;
@@ -91,6 +95,7 @@ internal sealed class VolumeCellReader : IDisposable
             // Read propagates consumed failures. An unconsumed result must not
             // replace the exception which caused the caller to stop early.
         }
+
         keys.Dispose();
     }
 }

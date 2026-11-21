@@ -29,6 +29,7 @@ internal sealed class TexturePriorityField
             // strokes replace earlier priorities, including a neutral eraser.
             weight += (weights[influence.Key] - weight) * influence.Value;
         }
+
         return weight;
     }
 
@@ -45,6 +46,7 @@ internal sealed class TexturePriorityField
             minimum = new V3(Math.Min(minimum.X, p.X - r), Math.Min(minimum.Y, p.Y - r), Math.Min(minimum.Z, p.Z - r));
             maximum = new V3(Math.Max(maximum.X, p.X + r), Math.Max(maximum.Y, p.Y + r), Math.Max(maximum.Z, p.Z + r));
         }
+
         var node = new TextureBrushNode { Minimum = minimum, Maximum = maximum, Start = start, Count = count };
         if (count > 8)
         {
@@ -55,6 +57,7 @@ internal sealed class TexturePriorityField
             node.Left = Build(start, count / 2, cancellation);
             node.Right = Build(start + count / 2, count - count / 2, cancellation);
         }
+
         return node;
     }
 
@@ -64,6 +67,7 @@ internal sealed class TexturePriorityField
         {
             return;
         }
+
         var outsideX = point.X < node.Minimum.X || point.X > node.Maximum.X;
         var outsideY = point.Y < node.Minimum.Y || point.Y > node.Maximum.Y;
         var outsideZ = point.Z < node.Minimum.Z || point.Z > node.Maximum.Z;
@@ -71,12 +75,14 @@ internal sealed class TexturePriorityField
         {
             return;
         }
+
         if (node.Left != null)
         {
             Query(node.Left, point, influences);
             Query(node.Right, point, influences);
             return;
         }
+
         for (var index = node.Start; index < node.Start + node.Count; index++)
         {
             var entry = entries[index];
@@ -88,6 +94,7 @@ internal sealed class TexturePriorityField
             {
                 continue;
             }
+
             var feather = Math.Clamp((1 - distance) * 2, 0, 1);
             var influence = feather * feather * (3 - 2 * feather);
             influences[entry.Stroke] = Math.Max(influences.GetValueOrDefault(entry.Stroke), influence);

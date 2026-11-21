@@ -28,16 +28,19 @@ public sealed class CloudBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks cloud PROJECT RUN ITERATIONS OUTPUT.ply [WORKERS] [BATCH_ROWS] [DEPTH_MAPS.json]");
             return 2;
         }
+
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
         if (args.Length >= 5)
         {
             run.Snapshot.Settings.CloudWorkerThreads = int.Parse(args[4]);
         }
+
         if (args.Length >= 6)
         {
             run.Snapshot.Settings.CloudBatchRows = int.Parse(args[5]);
         }
+
         run.Snapshot.Settings.Validate();
         var scene = json.Read<ReconstructionScene>(store.PathFor(run.Artifacts["alignment"] + "/scene.json"));
         List<DepthMap> maps;
@@ -54,6 +57,7 @@ public sealed class CloudBenchmark
                 maps.Add(json.Read<DepthMap>(store.PathFor(unit + "/depth.json")));
             }
         }
+
         for (var iteration = 0; iteration < int.Parse(args[2]); iteration++)
         {
             GC.Collect();
@@ -76,6 +80,7 @@ public sealed class CloudBenchmark
                 hash = files.HashFile(Path.GetFullPath(args[3]))
             }));
         }
+
         return 0;
     }
 }

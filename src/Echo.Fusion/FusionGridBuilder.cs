@@ -18,20 +18,24 @@ internal static class FusionGridBuilder
         {
             throw new ArgumentOutOfRangeException(nameof(detail));
         }
+
         if (!double.IsFinite(settings.CloudDepthTolerance) || settings.CloudDepthTolerance <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(settings));
         }
+
         var invalidVoxelSize = !double.IsFinite(settings.FusionVoxelSize)
             || settings.FusionVoxelSize != 0 && settings.FusionVoxelSize < Settings.MinimumFusionVoxelSize;
         if (invalidVoxelSize)
         {
             throw new ArgumentOutOfRangeException(nameof(settings), "Target voxel size must be Auto or at least 2.5 cm.");
         }
+
         if (resources.MaximumGridSamples < 64)
         {
             throw new ArgumentOutOfRangeException(nameof(resources));
         }
+
         var footprint = FusionFootprint.Measure(views, cloud, cancellation);
         var byId = views.ToDictionary(view => view.Map.ImageId, StringComparer.Ordinal);
         var sources = cloud.ImageIds.Select(id => byId.GetValueOrDefault(id)).ToArray();
@@ -62,12 +66,14 @@ internal static class FusionGridBuilder
             {
                 return new FusionGrid { PixelFootprint = footprint, RequestedVoxelSize = requested, VoxelSize = voxel, Keys = keys };
             }
+
             if (!allowCoarser)
             {
                 if (work != null)
                 {
                     throw new EchoException($"Fusion at the requested {requested * 100:G4} cm exceeds the supported volume limit ({maximumSamples:N0} voxels). Resolution was not reduced. Choose a larger target voxel size or enable coarser resolution before running fusion again.", 5);
                 }
+
                 throw new EchoException($"Fusion at the requested {requested:G6} m voxel size exceeds the {resources.MemoryBudgetBytes / 1073741824.0:G4} GiB working-memory budget ({maximumSamples:N0} grid samples). Resolution was not reduced. Increase FusionMemoryBudgetMb, choose a larger FusionVoxelSize, or explicitly enable FusionAllowCoarserResolution.", 5);
             }
             // Count actual grid samples, including the extraction halo, instead
@@ -77,6 +83,7 @@ internal static class FusionGridBuilder
                 ? $"Automatic fusion resolution adjusted to {voxel * 100:G4} cm to fit {maximumSamples:N0} grid samples. Set a target voxel size to choose an exact resolution."
                 : $"Requested fusion resolution does not fit. Coarser resolution is enabled: retrying at {voxel:G6} m voxels.");
         }
+
         throw new EchoException("Cannot fit the observed fusion volume within the available memory budget.", 5);
     }
 

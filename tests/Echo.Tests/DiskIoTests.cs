@@ -45,6 +45,7 @@ public sealed class DiskIoTests
                 memory.Faces.Add(face);
                 paged.Faces.Add(face);
             }
+
             paged.Vertices[3] = memory.Vertices[3] = [-17.25, double.Epsilon, float.MaxValue];
             paged.Faces[4] = memory.Faces[4] = [17, 23, 6006];
             var actualPath = Path.Combine(directory, "actual.ply");
@@ -60,6 +61,7 @@ public sealed class DiskIoTests
                 {
                     header += "element face 6007\nproperty list uchar int vertex_indices\n";
                 }
+
                 header += "end_header\n";
                 Check(Encoding.ASCII.GetString(bytes, 0, header.Length) == header, "PLY schema changed");
                 var position = header.Length;
@@ -72,6 +74,7 @@ public sealed class DiskIoTests
                         position += 4;
                     }
                 }
+
                 if (withFaces)
                 {
                     foreach (var face in memory.Faces)
@@ -84,8 +87,10 @@ public sealed class DiskIoTests
                         }
                     }
                 }
+
                 Check(position == bytes.Length, "PLY contains padding or trailing records");
             }
+
             plyWriter.Write(actualPath, Array.Empty<double[]>(), Array.Empty<int[]>());
             Check(Encoding.ASCII.GetString(File.ReadAllBytes(actualPath)).EndsWith("end_header\n", StringComparison.Ordinal), "Empty PLY contains a payload");
         }));
@@ -110,6 +115,7 @@ public sealed class DiskIoTests
                     {
                         continue;
                     }
+
                     var before = session.Statistics;
                     var report = sampler.Report(cloud);
                     Check(session.Statistics == before, "Preview touched the disk-backed cloud");
@@ -122,6 +128,7 @@ public sealed class DiskIoTests
                         {
                             Check(report.Preview[sampleIndex].Position[0] == sampleIndex * stride, "Preview is no longer uniformly sampled");
                         }
+
                         Check(report.Preview[^1].Position[0] >= index / 3.0, "Preview no longer spans the growing cloud");
                     }
                 }
@@ -138,6 +145,7 @@ public sealed class DiskIoTests
                 paged.Add(sample);
                 memory.Add(sample);
             }
+
             paged[3] = memory[3] = new DenseSample(-19, 0, 5, 255, 0, 1, 3, -0f);
             var expected = Path.Combine(directory, "memory.ply");
             var actual = Path.Combine(directory, "paged.ply");
@@ -151,11 +159,13 @@ public sealed class DiskIoTests
                 using var file = File.OpenRead(path);
                 Check(checksum == Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(file)), "Published checksum must match the full PLY");
             }
+
             using (var file = new FileStream(actual, FileMode.Open, FileAccess.Write))
             {
                 file.Position = file.Length;
                 file.WriteByte(0);
             }
+
             Check(!written.TryGetChecksum(actual, out _), "Modified staging files cannot reuse their publication checksum");
         }));
         tests.Run("Paged file handles are reused and bounded across concurrent reads", () => InDirectory(directory =>
@@ -170,6 +180,7 @@ public sealed class DiskIoTests
                 {
                     first.WriteBytes(page * 65536L, [(byte)page]);
                 }
+
                 Check(cache.HandleOpenCount == 1, "Sequential paging reopened the file per page");
                 for (var index = 1; index <= 96; index++)
                 {
@@ -178,6 +189,7 @@ public sealed class DiskIoTests
                     file.WriteBytes(0, [(byte)index]);
                     Check(cache.OpenHandleCount <= 32, "Handle pool exceeded its limit");
                 }
+
                 Parallel.For(1, files.Count, new ParallelOptions { MaxDegreeOfParallelism = 4 }, index =>
                 {
                     Span<byte> value = stackalloc byte[1];
@@ -198,6 +210,7 @@ public sealed class DiskIoTests
                     file.Dispose();
                 }
             }
+
             Check(cache.OpenHandleCount == 0, "Disposed files retained handles");
         }));
         tests.Run("Fusion planning streams preserve grid coverage and report every preparation phase", () => InDirectory(directory =>
@@ -211,6 +224,7 @@ public sealed class DiskIoTests
                     fixture.Cloud.Samples.Add(point);
                 }
             }
+
             var resources = new FusionResourcePlan(25600000, 100000);
             var expected = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings, resources, default);
             using var session = artifacts.OpenSession(65536, 0);
@@ -226,6 +240,7 @@ public sealed class DiskIoTests
                 Check(phase.First().Completed == 0 && phase.Last().Completed == phase.Last().Total, "Phase lacks start or completion");
                 Check(phase.Select(update => update.Completed).SequenceEqual(phase.Select(update => update.Completed).Order()), "Phase progress went backwards");
             }
+
             using var cancelled = new CancellationTokenSource();
             try
             {

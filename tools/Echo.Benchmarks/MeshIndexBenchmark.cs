@@ -23,6 +23,7 @@ public sealed class MeshIndexBenchmark
         {
             throw new EchoException("Usage: mesh-index GRID_SIDE CACHE_MIB. Profiles deterministic curved-grid construction and 2,000 nearest-surface queries.", 2);
         }
+
         var side = int.Parse(args[0], CultureInfo.InvariantCulture);
         var budget = long.Parse(args[1], CultureInfo.InvariantCulture) << 20;
         ArgumentOutOfRangeException.ThrowIfLessThan(side, 2);
@@ -39,6 +40,7 @@ public sealed class MeshIndexBenchmark
                     mesh.Vertices.Add([x * .1, y * .1, Math.Sin(x * .1) * Math.Cos(y * .1) * .3]);
                 }
             }
+
             for (var y = 0; y < side; y++)
             {
                 for (var x = 0; x < side; x++)
@@ -48,6 +50,7 @@ public sealed class MeshIndexBenchmark
                     mesh.Faces.Add([a, a + side + 2, a + side + 1]);
                 }
             }
+
             for (var iteration = 0; iteration < 6; iteration++)
             {
                 GC.Collect();
@@ -66,6 +69,7 @@ public sealed class MeshIndexBenchmark
                     var closest = index.Nearest(point, 3);
                     checksum += closest.DistanceSquared + closest.Position.X + closest.Position.Y + closest.Position.Z;
                 }
+
                 watch.Stop();
                 using var process = Process.GetCurrentProcess();
                 var stats = data.Statistics;
@@ -82,6 +86,7 @@ public sealed class MeshIndexBenchmark
                 Directory.Delete(directory, true);
             }
         }
+
         return 0;
     }
 }

@@ -42,10 +42,12 @@ internal sealed class PhotographSelectionProgress
         {
             return;
         }
+
         if (Stopwatch.GetTimestamp() - Volatile.Read(ref lastReport) < Stopwatch.Frequency / 8)
         {
             return;
         }
+
         lock (gate)
         {
             if (Stopwatch.GetTimestamp() - lastReport >= Stopwatch.Frequency / 8)
@@ -61,6 +63,7 @@ internal sealed class PhotographSelectionProgress
         {
             completed = total.Value;
         }
+
         Report();
     }
 
@@ -71,6 +74,7 @@ internal sealed class PhotographSelectionProgress
         {
             return;
         }
+
         var title = steps[(int)phase];
         var count = Volatile.Read(ref completed);
         message ??= total.HasValue ? $"{title}: {count:N0} / {total:N0} triangles." : title + "…";

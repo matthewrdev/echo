@@ -98,10 +98,12 @@ public sealed class SubjectDistanceTests
             {
                 camera.Centre = camera.Centre.Select(value => value * 10).ToArray();
             }
+
             foreach (var point in scene.Points)
             {
                 point.Position = point.Position.Select(value => value * 10).ToArray();
             }
+
             var scaled = SubjectDistancePlanner.Estimate(project, scene, default);
             Check(Math.Abs(scaled.MaximumDistance!.Value - wide.MaximumDistance!.Value * 10) < 1e-8,
                 "Automatic limits follow reconstruction scale");
@@ -114,6 +116,7 @@ public sealed class SubjectDistanceTests
             {
                 compact.Points.Add(new CloudPoint { ImageA = "0", ImageB = "1", Position = [2, 0, 150], Error = .1 });
             }
+
             var distant = SubjectDistancePlanner.Estimate(Project(compact), compact, default);
             Check(distant.MaximumDistance >= 150, "A compact camera footprint must not crop a genuinely distant subject");
         });
@@ -174,6 +177,7 @@ public sealed class SubjectDistanceTests
         {
             scene.Cameras.Add(new CameraPose { ImageId = index.ToString(), Centre = [-width / 2 + index * width / 11, 0, 0] });
         }
+
         for (var index = 0; index < 11; index++)
         {
             var x = (scene.Cameras[index].Centre[0] + scene.Cameras[index + 1].Centre[0]) / 2;
@@ -182,6 +186,7 @@ public sealed class SubjectDistanceTests
                 scene.Points.Add(new CloudPoint { ImageA = index.ToString(), ImageB = (index + 1).ToString(), Position = [x, 0, depth], Error = .1 });
             }
         }
+
         return scene;
     }
 

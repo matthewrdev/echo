@@ -41,11 +41,13 @@ public sealed class AlignmentPreviewWriter : IAlignmentPreviewWriter
             {
                 header.Images.Add(point.ImageA);
             }
+
             if (images.Add(point.ImageB))
             {
                 header.Images.Add(point.ImageB);
             }
         }
+
         var metadata = Encoding.UTF8.GetBytes(json.Encode(header));
         var codec = new CloudPointRecordCodec(header.Images);
         // A single atomic file keeps camera metadata and point records from the
@@ -73,6 +75,7 @@ public sealed class AlignmentPreviewWriter : IAlignmentPreviewWriter
                     count = 0;
                 }
             }
+
             cancellation.ThrowIfCancellationRequested();
             writer.Write(buffer.AsSpan(0, count * codec.Size));
         });

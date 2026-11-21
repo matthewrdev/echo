@@ -22,6 +22,7 @@ internal static class TextureColourCompletion
                 known[vertex] = true;
             }
         }
+
         mean = count > 0 ? mean / count : new V3(128, 128, 128);
         for (var index = 0; index < mesh.Faces.Count; index++)
         {
@@ -30,6 +31,7 @@ internal static class TextureColourCompletion
             {
                 continue;
             }
+
             var face = mesh.Faces[index];
             for (var corner = 0; corner < 3; corner++)
             {
@@ -57,6 +59,7 @@ internal static class TextureColourCompletion
                 pending.Enqueue(vertex);
             }
         }
+
         while (pending.TryDequeue(out var vertex))
         {
             cancellation.ThrowIfCancellationRequested();
@@ -70,6 +73,7 @@ internal static class TextureColourCompletion
                 }
             }
         }
+
         var unknown = Enumerable.Range(0, neighbours.Length).Where(vertex => neighbours[vertex] != null && !known[vertex]).ToArray();
         foreach (var vertex in unknown)
         {
@@ -78,6 +82,7 @@ internal static class TextureColourCompletion
                 colours[vertex] = mean;
             }
         }
+
         var next = new V3[unknown.Length];
         for (var pass = 0; pass < 200; pass++)
         {
@@ -92,18 +97,22 @@ internal static class TextureColourCompletion
                 {
                     sum += colours[other];
                 }
+
                 next[index] = (colours[vertex] + sum / adjacent.Count) * .5;
                 maximumChange = Math.Max(maximumChange, (next[index] - colours[vertex]).Length);
             }
+
             for (var index = 0; index < unknown.Length; index++)
             {
                 colours[unknown[index]] = next[index];
             }
+
             if (maximumChange < .01)
             {
                 break;
             }
         }
+
         return colours;
     }
 }

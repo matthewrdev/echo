@@ -20,6 +20,7 @@ public static class DepthNeighbourSelector
         {
             return [];
         }
+
         var photos = project.Images.ToDictionary(photo => photo.Id);
         var samples = DepthCoverageGrid.Create(scene, photos[reference.ImageId], reference, range, prior, cancellation);
         var candidates = Candidates(project, scene, reference, photos, samples, cancellation);
@@ -38,10 +39,12 @@ public static class DepthNeighbourSelector
                 }
             }
         }
+
         if (selected.Count == 0)
         {
             SeedNearby(candidates, selected, support, Math.Min(minimumNeighbours, capacity), range.Median);
         }
+
         while (selected.Count < capacity)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -53,6 +56,7 @@ public static class DepthNeighbourSelector
                 {
                     continue;
                 }
+
                 var score = Score(candidate, samples, support, selected.Count < minimumNeighbours);
                 if (score > bestScore)
                 {
@@ -60,12 +64,15 @@ public static class DepthNeighbourSelector
                     bestScore = score;
                 }
             }
+
             if (best == null)
             {
                 break;
             }
+
             Add(selected, support, best, range.Median);
         }
+
         return selected.Select(item => item.Camera).ToArray();
     }
 
@@ -104,14 +111,17 @@ public static class DepthNeighbourSelector
             {
                 continue;
             }
+
             var distance = (new V3(camera.Centre) - centre).Length;
             if (!double.IsFinite(distance) || distance <= .05)
             {
                 continue;
             }
+
             var quality = Coverage(photo, camera, centre, samples, project.Settings.DepthWidth);
             candidates.Add(new DepthNeighbourCandidate(camera, distance, quality));
         }
+
         return candidates;
     }
 
@@ -130,6 +140,7 @@ public static class DepthNeighbourSelector
             {
                 continue;
             }
+
             var p = pixel.Value;
             var inside = p.X >= margin && p.X < photo.Width - margin
                 && p.Y >= margin && p.Y < photo.Height - margin;
@@ -137,6 +148,7 @@ public static class DepthNeighbourSelector
             {
                 continue;
             }
+
             var cosine = (point - referenceCentre).Unit.Dot((point - centre).Unit);
             // Enough triangulation parallax, without preferring extreme viewpoints
             // whose common surface is likely foreshortened or occluded.
@@ -145,9 +157,11 @@ public static class DepthNeighbourSelector
             {
                 continue;
             }
+
             var sine = Math.Sqrt(Math.Max(0, 1 - cosine * cosine));
             quality[index] = (byte)Math.Clamp(255 * Math.Min(1, sine / .08715574274765817) * cosine, 1, 255);
         }
+
         return quality;
     }
 
@@ -161,6 +175,7 @@ public static class DepthNeighbourSelector
                 return true;
             }
         }
+
         return false;
     }
 
@@ -177,6 +192,7 @@ public static class DepthNeighbourSelector
                 gain += samples[index].Weight * (.5 + .5 * value);
             }
         }
+
         var redundantCoverage = gain == 0 && !fillMinimum;
         if (quality == 0 || redundantCoverage)
         {
@@ -198,6 +214,7 @@ public static class DepthNeighbourSelector
                 support[index]++;
             }
         }
+
         selected.Add(candidate);
     }
 }

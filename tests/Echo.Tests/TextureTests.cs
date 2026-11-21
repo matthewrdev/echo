@@ -223,6 +223,7 @@ public sealed class TextureTests
                         mesh.Vertices.Add([horizontal, y - 2, 10 + 2 * Math.Cos(horizontal * .5)]);
                     }
                 }
+
                 for (var y = 0; y < 4; y++)
                 {
                     for (var x = 0; x < 8; x++)
@@ -234,6 +235,7 @@ public sealed class TextureTests
                         mesh.SourceImages.Add("b");
                     }
                 }
+
                 var result = baker.Bake(store, project, scene, mesh, store.PathFor("atlas.jpg"), default);
                 Check(result.ChartCount == 1, "A visible curved region stays one UV chart even when source photographs change");
                 Check(result.Surface!.Faces.Count == 64, "Chart construction retains the complete curved surface");
@@ -263,10 +265,12 @@ public sealed class TextureTests
                             bitmap.SetPixel(x, y, new SKColor(intensity, intensity, intensity));
                         }
                     }
+
                     images.Save(bitmap, store.PathFor(id + ".png"), SKEncodedImageFormat.Png);
                     project.Images.Add(new Photo { Id = id, Source = id + ".png", Width = 64, Height = 64, FocalPixels = 32 });
                     scene.Cameras.Add(new CameraPose { ImageId = id });
                 }
+
                 var mesh = new Surface
                 {
                     Vertices = [[-4, -2, 10], [0, -2, 10], [0, 2, 10], [-4, 2, 10],
@@ -284,6 +288,7 @@ public sealed class TextureTests
                     Check(Math.Abs(correction.CornerOffsets[corner].X - expected) < .1,
                         "A constant exposure difference gives a constant offset, preserving the thirty-level stripe contrast");
                 }
+
                 Check(mesh.Vertices.Count == 8 && mesh.Faces.Count == 4, "Colour correction does not change geometry");
             }
             finally
@@ -306,6 +311,7 @@ public sealed class TextureTests
                         source.SetPixel(x, y, new SKColor((byte)(x * 4), (byte)(y * 4), 100));
                     }
                 }
+
                 images.Save(source, store.PathFor("source.png"), SKEncodedImageFormat.Png);
                 var project = new ProjectData
                 {
@@ -473,6 +479,7 @@ public sealed class TextureTests
                         }
                     }
                 }
+
                 using var atlas = SKBitmap.Decode(output);
                 foreach (var face in textured.Faces)
                 {
@@ -502,6 +509,7 @@ public sealed class TextureTests
         {
             return;
         }
+
         throw new Exception($"Expected {typeof(T).Name}.");
     }
 

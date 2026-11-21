@@ -14,10 +14,12 @@ internal static class TexturePaddingCompute
         {
             return false;
         }
+
         if (!compute.CanAllocate((long)pixels.Length * 2 * sizeof(uint), backend))
         {
             return false;
         }
+
         try
         {
             using var session = compute.Open(backend, cancellation);
@@ -25,6 +27,7 @@ internal static class TexturePaddingCompute
             {
                 return false;
             }
+
             session.Upload<SKColor>(0, pixels);
             session.Allocate(1, checked(pixels.Length * sizeof(uint)));
             session.Dispatch(ComputeKernel.TexturePadding, pixels.Length, [size, gutter]);

@@ -56,6 +56,7 @@ public sealed class RasterImageService : IRasterImageService
             swapRedBlue = source.ColorType == SKColorType.Rgba8888;
             return MemoryMarshal.Cast<byte, SKColor>(source.GetPixelSpan());
         }
+
         swapRedBlue = false;
         return source.Pixels;
     }
@@ -80,6 +81,7 @@ public sealed class RasterImageService : IRasterImageService
         {
             throw new ArgumentException("Grayscale destination is smaller than the resized image.", nameof(destination));
         }
+
         for (var y = 0; y < targetHeight; y++)
         {
             var y0 = y * sourceHeight / targetHeight;
@@ -250,6 +252,7 @@ public sealed class RasterImageService : IRasterImageService
                 output[y * targetWidth + x] = AveragePixel(input, source.Width, x0, x1, y0, y1, swapRedBlue);
             }
         }
+
         GC.KeepAlive(source);
         return new RasterPixels(targetWidth, targetHeight, output);
     }
@@ -270,6 +273,7 @@ public sealed class RasterImageService : IRasterImageService
                 blue += colour.Blue;
             }
         }
+
         return new SKColor((byte)((swapRedBlue ? blue : red) / count), (byte)(green / count),
             (byte)((swapRedBlue ? red : blue) / count));
     }

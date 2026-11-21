@@ -13,12 +13,14 @@ public sealed class ModelBounds
         {
             throw new EchoException("The model contains no vertices.", 2);
         }
+
         foreach (var vertex in surface.Vertices)
         {
             if (vertex.Length != 3 || vertex.Any(value => !double.IsFinite(value)))
             {
                 throw new EchoException("The model contains invalid coordinates.", 2);
             }
+
             for (var axis = 0; axis < 3; axis++)
             {
                 Minimum[axis] = Math.Min(Minimum[axis], vertex[axis]);

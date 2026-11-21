@@ -13,6 +13,7 @@ public static class ScaleSpaceFeatures
         {
             throw new ArgumentException("Scale-space input dimensions and feature limit must be valid.");
         }
+
         cancellation.ThrowIfCancellationRequested();
         var candidates = new PriorityQueue<ScaleFeatureCandidate, double>();
         var basis = ArrayPool<float>.Shared.Rent(width * height);
@@ -34,17 +35,20 @@ public static class ScaleSpaceFeatures
         {
             ArrayPool<float>.Shared.Return(basis);
         }
+
         var ordered = new List<ScaleFeatureCandidate>(candidates.Count);
         while (candidates.TryDequeue(out var candidate, out _))
         {
             ordered.Add(candidate);
         }
+
         ordered.Sort(Compare);
         var result = new List<Feature>(ordered.Count);
         foreach (var candidate in ordered)
         {
             result.Add(candidate.Feature);
         }
+
         return result;
     }
 
@@ -85,6 +89,7 @@ public static class ScaleSpaceFeatures
                     differences[layer - 1][pixel] = gaussian[layer][pixel] - gaussian[layer - 1][pixel];
                 }
             }
+
             var keypoints = ScaleSpaceExtrema.Find(differences, width, height, cancellation);
             Span<double> angles = stackalloc double[36];
             Span<float> descriptor = stackalloc float[128];
@@ -96,6 +101,7 @@ public static class ScaleSpaceFeatures
                 {
                     break;
                 }
+
                 var pixels = gaussian[point.Layer].AsSpan(0, length);
                 var count = GradientDescriptor.Orientations(pixels, width, height, point, angles);
                 for (var orientation = 0; orientation < count; orientation++)
@@ -104,6 +110,7 @@ public static class ScaleSpaceFeatures
                     {
                         continue;
                     }
+
                     var feature = new Feature
                     {
                         Kind = "scale-space",
@@ -118,6 +125,7 @@ public static class ScaleSpaceFeatures
                     }
                 }
             }
+
             var nextWidth = width / 2;
             var nextHeight = height / 2;
             var next = ArrayPool<float>.Shared.Rent(nextWidth * nextHeight);
@@ -128,6 +136,7 @@ public static class ScaleSpaceFeatures
                     next[y * nextWidth + x] = gaussian[3][2 * y * width + 2 * x];
                 }
             }
+
             return next;
         }
         finally
@@ -138,6 +147,7 @@ public static class ScaleSpaceFeatures
                 {
                     ArrayPool<float>.Shared.Return(gaussian[layer]);
                 }
+
                 if (differences[layer - 1] != null)
                 {
                     ArrayPool<float>.Shared.Return(differences[layer - 1]);

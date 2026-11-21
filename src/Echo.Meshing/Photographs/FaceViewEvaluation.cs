@@ -44,10 +44,12 @@ internal static class FaceViewEvaluation
                     faceIndices[count++] = face;
                 }
             }
+
             if (count == 0)
             {
                 continue;
             }
+
             Array.Clear(options);
             for (var group = 0; group * cullingSize < count; group++)
             {
@@ -63,6 +65,7 @@ internal static class FaceViewEvaluation
                     minimum = new V3(Math.Min(minimum.X, low.X), Math.Min(minimum.Y, low.Y), Math.Min(minimum.Z, low.Z));
                     maximum = new V3(Math.Max(maximum.X, high.X), Math.Max(maximum.Y, high.Y), Math.Max(maximum.Z, high.Z));
                 }
+
                 visibleViews[group].Clear();
                 for (var view = 0; view < views.Count; view++)
                 {
@@ -72,6 +75,7 @@ internal static class FaceViewEvaluation
                     }
                 }
             }
+
             Parallel.For(0, count, parallel, local =>
             {
                 var face = faceIndices[local];
@@ -86,6 +90,7 @@ internal static class FaceViewEvaluation
                     {
                         continue;
                     }
+
                     var score = fallback
                         ? double.IsFinite(views[view].Difference(centre)) ? 0 : density
                         : FaceViewSelection.Score(views[view], triangle.A, triangle.B, triangle.C, centre, density);
@@ -110,6 +115,7 @@ internal static class FaceViewEvaluation
                     }
                 }
             }
+
             if (occlusion != null)
             {
                 occlusion.Evaluate(rays.AsSpan(0, rayCount), hidden.AsSpan(0, rayCount), cancellation);
@@ -118,6 +124,7 @@ internal static class FaceViewEvaluation
             {
                 Parallel.For(0, rayCount, parallel, ray => hidden[ray] = visibility.HasOccluder(rays[ray].Start, rays[ray].End));
             }
+
             for (var ray = 0; ray < rayCount; ray++)
             {
                 if (hidden[ray])
@@ -125,6 +132,7 @@ internal static class FaceViewEvaluation
                     options[raySlots[ray]] = default;
                 }
             }
+
             for (var local = 0; local < count; local++)
             {
                 var face = faceIndices[local];
@@ -137,6 +145,7 @@ internal static class FaceViewEvaluation
                         retained.Add(option);
                     }
                 }
+
                 FaceViewSelection.RetainDetail(retained);
                 if (retained.Count > 0)
                 {
@@ -150,6 +159,7 @@ internal static class FaceViewEvaluation
                         };
                     }
                 }
+
                 candidates.Set(face, retained);
                 reporter.Increment();
             }
@@ -161,6 +171,7 @@ internal static class FaceViewEvaluation
         {
             return null;
         }
+
         while (count > 1)
         {
             var reservation = work.TryReserveMemory(count * bytesPerFace);
@@ -168,8 +179,10 @@ internal static class FaceViewEvaluation
             {
                 return reservation;
             }
+
             count /= 2;
         }
+
         return work.TryReserveMemory(bytesPerFace);
     }
 

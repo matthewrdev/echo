@@ -29,6 +29,7 @@ internal static class SurfaceEvidenceCompute
                     triangles[slot + 3] = 0;
                 }
             }
+
             session.Upload<float>(2, triangles.AsSpan(0, count * 12));
             session.Allocate(3, count * sizeof(int));
             session.Upload<float>(4, [(float)tolerance]);

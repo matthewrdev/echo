@@ -396,6 +396,7 @@ public sealed class ProjectStore : IProjectStore
                 // atomically publish the full state and remove this sidecar.
             }
         }
+
         return run;
     }
 }

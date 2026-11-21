@@ -10,6 +10,7 @@ public static class ValidationPaths
         {
             throw new InvalidDataException("Fixture paths must remain inside their dataset.");
         }
+
         return path;
     }
 }

@@ -46,6 +46,7 @@ public sealed class BulkDataSession : IDisposable
             {
                 resources.Add(list);
             }
+
             return list;
         }
         catch
@@ -67,6 +68,7 @@ public sealed class BulkDataSession : IDisposable
         {
             throw new InvalidDataException("Unsupported artifact storage. Start a new run to regenerate this artifact.");
         }
+
         string Buffer(string name)
         {
             var file = header.Buffers[name];
@@ -74,6 +76,7 @@ public sealed class BulkDataSession : IDisposable
             {
                 throw new InvalidDataException("Invalid binary buffer path.");
             }
+
             return Path.Combine(Path.GetDirectoryName(path)!, file);
         }
 
@@ -98,6 +101,7 @@ public sealed class BulkDataSession : IDisposable
             {
                 throw new InvalidDataException("Invalid binary depth dimensions.");
             }
+
             result = new DepthMap
             {
                 ImageId = header.ImageId,
@@ -128,6 +132,7 @@ public sealed class BulkDataSession : IDisposable
             {
                 throw new InvalidDataException("Invalid semantic map dimensions.");
             }
+
             result = new SemanticMap { ImageId = header.ImageId, Width = header.Width, Height = header.Height, VegetationSamples = vegetation, RockSamples = rock, SkySamples = sky };
         }
         else if (typeof(T) == typeof(TextureCoordinates) && header.Kind == "uvs")
@@ -147,12 +152,14 @@ public sealed class BulkDataSession : IDisposable
             {
                 throw new InvalidDataException("Photograph assignments must match the surface face count.");
             }
+
             result = surface;
         }
         else
         {
             throw new InvalidDataException("Binary artifact type does not match the requested contract.");
         }
+
         return (T)result;
     }
 
@@ -170,6 +177,7 @@ public sealed class BulkDataSession : IDisposable
                 (failures ??= []).Add(error);
             }
         }
+
         resources.Clear();
         try
         {
@@ -182,6 +190,7 @@ public sealed class BulkDataSession : IDisposable
         {
             (failures ??= []).Add(error);
         }
+
         if (failures != null)
         {
             throw new AggregateException("Failed to flush paging buffers.", failures);

@@ -103,6 +103,7 @@ public sealed class DepthBackendTests
                         Check(execution.All(item => item.ActualBackend == "cpu" && item.AcceleratedSearches == 0), "Failed attempts must not be labelled Metal output");
                     }
                 }
+
                 var cancelled = new TestDepthCostAccelerator("cancel");
                 try
                 {
@@ -112,6 +113,7 @@ public sealed class DepthBackendTests
                 catch (Exception error) when (error is OperationCanceledException || error is AggregateException aggregate && aggregate.InnerExceptions.All(item => item is OperationCanceledException))
                 {
                 }
+
                 Check(cancelled.Sessions.All(session => session.Disposed), "Cancellation must dispose native sessions");
             }));
 
@@ -155,6 +157,7 @@ public sealed class DepthBackendTests
                         Check(backend.Sessions.All(session => session.Disposed), "Release failed sessions");
                     }
                 }
+
                 var partial = new TestDepthCostAccelerator("partial-failure");
                 var mixed = new List<ProcessingExecution>();
                 new DepthEstimator(images, [partial]).Estimate(store, project, scene, scene.Cameras[0], default, 1, execution: mixed.Add);
@@ -169,6 +172,7 @@ public sealed class DepthBackendTests
                 catch (Exception error) when (error is OperationCanceledException || error is AggregateException aggregate && aggregate.InnerExceptions.All(item => item is OperationCanceledException))
                 {
                 }
+
                 Check(cancelled.Sessions.All(session => session.Disposed), "Dispose cancelled fast sessions");
             }));
 
@@ -270,11 +274,13 @@ public sealed class DepthBackendTests
             {
                 patch[pixel] = gray[(y + pixel / 5 - 2) * 32 + x + pixel % 5 - 2];
             }
+
             var mean = patch.Average();
             for (var pixel = 0; pixel < patch.Length; pixel++)
             {
                 patch[pixel] -= mean;
             }
+
             samples[index] = new DepthSearchSample
             {
                 PixelIndex = y * 32 + x,
@@ -284,6 +290,7 @@ public sealed class DepthBackendTests
                 Hypotheses = hypotheses
             };
         }
+
         using var session = accelerators.Single(accelerator => accelerator.Backend == "metal").Open(views, default);
         var expected = new float[samples.Length * hypotheses.Length];
         Check(session.Calculate(default, samples, expected, default) == expected.Length, "Incomplete reference batch");
@@ -302,6 +309,7 @@ public sealed class DepthBackendTests
                     Check(BitConverter.SingleToInt32Bits(costs[index]) == BitConverter.SingleToInt32Bits(expected[start * hypotheses.Length + index]),
                         "Grouping or concurrent submission changed a GPU cost");
                 }
+
                 Check(costs.Skip(written).All(float.IsNaN), "GPU wrote beyond the logical result length");
             }
         });
@@ -333,6 +341,7 @@ public sealed class DepthBackendTests
                 largeDifferences += error > .01 ? 1 : 0;
             }
         }
+
         errors.Sort();
         Check(errors.Count > 1000, "Fixture must reconstruct a supported surface");
         var p99 = errors[(int)((errors.Count - 1) * .99)];
@@ -360,6 +369,7 @@ public sealed class DepthBackendTests
                     texture.SetPixel(x, y, new SKColor(shade, shade, shade));
                 }
             }
+
             var project = new ProjectData
             {
                 Settings = new Settings { DepthSuppressSky = false, DepthWidth = 192, DepthPlanes = 49, DepthNeighbours = 2, DepthRangeAutomatic = false, DepthNear = 8, DepthFar = 12 }
@@ -376,10 +386,12 @@ public sealed class DepthBackendTests
                         bitmap.SetPixel(x, y, texture.GetPixel(Math.Clamp(x + shift, 0, texture.Width - 1), y));
                     }
                 }
+
                 images.Save(bitmap, store.PathFor(id + ".png"), SKEncodedImageFormat.Png);
                 project.Images.Add(new Photo { Id = id, Source = id + ".png", Width = 192, Height = 128, FocalPixels = 150 });
                 scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [worldOffset + shift / 15.0, worldOffset, worldOffset] });
             }
+
             action(store, project, scene);
         }
         finally

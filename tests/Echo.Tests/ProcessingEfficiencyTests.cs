@@ -52,6 +52,7 @@ public sealed class ProcessingEfficiencyTests
             {
                 pixels[i] = new SKColor((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
             }
+
             bitmap.Pixels = pixels;
             foreach (var width in new[] { 32, 80, 173, 256 })
             {
@@ -78,6 +79,7 @@ public sealed class ProcessingEfficiencyTests
                             var alpha = alphaType == SKAlphaType.Opaque ? 255 : random.Next(256);
                             pixels[i] = new SKColor((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256), (byte)alpha);
                         }
+
                         bitmap.Pixels = pixels;
                         foreach (var width in new[] { 32, 80, 173, 256 })
                         {
@@ -124,6 +126,7 @@ public sealed class ProcessingEfficiencyTests
                 {
                     rejected = true;
                 }
+
                 Check(rejected, $"Reject invalid manual budget {budget}");
             }
 
@@ -145,6 +148,7 @@ public sealed class ProcessingEfficiencyTests
                 Check(plan.ConcurrentImages == 2 && plan.WorkersPerImage == 8, "2 GB and 4 GB allow two jobs sharing 16 workers");
                 Check(plan.MemoryBudgetBytes == budget * 1024L * 1024, "Report the resolved manual budget");
             }
+
             var cpuPlan = planner.Plan(project, 48);
             project.Settings.DepthBackend = "auto";
             var metalPlan = planner.Plan(project, 48);
@@ -166,6 +170,7 @@ public sealed class ProcessingEfficiencyTests
             {
                 rejected = true;
             }
+
             Check(rejected, "A manual limit below even one worker must not overcommit memory");
             project.Settings.DepthMemoryBudgetMb = 2048;
             var plan = planner.Plan(project, 48);
@@ -192,6 +197,7 @@ public sealed class ProcessingEfficiencyTests
                 catch (IOException)
                 {
                 }
+
                 Check(File.ReadAllBytes(path).SequenceEqual(expected), "Previous checkpoint survives failed write");
             }
             finally
@@ -248,9 +254,11 @@ public sealed class ProcessingEfficiencyTests
                         blue += colour.Blue;
                     }
                 }
+
                 output[y * result.Width + x] = new SKColor((byte)(red / count), (byte)(green / count), (byte)(blue / count));
             }
         }
+
         result.Pixels = output;
         return result;
     }

@@ -17,6 +17,7 @@ public sealed class TextureRunOptions
         {
             settings.TextureColourEnhancement = ColourStrength.Value;
         }
+
         if (SeamWidth.HasValue)
         {
             settings.TextureSeamBlendPixels = SeamWidth.Value;

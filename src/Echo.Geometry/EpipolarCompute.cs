@@ -13,11 +13,13 @@ internal static class EpipolarCompute
         {
             return null;
         }
+
         var session = compute.Open(backend, cancellation);
         if (session == null)
         {
             return null;
         }
+
         var packed = ArrayPool<float>.Shared.Rent(matches.Count * 4);
         try
         {
@@ -28,6 +30,7 @@ internal static class EpipolarCompute
                 packed[i * 4 + 2] = (float)matches[i].B[0];
                 packed[i * 4 + 3] = (float)matches[i].B[1];
             }
+
             session.Upload<float>(0, packed.AsSpan(0, matches.Count * 4));
             return session;
         }
@@ -57,6 +60,7 @@ internal static class EpipolarCompute
                 values[i * 9 + j] = (float)(matrices[i]?[j] ?? 0);
             }
         }
+
         session.Upload<float>(1, values);
         session.Allocate(2, checked(count * matches * sizeof(int)));
         session.Allocate(3, count * sizeof(int));

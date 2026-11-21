@@ -40,6 +40,7 @@ public sealed class PerformanceDiagnosticsTests
                 accumulator.Begin(index * 100);
                 accumulator.End(new PerformanceSpan { DurationMilliseconds = duration }, index * 100 + duration);
             }
+
             var result = accumulator.Snapshot(10000);
             Check(result.MedianUpperMilliseconds == 1.024 && result.P95UpperMilliseconds == 1.024, "Percentiles use bounded duration buckets");
             Check(result.MaximumMilliseconds == 100 && result.Count == 100, "The outlier remains represented");
@@ -57,11 +58,13 @@ public sealed class PerformanceDiagnosticsTests
                 {
                     GC.KeepAlive(new byte[1_000_000]);
                 }
+
                 using var moved = trace.Begin("cross thread", PerformanceSpanKind.Operation);
                 var worker = new Thread(() => moved!.Complete());
                 worker.Start();
                 worker.Join();
             }
+
             session.Finish(PerformanceStatus.Completed);
             var result = session.Snapshot();
             Check(result.Spans.Single(span => span.Name == "allocating").ThreadAllocatedBytes >= 1_000_000, "Calling-thread allocations measured");
@@ -84,6 +87,7 @@ public sealed class PerformanceDiagnosticsTests
                 {
                     trace.Measurement("counter " + index, index);
                 }
+
                 var first = session.Snapshot();
                 var sample = first.Measurements.Single(row => row.Name == "batch");
                 Check(sample.Count == 2 && sample.Total == 8 && sample.Minimum == 2 && sample.Maximum == 6, "Measurement aggregates are accurate");

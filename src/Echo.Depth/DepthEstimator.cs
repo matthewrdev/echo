@@ -45,10 +45,12 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             progress?.Invoke($"Depth range excluded {range.RejectedObservations:N0} sparse points with missing cameras, invalid geometry or less than 0.5° triangulation parallax");
         }
+
         if (range.SubjectDistanceRejectedObservations > 0)
         {
             progress?.Invoke($"Subject distance excluded {range.SubjectDistanceRejectedObservations:N0} distant sparse observations before depth range selection.");
         }
+
         if (range.OutsideSubjectRange)
         {
             progress?.Invoke("Explicit near/far bounds lie beyond the subject distance limit; retaining the photo with an empty depth map.");
@@ -74,6 +76,7 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             levelCount++;
         }
+
         var level = 0;
         while (true)
         {
@@ -95,6 +98,7 @@ public sealed class DepthEstimator : IDepthEstimator
                 // throws. Only then may another image reuse these grayscale arrays.
                 sources.ReleaseLevel();
             }
+
             if (width == project.Settings.DepthWidth)
             {
                 SubjectDistanceFilter.Apply(prior, subjectDistance, cancellation);
@@ -114,12 +118,15 @@ public sealed class DepthEstimator : IDepthEstimator
             {
                 continue;
             }
+
             if (found != null)
             {
                 throw new EchoException($"Duplicate photograph ID: {imageId}.", 5);
             }
+
             found = photo;
         }
+
         return found ?? throw new EchoException($"Missing photograph: {imageId}.", 5);
     }
 
@@ -195,6 +202,7 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             planeDepths[plane] = 1 / (1 / near + (1 / far - 1 / near) * plane / (project.Settings.DepthPlanes - 1));
         }
+
         var options = new ParallelOptions
         {
             CancellationToken = cancellation,
@@ -210,6 +218,7 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             progress?.Invoke($"{levelLabel}: CPU fallback: {acceleration.Failure}");
         }
+
         trace?.Operation(new OperationProgress($"Depth search {levelWidth}px", "Searching stereo depths"));
         var searchStart = Stopwatch.GetTimestamp();
         var globalSearches = 0;
@@ -242,8 +251,10 @@ public sealed class DepthEstimator : IDepthEstimator
                 {
                     levelProgress.CompleteRow();
                 }
+
                 return scratch;
             }
+
             Span<double> patch = stackalloc double[25];
             var hypothesisBuffer = scratch.Hypotheses;
             var costBuffer = scratch.Costs;
@@ -277,13 +288,16 @@ public sealed class DepthEstimator : IDepthEstimator
                         scratch.RecoveredSamples++;
                     }
                 }
+
                 if (!found)
                 {
                     continue;
                 }
+
                 result.Depth[y * width + x] = (float)selectedDepth;
                 result.Confidence[y * width + x] = (float)(1 - best);
             }
+
             levelProgress.CompleteRow();
             return scratch;
         }, scratch =>
@@ -358,6 +372,7 @@ public sealed class DepthEstimator : IDepthEstimator
             {
                 cancellation.ThrowIfCancellationRequested();
             }
+
             var depth = hypotheses[plane];
             if (Vector128.IsHardwareAccelerated && plane + 1 < hypotheses.Length)
             {
@@ -369,18 +384,21 @@ public sealed class DepthEstimator : IDepthEstimator
                     best = costs[plane];
                     bestPlane = plane;
                 }
+
                 plane++;
             }
             else
             {
                 costs[plane] = CalculateCost(views, centre + ray * depth, depth, patch, norm);
             }
+
             if (costs[plane] < best)
             {
                 best = costs[plane];
                 bestPlane = plane;
             }
         }
+
         return AcceptDepth(views, centre, ray, hypotheses, costs, checkAmbiguity, bestPlane, best, out selectedDepth);
     }
 
@@ -397,6 +415,7 @@ public sealed class DepthEstimator : IDepthEstimator
                 bestPlane = plane;
             }
         }
+
         return AcceptDepth(views, centre, ray, hypotheses, costs, checkAmbiguity, bestPlane, best, out selectedDepth);
     }
 
@@ -408,6 +427,7 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             return false;
         }
+
         if (checkAmbiguity)
         {
             for (var plane = 0; plane < costs.Length; plane++)
@@ -419,6 +439,7 @@ public sealed class DepthEstimator : IDepthEstimator
                 }
             }
         }
+
         selectedDepth = InterpolateDepth(hypotheses, costs, bestPlane, best);
         return true;
     }
@@ -429,15 +450,18 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             return new DepthAccelerationState(null, null);
         }
+
         if (backend is not ("auto" or "metal" or "metal-validated"))
         {
             throw new EchoException("Unknown depth backend: " + backend, 2);
         }
+
         var accelerator = accelerators.SingleOrDefault(candidate => candidate.Backend == "metal");
         if (accelerator == null)
         {
             return new DepthAccelerationState(null, "Metal module is not installed.");
         }
+
         try
         {
             return new DepthAccelerationState(accelerator.Open(views, cancellation), null);
@@ -468,12 +492,14 @@ public sealed class DepthEstimator : IDepthEstimator
                 {
                     continue;
                 }
+
                 var count = prior == null ? 0 : CreateHypotheses(prior, x, y, width, height, near, far, scratch.Hypotheses);
                 var ray = CameraGeometry.Rotate(camera.Rotation, new V3((x - width * .5) / focal, rayY, 1));
                 var sample = batch.Sample(y * width + x, ray, norm, patch, scratch.Hypotheses[..count], planeDepths);
                 (count > 0 ? batch.Local : batch.Global).Add(sample);
             }
         }
+
         SearchAcceleratedBatch(batch.Local, false, views, centre, result, scratch, acceleration, validate, planeDepths, cancellation);
         scratch.GlobalSearches += batch.Global.Count;
         var missing = SearchAcceleratedBatch(batch.Global, true, views, centre, result, scratch, acceleration, validate, planeDepths, cancellation);
@@ -492,6 +518,7 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             return rejected;
         }
+
         var acceleratedCosts = scratch.Batch!.Costs;
         var accelerated = CalculateAcceleratedCosts(centre, samples, acceleratedCosts, acceleration, cancellation);
         for (var index = 0; index < samples.Count; index++)
@@ -514,6 +541,7 @@ public sealed class DepthEstimator : IDepthEstimator
                 {
                     costs[plane] = acceleratedCosts[index * costs.Length + plane];
                 }
+
                 found = SelectDepth(views, centre, sample.Ray, sample.Hypotheses.Span, costs,
                     checkAmbiguity, out depth, out cost);
                 scratch.AcceleratedSearches++;
@@ -529,11 +557,13 @@ public sealed class DepthEstimator : IDepthEstimator
                     {
                         scratch.MatchedSearches++;
                     }
+
                     found = cpuFound;
                     depth = cpuDepth;
                     cost = cpuCost;
                 }
             }
+
             if (!found)
             {
                 rejected++;
@@ -544,11 +574,14 @@ public sealed class DepthEstimator : IDepthEstimator
                         Hypotheses = planeDepths
                     });
                 }
+
                 continue;
             }
+
             result.Depth[sample.PixelIndex] = (float)depth;
             result.Confidence[sample.PixelIndex] = (float)(1 - cost);
         }
+
         return rejected;
     }
 
@@ -559,6 +592,7 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             return false;
         }
+
         try
         {
             var count = acceleration.Session!.Calculate(centre, samples, costs, cancellation);
@@ -566,6 +600,7 @@ public sealed class DepthEstimator : IDepthEstimator
             {
                 throw new DepthAccelerationException("Metal returned an invalid cost count.");
             }
+
             foreach (var cost in costs.AsSpan(0, count))
             {
                 // Positive infinity means insufficient support, as on the CPU.
@@ -575,6 +610,7 @@ public sealed class DepthEstimator : IDepthEstimator
                     throw new DepthAccelerationException("Metal returned an invalid stereo cost.");
                 }
             }
+
             return true;
         }
         catch (DepthAccelerationException error)
@@ -596,6 +632,7 @@ public sealed class DepthEstimator : IDepthEstimator
             {
                 continue;
             }
+
             var dx = view.Focal * (first.X / first.Z - second.X / second.Z);
             var dy = view.Focal * (first.Y / first.Z - second.Y / second.Z);
             // Nearby samples of the same photometric minimum are not competing
@@ -606,6 +643,7 @@ public sealed class DepthEstimator : IDepthEstimator
                 return true;
             }
         }
+
         return false;
     }
 
@@ -670,6 +708,7 @@ public sealed class DepthEstimator : IDepthEstimator
             patch[i] -= mean;
             norm += patch[i] * patch[i];
         }
+
         return norm;
     }
 
@@ -763,6 +802,7 @@ public sealed class DepthEstimator : IDepthEstimator
                 selectedDepth = 1 / (1 / selectedDepth + offset * inverseStep);
             }
         }
+
         return selectedDepth;
     }
 
@@ -821,6 +861,7 @@ public sealed class DepthEstimator : IDepthEstimator
         {
             ArrayPool<float>.Shared.Return(rawDepth);
         }
+
         return retained;
     }
 }

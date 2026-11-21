@@ -61,6 +61,7 @@ public sealed class RunStateRecovery : IRunStateRecovery
                         message = "Interrupted performance trace could not be recovered: " + error.Message
                     });
                 }
+
                 if (cancelled)
                 {
                     context.Cancel();

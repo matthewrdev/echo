@@ -122,6 +122,7 @@ public sealed class RunContext : IDisposable
                 scratchDirectory = Store.PathFor($"work/paging-{Run.Id}-{Guid.NewGuid():N}");
                 Directory.CreateDirectory(scratchDirectory);
             }
+
             return scratchDirectory;
         }
     }
@@ -167,6 +168,7 @@ public sealed class RunContext : IDisposable
             cachePeakBytes = Math.Max(cachePeakBytes, final.PeakResidentBytes);
             data = null;
         }
+
         if (scratchDirectory != null)
         {
             Directory.Delete(scratchDirectory, true);
@@ -211,6 +213,7 @@ public sealed class RunContext : IDisposable
             {
                 throw new EchoException($"Processing exceeded its {Resources.MemoryBytes / 1048576:N0} MiB RAM budget (observed {usage.WorkingSetBytes / 1048576:N0} MiB, including registered native workers). Completed checkpoints are retained. Increase ProcessingMemoryBudgetMb and resume; resolution was not changed.", 5);
             }
+
             if (Run.Progress != null && Environment.TickCount64 - lastResourceReport >= 5000)
             {
                 lastResourceReport = Environment.TickCount64;
@@ -279,6 +282,7 @@ public sealed class RunContext : IDisposable
                 Precision = execution.Precision == ComputePrecision.IntegerExact ? "integer-exact" : "float32"
             });
         }
+
         return result;
     }
 
@@ -340,9 +344,11 @@ public sealed class RunContext : IDisposable
                 {
                     result.Executions.AddRange(DescribeExecutions(stage + ".compute", computeScope));
                 }
+
                 return result;
             };
         }
+
         string artifact;
         try
         {
@@ -363,6 +369,7 @@ public sealed class RunContext : IDisposable
             performance?.Complete(PerformanceStatus.Failed);
             throw;
         }
+
         lock (reportGate)
         {
             var path = artifact + "/processing.json";
@@ -383,6 +390,7 @@ public sealed class RunContext : IDisposable
                 processing = processing.Artifacts[artifact]
             });
         }
+
         return artifact;
     }
 
@@ -411,6 +419,7 @@ public sealed class RunContext : IDisposable
             {
                 return;
             }
+
             Trace.Operation(progress);
             Report("stageProgress", new
             {
@@ -436,6 +445,7 @@ public sealed class RunContext : IDisposable
             {
                 return;
             }
+
             Report("stageProgress", new
             {
                 stage,
@@ -543,6 +553,7 @@ public sealed class RunContext : IDisposable
             {
                 return;
             }
+
             stage = stage switch
             {
                 "feature-image" => "features",
@@ -562,6 +573,7 @@ public sealed class RunContext : IDisposable
             {
                 processingStages.Add(stage);
             }
+
             var checking = !processingStages.Contains(stage);
             var previous = Run.Progress?.Stage == stage ? Run.Progress : null;
             var beginsChildCheckpoint = type == "stageStarted" && reportedStage != stage;
@@ -571,6 +583,7 @@ public sealed class RunContext : IDisposable
                 // operation/counters or pretend another work item has finished.
                 return;
             }
+
             var completed = data.TryGetProperty("completed", out var done) && done.ValueKind == JsonValueKind.Number
                 ? (long?)done.GetInt64()
                 : null;
@@ -648,6 +661,7 @@ public sealed class RunContext : IDisposable
         {
             return;
         }
+
         try
         {
             lock (traceSaveGate)
@@ -678,6 +692,7 @@ public sealed class RunContext : IDisposable
             fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/processing.json"), processing);
             processingDirty = false;
         }
+
         fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/run.json"), Run);
         File.Delete(Store.PathFor($"runs/{Run.Id}/progress.json"));
         lastProgressSave = long.MinValue;

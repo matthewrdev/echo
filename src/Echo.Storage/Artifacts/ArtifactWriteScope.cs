@@ -28,16 +28,19 @@ public sealed class ArtifactWriteScope : IDisposable
         {
             return false;
         }
+
         var file = new FileInfo(path);
         if (!file.Exists || file.Length != written.Length)
         {
             return false;
         }
+
         var unchanged = file.LastWriteTimeUtc == written.LastWriteUtc && file.CreationTimeUtc == written.CreatedUtc;
         if (!unchanged)
         {
             return false;
         }
+
         checksum = written.Checksum;
         return true;
     }

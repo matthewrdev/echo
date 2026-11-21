@@ -10,10 +10,12 @@ public static class TextureVegetationBudget
         {
             return 0;
         }
+
         if (!double.IsFinite(linearScale) || linearScale is <= 0 or > 1)
         {
             throw new ArgumentOutOfRangeException(nameof(linearScale));
         }
+
         var count = 0;
         foreach (var patch in patches)
         {
@@ -21,16 +23,19 @@ public static class TextureVegetationBudget
             {
                 continue;
             }
+
             foreach (var coordinate in patch.Coordinates.Values)
             {
                 coordinate[0] *= linearScale;
                 coordinate[1] *= linearScale;
             }
+
             var bounds = patch.Bounds;
             patch.Bounds = new SKRect((float)(bounds.Left * linearScale), (float)(bounds.Top * linearScale),
                 (float)(bounds.Right * linearScale), (float)(bounds.Bottom * linearScale));
             count++;
         }
+
         return count;
     }
 }

@@ -87,6 +87,7 @@ public sealed class FusionSettingsTests
                 photo.FocalPixels = 6400;
                 fixture.Views.Add(new DepthView(photo, fixture.Scene.Cameras[index], fixture.Maps[index]));
             }
+
             fixture.Project.Settings.FusionDetailMultiplier = 16;
             var resources = new FusionResourcePlan(25600000, 100000);
             foreach (var target in new[] { 0, .025, .1, .5 })
@@ -97,6 +98,7 @@ public sealed class FusionSettingsTests
                 var expected = target == 0 ? .025 : target;
                 Check(grid.RequestedVoxelSize == expected && grid.VoxelSize == expected, "Fusion did not respect the target or minimum spacing");
             }
+
             fixture.Project.Settings.FusionVoxelSize = .024999;
             try
             {
@@ -143,6 +145,7 @@ public sealed class FusionSettingsTests
             {
                 Invalid(new Settings { FusionMemoryBudgetMb = megabytes });
             }
+
             foreach (var spacing in new[] { -1, .001, .024999, double.NaN, double.PositiveInfinity })
             {
                 Invalid(new Settings { FusionVoxelSize = spacing });
@@ -160,6 +163,7 @@ public sealed class FusionSettingsTests
         {
             return;
         }
+
         throw new InvalidOperationException("Invalid fusion settings were accepted");
     }
 

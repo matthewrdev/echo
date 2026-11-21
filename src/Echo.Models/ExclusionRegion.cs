@@ -45,12 +45,14 @@ public sealed class ExclusionRegion
         {
             throw new EchoException("Crop regions need an ID, a box, cylinder or painted hull shape, an include or exclude mode, finite coordinates and rotation, and positive dimensions.", 2);
         }
+
         if (Shape == ExclusionShape.ProjectedHull)
         {
             if (Hull == null)
             {
                 throw new EchoException("A painted crop region needs its projected hull.", 2);
             }
+
             Hull.Validate();
         }
     }

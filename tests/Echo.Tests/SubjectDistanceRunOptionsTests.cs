@@ -40,6 +40,7 @@ public sealed class SubjectDistanceRunOptionsTests
             {
                 ExpectFailure(() => Parse(value));
             }
+
             ExpectFailure(() => parser.Parse(["run", "start", "--subject-distance"]));
             ExpectFailure(() => parser.Parse(["run", "start", "--subject-distance", "off", "--subject-distance", "auto"]));
             var settings = new Settings();
@@ -83,6 +84,7 @@ public sealed class SubjectDistanceRunOptionsTests
                     FocalPixels = 64
                 });
             }
+
             store.Edit(project =>
             {
                 project.Images = photos;
@@ -123,6 +125,7 @@ public sealed class SubjectDistanceRunOptionsTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected a rejected setting or argument");
     }
 

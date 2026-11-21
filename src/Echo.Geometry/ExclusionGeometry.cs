@@ -12,10 +12,12 @@ public static class ExclusionGeometry
         {
             return false;
         }
+
         if (region.Shape == ExclusionShape.Box)
         {
             return Math.Abs(local.X) <= region.Width / 2 && Math.Abs(local.Z) <= region.Depth / 2;
         }
+
         var x = local.X / region.Radius;
         var z = local.Z / region.Radius;
         return x * x + z * z <= 1;
@@ -42,6 +44,7 @@ public static class ExclusionGeometry
             count = Clip(scratch[..count], polygon, new V3(0, 0, -1), region.Depth / 2);
             return count > 0;
         }
+
         return IntersectsCircle(polygon[..count], region.Radius);
     }
 
@@ -51,6 +54,7 @@ public static class ExclusionGeometry
         {
             return 0;
         }
+
         var count = 0;
         var previous = input[^1];
         var previousDistance = previous.Dot(normal) - extent;
@@ -61,13 +65,16 @@ public static class ExclusionGeometry
             {
                 output[count++] = previous + (point - previous) * (previousDistance / (previousDistance - distance));
             }
+
             if (distance <= 0)
             {
                 output[count++] = point;
             }
+
             previous = point;
             previousDistance = distance;
         }
+
         return count;
     }
 
@@ -88,11 +95,13 @@ public static class ExclusionGeometry
             {
                 return true;
             }
+
             if ((a.Z > 0) != (b.Z > 0) && a.X - a.Z * dx / dz > 0)
             {
                 containsOrigin = !containsOrigin;
             }
         }
+
         return containsOrigin;
     }
 }

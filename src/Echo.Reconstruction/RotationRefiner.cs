@@ -23,12 +23,14 @@ public static class RotationRefiner
         {
             cameraLookup.Add(candidate.ImageId, candidate);
         }
+
         foreach (var pair in pairs)
         {
             if (pair.A != camera.ImageId && pair.B != camera.ImageId)
             {
                 continue;
             }
+
             var ownA = pair.A == camera.ImageId;
             var otherId = ownA ? pair.B : pair.A;
             if (!cameraLookup.TryGetValue(otherId, out var other) || (new V3(other.Centre) - new V3(camera.Centre)).Length < .1)
@@ -79,6 +81,7 @@ public static class RotationRefiner
             {
                 camera.Rotation = original;
             }
+
             var weight = Math.Min(1, .006 / Math.Max(1e-10, Math.Abs(residual)));
             for (var row = 0; row < 3; row++)
             {
@@ -86,6 +89,7 @@ public static class RotationRefiner
                 {
                     normal[row, column] += jacobian[row] * jacobian[column] * weight;
                 }
+
                 rhs[row] -= jacobian[row] * (weight * residual);
             }
         }

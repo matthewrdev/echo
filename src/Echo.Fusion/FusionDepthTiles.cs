@@ -49,6 +49,7 @@ internal sealed class FusionDepthTiles : IDisposable
             {
                 break;
             }
+
             Windows[Count++] = window with
             {
                 Offset = Length
@@ -68,9 +69,11 @@ internal sealed class FusionDepthTiles : IDisposable
                         depths.AsSpan(Length + row * region.Width, region.Width));
                 }
             }
+
             Length += region.Count;
             hasPending = pending.MoveNext();
         }
+
         return Count > 0;
     }
 
@@ -84,6 +87,7 @@ internal sealed class FusionDepthTiles : IDisposable
             {
                 continue;
             }
+
             var width = Math.Min(region.Width, capacity / 2);
             var height = Math.Min(region.Height, capacity / width);
             // Adjacent tiles share only the pixel edge. Their bilinear base-pixel
@@ -105,6 +109,7 @@ internal sealed class FusionDepthTiles : IDisposable
         {
             return;
         }
+
         disposed = true;
         pending?.Dispose();
         if (depths != null)

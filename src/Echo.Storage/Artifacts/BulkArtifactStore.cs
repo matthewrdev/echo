@@ -38,10 +38,12 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
         {
             return (T)(object)features.Read(path);
         }
+
         if (typeof(T) == typeof(ImagePair))
         {
             return (T)(object)matches.Read(path);
         }
+
         using var session = OpenSession(8 * 1024 * 1024, 0);
         var value = session.Read<T>(path);
         // In-memory callers own their records. Paged processing uses a scoped
@@ -95,11 +97,13 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
             features.Write(path, featureSet, cancellation);
             return;
         }
+
         if (value is ImagePair pair)
         {
             matches.Write(path, pair, cancellation);
             return;
         }
+
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var header = new BulkArtifactHeader { Storage = "echo-binary-v1" };
         var created = new List<string>();
@@ -137,6 +141,7 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
                         {
                             header.Images.Add(point.ImageA);
                         }
+
                         if (photographIds.Add(point.ImageB))
                         {
                             header.Images.Add(point.ImageB);
@@ -193,6 +198,7 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
                 default:
                     throw new ArgumentException("Unsupported binary artifact.", nameof(value));
             }
+
             string? metadataHash;
             using (var output = File.Create(metadata))
             using (var hashing = new ChecksummedWriteStream(output))
@@ -201,11 +207,13 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
                 output.Flush(true);
                 metadataHash = hashing.CompleteChecksum();
             }
+
             File.Move(metadata, path, false);
             if (metadataHash != null)
             {
                 writes.Record(path, metadataHash);
             }
+
             created.Clear();
         }
         finally
@@ -237,6 +245,7 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
                     filled = 0;
                 }
             }
+
             cancellation.ThrowIfCancellationRequested();
             records.AddRange(batch.AsSpan(0, filled));
             return;
@@ -273,9 +282,11 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
             {
                 ArrayPool<byte>.Shared.Return(zeros);
             }
+
             output.Flush(true);
             checksum = hashing.CompleteChecksum();
         }
+
         if (checksum != null)
         {
             writes.Record(path, checksum);
@@ -301,11 +312,13 @@ public sealed class BulkArtifactStore : IBulkArtifactStore
                     count = 0;
                 }
             }
+
             cancellation.ThrowIfCancellationRequested();
             if (total != expected)
             {
                 throw new InvalidDataException("Artifact record count changed during publication.");
             }
+
             output.Write(bytes.AsSpan(0, count * codec.Size));
         }
         finally

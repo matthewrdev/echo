@@ -28,12 +28,14 @@ public static class PairVerificationFingerprint
                 BinaryPrimitives.WriteDoubleLittleEndian(row, value);
                 hash.AppendData(row[..8]);
             }
+
             foreach (var value in match.B)
             {
                 BinaryPrimitives.WriteDoubleLittleEndian(row, value);
                 hash.AppendData(row[..8]);
             }
         }
+
         return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
 }

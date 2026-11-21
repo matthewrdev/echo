@@ -17,6 +17,7 @@ public sealed class LineFeature : IFeatureDescriptor
                 descriptor = descriptorData.ToArray();
                 descriptorData = descriptor;
             }
+
             return descriptor;
         }
         set

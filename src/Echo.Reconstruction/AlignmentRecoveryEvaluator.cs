@@ -42,6 +42,7 @@ public static class AlignmentRecoveryEvaluator
             result.Add(Key(point.ImageA, point.PixelA));
             result.Add(Key(point.ImageB, point.PixelB));
         }
+
         return result;
     }
 

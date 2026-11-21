@@ -58,6 +58,7 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
                             session = segmenter.Open(model, backend);
                         }
                     }
+
                     context.ReportProgress(progressStage, $"Detecting sky, vegetation and rock locally · {photo.Name}");
                     detected = session.Segment(context.Store.PathFor(photo.Source), photo.Id, context.Cancellation);
                     files.AtomicData(Path.Combine(directory, "semantics.json"), detected, context.Cancellation);
@@ -84,6 +85,7 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
         {
             session?.Dispose();
         }
+
         var artifact = context.Build("semantics", units, directory => files.AtomicJson(Path.Combine(directory, "units.json"), units),
             () => new ProcessingMetadata { SourceArtifacts = units.Values.ToList() });
         context.Publish("semantics", artifact);

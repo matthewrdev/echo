@@ -47,6 +47,7 @@ public sealed class SceneStorageTests
                     Colour = index % 2 == 0 ? [0, 128, 255] : null
                 });
             }
+
             scene.Points.Add(new CloudPoint());
             var path = Path.Combine(directory, "scene.json");
             files.AtomicData(path, scene);
@@ -64,6 +65,7 @@ public sealed class SceneStorageTests
                 Check(expected.ImageA == actual.ImageA && expected.ImageB == actual.ImageB, "Photograph identity changed");
                 Check(expected.Colour == null ? actual.Colour == null : expected.Colour.SequenceEqual(actual.Colour!), "Colour changed");
             }
+
             Check(session.Statistics.Evictions > 0 && session.Statistics.PeakResidentBytes == 65536, "Scene did not obey the page budget");
             var owned = json.Read<ReconstructionScene>(path);
             Check(owned.Points is List<CloudPoint> && owned.Points.Count == scene.Points.Count, "Owned read must survive its storage session");
@@ -88,6 +90,7 @@ public sealed class SceneStorageTests
             {
                 failed = true;
             }
+
             Check(failed, "Full scene must reject a missing point buffer");
             File.WriteAllText(path, "{\"cameras\":[],\"points\":[]}");
             failed = false;
@@ -99,6 +102,7 @@ public sealed class SceneStorageTests
             {
                 failed = true;
             }
+
             Check(failed, "Legacy bulk JSON must require regeneration");
         }));
         tests.Run("Sparse point records reject corrupt photograph indices and flags", () =>
@@ -119,6 +123,7 @@ public sealed class SceneStorageTests
                 {
                     rejected = true;
                 }
+
                 Check(rejected, "Corrupt point record was accepted");
             }
         });

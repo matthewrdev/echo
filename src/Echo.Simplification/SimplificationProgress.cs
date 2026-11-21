@@ -50,16 +50,19 @@ internal sealed class SimplificationProgress
         {
             return;
         }
+
         var title = steps[(int)phase];
         var message = total.HasValue ? $"{title}: {completed:N0} / {total:N0} {unit}." : $"{title}: {completed:N0} {unit} examined.";
         if (remainingFaces.HasValue)
         {
             message += $" {remainingFaces:N0} triangles remain.";
         }
+
         if (queued.HasValue)
         {
             message += $" {queued:N0} candidates queued.";
         }
+
         publish(new OperationProgress(title, message, completed, total, unit)
         {
             Steps = steps,

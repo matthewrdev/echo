@@ -84,12 +84,14 @@ public sealed class SurfaceCompletionTests
                 var distant = new DepthMap { ImageId = "distant-" + index, Width = 64, Height = 64, Depth = Enumerable.Repeat(98f, 4096).ToArray() };
                 fixture.Views.Add(new DepthView(photo, new CameraPose { Centre = [0, 0, -90] }, distant));
             }
+
             Check(SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, default).Faces.Count == 2,
                 "Four uncertain distant views cannot outvote three precise close views");
             foreach (var view in fixture.Views)
             {
                 Array.Fill(view.Map.Depth, 0f);
             }
+
             Check(SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, default).Faces.Count == 3, "Unknown depths do not erase inferred patches");
             Expect<OperationCanceledException>(() => SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, new CancellationToken(true)));
         });
@@ -172,6 +174,7 @@ public sealed class SurfaceCompletionTests
             {
                 vertex[2] = 9.8;
             }
+
             var overlappingDepth = meshes.AssignCameras(project, scene, [map], surface, default, retainUnobserved: true);
             Check(overlappingDepth.SourceImages.Count(string.IsNullOrEmpty) == 1,
                 "Depth tolerance cannot make a photograph see through a foreground triangle");
@@ -195,10 +198,12 @@ public sealed class SurfaceCompletionTests
                         {
                             writer.Write(value);
                         }
+
                         writer.Write(0u);
                         writer.Write(1u);
                         writer.Write(invalid == "index" ? 3u : invalid == "duplicate" ? 1u : invalid == "unsigned" ? uint.MaxValue : 2u);
                     }
+
                     if (invalid == "valid")
                     {
                         Check(codec.Read(path, default).Faces.Count == 1, "Valid worker output is accepted");
@@ -233,6 +238,7 @@ public sealed class SurfaceCompletionTests
                         writer.Write(-0d);
                         writer.Write(double.Epsilon);
                     }
+
                     for (var index = 0; index < faceCount; index++)
                     {
                         writer.Write(index % vertexCount);
@@ -240,6 +246,7 @@ public sealed class SurfaceCompletionTests
                         writer.Write((index + 2) % vertexCount);
                     }
                 }
+
                 var surface = codec.Read(path, default);
                 var scratchDirectory = path + "-scratch";
                 try
@@ -253,6 +260,7 @@ public sealed class SurfaceCompletionTests
                         Check(paged.Vertices[vertex].Select(BitConverter.DoubleToInt64Bits)
                             .SequenceEqual(surface.Vertices[vertex].Select(BitConverter.DoubleToInt64Bits)), "Paged Poisson vertex bits differ");
                     }
+
                     for (var face = 0; face < surface.Faces.Count; face++)
                     {
                         Check(paged.Faces[face].SequenceEqual(surface.Faces[face]), "Paged Poisson triangles differ");
@@ -262,6 +270,7 @@ public sealed class SurfaceCompletionTests
                 {
                     Directory.Delete(scratchDirectory, true);
                 }
+
                 Check(surface.Vertices.Count == vertexCount && surface.Faces.Count == faceCount, "Block tail lost records");
                 for (var index = 0; index < vertexCount; index++)
                 {
@@ -269,15 +278,18 @@ public sealed class SurfaceCompletionTests
                     Check(point[0] == index * Math.PI && BitConverter.DoubleToInt64Bits(point[1]) == long.MinValue
                         && point[2] == double.Epsilon, "Vertex precision or signed zero changed");
                 }
+
                 for (var index = 0; index < faceCount; index++)
                 {
                     Check(surface.Faces[index].SequenceEqual(new[] { index % vertexCount, (index + 1) % vertexCount, (index + 2) % vertexCount }), "Face order or winding changed");
                 }
+
                 Expect<OperationCanceledException>(() => codec.Read(path, new CancellationToken(true)));
                 using (var stream = File.OpenWrite(path))
                 {
                     stream.SetLength(stream.Length - 1);
                 }
+
                 Expect<EchoException>(() => codec.Read(path, default));
 
                 var samples = Enumerable.Range(0, 3001).Select(index => new OrientedSurfaceSample(
@@ -299,6 +311,7 @@ public sealed class SurfaceCompletionTests
                         writer.Write(sample.Normal.Z);
                     }
                 }
+
                 Check(File.ReadAllBytes(path).SequenceEqual(expected.ToArray()), "Buffered sample writes changed the worker contract");
                 Expect<OperationCanceledException>(() => codec.WriteSamples(path, samples, new CancellationToken(true)));
             }
@@ -323,6 +336,7 @@ public sealed class SurfaceCompletionTests
                     measured.Faces[index] = [face[0], face[2], face[1]];
                 }
             }
+
             var completed = reconstructor.Reconstruct(measured, scene, .08, default);
             Check(completed.Faces.Count > 1000, "The actual bundled solver produced a surface");
             Check(completed.Vertices.All(point => point.All(double.IsFinite)), "All vertices are finite");
@@ -349,6 +363,7 @@ public sealed class SurfaceCompletionTests
                 surface.Vertices.Add([Math.Sin(angle) * Math.Cos(longitude), Math.Sin(angle) * Math.Sin(longitude), Math.Cos(angle)]);
             }
         }
+
         for (var ring = 0; ring < rings - 5; ring++)
         {
             for (var segment = 0; segment < segments; segment++)
@@ -360,12 +375,14 @@ public sealed class SurfaceCompletionTests
                 surface.Faces.Add([a, b + segments, b]);
             }
         }
+
         var pole = surface.Vertices.Count;
         surface.Vertices.Add([0, 0, -1]);
         for (var segment = 0; segment < segments; segment++)
         {
             surface.Faces.Add([pole - segments + segment, pole, pole - segments + (segment + 1) % segments]);
         }
+
         return surface;
     }
 
@@ -379,6 +396,7 @@ public sealed class SurfaceCompletionTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected " + typeof(TException).Name);
     }
 

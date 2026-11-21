@@ -35,6 +35,7 @@ internal sealed class TextureLinearSystem
             fixedRows[entry.Key] = true;
             solution[entry.Key] = entry.Value;
         }
+
         for (var row = 0; row < count; row++)
         {
             foreach (var entry in rows[row])
@@ -42,6 +43,7 @@ internal sealed class TextureLinearSystem
                 columns.Add(entry.Key);
                 coefficients.Add(entry.Value);
             }
+
             offsets[row + 1] = columns.Count;
             diagonal[row] = rows[row].GetValueOrDefault(row);
             if (!fixedRows[row] && (!(diagonal[row] > 0) || !double.IsFinite(diagonal[row])))
@@ -49,6 +51,7 @@ internal sealed class TextureLinearSystem
                 return null;
             }
         }
+
         var indices = columns.ToArray();
         var values = coefficients.ToArray();
         var residual = new double[count];
@@ -62,14 +65,17 @@ internal sealed class TextureLinearSystem
             {
                 continue;
             }
+
             residual[row] = -product[row];
             direction[row] = residual[row] / diagonal[row];
             energy += residual[row] * direction[row];
         }
+
         if (!double.IsFinite(energy))
         {
             return null;
         }
+
         var tolerance = Math.Max(1e-28, energy * 1e-20);
         var warm = TextureSolveCompute.TryWarmStart(compute, backend, offsets, indices, values, diagonal, fixedRows, solution, cancellation);
         if (warm != null)
@@ -83,6 +89,7 @@ internal sealed class TextureLinearSystem
                     warmEnergy += product[row] * product[row] / diagonal[row];
                 }
             }
+
             if (double.IsFinite(warmEnergy) && warmEnergy < energy * .5)
             {
                 solution = warm;
@@ -97,6 +104,7 @@ internal sealed class TextureLinearSystem
                 }
             }
         }
+
         for (var iteration = 0; iteration < Math.Min(4000, count * 4 + 32); iteration++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -104,16 +112,19 @@ internal sealed class TextureLinearSystem
             {
                 return solution;
             }
+
             Multiply(offsets, indices, values, direction, product, fixedRows);
             var denominator = 0.0;
             for (var row = 0; row < count; row++)
             {
                 denominator += direction[row] * product[row];
             }
+
             if (!(denominator > 0) || !double.IsFinite(denominator))
             {
                 return null;
             }
+
             var step = energy / denominator;
             var nextEnergy = 0.0;
             for (var row = 0; row < count; row++)
@@ -122,10 +133,12 @@ internal sealed class TextureLinearSystem
                 {
                     continue;
                 }
+
                 solution[row] += step * direction[row];
                 residual[row] -= step * product[row];
                 nextEnergy += residual[row] * residual[row] / diagonal[row];
             }
+
             var beta = nextEnergy / energy;
             for (var row = 0; row < count; row++)
             {
@@ -134,8 +147,10 @@ internal sealed class TextureLinearSystem
                     direction[row] = residual[row] / diagonal[row] + beta * direction[row];
                 }
             }
+
             energy = nextEnergy;
         }
+
         return null;
     }
 
@@ -152,6 +167,7 @@ internal sealed class TextureLinearSystem
                     sum += values[entry] * vector[indices[entry]];
                 }
             }
+
             result[row] = sum;
         }
     }

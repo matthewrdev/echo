@@ -15,15 +15,18 @@ internal static class SeamDiffusionCompute
         {
             return null;
         }
+
         if (!compute.CanAllocate((long)nodes.Count * 36 + nodes.Sum(node => (long)node.Neighbours.Count * sizeof(int)) + 4, backend))
         {
             return null;
         }
+
         using var session = compute.Open(backend, cancellation);
         if (session == null)
         {
             return null;
         }
+
         var values = ArrayPool<float>.Shared.Rent(local.Length * 4);
         try
         {
@@ -36,11 +39,13 @@ internal static class SeamDiffusionCompute
                 values[i * 4 + 2] = (float)local[i].Z;
                 values[i * 4 + 3] = nodes[i].Weight > 0 ? 1 : 0;
             }
+
             var neighbours = new int[offsets[^1]];
             for (var i = 0; i < nodes.Count; i++)
             {
                 nodes[i].Neighbours.CopyTo(neighbours, offsets[i]);
             }
+
             session.Upload<int>(0, offsets);
             session.Upload<int>(1, neighbours);
             session.Upload<float>(2, values.AsSpan(0, local.Length * 4));
@@ -50,12 +55,14 @@ internal static class SeamDiffusionCompute
                 cancellation.ThrowIfCancellationRequested();
                 session.Dispatch(ComputeKernel.SeamDiffuse, local.Length, [pass % 2]);
             }
+
             session.Read<float>(2, values.AsSpan(0, local.Length * 4));
             var result = new V3[local.Length];
             for (var i = 0; i < result.Length; i++)
             {
                 result[i] = new V3(values[i * 4], values[i * 4 + 1], values[i * 4 + 2]);
             }
+
             return result;
         }
         catch (ComputeException) when (backend == ComputeBackend.Auto)

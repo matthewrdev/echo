@@ -31,6 +31,7 @@ public static class CameraRegistrar
             {
                 continue;
             }
+
             foreach (var match in pair.Matches)
             {
                 var ownA = pair.A == imageId;
@@ -52,6 +53,7 @@ public static class CameraRegistrar
         {
             observations.Add(observation);
         }
+
         return observations;
     }
 
@@ -79,6 +81,7 @@ public static class CameraRegistrar
                 indices[selected] = previous;
                 sample[slot] = observations[indices[slot]];
             }
+
             foreach (var pose in new[] { FitPose(photo, sample), PlanarPoseEstimator.Fit(photo, sample) })
             {
                 if (pose == null)
@@ -96,6 +99,7 @@ public static class CameraRegistrar
                         inliers.Add(observation);
                     }
                 }
+
                 if (inliers.Count > bestInliers.Count)
                 {
                     best = pose;
@@ -114,6 +118,7 @@ public static class CameraRegistrar
         {
             return null;
         }
+
         return best?.Source == "visual planar registration"
             ? PlanarPoseEstimator.Fit(photo, bestInliers) ?? best
             : FitPose(photo, bestInliers) ?? best;
@@ -126,12 +131,14 @@ public static class CameraRegistrar
         {
             mean += new V3(observation.Point);
         }
+
         mean /= observations.Count;
         double scale = 0;
         foreach (var observation in observations)
         {
             scale += (new V3(observation.Point) - mean).Length;
         }
+
         scale /= observations.Count;
         if (scale < 1e-8)
         {

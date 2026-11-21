@@ -57,6 +57,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
         {
             throw new ComputeException("Metal processing was requested but no compute service is available.");
         }
+
         if (compute != null && backend != ComputeBackend.Cpu)
         {
             try
@@ -111,6 +112,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(count));
         }
+
         cancellation.ThrowIfCancellationRequested();
         var bounds = FusionBoundsBuilder.Measure(Cells.AsSpan(0, count), voxel);
         if (gpu != null)
@@ -130,6 +132,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
                         gpu.Add(tiles, origin, count);
                     }
                 }
+
                 return new ArraySegment<VolumeSample>(output, 0, gpu.Finish(Cells.AsSpan(0, count), output, cancellation));
             }
             catch (ComputeException) when (backend == ComputeBackend.Auto)
@@ -141,6 +144,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
                 progress?.Invoke("Metal integration could not continue. Repeating the unfinished batch on CPU.");
             }
         }
+
         var cpuAccumulators = accumulators ??= ArrayPool<FusionAccumulator>.Shared.Rent(Capacity);
         cpuAccumulators.AsSpan(0, count).Clear();
         tiles.Start(views, bounds, origin);
@@ -158,6 +162,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
                     tiles.Windows.AsSpan(0, tiles.Count), tiles.Depths, voxel, tolerance, origin);
             });
         }
+
         var retained = 0;
         for (var index = 0; index < count; index++)
         {
@@ -175,6 +180,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
                 };
             }
         }
+
         return new ArraySegment<VolumeSample>(output, 0, retained);
     }
 
@@ -184,6 +190,7 @@ internal sealed class FusionBatchIntegrator : IDisposable
         {
             return;
         }
+
         disposed = true;
         try
         {

@@ -26,6 +26,7 @@ internal sealed class TextureSkyGuard
         {
             return new TextureCoordinate(x, y);
         }
+
         return new TextureCoordinate((safe % width + .5) * cellSize, (safe / width + .5) * cellSize);
     }
 

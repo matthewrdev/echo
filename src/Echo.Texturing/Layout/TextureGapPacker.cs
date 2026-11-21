@@ -27,6 +27,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
         {
             throw new ArgumentException("Choose auto, cpu or metal for texture packing.", nameof(backend));
         }
+
         if (patches.Count < 2 || maximumCandidates == 0)
         {
             return baseline;
@@ -56,6 +57,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
                     progress?.Invoke("Gap search reached its candidate budget; retaining the best complete layout.");
                     break;
                 }
+
                 if (packed)
                 {
                     lower = candidate;
@@ -65,6 +67,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
                 {
                     upper = candidate;
                 }
+
                 progress?.Invoke($"Gap packing {iteration + 1}/8: texture density {100 * (lower / baseline - 1):F2}% above the skyline layout.");
             }
         }
@@ -76,6 +79,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
                 patches[index].QuarterTurns = best[index].QuarterTurns;
             }
         }
+
         return lower;
     }
 
@@ -118,6 +122,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
                 (float)(x + (rotated ? patch.Bounds.Height : patch.Bounds.Width) * scale),
                 (float)(y + (rotated ? patch.Bounds.Width : patch.Bounds.Height) * scale));
         }
+
         return true;
     }
 
@@ -135,6 +140,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
             {
                 return null;
             }
+
             TextureMaskPlacement? placement;
             if (accelerated && session != null)
             {
@@ -145,10 +151,12 @@ public sealed class TextureGapPacker : ITextureGapPacker
                     {
                         throw new TextureAccelerationException("Metal returned an overlapping placement.");
                     }
+
                     if (placement != null)
                     {
                         return placement;
                     }
+
                     continue;
                 }
                 catch (TextureAccelerationException error) when (backend == ComputeBackend.Auto)
@@ -157,12 +165,14 @@ public sealed class TextureGapPacker : ITextureGapPacker
                     progress?.Invoke($"Metal gap search unavailable; continuing on CPU: {error.Message}");
                 }
             }
+
             placement = TextureMaskSearch.Find(atlas, masks, last, cancellation, first);
             if (placement != null)
             {
                 return placement;
             }
         }
+
         return null;
     }
 
@@ -172,6 +182,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
         {
             return null;
         }
+
         foreach (var accelerator in accelerators)
         {
             try
@@ -184,10 +195,12 @@ public sealed class TextureGapPacker : ITextureGapPacker
                 progress?.Invoke($"Metal gap search unavailable; using CPU: {error.Message}");
             }
         }
+
         if (backend == ComputeBackend.Metal)
         {
             throw new TextureAccelerationException("Metal packing was requested but no accelerator is available.");
         }
+
         return null;
     }
 
@@ -206,6 +219,7 @@ public sealed class TextureGapPacker : ITextureGapPacker
                 area += Math.Abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) * .5;
             }
         }
+
         var available = (size / cellSize - 1 - 2 * (int)Math.Ceiling((double)gutter / cellSize)) * cellSize;
         return Math.Min(available / Math.Max(largest, 1e-12), Math.Sqrt((double)size * size / Math.Max(area, 1e-12)));
     }

@@ -62,6 +62,7 @@ public sealed class DepthSamplingTests
                 {
                     images.Save(blank, store.PathFor(photo.Source), SKEncodedImageFormat.Png);
                 }
+
                 Check(estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2).Depth.All(depth => depth == 0),
                     "Prefiltering must not invent a surface in textureless photographs");
             }
@@ -96,6 +97,7 @@ public sealed class DepthSamplingTests
                     bitmap.SetPixel(x, y, new SKColor(value, value, value));
                 }
             }
+
             images.Save(bitmap, store.PathFor(id + ".png"), SKEncodedImageFormat.Png);
             project.Images.Add(new Photo { Id = id, Source = id + ".png", Width = width, Height = height, FocalPixels = 768 });
             scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [shift / 76.8, 0, 0] });
@@ -116,6 +118,7 @@ public sealed class DepthSamplingTests
                 {
                     continue;
                 }
+
                 var expected = y < map.Height / 2 ? 10 : 12;
                 var error = Math.Abs(depth - expected);
                 errors.Add(error);
@@ -129,6 +132,7 @@ public sealed class DepthSamplingTests
                 }
             }
         }
+
         errors.Sort();
         Check(errors.Count > 60000, "Fine matching must retain most of both noisy surfaces");
         Check(errors.Count(error => error > .2) < errors.Count / 80, "Recovered depths must agree with known geometry");

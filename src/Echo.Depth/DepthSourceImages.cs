@@ -38,6 +38,7 @@ internal sealed class DepthSourceImages : IDisposable
         {
             StereoImageFilter.Apply(pixels.AsSpan(0, gray.Width * gray.Height), gray.Width, gray.Height, cancellation);
         }
+
         return gray;
     }
 
@@ -47,6 +48,7 @@ internal sealed class DepthSourceImages : IDisposable
         {
             ArrayPool<float>.Shared.Return(buffer);
         }
+
         levelBuffers.Clear();
     }
 
@@ -57,6 +59,7 @@ internal sealed class DepthSourceImages : IDisposable
         {
             source.Dispose();
         }
+
         sources.Clear();
     }
 }

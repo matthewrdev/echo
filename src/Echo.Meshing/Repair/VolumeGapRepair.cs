@@ -17,6 +17,7 @@ internal static class VolumeGapRepair
             cancellation.ThrowIfCancellationRequested();
             samples.Add(new Grid(sample.X, sample.Y, sample.Z), sample.Distance);
         }
+
         progress?.Invoke($"Indexed {samples.Count:N0} volume samples; finding bounded gaps…");
         using var scratch = work?.CreateScope();
         BinaryHashIndex<Grid, int>? candidates = null;
@@ -32,18 +33,21 @@ internal static class VolumeGapRepair
                 {
                     continue;
                 }
+
                 for (var span = 2; span <= 8; span++)
                 {
                     if (!samples.ContainsKey(key.Add(x * span, y * span, z * span)))
                     {
                         continue;
                     }
+
                     for (var step = 1; step < span; step++)
                     {
                         candidates ??= new BinaryHashIndex<Grid, int>(Math.Min(volume.Samples.Count, 4096),
                             new GridRecordCodec(), new IntRecordCodec(), scratch, cancellation);
                         candidates.TryAdd(key.Add(x * step, y * step, z * step), 0);
                     }
+
                     break;
                 }
             }
@@ -118,6 +122,7 @@ internal static class VolumeGapRepair
                 return step;
             }
         }
+
         value = 0;
         return 0;
     }

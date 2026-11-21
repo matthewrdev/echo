@@ -47,6 +47,7 @@ public sealed class CloudProcessingTests
                             "Cloud previews must describe the complete reusable cloud");
                     }
                 }
+
                 project.Settings.ExclusionRegions.Clear();
                 Check(builder.Build(store, project, scene, maps, default).Samples.SequenceEqual(original.Samples),
                     "Removing exclusions must restore the original cloud from saved depths");
@@ -73,6 +74,7 @@ public sealed class CloudProcessingTests
             {
                 Check(double.IsNaN(view.Difference(point)), "Unprojectable points have no supporting depth");
             }
+
             Check(view.Difference(new V3(0, 0, 10)) == 0, "Valid projections keep their depth difference");
         });
         tests.Run("Cloud support rejects depth-edge interpolation and inconsistent return projections", () =>
@@ -156,6 +158,7 @@ public sealed class CloudProcessingTests
                         Check(lastPreview?.RetainedSamples == cloud.Samples.Count, "Final preview contains the complete cloud count");
                     }
                 }
+
                 using var cancelled = new CancellationTokenSource();
                 var callbacks = 0;
                 try
@@ -170,6 +173,7 @@ public sealed class CloudProcessingTests
                 catch (OperationCanceledException)
                 {
                 }
+
                 Check(callbacks == 1, "No more progress callbacks after cancellation");
                 var afterCancellation = builder.Build(store, project, scene, maps, default);
                 Check(reference.Samples.SequenceEqual(afterCancellation.Samples), "Returned worker buffers remain safe to reuse");
@@ -177,6 +181,7 @@ public sealed class CloudProcessingTests
                 {
                     camera.Centre = [0, 0, 0];
                 }
+
                 try
                 {
                     builder.Build(store, project, scene, maps, default);
@@ -210,8 +215,10 @@ public sealed class CloudProcessingTests
             {
                 depth[index] = index % 7 == image ? 0 : 10;
             }
+
             maps.Add(new DepthMap { ImageId = id, Width = 64, Height = 48, Depth = depth, Confidence = new float[depth.Length] });
         }
+
         return maps;
     }
 

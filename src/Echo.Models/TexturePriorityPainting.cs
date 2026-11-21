@@ -11,6 +11,7 @@ public sealed class TexturePriorityPainting
         {
             throw new EchoException("Texture painting needs a saved alignment and an array of strokes.", 2);
         }
+
         foreach (var stroke in Strokes)
         {
             stroke.Validate();

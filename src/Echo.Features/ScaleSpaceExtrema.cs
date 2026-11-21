@@ -18,11 +18,13 @@ public static class ScaleSpaceExtrema
                     {
                         continue;
                     }
+
                     var point = Refine(differences, width, height, x, y, layer);
                     if (point is not { } refined)
                     {
                         continue;
                     }
+
                     var location = (refined.Layer * height + (int)Math.Round(refined.Y)) * width + (int)Math.Round(refined.X);
                     if (locations.Add(location))
                     {
@@ -31,6 +33,7 @@ public static class ScaleSpaceExtrema
                 }
             }
         }
+
         result.Sort(Compare);
         return result;
     }
@@ -42,11 +45,13 @@ public static class ScaleSpaceExtrema
         {
             return response;
         }
+
         var layer = left.Layer.CompareTo(right.Layer);
         if (layer != 0)
         {
             return layer;
         }
+
         var row = left.Y.CompareTo(right.Y);
         return row != 0 ? row : left.X.CompareTo(right.X);
     }
@@ -65,6 +70,7 @@ public static class ScaleSpaceExtrema
                     {
                         continue;
                     }
+
                     var neighbour = plane[(y + rowOffset) * width + x + columnOffset];
                     if (value > 0 ? neighbour >= value : neighbour <= value)
                     {
@@ -73,6 +79,7 @@ public static class ScaleSpaceExtrema
                 }
             }
         }
+
         return true;
     }
 
@@ -85,6 +92,7 @@ public static class ScaleSpaceExtrema
             {
                 return null;
             }
+
             var plane = differences[layer];
             var previous = differences[layer - 1];
             var next = differences[layer + 1];
@@ -104,6 +112,7 @@ public static class ScaleSpaceExtrema
             {
                 return null;
             }
+
             var dx = -((yy * ss - ys * ys) * gx + (xs * ys - xy * ss) * gy + (xy * ys - xs * yy) * gs) / determinant;
             var dy = -((xs * ys - xy * ss) * gx + (xx * ss - xs * xs) * gy + (xy * xs - xx * ys) * gs) / determinant;
             var ds = -((xy * ys - xs * yy) * gx + (xy * xs - xx * ys) * gy + (xx * yy - xy * xy) * gs) / determinant;
@@ -117,17 +126,21 @@ public static class ScaleSpaceExtrema
                 {
                     return null;
                 }
+
                 return new ScaleKeypoint(x + dx, y + dy, layer, 1.6 * Math.Pow(2, (layer + ds) / 3), contrast);
             }
+
             var invalidOffset = !double.IsFinite(dx + dy + ds) || Math.Abs(dx) > 2 || Math.Abs(dy) > 2 || Math.Abs(ds) > 2;
             if (invalidOffset)
             {
                 return null;
             }
+
             x += (int)Math.Round(dx);
             y += (int)Math.Round(dy);
             layer += (int)Math.Round(ds);
         }
+
         return null;
     }
 }

@@ -19,6 +19,7 @@ internal sealed class InitialEdgeIndex
         {
             bucketCount *= 2;
         }
+
         buckets = work?.Filled(bucketCount, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, bucketCount).ToArray();
         records = work?.List(new InitialEdgeRecordCodec()) ?? new List<InitialEdgeRecord>();
     }
@@ -42,8 +43,10 @@ internal sealed class InitialEdgeIndex
             {
                 return;
             }
+
             slot = record.Next;
         }
+
         var next = records.Count;
         records.Add(new InitialEdgeRecord(a, b, first));
         buckets[bucket] = next;

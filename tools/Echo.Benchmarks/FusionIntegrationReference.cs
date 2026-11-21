@@ -20,6 +20,7 @@ internal static class FusionIntegrationReference
             {
                 value.Add(view.Observe(world, tolerance), view.Focal, tolerance, voxel);
             }
+
             if (value.Support >= 2)
             {
                 samples[index] = new VolumeSample

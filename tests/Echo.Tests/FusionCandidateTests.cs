@@ -75,6 +75,7 @@ public sealed class FusionCandidateTests
                 {
                     Check(error.Message.Contains("scratch-disk budget"), "Disk pressure must remain actionable");
                 }
+
                 Check(session.Statistics.ScratchBytes == 0, "Deleting scratch runs must release the shared disk budget");
                 Check(!Directory.EnumerateFiles(directory, "run-*.bin", SearchOption.AllDirectories).Any(), "Cancellation must not leak runs");
             }
@@ -95,6 +96,7 @@ public sealed class FusionCandidateTests
             {
                 Check(error.Message.Contains("non-finite"), "The original failure should reach the UI");
             }
+
             Check(session.Statistics.ScratchBytes == 0, "Failed parallel workers must release temporary files");
         }));
         tests.Run("Sequential scratch owns only its new files and releases its disk reservation", () => InDirectory(directory =>
@@ -110,6 +112,7 @@ public sealed class FusionCandidateTests
                 records.Delete(file);
                 Check(session.Statistics.ScratchBytes == 0, "Discarded files must release their budget immediately");
             }
+
             Check(File.ReadAllText(existing) == "existing file", "Scratch cleanup must not touch pre-existing files");
         }));
         tests.Run("Resident scratch spills within its budget and shared readers preserve records", () => InDirectory(directory =>
@@ -137,6 +140,7 @@ public sealed class FusionCandidateTests
                         Check(reader.MoveNext() && reader.Current == index, "Shared merge cursors changed records");
                     }
                 }
+
                 Check(session.Statistics.ReadBytes - before <= 600000 * 4 + 65536, "Shared cursors reread identical disk pages");
             }
             finally
@@ -146,6 +150,7 @@ public sealed class FusionCandidateTests
                     reader.Dispose();
                 }
             }
+
             records.Delete(spilled);
             Check(session.Statistics.ScratchBytes == 0 && session.Statistics.ResidentBytes <= 1024 * 1024, "Spilled scratch leaked resources");
             session.Dispose();
@@ -164,6 +169,7 @@ public sealed class FusionCandidateTests
                 list.ReadRange(2001, actual);
                 Check(actual.SequenceEqual(source.Skip(2001).Take(actual.Length)), "Batched reads must include dirty pages and straddling records");
             }
+
             using var reopened = new BulkDataSession(65536, 0);
             var saved = reopened.Open(path, new DenseRecordCodec());
             var restored = new DenseSample[source.Length];
@@ -185,6 +191,7 @@ public sealed class FusionCandidateTests
             fixture.Cloud.Samples.Add(sample);
             fixture.Cloud.Samples.Add(sample);
         }
+
         return fixture;
     }
 
@@ -205,6 +212,7 @@ public sealed class FusionCandidateTests
                 occupied.Add(new Grid((int)Math.Floor(sample.X / voxel), (int)Math.Floor(sample.Y / voxel), (int)Math.Floor(sample.Z / voxel)));
             }
         }
+
         var result = new HashSet<Grid>();
         foreach (var cell in occupied)
         {
@@ -219,6 +227,7 @@ public sealed class FusionCandidateTests
                 }
             }
         }
+
         return result.OrderBy(cell => cell.X).ThenBy(cell => cell.Y).ThenBy(cell => cell.Z).ToArray();
     }
 

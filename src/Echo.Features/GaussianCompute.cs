@@ -14,10 +14,12 @@ internal static class GaussianCompute
         {
             total += Math.Exp(-k * k / (2 * sigma * sigma));
         }
+
         for (var k = -radius; k <= radius; k++)
         {
             weights[k + radius] = (float)(Math.Exp(-k * k / (2 * sigma * sigma)) / total);
         }
+
         cancellation.ThrowIfCancellationRequested();
         session.Upload<float>(0, source);
         session.Allocate(1, checked(width * height * sizeof(float)));

@@ -22,6 +22,7 @@ public sealed class ComputeContractTests
             {
                 Check(library.Source.Contains("kernel void " + MetalComputeKernel.Name(kernel) + "(", StringComparison.Ordinal), "Kernel missing: " + kernel);
             }
+
             try
             {
                 MetalComputeKernel.Name((ComputeKernel)int.MaxValue);
@@ -40,6 +41,7 @@ public sealed class ComputeContractTests
             {
                 Check((original.Implementation(operation) != texture.Implementation(operation)) == (operation == ComputeOperation.Texture), "Texture invalidated " + operation);
             }
+
             changed = new Dictionary<string, string>(sources) { ["02DepthViews.metal"] = sources["02DepthViews.metal"] + "\n// projection change" };
             var projection = new MetalComputeLibrary(changed);
             foreach (var operation in Enum.GetValues<ComputeOperation>().Where(operation => operation != ComputeOperation.TexturePacking))
@@ -47,6 +49,7 @@ public sealed class ComputeContractTests
                 var dependsOnProjection = operation is ComputeOperation.Cloud or ComputeOperation.Fusion or ComputeOperation.Mesh or ComputeOperation.Alignment;
                 Check((original.Implementation(operation) != projection.Implementation(operation)) == dependsOnProjection, "Projection dependency incorrect for " + operation);
             }
+
             changed = new Dictionary<string, string>(sources) { ["03Cloud.metal"] = sources["03Cloud.metal"] + "\n// cloud edge support change" };
             var cloud = new MetalComputeLibrary(changed);
             foreach (var operation in Enum.GetValues<ComputeOperation>().Where(operation => operation != ComputeOperation.TexturePacking))

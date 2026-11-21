@@ -12,6 +12,7 @@ internal static class TexturePriorityBudget
         {
             return null;
         }
+
         var field = new TexturePriorityField(painting, cancellation);
         var influences = new SortedDictionary<int, double>();
         var bands = new int[mesh.Faces.Count];
@@ -27,6 +28,7 @@ internal static class TexturePriorityBudget
             // Five broad bands avoid a new UV seam for every tiny brush variation.
             bands[index] = Math.Clamp((int)Math.Round(weight, MidpointRounding.AwayFromZero), -2, 2);
         }
+
         return bands.Any(band => band != 0) ? bands : null;
     }
 
@@ -36,6 +38,7 @@ internal static class TexturePriorityBudget
         {
             return;
         }
+
         foreach (var patch in patches)
         {
             // Weight is an area budget; UV lengths therefore use its square root.
@@ -45,6 +48,7 @@ internal static class TexturePriorityBudget
                 coordinate[0] *= scale;
                 coordinate[1] *= scale;
             }
+
             var bounds = patch.Bounds;
             patch.Bounds = new SKRect((float)(bounds.Left * scale), (float)(bounds.Top * scale),
                 (float)(bounds.Right * scale), (float)(bounds.Bottom * scale));

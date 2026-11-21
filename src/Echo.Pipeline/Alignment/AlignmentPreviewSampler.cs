@@ -13,6 +13,7 @@ public static class AlignmentPreviewSampler
         {
             points.Add(scene.Points[(int)((long)index * scene.Points.Count / count)]);
         }
+
         return new AlignmentPreview
         {
             TotalPoints = scene.Points.Count,

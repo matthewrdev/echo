@@ -68,6 +68,7 @@ public sealed class PagingTests
             catch (OperationCanceledException)
             {
             }
+
             Check(replacement.Vertices[0][0] == 1 && Directory.EnumerateFiles(directory, "*.bin", SearchOption.AllDirectories).Count() == 3,
                 "Failed replacement discarded its input or leaked output files");
         }));
@@ -80,11 +81,13 @@ public sealed class PagingTests
             {
                 index.Add(value * -7919, value);
             }
+
             Check(index.Keys.SequenceEqual(Enumerable.Range(0, 5000).Select(value => value * -7919)), "Growing changed encounter order");
             for (var value = 0; value < 5000; value++)
             {
                 Check(index[value * -7919] == value, "Growing lost a collision chain");
             }
+
             Check(Directory.EnumerateFiles(directory, "*.bin").Count() == 2, "Old bucket files remained live");
         }));
         tests.Run("Typed paged geometry appends preserve bits and avoid per-record arrays", () => InDirectory(directory =>
@@ -98,18 +101,21 @@ public sealed class PagingTests
                 writer.AddVertex(new V3(-0d, double.Epsilon, index * Math.PI));
                 writer.AddFace(new SurfaceTriangleVertices(index, index, index));
             }
+
             var reader = new SurfaceGeometryReader(mesh);
             Check(BitConverter.DoubleToInt64Bits(reader.Vertex(0).X) == long.MinValue, "Typed append lost signed zero");
             for (var repeat = 0; repeat < 100; repeat++)
             {
                 reader.Triangle(reader.Face(repeat));
             }
+
             var before = GC.GetAllocatedBytesForCurrentThread();
             var sum = 0d;
             for (var repeat = 0; repeat < 10000; repeat++)
             {
                 sum += reader.Triangle(reader.Face(repeat % 1000)).A.Z;
             }
+
             Check(sum > 0 && GC.GetAllocatedBytesForCurrentThread() - before < 4096, "Paged geometry allocated small arrays per query");
             var count = mesh.Faces.Count;
             try
@@ -120,6 +126,7 @@ public sealed class PagingTests
             catch (ArgumentException)
             {
             }
+
             Check(mesh.Faces.Count == count, "Rejected append changed the record count");
         }));
         tests.Run("Parallel reduction preserves geometry across resident and paged budgets", () => InDirectory(directory =>
@@ -133,6 +140,7 @@ public sealed class PagingTests
                     source.Vertices.Add([x, y, Math.Sin(x * .3) * Math.Cos(y * .2)]);
                 }
             }
+
             for (var y = 0; y < side; y++)
             {
                 for (var x = 0; x < side; x++)
@@ -142,6 +150,7 @@ public sealed class PagingTests
                     source.Faces.Add([first, first + side + 2, first + side + 1]);
                 }
             }
+
             var expected = ParallelMeshCollapse.Reduce((EdgeCollapse)simplifier, source, 200, default, .01, null, null, null, 4, 1);
             foreach (var budget in new[] { 65536L, 16 * 1048576L })
             {
@@ -155,6 +164,7 @@ public sealed class PagingTests
                         && actual.Faces.Zip(expected.Faces).All(pair => pair.First.SequenceEqual(pair.Second)),
                         "Paging changed parallel geometry or seam joining");
                 }
+
                 Check(session.Statistics.ResidentBytes == 0 && session.Statistics.ScratchBytes == 0,
                     "Parallel reduction leaked scratch records after disposal");
             }
@@ -170,6 +180,7 @@ public sealed class PagingTests
                 {
                     values.Add(index * 3);
                 }
+
                 values[12345] = -17;
                 values.RemoveAt(values.Count - 1);
                 values.Add(9000000);
@@ -178,8 +189,10 @@ public sealed class PagingTests
                 {
                     Check(values[index] == index * 3, "Spilling lost a block or changed record order");
                 }
+
                 Check(session.Statistics.PeakResidentBytes <= 1048576 && session.Statistics.Evictions > 0, "Typed records escaped the memory budget or did not exercise fallback");
             }
+
             Check(session.Statistics.ResidentBytes == 0 && session.Statistics.ScratchBytes == 0, "Typed scratch retained memory or disk after disposal");
         }));
         tests.Run("Parallel scratch scopes share one memory budget without sharing mutable lists", () => InDirectory(directory =>
@@ -194,6 +207,7 @@ public sealed class PagingTests
                 {
                     values.Add(index + worker);
                 }
+
                 Check(values[12345] == 12345 + worker && values[^1] == 299999 + worker, "Concurrent scratch lists corrupted each other");
                 scopes[worker].Dispose();
             });
@@ -216,6 +230,7 @@ public sealed class PagingTests
                 {
                     Check(adjacency.Remove(0, face) == expected.Remove(face), "Adjacency removal disagrees with membership");
                 }
+
                 Check(adjacency.Faces(0).SequenceEqual(expected) && adjacency.Count(0) == expected.Count,
                     "Unlinking or recycling a slot changed deterministic face order");
             }
@@ -227,6 +242,7 @@ public sealed class PagingTests
             {
                 queue.Offer(new Candidate(index, index + 1, 0, 0, new V3(index, 1, 2), index), index);
             }
+
             Check(queue.Refresh(41, 40, 7, 9), "Existing cost could not be refreshed");
             queue.Retain(candidate => candidate.Error % 2 == 0 && candidate.Error < 100, default);
             Check(queue.Count == 50, "Pruning retained ineligible candidates");
@@ -260,6 +276,7 @@ public sealed class PagingTests
                 Check(value.X == point.X && BitConverter.DoubleToInt64Bits(value.Y) == long.MinValue && value.Z == point.Z,
                     "Fill changed record bytes across a page boundary");
             }
+
             var strings = (PagedList<string>)work.Filled(20003, "same", new StringTableCodec());
             strings.Add("next");
             Check(strings[0] == "same" && strings[20002] == "same" && strings[20003] == "next", "Fill did not preserve the codec's string table");
@@ -272,6 +289,7 @@ public sealed class PagingTests
             {
                 Check(values.Count == 10006, "Cancelled fill appended records");
             }
+
             Check(session.Statistics.Evictions > 0, "Fill test did not exercise paging");
         }));
         tests.Run("Mesh filters handle multiple paged batches and release private scratch", () => InDirectory(directory =>
@@ -294,6 +312,7 @@ public sealed class PagingTests
                 surface.Faces.Add([start, start + 1, start + 2]);
                 surface.SourceImages.Add("photo-" + index % 3);
             }
+
             var expected = surface.Faces.Count - (surface.Faces.Count + 4) / 5;
             var visible = SurfaceVisibilityFilter.Filter(surface, fixture.Views, .01, default, work);
             Check(visible.Faces.Count == expected && visible.Vertices.All(point => point[2] == 10), "Visibility batch tail reused stale flags");
@@ -314,6 +333,7 @@ public sealed class PagingTests
             catch (OperationCanceledException)
             {
             }
+
             Check(!Directory.EnumerateFiles(directory, "*.bin", SearchOption.AllDirectories).Any(path => Path.GetDirectoryName(path) != directory), "Cancellation retained private scratch files");
             Check(surface.Faces.Count == 5003 && surface.Vertices[0][2] == 8, "Filtering mutated its source");
         }));
@@ -348,13 +368,16 @@ public sealed class PagingTests
                     expected[key] = new IndexedCandidate(candidate, priority, 0);
                     peak = Math.Max(peak, expected.Count);
                 }
+
                 Check(queue.Count == expected.Count && queue.AllocatedHandles <= peak,
                     "Repeated offers grew the queue or failed to reuse removed handles");
             }
+
             foreach (var entry in expected.Values.OrderBy(entry => entry.Priority))
             {
                 Check(queue.TryDequeue(out var candidate) && candidate == entry.Value, "The final queue order or revision differs");
             }
+
             Check(!queue.TryDequeue(out _) && session.Statistics.Evictions > 0, "The paged queue did not exercise eviction");
         }));
         tests.Run("Unchanged collapse costs retain tie order while updating candidate revisions", () => InDirectory(directory =>
@@ -369,10 +392,12 @@ public sealed class PagingTests
                 original.Offer(candidate, index % 5);
                 updated.Offer(candidate, index % 5);
             }
+
             for (var index = 1999; index >= 0; index--)
             {
                 updated.Offer(new Candidate(index, index + 2000, 7, 9, new V3(index, 1, 2), index % 5), index % 5);
             }
+
             while (original.TryDequeue(out var expected))
             {
                 var sameEdge = updated.TryDequeue(out var actual) && actual.A == expected.A && actual.B == expected.B;
@@ -380,6 +405,7 @@ public sealed class PagingTests
                 var refreshed = actual.RevisionA == 7 && actual.RevisionB == 9 && actual.Position == new V3(expected.A, 1, 2);
                 Check(refreshed, "Skipping heap repair lost the new revision or position");
             }
+
             Check(updated.Count == 0 && session.Statistics.Evictions > 0, "The updated paged queue lost candidates or did not exercise eviction");
         }));
         tests.Run("Temporary scopes discard dirty pages and return scratch space without flushing", () => InDirectory(directory =>
@@ -396,6 +422,7 @@ public sealed class PagingTests
                 released.Add(123);
                 Check(session.Statistics.ScratchBytes == 2 * 65536, "Scratch usage was not charged");
             }
+
             Check(session.Statistics.WrittenBytes == writes, "Disposing temporary buffers wrote dirty pages");
             Check(session.Statistics.ScratchBytes == 65536 && retained[0] == 42, "Scope disposal released another scope's data or failed to return space");
             try
@@ -406,10 +433,12 @@ public sealed class PagingTests
             catch (ObjectDisposedException)
             {
             }
+
             using (var next = work.CreateScope())
             {
                 next.List(new IntRecordCodec()).Add(456);
             }
+
             Check(Directory.EnumerateFiles(directory, "*.bin", SearchOption.AllDirectories).Count() == 1, "Discarded files remained on disk");
             using var output = new MemoryStream();
             ((PagedList<int>)retained).CopyEncodedRecordsTo(output);
@@ -422,6 +451,7 @@ public sealed class PagingTests
             {
                 vertex[index] = (index - 5) * Math.PI;
             }
+
             var codec = new VertexRecordCodec();
             Span<byte> bytes = stackalloc byte[165];
             codec.Encode(vertex, bytes);
@@ -432,16 +462,19 @@ public sealed class PagingTests
             {
                 Check(decoded[index] == vertex[index], "A quadric coefficient changed");
             }
+
             for (var index = 0; index < 1000; index++)
             {
                 decoded = codec.Decode(bytes);
             }
+
             var before = GC.GetAllocatedBytesForCurrentThread();
             var sum = 0.0;
             for (var index = 0; index < 10000; index++)
             {
                 sum += codec.Decode(bytes)[7];
             }
+
             Check(GC.GetAllocatedBytesForCurrentThread() - before < 1024 && sum > 0,
                 "Numeric vertex reads allocated managed objects");
         });
@@ -458,6 +491,7 @@ public sealed class PagingTests
                 edges.Add(key, value);
                 expected.Add(key, value);
             }
+
             foreach (var key in expected.Keys.ToArray())
             {
                 var value = expected[key] with
@@ -467,10 +501,12 @@ public sealed class PagingTests
                 edges[key] = value;
                 expected[key] = value;
             }
+
             foreach (var entry in expected)
             {
                 Check(edges.TryGetValue(entry.Key, out var value) && value == entry.Value, "Hash collisions lost or changed an edge");
             }
+
             Check(!edges.ContainsKey(new SurfaceEdge(100, 100)) && edges.Count == expected.Count, "Missing edge or count is incorrect");
             Check(session.Statistics.Evictions > 0 && session.Statistics.PeakResidentBytes <= 65536, "Edge index exceeded its page budget");
             Check(!Directory.EnumerateFiles(directory, "*.sqlite", SearchOption.AllDirectories).Any(), "Surface edges still created a database");
@@ -513,6 +549,7 @@ public sealed class PagingTests
             {
                 records.Add(index);
             }
+
             var reservation = records.TryReserveMemory(3 * 65536 + 1);
             Check(reservation != null, "Working memory was not reserved from the page budget");
             Check(records.TryReserveMemory(capacity) == null, "Oversized reservation should fall back without changing the budget");
@@ -520,6 +557,7 @@ public sealed class PagingTests
             {
                 Check(records[index] == index, "Reserving memory lost dirty records");
             }
+
             Check(session.Statistics.Evictions > 0 && session.Statistics.PeakResidentBytes <= capacity,
                 "Pages plus reservations exceeded the shared memory budget");
             reservation!.Dispose();
@@ -543,14 +581,17 @@ public sealed class PagingTests
                 memory.Vertices.Add([x, y + .8, -.1]);
                 memory.Faces.Add([start, start + 1, start + 2]);
             }
+
             foreach (var vertex in memory.Vertices)
             {
                 paged.Vertices.Add(vertex);
             }
+
             foreach (var face in memory.Faces)
             {
                 paged.Faces.Add(face);
             }
+
             using var expected = new SurfaceTriangleIndex(memory, default);
             var beforeConstruction = session.Statistics.ResidentBytes;
             using (var actual = new SurfaceTriangleIndex(paged, default))
@@ -574,6 +615,7 @@ public sealed class PagingTests
                     "An appended hole patch was not included in intersection queries");
                 Check(afterQueries.PeakResidentBytes <= 8 * 65536, "Geometry snapshot exceeded its page budget");
             }
+
             Check(session.Statistics.ResidentBytes == beforeConstruction, "Geometry snapshot retained its reservation after disposal");
             using var cancelled = new CancellationTokenSource();
             cancelled.Cancel();
@@ -617,6 +659,7 @@ public sealed class PagingTests
                 memory.Add(a, b);
                 expected.Add(new Edge(Math.Min(a, b), Math.Max(a, b)));
             }
+
             Check(paged.Count == expected.Count && paged.Edges().SequenceEqual(expected), "Paged edge membership or order changed");
             Check(memory.Edges().SequenceEqual(expected), "In-memory edge membership or order changed");
             Check(!Directory.EnumerateFiles(directory, "*.sqlite", SearchOption.AllDirectories).Any(), "Initial edge indexing still created a database");
@@ -641,15 +684,18 @@ public sealed class PagingTests
                     store.Add(vertex, face);
                     expected[vertex].Add(face);
                 }
+
                 Check(store.Contains(vertex, face) == expected[vertex].Contains(face), "Membership changed");
                 Check(store.Count(vertex) == expected[vertex].Count, "Adjacency count changed");
                 Check(store.Faces(vertex).SequenceEqual(expected[vertex]), "Slot reuse changed candidate ordering");
             }
+
             for (var face = 0; face < 2000; face++)
             {
                 store.Add(0, face);
                 expected[0].Add(face);
             }
+
             Check(store.Faces(0).SequenceEqual(expected[0]) && store.Contains(0, 1999), "High-valence vertices lost faces");
             Check(!Directory.EnumerateFiles(directory, "*.sqlite", SearchOption.AllDirectories).Any(), "Vertex adjacency still created a global database index");
         }));
@@ -663,13 +709,16 @@ public sealed class PagingTests
                 {
                     records.Add([index, -index - .125, Math.PI]);
                 }
+
                 for (var index = records.Count - 1; index >= 0; index--)
                 {
                     Check(records[index].SequenceEqual(new[] { (double)index, -index - .125, Math.PI }), "Dirty page lost a record");
                 }
+
                 Check(session.Statistics.Evictions > 0, "Test did not force eviction");
                 Check(session.Statistics.PeakResidentBytes == 65536, "Page cache exceeded its budget");
             }
+
             using var reopened = artifacts.OpenSession(65536, 0);
             Check(reopened.Open(path, new VectorRecordCodec())[19999][2] == Math.PI, "Reopened binary changed precision");
         }));
@@ -683,6 +732,7 @@ public sealed class PagingTests
             {
                 records.Add(new Echo.Fusion.Grid(x, 0, 0), x);
             }
+
             records[new Echo.Fusion.Grid(-2, 0, 0)] = 42;
             Check(records.Select(pair => pair.Key.X).SequenceEqual(coordinates), "Dictionary insertion order changed");
             Check(records[new Echo.Fusion.Grid(-2, 0, 0)] == 42, "Dictionary update failed");
@@ -714,6 +764,7 @@ public sealed class PagingTests
                 {
                     records.Add(index, index);
                 }
+
                 throw new InvalidOperationException("Binary indexing ignored the scratch limit");
             }
             catch (EchoException)
@@ -729,6 +780,7 @@ public sealed class PagingTests
             {
                 heap.Enqueue(index, index % 127);
             }
+
             var removed = heap.Retain(value => value % 3 == 0, default);
             Check(removed == 13333 && heap.Count == 6667, "Compaction lost or retained the wrong candidates");
             heap.Enqueue(20001, -1);
@@ -739,6 +791,7 @@ public sealed class PagingTests
                 Check(next >= priority && value % 3 == 0 && seen.Add(value), "Compaction broke heap ordering or duplicated a candidate");
                 priority = next;
             }
+
             Check(seen.Count == 6668, "Compacted queue lost valid candidates");
             Check(heap.Retain(_ => false, default) == 0, "Empty compaction failed");
             heap.Enqueue(1, 1);
@@ -766,10 +819,12 @@ public sealed class PagingTests
                     heap.Enqueue(index, priority);
                 }
             }
+
             while (baseline.TryDequeue(out var expected, out var cost))
             {
                 Check(heap.TryDequeue(out var actual, out var priority) && actual == expected && priority == cost, "Heap drain ordering changed");
             }
+
             Check(!heap.TryDequeue(out _, out _), "Heap retained extra entries");
         }));
         tests.Run("Paged island connectivity preserves exact welding and component selection", () => InDirectory(directory =>
@@ -805,16 +860,19 @@ public sealed class PagingTests
             {
                 Check(Same(result.Samples[index], baseline.Samples[index]), "Fusion changed an ordered sample");
             }
+
             var mesh = meshes.Extract(result, default, work);
             Check(mesh.Vertices.Count == baselineMesh.Vertices.Count && mesh.Faces.Count == baselineMesh.Faces.Count, "Extraction counts changed");
             for (var index = 0; index < mesh.Vertices.Count; index++)
             {
                 Check(mesh.Vertices[index].SequenceEqual(baselineMesh.Vertices[index]), "Extraction changed a vertex");
             }
+
             for (var index = 0; index < mesh.Faces.Count; index++)
             {
                 Check(mesh.Faces[index].SequenceEqual(baselineMesh.Faces[index]), "Extraction changed face ordering or welding");
             }
+
             var supported = SurfaceSupportFilter.Filter(baselineMesh, baselineMesh, .1, default);
             var pagedSupport = SurfaceSupportFilter.Filter(baselineMesh, baselineMesh, .1, default, work);
             Check(supported.Vertices.Zip(pagedSupport.Vertices).All(pair => pair.First.SequenceEqual(pair.Second))
@@ -828,6 +886,7 @@ public sealed class PagingTests
             {
                 point[2] += Math.Sin(point[0] * 3) * Math.Cos(point[1] * 2) * .15;
             }
+
             var reduced = simplifier.Reduce(baselineMesh, 80, default, .01);
             var pagedReduction = simplifier.Reduce(baselineMesh, 80, default, .01, work: work);
             Check(reduced.Vertices.Count == pagedReduction.Vertices.Count && reduced.Faces.Count == pagedReduction.Faces.Count, "Paged simplification changed counts");
@@ -835,6 +894,7 @@ public sealed class PagingTests
             {
                 Check(reduced.Vertices[index].SequenceEqual(pagedReduction.Vertices[index]), "Paged simplification changed positions");
             }
+
             for (var index = 0; index < reduced.Faces.Count; index++)
             {
                 Check(reduced.Faces[index].SequenceEqual(pagedReduction.Faces[index]), "Paged simplification changed topology");

@@ -56,6 +56,7 @@ internal sealed unsafe class MetalTexturePlacementSession : ITexturePlacementSes
                 {
                     throw new ArgumentException("Expected nonempty masks in quarter-turn order.");
                 }
+
                 descriptors[rotation * 4] = (uint)mask.Width;
                 descriptors[rotation * 4 + 1] = (uint)mask.Height;
                 descriptors[rotation * 4 + 2] = (uint)(offset / 3);
@@ -85,6 +86,7 @@ internal sealed unsafe class MetalTexturePlacementSession : ITexturePlacementSes
             {
                 throw new TextureAccelerationException(details.ToString());
             }
+
             uploadedAtlas = atlas;
             uploadedRevision = atlas.Revision;
             if (result == uint.MaxValue)

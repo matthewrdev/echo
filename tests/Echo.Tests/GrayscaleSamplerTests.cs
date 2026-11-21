@@ -22,6 +22,7 @@ public sealed class GrayscaleSamplerTests
             {
                 pixels[index] = (float)random.NextDouble();
             }
+
             var sampler = new GrayscaleSampler(pixels, 173, 117);
             for (var index = 0; index < 10000; index++)
             {
@@ -31,6 +32,7 @@ public sealed class GrayscaleSamplerTests
                 Check(sampler.Sample(x, y).Equals(expected), "Direct sampling must preserve every float result");
                 Check(images.Sample(pixels, 173, 117, x, y).Equals(expected), "The image service uses the same sampler");
             }
+
             Check(sampler.Sample(0, 0) == pixels[0], "Top-left pixel is valid");
             Check(float.IsNaN(sampler.Sample(172, 0)), "Bilinear sampling requires the right neighbour");
             Check(float.IsNaN(sampler.Sample(0, 116)), "Bilinear sampling requires the lower neighbour");
@@ -45,6 +47,7 @@ public sealed class GrayscaleSamplerTests
             {
                 colours[index] = new SKColor((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
             }
+
             source.Pixels = colours;
             var buffer = new float[32768];
             foreach (var width in new[] { 32, 80, 173, 256, 32 })
@@ -58,6 +61,7 @@ public sealed class GrayscaleSamplerTests
                 Check(buffer.AsSpan(0, expected.Pixels.Length).SequenceEqual(expected.Pixels), "Reusing storage must preserve all grayscale values");
                 Check(buffer[expected.Pixels.Length] == -77, "Unused pooled capacity is not part of the image");
             }
+
             try
             {
                 images.ResizeGray(source, 80, new float[1]);
@@ -77,6 +81,7 @@ public sealed class GrayscaleSamplerTests
         {
             return float.NaN;
         }
+
         var ix = (int)x;
         var iy = (int)y;
         var dx = (float)(x - ix);

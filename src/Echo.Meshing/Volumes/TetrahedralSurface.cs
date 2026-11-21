@@ -58,14 +58,17 @@ internal static class TetrahedralSurface
                     {
                         found = samples.TryGetValue(corners[index], out values[index]);
                     }
+
                     if (!found || !float.IsFinite(values[index]))
                     {
                         complete = false;
                         break;
                     }
+
                     negative |= values[index] < 0;
                     positive |= values[index] >= 0;
                 }
+
                 var crossesSurface = complete && negative && positive;
                 if (!crossesSurface)
                 {
@@ -77,6 +80,7 @@ internal static class TetrahedralSurface
                     Append(mesh, reader, writer, vertices, corners, values, tetrahedra.Slice(index, 4), voxelSize);
                 }
             }
+
             var message = $"Extracting surface: {completed:N0}/{samples.Count:N0} lattice cells; {mesh.Faces.Count:N0} triangles…";
             if (operationProgress != null)
             {
@@ -87,6 +91,7 @@ internal static class TetrahedralSurface
                 progress?.Invoke(message);
             }
         }
+
         operationProgress?.Invoke(new OperationProgress("Surface extraction", $"Extracted {mesh.Faces.Count:N0} triangles.", samples.Count, samples.Count, "lattice cells"));
         return mesh;
     }
@@ -109,6 +114,7 @@ internal static class TetrahedralSurface
                 positive[above++] = corner;
             }
         }
+
         if (below == 0 || above == 0)
         {
             return;
@@ -127,6 +133,7 @@ internal static class TetrahedralSurface
                 polygon[index] = Vertex(mesh, writer, vertices, corners[single], corners[opposite[index]],
                     values[single], values[opposite[index]], voxelSize);
             }
+
             AddTriangle(reader, writer, polygon[0], polygon[1], polygon[2], direction, voxelSize);
             return;
         }
@@ -137,6 +144,7 @@ internal static class TetrahedralSurface
             var b = positive[index is 0 or 3 ? 0 : 1];
             polygon[index] = Vertex(mesh, writer, vertices, corners[a], corners[b], values[a], values[b], voxelSize);
         }
+
         AddTriangle(reader, writer, polygon[0], polygon[1], polygon[2], direction, voxelSize);
         AddTriangle(reader, writer, polygon[0], polygon[2], polygon[3], direction, voxelSize);
     }
@@ -150,6 +158,7 @@ internal static class TetrahedralSurface
         {
             return existing;
         }
+
         var fraction = (double)valueA / (valueA - valueB);
         var index = mesh.Vertices.Count;
         writer.AddVertex(new V3((a.X + (b.X - a.X) * fraction) * voxelSize,
@@ -165,10 +174,12 @@ internal static class TetrahedralSurface
         {
             order = a.Y.CompareTo(b.Y);
         }
+
         if (order == 0)
         {
             order = a.Z.CompareTo(b.Z);
         }
+
         return order <= 0 ? new VolumeEdge(a, b) : new VolumeEdge(b, a);
     }
 
@@ -180,6 +191,7 @@ internal static class TetrahedralSurface
         {
             return;
         }
+
         writer.AddFace(normal.Dot(direction) >= 0 ? new SurfaceTriangleVertices(a, b, c) : new SurfaceTriangleVertices(a, c, b));
     }
 }

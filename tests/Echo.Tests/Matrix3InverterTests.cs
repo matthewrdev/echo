@@ -22,6 +22,7 @@ public sealed class Matrix3InverterTests
                 {
                     matrix[index] = basis[index] * scale;
                 }
+
                 Matrix3Inverter.Invert(matrix, inverse);
                 for (var row = 0; row < 3; row++)
                 {
@@ -32,6 +33,7 @@ public sealed class Matrix3InverterTests
                         {
                             product += matrix[row * 3 + inner] * inverse[inner * 3 + column];
                         }
+
                         if (Math.Abs(product - (row == column ? 1 : 0)) > 1e-10)
                         {
                             throw new InvalidOperationException("Scaled matrix inverse did not reconstruct identity");
@@ -39,6 +41,7 @@ public sealed class Matrix3InverterTests
                     }
                 }
             }
+
             try
             {
                 Matrix3Inverter.Invert(new double[9], inverse);

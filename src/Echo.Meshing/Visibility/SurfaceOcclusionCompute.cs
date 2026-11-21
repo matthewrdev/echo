@@ -62,6 +62,7 @@ internal sealed class SurfaceOcclusionCompute : IDisposable
                         jobs[slot + 6] = (float)to.Z;
                         jobs[slot + 7] = 0;
                     }
+
                     try
                     {
                         session.Upload<float>(4, jobs.AsSpan(0, count * 8));
@@ -74,6 +75,7 @@ internal sealed class SurfaceOcclusionCompute : IDisposable
                         failed = true;
                     }
                 }
+
                 Parallel.For(0, count, parallel, ray =>
                 {
                     var query = queries[ray];
@@ -84,6 +86,7 @@ internal sealed class SurfaceOcclusionCompute : IDisposable
                         var face = matches[ray * ResultStride + 1 + match];
                         blocked = SurfaceTriangleIntersection.Crosses(query.Start, query.End, index.Triangle(face));
                     }
+
                     results[ray] = blocked;
                 });
                 results.AsSpan(0, count).CopyTo(hidden[start..]);

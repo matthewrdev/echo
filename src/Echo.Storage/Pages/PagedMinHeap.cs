@@ -32,8 +32,10 @@ public sealed class PagedMinHeap<T>
             {
                 entries[retained++] = item;
             }
+
             progress?.Invoke(index + 1, total);
         }
+
         while (entries.Count > retained)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -49,6 +51,7 @@ public sealed class PagedMinHeap<T>
             MoveDown(parent, entries[parent]);
             progress?.Invoke(++completed, total);
         }
+
         progress?.Invoke(total, total);
         return originalCount - retained;
     }
@@ -66,9 +69,11 @@ public sealed class PagedMinHeap<T>
             {
                 break;
             }
+
             entries[slot] = previous;
             slot = parent;
         }
+
         if (slot != entries.Count - 1)
         {
             entries[slot] = item;
@@ -83,6 +88,7 @@ public sealed class PagedMinHeap<T>
             priority = default;
             return false;
         }
+
         var first = entries[0];
         value = first.Value;
         priority = first.Priority;
@@ -92,6 +98,7 @@ public sealed class PagedMinHeap<T>
         {
             return true;
         }
+
         MoveDown(0, replacement);
         return true;
     }
@@ -115,6 +122,7 @@ public sealed class PagedMinHeap<T>
                     children[index] = entries[first + index];
                 }
             }
+
             var child = first;
             var best = children[0];
             for (var candidate = 1; candidate < count; candidate++)
@@ -126,13 +134,16 @@ public sealed class PagedMinHeap<T>
                     best = entry;
                 }
             }
+
             if (replacement.Priority.CompareTo(best.Priority) <= 0)
             {
                 break;
             }
+
             entries[slot] = best;
             slot = child;
         }
+
         entries[slot] = replacement;
     }
 }

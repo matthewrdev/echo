@@ -36,6 +36,7 @@ public sealed class FusionResumeBenchmark
         {
             throw new EchoException("Usage: fusion-resume PROJECT RUN POINT_LIMIT VOXEL Cpu|Metal. Profiles cold integration and six cached resumes using in-memory checkpoint storage.", 2);
         }
+
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
         var limit = int.Parse(args[2], CultureInfo.InvariantCulture);
@@ -88,6 +89,7 @@ public sealed class FusionResumeBenchmark
                 Directory.Delete(directory, true);
             }
         }
+
         return 0;
     }
 
@@ -104,6 +106,7 @@ public sealed class FusionResumeBenchmark
             codec.EncodeBlock(records.AsSpan(0, count), bytes.AsSpan(0, count * codec.Size));
             hash.AppendData(bytes.AsSpan(0, count * codec.Size));
         }
+
         return Convert.ToHexString(hash.GetHashAndReset());
     }
 }

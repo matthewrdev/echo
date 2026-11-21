@@ -14,14 +14,17 @@ public static class FusionIslandTrimmer
         {
             throw new ArgumentOutOfRangeException(nameof(mode));
         }
+
         if (!double.IsFinite(minimumSizePercent) || minimumSizePercent is < 0 or > 100)
         {
             throw new ArgumentOutOfRangeException(nameof(minimumSizePercent));
         }
+
         if (mode == IslandTrimMode.Off)
         {
             return new FusionIslandTrimResult { Volume = volume };
         }
+
         if (volume.Samples.Count == 0)
         {
             return new FusionIslandTrimResult { Volume = volume, InputRegions = 0 };
@@ -39,6 +42,7 @@ public static class FusionIslandTrimmer
         {
             return new FusionIslandTrimResult { Volume = volume, InputRegions = components.RegionCount };
         }
+
         var result = new FusedVolume
         {
             Samples = work?.List(new VolumeRecordCodec()) ?? new List<VolumeSample>(),
@@ -55,6 +59,7 @@ public static class FusionIslandTrimmer
                 result.Samples.Add(volume.Samples[index]);
             }
         }
+
         return new FusionIslandTrimResult
         {
             Volume = result,

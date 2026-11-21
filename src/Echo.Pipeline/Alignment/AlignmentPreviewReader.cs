@@ -22,11 +22,13 @@ public sealed class AlignmentPreviewReader : IAlignmentPreviewReader
         {
             throw new InvalidDataException("Invalid sparse preview format.");
         }
+
         var length = input.ReadInt32();
         if (length < 0 || length > input.BaseStream.Length - input.BaseStream.Position)
         {
             throw new InvalidDataException("Invalid sparse preview metadata length.");
         }
+
         var header = JsonSerializer.Deserialize<AlignmentPreviewHeader>(input.ReadBytes(length), json.Options)
             ?? throw new InvalidDataException("Missing sparse preview metadata.");
         var validRecords = input.ReadInt32() == 0x31504345 && input.ReadInt32() == 1 && input.ReadInt32() == 76;
@@ -34,6 +36,7 @@ public sealed class AlignmentPreviewReader : IAlignmentPreviewReader
         {
             throw new InvalidDataException("Invalid sparse preview point records.");
         }
+
         var count = input.ReadInt32();
         var validCount = count >= 0 && count <= (input.BaseStream.Length - input.BaseStream.Position) / 76
             && header.TotalPoints >= count;
@@ -41,6 +44,7 @@ public sealed class AlignmentPreviewReader : IAlignmentPreviewReader
         {
             throw new InvalidDataException("Invalid sparse preview point count.");
         }
+
         header.Scene.Points = [];
         if (!summary)
         {
@@ -52,8 +56,10 @@ public sealed class AlignmentPreviewReader : IAlignmentPreviewReader
                 input.BaseStream.ReadExactly(record);
                 points.Add(codec.Decode(record));
             }
+
             header.Scene.Points = points;
         }
+
         return new AlignmentPreview { TotalPoints = header.TotalPoints, Scene = header.Scene };
     }
 }

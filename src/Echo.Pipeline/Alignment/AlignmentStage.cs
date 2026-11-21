@@ -62,6 +62,7 @@ public sealed class AlignmentStage : IPipelineStage
         {
             pairs.Add(jsonCodec.Read<ImagePair>(context.Store.PathFor(unit + "/pair.json")));
         }
+
         var initial = context.Build("alignment-initial", new
         {
             algorithmVersion = 6,
@@ -95,6 +96,7 @@ public sealed class AlignmentStage : IPipelineStage
             {
                 progress.Begin(AlignmentPhase.ValidateRecovery, "Checking recovered image correspondences…");
             }
+
             var scene = jsonCodec.Read<ReconstructionScene>(context.Store.PathFor(initial + "/scene.json"));
             var originalPairs = new List<ImagePair>(pairs);
             var recoveredPairs = ApplyRecoveredPairs(context, pairs, recoveryUnits);
@@ -122,14 +124,17 @@ public sealed class AlignmentStage : IPipelineStage
                         Reason = $"Second pass could not produce a stable solution: {error.Message} Kept the initial verified alignment."
                     };
                 }
+
                 if (!assessment.Accepted)
                 {
                     scene = established;
                     scene.Warnings.Add(assessment.Reason);
                 }
+
                 context.ReportProgress(Name, assessment.Reason);
                 Preview(scene);
             }
+
             progress.Begin(AlignmentPhase.SaveAlignment, "Saving the verified alignment…");
             fileOperations.AtomicJson(Path.Combine(directory, "recovery.json"), new
             {
@@ -144,6 +149,7 @@ public sealed class AlignmentStage : IPipelineStage
             {
                 positions[index] = scene.Points[index].Position;
             }
+
             plyWriter.Write(Path.Combine(directory, "points.ply"), positions);
             progress.Report(new OperationProgress("Save alignment", "Cameras and sparse points saved.", 3, 3, "files"));
         });
@@ -162,6 +168,7 @@ public sealed class AlignmentStage : IPipelineStage
         {
             photos.Add(photo.Id, photo);
         }
+
         var units = new List<string>(pairs.Count);
         var plan = workPlanner.Matching(settings, pairs.Count);
         using var cache = cacheFactory.Create(plan.FeatureCacheBytes);
@@ -210,6 +217,7 @@ public sealed class AlignmentStage : IPipelineStage
             {
                 continue;
             }
+
             foreach (var match in pairs[index].Matches)
             {
                 if (match.Manual)
@@ -217,10 +225,12 @@ public sealed class AlignmentStage : IPipelineStage
                     recovered.Matches.Add(match);
                 }
             }
+
             recovered.LineMatches = pairs[index].LineMatches;
             pairs[index] = recovered;
             count++;
         }
+
         return count;
     }
 

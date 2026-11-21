@@ -16,10 +16,12 @@ internal static class StereoImageFilter
             kernel[index] = Math.Exp(-distance * distance / (2 * .7 * .7));
             total += kernel[index];
         }
+
         for (var index = 0; index < kernel.Length; index++)
         {
             kernel[index] /= total;
         }
+
         var buffer = ArrayPool<float>.Shared.Rent(checked(width * kernel.Length));
         try
         {
@@ -27,6 +29,7 @@ internal static class StereoImageFilter
             {
                 Horizontal(pixels.Slice(Math.Clamp(row - 3, 0, height - 1) * width, width), buffer.AsSpan(row * width, width), kernel);
             }
+
             for (var y = 0; y < height; y++)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -37,8 +40,10 @@ internal static class StereoImageFilter
                     {
                         value += buffer[((y + row) % kernel.Length) * width + x] * kernel[row];
                     }
+
                     pixels[y * width + x] = (float)value;
                 }
+
                 if (y + 1 < height)
                 {
                     Horizontal(pixels.Slice(Math.Min(y + 4, height - 1) * width, width), buffer.AsSpan(y % kernel.Length * width, width), kernel);
@@ -60,6 +65,7 @@ internal static class StereoImageFilter
             {
                 value += source[Math.Clamp(x + index - 3, 0, source.Length - 1)] * kernel[index];
             }
+
             destination[x] = (float)value;
         }
     }

@@ -58,6 +58,7 @@ public sealed class ProjectInspectionTests
                 file.Position = file.Length - 4;
                 file.WriteByte(255);
             }
+
             Check(inspector.Inspect(store, summary: true).Warnings.Count == 0, "Summary read point records unnecessarily");
             Reject(() => inspector.Inspect(store));
             File.Delete(binary);
@@ -74,6 +75,7 @@ public sealed class ProjectInspectionTests
                 {
                     File.WriteAllText(scene, contents);
                 }
+
                 var projectBefore = File.ReadAllBytes(store.PathFor("project.json"));
                 var runBefore = File.ReadAllBytes(store.PathFor($"runs/{store.GetRun().Id}/run.json"));
                 var result = inspector.Inspect(store, summary: true);
@@ -141,6 +143,7 @@ public sealed class ProjectInspectionTests
         {
             return;
         }
+
         throw new InvalidOperationException("Full artifact inspection must retain its validation errors.");
     }
 

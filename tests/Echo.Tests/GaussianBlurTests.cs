@@ -45,6 +45,7 @@ public sealed class GaussianBlurTests
             catch (OperationCanceledException)
             {
             }
+
             Parallel.For(0, 8, _ =>
             {
                 var actual = new float[source.Length];
@@ -67,10 +68,12 @@ public sealed class GaussianBlurTests
             kernel[offset + radius] = weight;
             total += weight;
         }
+
         for (var index = 0; index < kernel.Length; index++)
         {
             kernel[index] /= total;
         }
+
         var intermediate = new float[source.Length];
         var destination = new float[source.Length];
         for (var y = 0; y < height; y++)
@@ -82,9 +85,11 @@ public sealed class GaussianBlurTests
                 {
                     value += source[y * width + Math.Clamp(x + offset, 0, width - 1)] * kernel[offset + radius];
                 }
+
                 intermediate[y * width + x] = (float)value;
             }
         }
+
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
@@ -94,9 +99,11 @@ public sealed class GaussianBlurTests
                 {
                     value += intermediate[Math.Clamp(y + offset, 0, height - 1) * width + x] * kernel[offset + radius];
                 }
+
                 destination[y * width + x] = (float)value;
             }
         }
+
         return destination;
     }
 

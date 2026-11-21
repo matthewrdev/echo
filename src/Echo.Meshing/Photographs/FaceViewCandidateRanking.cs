@@ -17,6 +17,7 @@ internal static class FaceViewCandidateRanking
                 values[low..(high + 1)].Sort();
                 break;
             }
+
             var pivot = values[low + (high - low) / 2];
             var left = low;
             var right = high;
@@ -26,10 +27,12 @@ internal static class FaceViewCandidateRanking
                 {
                     left++;
                 }
+
                 while (values[right].CompareTo(pivot) > 0)
                 {
                     right--;
                 }
+
                 if (left <= right)
                 {
                     var previous = values[left];
@@ -37,6 +40,7 @@ internal static class FaceViewCandidateRanking
                     values[right--] = previous;
                 }
             }
+
             if (limit - 1 <= right)
             {
                 high = right;
@@ -50,6 +54,7 @@ internal static class FaceViewCandidateRanking
                 break;
             }
         }
+
         values[..Math.Min(limit, values.Length)].Sort();
         if (candidates.Count > limit)
         {

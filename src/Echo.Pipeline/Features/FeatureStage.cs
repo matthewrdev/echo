@@ -47,6 +47,7 @@ public sealed class FeatureStage : IPipelineStage
                 PublishPreview(context, featureUnits);
                 previewCount = featureUnits.Count;
             }
+
             var action = checkpoint.Reused ? "Reused" : "Found";
             context.Report("imageCheckpoint", new
             {

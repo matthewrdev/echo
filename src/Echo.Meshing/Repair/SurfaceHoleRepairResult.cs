@@ -1,3 +1,5 @@
 namespace Echo.Meshing.Repair;
 
-public sealed record SurfaceHoleRepairResult(int RepairedHoles, int AddedFaces);
+public sealed record SurfaceHoleRepairResult(
+    int RepairedHoles,
+    int AddedFaces);

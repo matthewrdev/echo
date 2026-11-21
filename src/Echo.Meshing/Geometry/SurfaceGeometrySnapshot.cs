@@ -22,12 +22,14 @@ internal sealed class SurfaceGeometrySnapshot : IDisposable
         {
             return;
         }
+
         var bytes = checked(mesh.Vertices.Count * 24L + mesh.Faces.Count * 12L + 128);
         reservation = pagedFaces != null ? pagedFaces.TryReserveMemory(bytes) : pagedVertices!.TryReserveMemory(bytes);
         if (reservation == null)
         {
             return;
         }
+
         try
         {
             cancellation.ThrowIfCancellationRequested();
@@ -51,6 +53,7 @@ internal sealed class SurfaceGeometrySnapshot : IDisposable
                     }
                 }
             }
+
             for (var start = 0; start < faces.Length; start += 4096)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -68,6 +71,7 @@ internal sealed class SurfaceGeometrySnapshot : IDisposable
                     }
                 }
             }
+
             this.vertices = vertices;
             this.faces = faces;
         }

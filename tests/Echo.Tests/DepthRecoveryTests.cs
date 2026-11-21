@@ -49,6 +49,7 @@ public sealed class DepthRecoveryTests
                         SetGray(texture, x + 1, y + 1, 127 - first);
                     }
                 }
+
                 foreach (var shift in new[] { 0, -6, 6 })
                 {
                     var id = "view" + shift;
@@ -60,10 +61,12 @@ public sealed class DepthRecoveryTests
                             bitmap.SetPixel(x, y, texture.GetPixel(Math.Clamp(x + shift, 0, texture.Width - 1), y));
                         }
                     }
+
                     images.Save(bitmap, store.PathFor(id + ".png"), SKEncodedImageFormat.Png);
                     project.Images.Add(new Photo { Id = id, Source = id + ".png", Width = 320, Height = 192, FocalPixels = 240 });
                     scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [shift / 24.0, 0, 0] });
                 }
+
                 var phases = new List<DepthLevelMetrics>();
                 var map = estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2, metrics: phases.Add);
                 Check(phases[0].RetainedSamples == 0, "Coarse image must have no usable depth seeds");
@@ -85,6 +88,7 @@ public sealed class DepthRecoveryTests
                         }
                     }
                 }
+
                 Check(valid > 40000, "Most mutually visible fine texture should have depth");
                 Check(incorrect < valid / 100, "Recovered samples must agree with the known ten-metre plane");
 
@@ -93,6 +97,7 @@ public sealed class DepthRecoveryTests
                 {
                     images.Save(texture, store.PathFor(photo.Source), SKEncodedImageFormat.Png);
                 }
+
                 var blank = estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2);
                 Check(blank.Depth.All(depth => depth == 0), "Recovery must not invent depth for a textureless image");
             }
@@ -123,6 +128,7 @@ public sealed class DepthRecoveryTests
                     SetGray(texture, x, y, random.Next(20, 235));
                 }
             }
+
             foreach (var shift in new[] { 0, -12, 12 })
             {
                 var id = "wide" + shift;
@@ -134,10 +140,12 @@ public sealed class DepthRecoveryTests
                         bitmap.SetPixel(x, y, texture.GetPixel(Math.Clamp(x + shift, 0, texture.Width - 1), y));
                     }
                 }
+
                 images.Save(bitmap, store.PathFor(id + ".png"), SKEncodedImageFormat.Png);
                 project.Images.Add(new Photo { Id = id, Source = id + ".png", Width = 1280, Height = 64, FocalPixels = 960 });
                 scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [shift / 96.0, 0, 0] });
             }
+
             var map = estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2);
             var depths = Enumerable.Range(12, 40).SelectMany(y => Enumerable.Range(32, 1216).Select(x => map.Depth[y * map.Width + x])).Where(depth => depth > 0).ToArray();
             Check(depths.Length > 44000, "The widened footprint should retain most visible planar texture");
@@ -150,11 +158,13 @@ public sealed class DepthRecoveryTests
                 Check(executions.Any(item => item.LevelWidth == 1280 && item.AcceleratedSearches > 0), "Exercise the wider patch basis on native Metal");
                 Check(map.Depth.AsSpan().SequenceEqual(accelerated.Depth) && map.Confidence.AsSpan().SequenceEqual(accelerated.Confidence), "Validated Metal and CPU retain identical widened-patch geometry");
             }
+
             texture.Erase(new SKColor(127, 127, 127));
             foreach (var photo in project.Images)
             {
                 images.Save(texture, store.PathFor(photo.Source), SKEncodedImageFormat.Png);
             }
+
             Check(estimator.Estimate(store, project, scene, scene.Cameras[0], default, 2).Depth.All(depth => depth == 0), "Smoothing cannot fabricate depth for flat inputs");
         }
         finally

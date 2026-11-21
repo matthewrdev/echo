@@ -21,6 +21,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             return ParallelMeshCollapse.Reduce(this, sourceMesh, targetFaceCount, cancellation, detailTolerance,
                 vertexTolerances, work, progress, regions, Math.Min(8, Environment.ProcessorCount));
         }
+
         return ReduceCore(sourceMesh, targetFaceCount, cancellation, detailTolerance, vertexTolerances, work, progress);
     }
 
@@ -34,11 +35,13 @@ public sealed class EdgeCollapse : IEdgeCollapse
         {
             throw new ArgumentOutOfRangeException(nameof(detailTolerance));
         }
+
         if (vertexTolerances != null && (vertexTolerances.Count != sourceMesh.Vertices.Count
             || vertexTolerances.Any(value => !double.IsFinite(value) || value < 0)))
         {
             throw new ArgumentException("Expected a finite nonnegative tolerance per source vertex.", nameof(vertexTolerances));
         }
+
         var outputWork = work;
         using var scratch = work?.CreateScope(preferResident: true);
         work = scratch;
@@ -51,6 +54,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 tolerances.Add(tolerance);
             }
         }
+
         if (sourceMesh.Faces.Count <= targetFaceCount && detailTolerance == 0 && tolerances == null && outputVertices == null)
         {
             return sourceMesh;
@@ -81,6 +85,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             boundaries.Add(BoundaryState.Unknown);
             updates.Advance(adjacencyRecords + (long)index + 1);
         }
+
         updates.Complete();
         updates.Start(SimplificationPhase.Triangles, sourceMesh.Faces.Count, "triangles");
         IList<FaceVertices> faces = work?.List(new FaceVerticesCodec()) ?? new List<FaceVertices>(sourceMesh.Faces.Count);
@@ -93,8 +98,10 @@ public sealed class EdgeCollapse : IEdgeCollapse
             {
                 removed.Add(false);
             }
+
             updates.Advance(faces.Count);
         }
+
         updates.Complete();
         updates.Start(SimplificationPhase.Quadrics, faces.Count, "triangles");
         adjacency.Initialize(faces, cancellation);
@@ -128,6 +135,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                         vertex[r * 4 + c] += plane[r] * plane[c];
                     }
                 }
+
                 vertices[v] = vertex;
             }
         }
@@ -144,6 +152,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             {
                 edgeCounts.Clear();
             }
+
             foreach (var face in adjacency.Faces(vertex))
             {
                 var triangleVertices = faces[face];
@@ -161,6 +170,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     }
                 }
             }
+
             if (measureBoundary)
             {
                 boundaries[vertex] = edgeCounts.Values.Contains(1) ? BoundaryState.Boundary : BoundaryState.Interior;
@@ -173,6 +183,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             {
                 return cached == BoundaryState.Boundary;
             }
+
             Neighbours(vertex, boundaryNeighbours);
             return boundaries[vertex] == BoundaryState.Boundary;
         }
@@ -199,12 +210,14 @@ public sealed class EdgeCollapse : IEdgeCollapse
             {
                 return;
             }
+
             var va = vertices[a];
             var vb = vertices[b];
             if (va.Removed || vb.Removed)
             {
                 return;
             }
+
             var aBoundary = Boundary(a);
             var bBoundary = Boundary(b);
             Span<V3> options = stackalloc V3[3];
@@ -224,6 +237,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 options[2] = (va.Position + vb.Position) * .5;
                 optionCount = 3;
             }
+
             var best = double.PositiveInfinity;
             var bestPoint = options[0];
             var quadric = new EdgeQuadric(va, vb);
@@ -247,6 +261,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 queue.Remove(a, b);
                 return;
             }
+
             queue.Offer(new Candidate(a, b, revisions[a], revisions[b], bestPoint, best), priority);
         }
 
@@ -285,6 +300,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             {
                 continue;
             }
+
             var sharedCount = 0;
             var sharedFace = -1;
             foreach (var face in adjacency.Faces(edge.A))
@@ -295,6 +311,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     sharedFace = face;
                 }
             }
+
             if (sharedCount != 1)
             {
                 continue;
@@ -323,6 +340,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                         vertex[r * 4 + c] += 100 * plane[r] * plane[c];
                     }
                 }
+
                 vertices[vi] = vertex;
             }
         }
@@ -336,6 +354,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             Offer(edge.A, edge.B);
             updates.Advance(++rankedEdges);
         }
+
         updates.Complete();
         edgeScratch?.Dispose();
         updates.Start(SimplificationPhase.Collapse, null, "candidates");
@@ -376,19 +395,23 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 queue.Retain(candidate => Current(candidate) && WithinTolerance(candidate.A, candidate.B, candidate.Error), cancellation);
                 filteredForTolerance = true;
             }
+
             if (!queue.TryDequeue(out var edge))
             {
                 break;
             }
+
             updates.Advance(++evaluated, remaining, queue.Count);
             if (!Current(edge))
             {
                 continue;
             }
+
             if (remaining <= targetFaceCount && !WithinTolerance(edge.A, edge.B, edge.Error))
             {
                 continue;
             }
+
             var a = vertices[edge.A];
             var b = vertices[edge.B];
 
@@ -400,6 +423,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     commonFaces.Add(face);
                 }
             }
+
             if (commonFaces.Count is < 1 or > 2)
             {
                 continue;
@@ -415,6 +439,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     sharedNeighbours++;
                 }
             }
+
             if (sharedNeighbours != commonFaces.Count)
             {
                 continue;
@@ -432,6 +457,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 affected.Add(face);
                 affectedSet.Add(face);
             }
+
             foreach (var face in adjacency.Faces(b.Id))
             {
                 if (affectedSet.Add(face))
@@ -439,6 +465,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     affected.Add(face);
                 }
             }
+
             var valid = true;
             survivingTriangles.Clear();
             foreach (var fi in affected)
@@ -456,12 +483,14 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     next[corner] = vertex == edge.A || vertex == edge.B ? edge.Position : old[corner];
                     triangle[corner] = vertex == edge.B ? edge.A : vertex;
                 }
+
                 triangle.Sort();
                 if (!survivingTriangles.Add(new TriangleKey(triangle[0], triangle[1], triangle[2])))
                 {
                     valid = false;
                     break;
                 }
+
                 var oldNormal = (old[1] - old[0]).Cross(old[2] - old[0]);
                 var newNormal = (next[1] - next[0]).Cross(next[2] - next[0]);
                 if (newNormal.Length < 1e-10 || (oldNormal.Unit).Dot(newNormal.Unit) < .25)
@@ -485,6 +514,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     touched.Add(triangleVertices[corner]);
                 }
             }
+
             foreach (var fi in affected)
             {
                 var original = faces[fi];
@@ -494,6 +524,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     {
                         adjacency.Remove(original[corner], fi);
                     }
+
                     removed[fi] = true;
                     remaining--;
                     continue;
@@ -514,6 +545,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             {
                 tolerances[edge.A] = Math.Min(tolerances[edge.A], tolerances[edge.B]);
             }
+
             a.Position = edge.Position;
             a.PlaneCount += b.PlaneCount;
             for (var row = 0; row < 4; row++)
@@ -538,6 +570,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
             {
                 queue.Remove(edge.B, neighbour);
             }
+
             Neighbours(edge.A, updatedNeighbours);
             foreach (var neighbour in neighboursA)
             {
@@ -556,10 +589,12 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 {
                     continue;
                 }
+
                 if (neighbourhoodCount == neighbourhoods.Count)
                 {
                     neighbourhoods.Add(new CollapseNeighbourhood());
                 }
+
                 var neighbourhood = neighbourhoods[neighbourhoodCount++];
                 neighbourhood.Vertex = vi;
                 var previousBoundary = boundaries[vi];
@@ -570,6 +605,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                     costChanged.Add(vi);
                 }
             }
+
             for (var index = 0; index < neighbourhoodCount; index++)
             {
                 var neighbourhood = neighbourhoods[index];

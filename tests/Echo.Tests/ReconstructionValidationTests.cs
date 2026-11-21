@@ -100,8 +100,10 @@ public sealed class ReconstructionValidationTests
                 {
                     split.Vertices.Add(tetrahedron.Vertices[vertex].ToArray());
                 }
+
                 split.Faces.Add([first, first + 1, first + 2]);
             }
+
             Check(SurfaceTopology.Measure(split, default).Closed, "Texture seams do not become holes");
             split.Faces.RemoveAt(0);
             var open = SurfaceTopology.Measure(split, default);
@@ -164,6 +166,7 @@ public sealed class ReconstructionValidationTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected " + typeof(T).Name);
     }
 }

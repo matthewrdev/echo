@@ -44,9 +44,11 @@ public sealed class MeshingOptimizationTests
                     {
                         depths.Add(index % 31 == 0 ? 0 : map.Depth[index] + index % 7 * .01f);
                     }
+
                     map.Samples = new PagedDepthSamples((IReadOnlyList<float>)depths, []);
                     map.Depth = [];
                 }
+
                 fixture.Project.Settings.ExclusionRegions.Add(new ExclusionRegion { Width = 1, Height = 1, Depth = 1 });
                 using var expected = new MeshDepthContext(fixture.Project, fixture.Scene, fixture.Maps);
                 using (var actual = new MeshDepthContext(fixture.Project, fixture.Scene, fixture.Maps, work))
@@ -65,6 +67,7 @@ public sealed class MeshingOptimizationTests
                                 "Snapshot changed a depth sample or exclusion");
                             Check(after.Map.ConfidenceAt(index) == before.Map.ConfidenceAt(index), "Snapshot lost confidence");
                         }
+
                         Parallel.For(0, 512, query =>
                         {
                             var point = new V3((query % 31 - 15) * .1, (query % 23 - 11) * .1, 10);
@@ -75,8 +78,10 @@ public sealed class MeshingOptimizationTests
                             Check(expectedSurface == actualSurface && first == second, "Resident depth changed a surface query");
                         });
                     }
+
                     Check(data.Statistics.PeakResidentBytes <= budget, "Depth snapshots escaped the shared memory budget");
                 }
+
                 if (budget > 65536)
                 {
                     using var released = work.TryReserveMemory(budget / 4 * 3);
@@ -95,6 +100,7 @@ public sealed class MeshingOptimizationTests
                     mesh.Vertices.Add([x * .1, y * .1, Math.Sin(x * .1) * .03]);
                 }
             }
+
             for (var y = 0; y < side; y++)
             {
                 for (var x = 0; x < side; x++)
@@ -104,6 +110,7 @@ public sealed class MeshingOptimizationTests
                     mesh.Faces.Add([a, a + side + 2, a + side + 1]);
                 }
             }
+
             using var expected = new SurfaceTriangleIndex(mesh, default);
             foreach (var budget in new[] { 65536, 4 * 1024 * 1024 })
             {
@@ -114,10 +121,12 @@ public sealed class MeshingOptimizationTests
                 {
                     paged.Vertices.Add(vertex);
                 }
+
                 foreach (var face in mesh.Faces)
                 {
                     paged.Faces.Add(face);
                 }
+
                 var before = data.Statistics.ScratchBytes;
                 using (var actual = new SurfaceTriangleIndex(paged, default, work))
                 {
@@ -129,8 +138,10 @@ public sealed class MeshingOptimizationTests
                         Check(actual.HasOccluder(point, point - new V3(0, 0, 1)) == expected.HasOccluder(point, point - new V3(0, 0, 1)),
                             "Paging changed occlusion");
                     }
+
                     Check(data.Statistics.PeakResidentBytes <= budget, "Index arrays escaped the shared budget");
                 }
+
                 Check(data.Statistics.ScratchBytes == before, "Index disposal retained temporary records");
             }
         }));
@@ -163,8 +174,10 @@ public sealed class MeshingOptimizationTests
                         Check(batch.Keys[index] == keys[seen++], "Fallback reordered or skipped a batch");
                     }
                 }
+
                 Check(seen == keys.Length && session.Attempts == 1, "Fallback lost its tail or retried a failed session");
             }
+
             using (var reader = new VolumeCellReader(keys, session, ComputeBackend.Metal, 0, default))
             {
                 try
@@ -176,6 +189,7 @@ public sealed class MeshingOptimizationTests
                 {
                 }
             }
+
             using var cancellation = new CancellationTokenSource();
             using var cancelled = new VolumeCellReader(keys, null, ComputeBackend.Cpu, 0, cancellation.Token);
             cancelled.Read();
@@ -212,6 +226,7 @@ public sealed class MeshingOptimizationTests
                         expected.Pair(node - 1, node, .3, .3);
                     }
                 }
+
                 var labels = work.Filled(count + 13, false, new BoolRecordCodec());
                 var reference = new bool[count];
                 actual.Solve(labels, default);
@@ -219,6 +234,7 @@ public sealed class MeshingOptimizationTests
                 Check(labels.Take(count).SequenceEqual(reference), "Spilled graph changed an expansion");
                 Check(session.Statistics.ResidentBytes <= 65536, "Graph exceeded the shared budget");
             }
+
             Check(session.Statistics.WrittenBytes > 0, "Graph fixture did not exercise spilling");
         }));
         tests.Run("Paired SIMD quadrics preserve scalar accumulation bits", () =>
@@ -239,14 +255,17 @@ public sealed class MeshingOptimizationTests
                         second[row * 4 + column] = (random.NextDouble() - .5) * scale;
                     }
                 }
+
                 for (var point = 0; point < points.Length; point++)
                 {
                     points[point] = new V3(random.NextDouble() - .5, random.NextDouble() - .5, random.NextDouble() - .5);
                 }
+
                 if (iteration % 7 == 0)
                 {
                     points[0] = new V3(-0d, double.Epsilon, 0);
                 }
+
                 new EdgeQuadric(first, second).Evaluate(points, errors);
                 for (var point = 0; point < points.Length; point++)
                 {
@@ -259,6 +278,7 @@ public sealed class MeshingOptimizationTests
                             expected += values[row] * values[column] * (first[row * 4 + column] + second[row * 4 + column]);
                         }
                     }
+
                     Check(BitConverter.DoubleToInt64Bits(expected) == BitConverter.DoubleToInt64Bits(errors[point]), "SIMD changed a collapse error");
                 }
             }
@@ -298,6 +318,7 @@ public sealed class MeshingOptimizationTests
                         Check(projection.MaySee(world, world), "Rejected an exactly visible point");
                     }
                 }
+
                 var behind = CameraGeometry.Rotate(rotation, new V3(0, 0, -10)) + new V3(camera.Centre);
                 Check(!projection.MaySee(behind, behind), "Behind-camera rejection is ineffective");
             }
@@ -333,6 +354,7 @@ public sealed class MeshingOptimizationTests
             {
                 faces.Add(new FaceVertices(random.Next(100), random.Next(100), random.Next(100)));
             }
+
             var expected = new VertexFacesStore(100, null);
             var actual = new VertexFacesStore(100, work);
             for (var face = 0; face < faces.Count; face++)
@@ -342,6 +364,7 @@ public sealed class MeshingOptimizationTests
                     expected.Add(faces[face][corner], face);
                 }
             }
+
             actual.Initialize(faces, default);
             for (var mutation = 0; mutation < 3000; mutation++)
             {
@@ -356,6 +379,7 @@ public sealed class MeshingOptimizationTests
                     actual.Add(vertex, face);
                     expected.Add(vertex, face);
                 }
+
                 Check(actual.Faces(vertex).ToArray().SequenceEqual(expected.Faces(vertex).ToArray()), "Adjacency order changed");
             }
         }));
@@ -388,6 +412,7 @@ public sealed class MeshingOptimizationTests
                 mesh.Faces.Add([index, index, index]);
                 mesh.SourceImages.Add(index % 2 == 0 ? "second" : "first");
             }
+
             mesh.Vertices[3] = [-19, 17, 99];
             using var scope = writes.BeginScope();
             var path = Path.Combine(directory, "mesh.json");
@@ -399,17 +424,20 @@ public sealed class MeshingOptimizationTests
                 Check(actual.Vertices[index].SequenceEqual(mesh.Vertices[index]) && actual.Faces[index].SequenceEqual(mesh.Faces[index]), "Bulk copy changed geometry");
                 Check(actual.SourceImages[index] == mesh.SourceImages[index], "Bulk copy reused a different string table");
             }
+
             foreach (var file in Directory.EnumerateFiles(directory))
             {
                 Check(scope.TryGetChecksum(file, out var checksum), "Published artifact lacks a write-time checksum");
                 Check(checksum == Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(file))), "Write-time checksum is incorrect");
             }
+
             using (var nested = writes.BeginScope())
             {
                 var other = Path.Combine(directory, "nested.json");
                 artifacts.Write(other, new Surface());
                 Check(nested.TryGetChecksum(other, out _) && !scope.TryGetChecksum(other, out _), "Checksum scopes leaked");
             }
+
             File.AppendAllText(path, " ");
             Check(!scope.TryGetChecksum(path, out _), "Modified file retained a stale checksum");
         }));
@@ -425,6 +453,7 @@ public sealed class MeshingOptimizationTests
                     var angle = index * 2 * Math.PI / count;
                     points[index] = new V3(radius * Math.Cos(angle), radius * Math.Sin(angle), 0);
                 }
+
                 var boundary = Enumerable.Range(0, count).ToList();
                 var edges = new BinaryHashIndex<SurfaceEdge, BoundaryEdge>(count, new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec());
                 var actual = PlanarEarTriangulation.Fill(boundary, points, new V3(0, 0, 1), edges, default);
@@ -455,6 +484,7 @@ public sealed class MeshingOptimizationTests
                 {
                     continue;
                 }
+
                 var blocked = remaining.Any(vertex => vertex != before && vertex != current && vertex != after
                     && (b - a).Cross(points[vertex] - a).Dot(normal) >= -1e-12
                     && (c - b).Cross(points[vertex] - b).Dot(normal) >= -1e-12
@@ -463,13 +493,16 @@ public sealed class MeshingOptimizationTests
                 {
                     continue;
                 }
+
                 result.Add([before, current, after]);
                 remaining.RemoveAt(index);
                 found = true;
                 break;
             }
+
             Check(found, "Invalid reference polygon");
         }
+
         result.Add(remaining.ToArray());
         return result;
     }

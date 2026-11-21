@@ -22,6 +22,7 @@ public sealed class CloudComparison
             Console.Error.WriteLine("Usage: Echo.Benchmarks compare-cloud BEFORE.ply AFTER.ply SCENE.json OUTPUT.png");
             return 2;
         }
+
         var before = Sample(args[0]);
         var after = Sample(args[1]);
         var scene = json.Read<ReconstructionScene>(args[2]);
@@ -45,6 +46,7 @@ public sealed class CloudComparison
                 bottom = Math.Min(bottom, Axis(point, vertical));
                 top = Math.Max(top, Axis(point, vertical));
             }
+
             var scale = Math.Min(740 / Math.Max(1e-6, right - left), 350 / Math.Max(1e-6, top - bottom));
             for (var column = 0; column < 2; column++)
             {
@@ -58,6 +60,7 @@ public sealed class CloudComparison
                     canvas.DrawCircle((float)(originX + (Axis(point, horizontal) - left) * scale),
                         (float)(originY + (top - Axis(point, vertical)) * scale), 1.1f, paint);
                 }
+
                 foreach (var camera in scene.Cameras)
                 {
                     paint.Color = SKColors.OrangeRed;
@@ -66,6 +69,7 @@ public sealed class CloudComparison
                 }
             }
         }
+
         using var image = SKImage.FromBitmap(bitmap);
         using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
         using var output = File.Create(args[3]);
@@ -90,22 +94,26 @@ public sealed class CloudComparison
                 line.Append((char)next);
                 continue;
             }
+
             var text = line.ToString();
             line.Clear();
             if (text.StartsWith("element vertex ", StringComparison.Ordinal))
             {
                 count = int.Parse(text[15..], CultureInfo.InvariantCulture);
             }
+
             if (text == "end_header")
             {
                 break;
             }
         }
+
         var start = input.Position;
         if (input.Length - start != count * 23L)
         {
             throw new EchoException("Expected an Echo binary dense-cloud PLY.");
         }
+
         var stride = Math.Max(1, (count + 74999) / 75000);
         var samples = new List<DenseSample>(Math.Min(count, 75000));
         for (var i = 0; i < count; i += stride)
@@ -114,6 +122,7 @@ public sealed class CloudComparison
             samples.Add(new DenseSample(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
                 reader.ReadByte(), reader.ReadByte(), reader.ReadByte(), reader.ReadInt32(), reader.ReadSingle()));
         }
+
         return samples;
     }
 }

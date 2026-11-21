@@ -12,6 +12,7 @@ public static class PairGeometryVerificationCache
         {
             return pair.BundleVerification.Inliers;
         }
+
         var estimate = FundamentalMatrixEstimator.Estimate(pair.Matches, threshold, cancellation);
         var inliers = estimate?.Inliers ?? pair.Matches.Where(match => match.Manual).ToList();
         pair.BundleVerification = new PairGeometryVerification { Fingerprint = fingerprint, Inliers = inliers };

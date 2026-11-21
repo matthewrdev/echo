@@ -16,15 +16,18 @@ public static class TriangulationCompute
         {
             return null;
         }
+
         if (!compute.CanAllocate((long)matches.Count * 8 * sizeof(float) + 48 * sizeof(float), backend))
         {
             return null;
         }
+
         using var session = compute.Open(backend, cancellation);
         if (session == null)
         {
             return null;
         }
+
         var packed = ArrayPool<float>.Shared.Rent(matches.Count * 4);
         var values = ArrayPool<float>.Shared.Rent(matches.Count * 4);
         try
@@ -40,6 +43,7 @@ public static class TriangulationCompute
                 packed[i * 4 + 2] = (float)matches[i].B[0];
                 packed[i * 4 + 3] = (float)matches[i].B[1];
             }
+
             session.Upload<float>(0, views);
             session.Upload<float>(1, packed.AsSpan(0, matches.Count * 4));
             session.Allocate(2, checked(matches.Count * 4 * sizeof(float)));
@@ -56,6 +60,7 @@ public static class TriangulationCompute
                     result[i] = CameraGeometry.Triangulate(left, right, a, b, matches[i], tolerance);
                     continue;
                 }
+
                 var point = origin + new V3(values[i * 4], values[i * 4 + 1], values[i * 4 + 2]);
                 var pa = CameraGeometry.ProjectPoint(left, a, point);
                 var pb = CameraGeometry.ProjectPoint(right, b, point);
@@ -64,6 +69,7 @@ public static class TriangulationCompute
                     result[i] = CameraGeometry.Triangulate(left, right, a, b, matches[i], tolerance);
                     continue;
                 }
+
                 var verified = Math.Sqrt((CameraGeometry.Square(pa.Value.X - matches[i].A[0])
                     + CameraGeometry.Square(pa.Value.Y - matches[i].A[1])
                     + CameraGeometry.Square(pb.Value.X - matches[i].B[0])
@@ -71,6 +77,7 @@ public static class TriangulationCompute
                 result[i] = verified <= tolerance ? new Triangulated { Point = point, Error = verified }
                     : CameraGeometry.Triangulate(left, right, a, b, matches[i], tolerance);
             }
+
             return result;
         }
         catch (ComputeException) when (backend == ComputeBackend.Auto)
@@ -97,6 +104,7 @@ public static class TriangulationCompute
         {
             values[i + 4] = (float)inverse[i];
         }
+
         values[13] = photo.Width;
         values[14] = photo.Height;
     }

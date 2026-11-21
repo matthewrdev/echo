@@ -32,6 +32,7 @@ public sealed class CloudPointRecordCodec : RecordCodec<CloudPoint>
         {
             throw new InvalidDataException("Invalid sparse point record.");
         }
+
         return new CloudPoint
         {
             Position = (flags & 2) == 0 ? [] : ReadVector(bytes, 3),
@@ -59,9 +60,11 @@ public sealed class CloudPointRecordCodec : RecordCodec<CloudPoint>
             {
                 throw new InvalidDataException("Sparse point colours must contain three channels.");
             }
+
             flags |= 1;
             value.Colour.CopyTo(bytes[73..]);
         }
+
         bytes[72] = (byte)flags;
     }
 
@@ -72,6 +75,7 @@ public sealed class CloudPointRecordCodec : RecordCodec<CloudPoint>
         {
             values[index] = BinaryPrimitives.ReadDoubleLittleEndian(bytes[(index * 8)..]);
         }
+
         return values;
     }
 
@@ -81,14 +85,17 @@ public sealed class CloudPointRecordCodec : RecordCodec<CloudPoint>
         {
             return false;
         }
+
         if (values.Length != count)
         {
             throw new InvalidDataException("Invalid sparse point vector dimensions.");
         }
+
         for (var index = 0; index < count; index++)
         {
             BinaryPrimitives.WriteDoubleLittleEndian(bytes[(index * 8)..], values[index]);
         }
+
         return true;
     }
 }

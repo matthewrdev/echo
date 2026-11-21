@@ -18,6 +18,7 @@ public static class CliffRecoverySearch
                 {
                     continue;
                 }
+
                 var depth = source.DepthAt((y + dy) * source.Width + x + dx);
                 if (float.IsFinite(depth) && depth > 0)
                 {
@@ -35,6 +36,7 @@ public static class CliffRecoverySearch
         {
             return 0;
         }
+
         depths[..count].Sort();
         var median = depths[count / 2];
         return depths[count - 1] - depths[0] <= median * .04 ? median : 0;
@@ -54,6 +56,7 @@ public static class CliffRecoverySearch
                 return true;
             }
         }
+
         return false;
     }
 }

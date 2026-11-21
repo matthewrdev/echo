@@ -12,6 +12,7 @@ public static class AltitudeReferenceResolver
         {
             return new AltitudeReference { Evidence = "No source altitude was recorded." };
         }
+
         var absolute = Number(metadata, "AbsoluteAltitude");
         var gps = Number(metadata, "GPSAltitude");
         var matchesAbsolute = Matches(position.Altitude.Value, absolute);
@@ -21,6 +22,7 @@ public static class AltitudeReferenceResolver
         {
             return new AltitudeReference { Datum = position.AltitudeDatum, Source = source, Evidence = "Reference supplied with the geographic position." };
         }
+
         var result = new AltitudeReference { Source = source, Evidence = "The source does not identify a vertical reference." };
         if (!matchesGps)
         {
@@ -29,6 +31,7 @@ public static class AltitudeReferenceResolver
                 : result.Evidence;
             return result;
         }
+
         var reference = Number(metadata, "GPSAltitudeRef");
         var version = Text(metadata, "ExifVersion");
         var modernExif = int.TryParse(version, NumberStyles.None, CultureInfo.InvariantCulture, out var exifVersion) && exifVersion >= 300;
@@ -39,6 +42,7 @@ public static class AltitudeReferenceResolver
             result.Evidence = $"GPSAltitudeRef={reference?.ToString(CultureInfo.InvariantCulture) ?? "absent"}, ExifVersion={version ?? "absent"}. Legacy EXIF does not reliably distinguish ellipsoidal height from sea-level height.";
             return result;
         }
+
         var mapDatum = Text(metadata, "GPSMapDatum")?.Replace("-", "").Replace(" ", "");
         if (reference is 0 or 1 && string.Equals(mapDatum, "WGS84", StringComparison.OrdinalIgnoreCase))
         {
@@ -50,6 +54,7 @@ public static class AltitudeReferenceResolver
             result.Datum = "mean sea level (geoid unspecified)";
             result.Evidence = "EXIF 3.x GPSAltitudeRef=2/3 declares sea-level height but does not identify a geoid model.";
         }
+
         return result;
     }
 
@@ -65,6 +70,7 @@ public static class AltitudeReferenceResolver
         {
             return null;
         }
+
         return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
     }
 

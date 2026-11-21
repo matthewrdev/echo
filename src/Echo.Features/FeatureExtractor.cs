@@ -112,7 +112,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
         };
         if (settings.DetectLines)
         {
-            output.Lines = candidates.Lines;
+            output.Lines = candidates.Lines.ToList();
             foreach (var point in candidates.Junctions)
             {
                 Occupy(occupied, width, (int)Math.Round(point.X), (int)Math.Round(point.Y));
@@ -120,6 +120,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
                 point.Y *= (double)photo.Height / height;
                 output.Features.Add(point);
             }
+
             foreach (var line in output.Lines)
             {
                 line.Start[0] *= (double)photo.Width / width;
@@ -137,10 +138,12 @@ public sealed class FeatureExtractor : IFeatureExtractor
                 {
                     break;
                 }
+
                 feature.X *= (double)photo.Width / width;
                 feature.Y *= (double)photo.Height / height;
                 output.Features.Add(feature);
             }
+
             return output;
         }
 
@@ -159,6 +162,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
             {
                 continue;
             }
+
             output.Features.Add(new Feature
             {
                 X = (double)corner.X * photo.Width / width,
@@ -207,10 +211,12 @@ public sealed class FeatureExtractor : IFeatureExtractor
                         xyRows[targetRow + x] = gx * gy;
                     }
                 }
+
                 for (var row = 0; row < rowCount; row++)
                 {
                     offsets[row] = (y + row - 2) % rowCount * width;
                 }
+
                 for (var x = 12; x < width - 12; x += 2)
                 {
                     double xx = 0;
@@ -226,6 +232,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
                             xy += xyRows[index];
                         }
                     }
+
                     var score = xx * yy - xy * xy - .04 * (xx + yy) * (xx + yy);
                     if (score > .00001)
                     {
@@ -233,6 +240,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
                     }
                 }
             }
+
             return corners;
         }
         finally
@@ -248,6 +256,7 @@ public sealed class FeatureExtractor : IFeatureExtractor
         {
             return scoreOrder;
         }
+
         var rowOrder = left.Y.CompareTo(right.Y);
         return rowOrder != 0 ? rowOrder : left.X.CompareTo(right.X);
     }
@@ -275,15 +284,18 @@ public sealed class FeatureExtractor : IFeatureExtractor
             var difference = value - mean;
             squared += difference * difference;
         }
+
         var norm = Math.Sqrt((float)squared);
         if (norm < .05)
         {
             return false;
         }
+
         for (var i = 0; i < descriptor.Length; i++)
         {
             descriptor[i] = (float)((descriptor[i] - mean) / norm);
         }
+
         return true;
     }
 

@@ -10,20 +10,24 @@ public static class Matrix3Inverter
         {
             throw new ArgumentException("A 3 by 3 matrix requires nine values.");
         }
+
         double scale = 0;
         for (var index = 0; index < matrix.Length; index++)
         {
             scale = Math.Max(scale, Math.Abs(matrix[index]));
         }
+
         if (!double.IsFinite(scale) || scale == 0)
         {
             throw new EchoException("Degenerate point geometry.", 5);
         }
+
         Span<double> normalized = stackalloc double[9];
         for (var index = 0; index < normalized.Length; index++)
         {
             normalized[index] = matrix[index] / scale;
         }
+
         var determinant = normalized[0] * (normalized[4] * normalized[8] - normalized[5] * normalized[7])
             - normalized[1] * (normalized[3] * normalized[8] - normalized[5] * normalized[6])
             + normalized[2] * (normalized[3] * normalized[7] - normalized[4] * normalized[6]);
@@ -33,6 +37,7 @@ public static class Matrix3Inverter
         {
             throw new EchoException("Degenerate point geometry.", 5);
         }
+
         inverse[0] = normalized[4] * normalized[8] - normalized[5] * normalized[7];
         inverse[1] = normalized[2] * normalized[7] - normalized[1] * normalized[8];
         inverse[2] = normalized[1] * normalized[5] - normalized[2] * normalized[4];

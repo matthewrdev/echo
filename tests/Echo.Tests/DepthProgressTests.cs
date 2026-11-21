@@ -38,6 +38,7 @@ public sealed class DepthProgressTests
                         bitmap.SetPixel(x, y, new SKColor(shade, shade, shade));
                     }
                 }
+
                 images.Save(bitmap, store.PathFor("image.png"), SKEncodedImageFormat.Png);
                 var project = new ProjectData
                 {

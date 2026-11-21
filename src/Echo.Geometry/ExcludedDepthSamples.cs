@@ -35,8 +35,10 @@ public sealed class ExcludedDepthSamples : IDepthSamples
                     mask[start + offset] = true;
                 }
             }
+
             start += block.Length;
         }
+
         excluded = mask;
     }
 
@@ -58,6 +60,7 @@ public sealed class ExcludedDepthSamples : IDepthSamples
                     destination[index] = 0;
                 }
             }
+
             return;
         }
 
@@ -78,6 +81,7 @@ public sealed class ExcludedDepthSamples : IDepthSamples
         {
             return false;
         }
+
         var point = source.Point(index % source.Map.Width, index / source.Map.Width, depth);
         return crop.IsExcluded(point);
     }

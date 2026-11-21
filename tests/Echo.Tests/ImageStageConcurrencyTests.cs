@@ -88,6 +88,7 @@ public sealed class ImageStageConcurrencyTests
                 context.Start();
                 ExpectCancellation(() => features.Execute(context));
             }
+
             Check(run.Artifacts.ContainsKey("featuresPreview") && !run.Artifacts.ContainsKey("features"), "Keep the committed preview without claiming stage completion");
             var savedFeatures = Directory.GetDirectories(store.PathFor("artifacts/feature-image")).Select(Path.GetFileName).ToHashSet();
             Check(savedFeatures.Count is >= 1 and <= 4, "Keep committed work within the bounded look-ahead after cancellation");
@@ -105,6 +106,7 @@ public sealed class ImageStageConcurrencyTests
                 });
                 ExpectCancellation(() => matching.Execute(context));
             }
+
             Check(!run.Artifacts.ContainsKey("matching"), "Cancelled matching must not publish its final index");
             var partialPairs = indexes.Read(store.PathFor(run.Artifacts["matchingPreview"] + "/pairs.ndjson"));
             Check(partialPairs.Count == 1, "Cancelled matching retains its committed, viewable pair index");
@@ -193,6 +195,7 @@ public sealed class ImageStageConcurrencyTests
                 // ProcessingMetadataTests verifies their integrity and reuse separately.
                 continue;
             }
+
             var hash = files.HashFile(path);
             if (Path.GetFileName(path) == "manifest.json")
             {
@@ -200,8 +203,10 @@ public sealed class ImageStageConcurrencyTests
                 manifest.Files.Remove("processing.json");
                 hash = files.Hash(manifest);
             }
+
             result.Add(Path.GetRelativePath(store.Root, path), hash);
         }
+
         return result;
     }
 
@@ -218,6 +223,7 @@ public sealed class ImageStageConcurrencyTests
             var units = json.Read<Dictionary<string, string>>(store.PathFor(path + "/units.json"));
             Check(units.Keys.SequenceEqual(Enumerable.Range(0, index + 1).Select(i => i.ToString())), "Preview must contain an ordered prefix of committed images");
         }
+
         Check(previews.Length == 4, "Publish each completed image preview");
         var pairs = events.Where(record => record.GetProperty("type").GetString() == "pairCheckpoint").ToArray();
         Check(pairs.Select(record => record.GetProperty("payload").GetProperty("completed").GetInt32()).SequenceEqual(Enumerable.Range(1, 6)), "Pair completion counts must be ordered");
@@ -291,6 +297,7 @@ public sealed class ImageStageConcurrencyTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected cancellation");
     }
 

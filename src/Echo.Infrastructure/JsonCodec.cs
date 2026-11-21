@@ -63,6 +63,7 @@ public sealed class JsonCodec : IJsonCodec
                 return info;
             }
         }
+
         return null;
     }
 
@@ -72,6 +73,7 @@ public sealed class JsonCodec : IJsonCodec
         {
             return bulk.Read<T>(path);
         }
+
         using var stream = File.OpenRead(path);
         return JsonSerializer.Deserialize(stream, ReadType<T>()) ?? throw new EchoException($"Empty JSON: {path}");
     }

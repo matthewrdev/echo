@@ -46,12 +46,14 @@ public sealed class GisExportService : IGisExportService
         {
             throw new EchoException("A completed alignment is required for geographic export.", 2);
         }
+
         var scene = json.Read<ReconstructionOverview>(store.PathFor(alignment + "/scene.json")).ToScene();
         destination = Path.GetFullPath(destination);
         if (Directory.Exists(destination) || File.Exists(destination))
         {
             throw new EchoException("Choose a new export folder; existing files are never overwritten.", 2);
         }
+
         foreach (var protectedFolder in new[] { "artifacts", "sources", "runs", "work" })
         {
             var protectedPath = Path.GetFullPath(store.PathFor(protectedFolder)) + Path.DirectorySeparatorChar;
@@ -60,6 +62,7 @@ public sealed class GisExportService : IGisExportService
                 throw new EchoException("Export outside the project's managed artifact, source, run and work folders.", 2);
             }
         }
+
         var surface = ReadSurface(store, run);
         var staging = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
         var manifest = new GeographicExportManifest { RunId = run.Id, Warnings = [.. scene.Warnings] };
@@ -78,6 +81,7 @@ public sealed class GisExportService : IGisExportService
                     }
                 }
             }
+
             ExportModel(staging, scene, surface, manifest);
             ExportCloud(store, run, staging, scene.Origin!, manifest);
             manifest.Files = Directory.GetFiles(staging).Select(path => Path.GetFileName(path)).Append("export-manifest.json").Order(StringComparer.Ordinal).ToList();
@@ -91,6 +95,7 @@ public sealed class GisExportService : IGisExportService
                 Directory.Delete(staging, recursive: true);
             }
         }
+
         return new GisExportResult
         {
             Directory = destination,
@@ -109,6 +114,7 @@ public sealed class GisExportService : IGisExportService
             manifest.Warnings.Add("Redpoint and 3D Tiles need a saved GLB. Complete the export stage first.");
             return;
         }
+
         try
         {
             redpoint.Write(directory, scene.Origin!, surface);
@@ -117,6 +123,7 @@ public sealed class GisExportService : IGisExportService
         {
             manifest.Warnings.Add("Redpoint omitted: " + error.Message);
         }
+
         if (GeographicCoordinates.HasEllipsoidalHeight(scene.Origin!))
         {
             tilesets.Write(directory, scene.Origin!, surface);
@@ -134,12 +141,14 @@ public sealed class GisExportService : IGisExportService
             manifest.Warnings.Add("LAS omitted: EPSG:4978 export requires an explicit WGS84 ellipsoidal height.");
             return;
         }
+
         using var session = bulk.OpenSession(64L * 1024 * 1024, 256L * 1024 * 1024);
         var grade = new ColourGradeTransform(run.Snapshot.Settings.ColourGrade);
         if (run.Snapshot.Settings.ColourGrade is { IsIdentity: false } recipe)
         {
             files.AtomicJson(Path.Combine(directory, "cloud-colour-grade.json"), recipe);
         }
+
         if (run.Artifacts.TryGetValue("cloud", out var cloudPath))
         {
             var report = json.Read<DenseCloudOverview>(store.PathFor(cloudPath + "/cloud.json")).ToReport();
@@ -151,6 +160,7 @@ public sealed class GisExportService : IGisExportService
                 return;
             }
         }
+
         var scene = session.Read<ReconstructionScene>(store.PathFor(run.Artifacts["alignment"] + "/scene.json"));
         if (scene.Points.Count > 0)
         {
@@ -175,6 +185,7 @@ public sealed class GisExportService : IGisExportService
         {
             return null;
         }
+
         var file = store.PathFor(mesh + "/mesh.json");
         if (run.Artifacts.TryGetValue("texture", out var texture))
         {
@@ -184,6 +195,7 @@ public sealed class GisExportService : IGisExportService
                 file = store.PathFor(texture + "/" + result.MeshFile);
             }
         }
+
         return json.Read<Surface>(file);
     }
 }

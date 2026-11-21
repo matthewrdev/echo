@@ -39,6 +39,7 @@ public sealed class FeatureBenchmark
         {
             project.Settings.DetectLines = bool.Parse(args[6]);
         }
+
         project.Settings.Validate();
         var photos = project.Images.Where(photo => photo.Enabled).Take(photoCount).ToArray();
         for (var iteration = 0; iteration < iterations; iteration++)
@@ -51,6 +52,7 @@ public sealed class FeatureBenchmark
             {
                 results[index] = extractor.Extract(store, photos[index], project.Settings, default);
             }
+
             watch.Stop();
             allocated = GC.GetTotalAllocatedBytes(true) - allocated;
             Console.WriteLine(json.Encode(new
@@ -68,6 +70,7 @@ public sealed class FeatureBenchmark
             }));
             files.AtomicJson(Path.GetFullPath(args[4]), results);
         }
+
         return 0;
     }
 }

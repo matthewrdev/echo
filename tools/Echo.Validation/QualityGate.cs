@@ -8,12 +8,14 @@ public static class QualityGate
         {
             throw new InvalidDataException("Every reconstruction metric must have an explicit acceptance interval.");
         }
+
         foreach (var metric in Enum.GetValues<QualityMetric>())
         {
             if (!limits.TryGetValue(metric, out var bounds) || bounds == null)
             {
                 throw new InvalidDataException($"Missing acceptance interval: {metric}.");
             }
+
             var finite = double.IsFinite(bounds.Minimum) && double.IsFinite(bounds.Maximum);
             if (!finite || bounds.Minimum < 0 || bounds.Maximum < bounds.Minimum)
             {
@@ -34,6 +36,7 @@ public static class QualityGate
             var passed = measured && value >= bounds.Minimum && value <= bounds.Maximum;
             checks.Add(new QualityCheck(metric, measured ? value : null, bounds.Minimum, bounds.Maximum, passed));
         }
+
         return checks;
     }
 }

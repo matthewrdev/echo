@@ -28,6 +28,7 @@ public sealed class DepthDiagnosticBenchmark
             Console.Error.WriteLine("Usage: depth-diagnostic PROJECT RUN IMAGE_NAME [CANDIDATE_DEPTH_JSON]");
             return 2;
         }
+
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
         var project = run.Snapshot;
@@ -46,6 +47,7 @@ public sealed class DepthDiagnosticBenchmark
             CompareSaved(photo, camera, verification, ReadCandidate(args[3]), "candidate");
             return 0;
         }
+
         foreach (var width in new[] { 640, 2048 })
         {
             using var bitmap = images.Decode(store.PathFor(photo.Source));
@@ -110,6 +112,7 @@ public sealed class DepthDiagnosticBenchmark
                                     lowTexture++;
                                     continue;
                                 }
+
                                 var ray = CameraGeometry.Rotate(camera.Rotation, new V3((x - reference.Width * .5) / focal, (y - reference.Height * .5) / focal, 1));
                                 if (estimator.SearchDepth(sampledViews, new V3(camera.Centre), ray, patch, norm, hypotheses, costs, true, default, out var depth, out var best))
                                 {
@@ -129,6 +132,7 @@ public sealed class DepthDiagnosticBenchmark
                                 }
                             }
                         }
+
                         Console.WriteLine(json.Encode(new
                         {
                             photo.Name,
@@ -148,6 +152,7 @@ public sealed class DepthDiagnosticBenchmark
                 }
             }
         }
+
         return 0;
     }
 
@@ -157,6 +162,7 @@ public sealed class DepthDiagnosticBenchmark
         {
             return values;
         }
+
         var result = new float[values.Length];
         GaussianBlur.Apply(values, result, width, height, sigma, default);
         return result;
@@ -185,6 +191,7 @@ public sealed class DepthDiagnosticBenchmark
                 {
                     continue;
                 }
+
                 accepted++;
                 if (SupportedAtCommonResolution(view, verification, view.Point(x, y, depth), x, y, scale))
                 {
@@ -192,6 +199,7 @@ public sealed class DepthDiagnosticBenchmark
                 }
             }
         }
+
         Console.WriteLine(json.Encode(new
         {
             photo.Name,
@@ -218,6 +226,7 @@ public sealed class DepthDiagnosticBenchmark
                 return true;
             }
         }
+
         return false;
     }
 
@@ -233,12 +242,14 @@ public sealed class DepthDiagnosticBenchmark
                 sum += patch[index++];
             }
         }
+
         double norm = 0;
         for (index = 0; index < patch.Length; index++)
         {
             patch[index] -= sum / patch.Length;
             norm += patch[index] * patch[index];
         }
+
         return norm;
     }
     private DepthMap ReadCandidate(string path)

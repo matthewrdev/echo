@@ -44,6 +44,7 @@ public sealed class SkyGuardTests
                 var grey = (byte)((index % 128 + index / 128) % 2 == 0 ? 195 : 155);
                 pixels[index] = new SKColor(grey, grey, grey);
             }
+
             Check(TextureSkyGuardBuilder.Build(pixels, 128, 128, false, 4, default) == null, "Pale textured rock touching the top edge is not a sky seed");
             Expect<OperationCanceledException>(() => TextureSkyGuardBuilder.Build(pixels, 128, 128, false, 4, new CancellationToken(true)));
             Expect<ArgumentOutOfRangeException>(() => TextureSkyGuardBuilder.Build(pixels, 128, 128, false, 0, default));
@@ -72,6 +73,7 @@ public sealed class SkyGuardTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected " + typeof(T).Name);
     }
 

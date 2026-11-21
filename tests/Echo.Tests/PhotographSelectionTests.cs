@@ -57,6 +57,7 @@ public sealed class PhotographSelectionTests
                 mesh.Vertices.Add([x, y + .1, 10]);
                 mesh.Faces.Add([first, first + 1, first + 2]);
             }
+
             var views = MeshDepthViews.Build(project, scene, maps);
             var byId = photos.ToDictionary(photo => photo.Id);
             var expected = FaceViewSelection.Select(mesh, views, byId, default, optimizeSeams: false);

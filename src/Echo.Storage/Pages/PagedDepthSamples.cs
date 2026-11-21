@@ -22,6 +22,7 @@ public sealed class PagedDepthSamples : IDepthSamples
             paged.ReadRange(start, destination);
             return;
         }
+
         for (var index = 0; index < destination.Length; index++)
         {
             destination[index] = depths[start + index];

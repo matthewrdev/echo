@@ -22,6 +22,7 @@ internal sealed class CollapseCandidateQueue
         {
             capacity *= 2;
         }
+
         buckets = work?.Filled(capacity, -1, new IntRecordCodec(), cancellation) ?? Enumerable.Repeat(-1, capacity).ToArray();
         links = work?.List(new CandidateQueueLinkCodec()) ?? new List<CandidateQueueLink>();
         entries = work?.List(new IndexedCandidateCodec()) ?? new List<IndexedCandidate>();
@@ -37,6 +38,7 @@ internal sealed class CollapseCandidateQueue
         {
             return Refresh(b, a, revisionB, revisionA);
         }
+
         for (var handle = buckets[Bucket(a, b)]; handle >= 0;)
         {
             var link = links[handle];
@@ -53,8 +55,10 @@ internal sealed class CollapseCandidateQueue
                 };
                 return true;
             }
+
             handle = link.Next;
         }
+
         return false;
     }
 
@@ -70,6 +74,7 @@ internal sealed class CollapseCandidateQueue
                 Write(retained++, item);
                 continue;
             }
+
             var bucket = Bucket(item.Value.A, item.Value.B);
             var previous = -1;
             for (var handle = buckets[bucket]; handle >= 0;)
@@ -88,18 +93,22 @@ internal sealed class CollapseCandidateQueue
                             Next = link.Next
                         };
                     }
+
                     links[handle] = new CandidateQueueLink(-1, -1, free, -1);
                     free = handle;
                     break;
                 }
+
                 previous = handle;
                 handle = link.Next;
             }
         }
+
         while (entries.Count > retained)
         {
             entries.RemoveAt(entries.Count - 1);
         }
+
         for (var index = (entries.Count - 2) / 4; index >= 0 && entries.Count > 1; index--)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -127,10 +136,13 @@ internal sealed class CollapseCandidateQueue
                 {
                     Replace(link.Slot, updated);
                 }
+
                 return;
             }
+
             handle = link.Next;
         }
+
         var next = free;
         var added = new CandidateQueueLink(candidate.A, candidate.B, buckets[bucket], entries.Count);
         if (next < 0)
@@ -143,6 +155,7 @@ internal sealed class CollapseCandidateQueue
             free = links[next].Next;
             links[next] = added;
         }
+
         buckets[bucket] = next;
         var item = new IndexedCandidate(candidate, priority, next);
         entries.Add(item);
@@ -171,6 +184,7 @@ internal sealed class CollapseCandidateQueue
                         Next = link.Next
                     };
                 }
+
                 links[handle] = new CandidateQueueLink(-1, -1, free, -1);
                 free = handle;
                 var last = entries[^1];
@@ -179,11 +193,14 @@ internal sealed class CollapseCandidateQueue
                 {
                     Replace(link.Slot, last);
                 }
+
                 return true;
             }
+
             previous = handle;
             handle = link.Next;
         }
+
         return false;
     }
 
@@ -194,6 +211,7 @@ internal sealed class CollapseCandidateQueue
             candidate = default;
             return false;
         }
+
         candidate = entries[0].Value;
         Remove(candidate.A, candidate.B);
         return true;
@@ -221,9 +239,11 @@ internal sealed class CollapseCandidateQueue
             {
                 break;
             }
+
             Write(slot, previous);
             slot = parent;
         }
+
         Write(slot, item);
     }
 
@@ -245,6 +265,7 @@ internal sealed class CollapseCandidateQueue
                     children[index] = entries[first + index];
                 }
             }
+
             var child = first;
             var best = children[0];
             for (var index = 1; index < count; index++)
@@ -255,13 +276,16 @@ internal sealed class CollapseCandidateQueue
                     best = children[index];
                 }
             }
+
             if (item.Priority.CompareTo(best.Priority) <= 0)
             {
                 break;
             }
+
             Write(slot, best);
             slot = child;
         }
+
         Write(slot, item);
     }
 

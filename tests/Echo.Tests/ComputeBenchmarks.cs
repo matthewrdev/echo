@@ -97,6 +97,7 @@ public sealed class ComputeBenchmarks
                 }
             }
         }
+
         Measure("Surface extraction 125000 lattice samples",
             () => TetrahedralSurface.Extract(samples, .1, default),
             () => TetrahedralSurface.Extract(samples, .1, default, compute: compute, backend: ComputeBackend.Metal));
@@ -113,6 +114,7 @@ public sealed class ComputeBenchmarks
                 mesh.Vertices.Add([x, y, Math.Sin(x * .1) * Math.Cos(y * .1)]);
             }
         }
+
         for (var y = 0; y < width; y++)
         {
             for (var x = 0; x < width; x++)
@@ -122,6 +124,7 @@ public sealed class ComputeBenchmarks
                 mesh.Faces.Add([first + 1, first + width + 2, first + width + 1]);
             }
         }
+
         using var index = new SurfaceTriangleIndex(mesh, default);
         var random = new Random(712);
         var rays = new SurfaceRay[65536];
@@ -131,6 +134,7 @@ public sealed class ComputeBenchmarks
             rays[ray] = new SurfaceRay(new V3(random.NextDouble() * width, random.NextDouble() * width, 30),
                 (triangle.A + triangle.B + triangle.C) / 3);
         }
+
         var cpu = new bool[rays.Length];
         var gpu = new bool[rays.Length];
         var parallel = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
@@ -161,6 +165,7 @@ public sealed class ComputeBenchmarks
             var right = CameraGeometry.ProjectPoint(photo, b, point)!.Value;
             matches.Add(new Match { A = [left.X, left.Y], B = [right.X, i % 5 == 0 ? right.Y + 100 : right.Y] });
         }
+
         Measure("Epipolar verification 30000 matches",
             () => FundamentalMatrixEstimator.Estimate(matches, 2, default),
             () => FundamentalMatrixEstimator.Estimate(matches, 2, default, compute, ComputeBackend.Metal));
@@ -192,6 +197,7 @@ public sealed class ComputeBenchmarks
                 {
                     constraints[index] = (double)y / (width - 1);
                 }
+
                 var node = new TextureSeamNode { Weight = boundary ? 1 : 0 };
                 nodes.Add(node);
                 local[index] = boundary ? new V3(.3, -.2, .1) : default;
@@ -203,9 +209,11 @@ public sealed class ComputeBenchmarks
                         system.Add(index, adjacent, -1);
                     }
                 }
+
                 system.Add(index, index, node.Neighbours.Count);
             }
         }
+
         Measure("UV solve 16384 unknowns with double refinement",
             () => system.Solve(constraints, default),
             () => system.Solve(constraints, default, compute, ComputeBackend.Metal));
@@ -223,8 +231,10 @@ public sealed class ComputeBenchmarks
                         {
                             sum += current[adjacent];
                         }
+
                         next[i] = nodes[i].Weight > 0 ? local[i] : sum / (nodes[i].Neighbours.Count + .05);
                     }
+
                     var previous = current;
                     current = next;
                     next = previous;
@@ -248,6 +258,7 @@ public sealed class ComputeBenchmarks
             gpu();
             gpuTimes[i] = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
         }
+
         Array.Sort(cpuTimes);
         Array.Sort(gpuTimes);
         Console.WriteLine($"BENCH {name}: CPU {cpuTimes[1]:F2} ms; Metal {gpuTimes[1]:F2} ms; {cpuTimes[1] / gpuTimes[1]:F2}x");

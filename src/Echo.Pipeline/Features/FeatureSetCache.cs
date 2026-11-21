@@ -58,14 +58,17 @@ public sealed class FeatureSetCache : IDisposable
                     loading.Remove(path);
                 }
             }
+
             throw;
         }
+
         lock (gate)
         {
             if (loading.GetValueOrDefault(path) == pending)
             {
                 loading.Remove(path);
             }
+
             cancellation.ThrowIfCancellationRequested();
             if (entries.TryGetValue(path, out var existing))
             {
@@ -73,6 +76,7 @@ public sealed class FeatureSetCache : IDisposable
                 recent.AddLast(existing);
                 return existing.Value.Features;
             }
+
             var bytes = EstimateBytes(features);
             if (bytes > capacityBytes)
             {
@@ -86,6 +90,7 @@ public sealed class FeatureSetCache : IDisposable
                 retainedBytes -= oldest.Value.EstimatedBytes;
                 recent.RemoveFirst();
             }
+
             var entry = new CachedFeatureSet(path, features, bytes);
             entries.Add(path, recent.AddLast(entry));
             retainedBytes += bytes;
@@ -103,10 +108,12 @@ public sealed class FeatureSetCache : IDisposable
         {
             bytes += 128 + feature.DescriptorData.Length * 4L + feature.Kind.Length * 2L;
         }
+
         foreach (var line in features.Lines)
         {
             bytes += 192 + line.DescriptorData.Length * 4L + (line.Start.Length + (long)line.End.Length) * 8;
         }
+
         return bytes;
     }
 

@@ -42,6 +42,7 @@ public sealed class ColourGradeTransform
         {
             return colour;
         }
+
         var red = Tone(colour.Red / 255.0, redGain);
         var green = Tone(colour.Green / 255.0, greenGain);
         var blue = Tone(colour.Blue / 255.0, blueGain);
@@ -60,11 +61,13 @@ public sealed class ColourGradeTransform
         {
             return;
         }
+
         var byteColour = bitmap.ColorType is SKColorType.Bgra8888 or SKColorType.Rgba8888;
         if (!BitConverter.IsLittleEndian || !byteColour)
         {
             throw new ArgumentException("Grading requires an RGBA/BGRA byte image.", nameof(bitmap));
         }
+
         var swap = bitmap.ColorType == SKColorType.Rgba8888;
         Parallel.For(0, bitmap.Height, new ParallelOptions
         {
@@ -80,22 +83,26 @@ public sealed class ColourGradeTransform
                 {
                     continue;
                 }
+
                 if (swap)
                 {
                     colour = new SKColor(colour.Blue, colour.Green, colour.Red, colour.Alpha);
                 }
+
                 var premultiplied = bitmap.AlphaType == SKAlphaType.Premul && colour.Alpha < 255;
                 if (premultiplied)
                 {
                     colour = new SKColor(Channel(colour.Red / (double)colour.Alpha),
                         Channel(colour.Green / (double)colour.Alpha), Channel(colour.Blue / (double)colour.Alpha), colour.Alpha);
                 }
+
                 var graded = Apply(colour);
                 if (premultiplied)
                 {
                     graded = new SKColor(Channel(graded.Red / 255.0 * graded.Alpha / 255),
                         Channel(graded.Green / 255.0 * graded.Alpha / 255), Channel(graded.Blue / 255.0 * graded.Alpha / 255), graded.Alpha);
                 }
+
                 pixels[column] = swap ? new SKColor(graded.Blue, graded.Green, graded.Red, graded.Alpha) : graded;
             }
         });

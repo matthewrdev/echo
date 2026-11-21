@@ -25,19 +25,23 @@ public static class GradientDescriptor
                 histogram[bin] += weight;
             }
         }
+
         for (var pass = 0; pass < 6; pass++)
         {
             for (var bin = 0; bin < 36; bin++)
             {
                 smoothed[bin] = (histogram[(bin + 35) % 36] + histogram[bin] + histogram[(bin + 1) % 36]) / 3;
             }
+
             smoothed.CopyTo(histogram);
         }
+
         double maximum = 0;
         foreach (var value in histogram)
         {
             maximum = Math.Max(maximum, value);
         }
+
         var count = 0;
         for (var bin = 0; bin < 36 && count < angles.Length; bin++)
         {
@@ -51,6 +55,7 @@ public static class GradientDescriptor
                 angles[count++] = (bin + offset) * (2 * Math.PI) / 36 - Math.PI;
             }
         }
+
         return count;
     }
 
@@ -78,6 +83,7 @@ public static class GradientDescriptor
                 {
                     continue;
                 }
+
                 var pixel = y * width + x;
                 var gx = pixels[pixel + 1] - pixels[pixel - 1];
                 var gy = pixels[pixel + width] - pixels[pixel - width];
@@ -87,14 +93,17 @@ public static class GradientDescriptor
                 Add(descriptor, columnBin, rowBin, orientationBin, weight);
             }
         }
+
         if (!Normalize(descriptor))
         {
             return false;
         }
+
         for (var index = 0; index < descriptor.Length; index++)
         {
             descriptor[index] = Math.Min(descriptor[index], .2f);
         }
+
         return Normalize(descriptor);
     }
 
@@ -113,6 +122,7 @@ public static class GradientDescriptor
             {
                 continue;
             }
+
             var rowWeight = magnitude * (rowOffset == 0 ? 1 - rowFraction : rowFraction);
             for (var columnOffset = 0; columnOffset <= 1; columnOffset++)
             {
@@ -121,6 +131,7 @@ public static class GradientDescriptor
                 {
                     continue;
                 }
+
                 var weight = rowWeight * (columnOffset == 0 ? 1 - columnFraction : columnFraction);
                 var offset = (targetRow * 4 + targetColumn) * 8;
                 descriptor[offset + orientation % 8] += (float)(weight * (1 - orientationFraction));
@@ -136,15 +147,18 @@ public static class GradientDescriptor
         {
             squared += value * value;
         }
+
         if (squared < 1e-16)
         {
             return false;
         }
+
         var inverse = (float)(1 / Math.Sqrt(squared));
         for (var index = 0; index < descriptor.Length; index++)
         {
             descriptor[index] *= inverse;
         }
+
         return true;
     }
 }

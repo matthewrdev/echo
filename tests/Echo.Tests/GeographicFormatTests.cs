@@ -113,6 +113,7 @@ public sealed class GeographicFormatTests
                         File.Copy(file, Path.Combine(retained, Path.GetFileName(file)), overwrite: true);
                     }
                 }
+
                 scene.Origin.AltitudeDatum = "unknown";
                 Directory.Delete(store.PathFor("artifacts/alignment/test"), recursive: true);
                 files.AtomicData(store.PathFor("artifacts/alignment/test/scene.json"), scene);
@@ -248,6 +249,7 @@ public sealed class GeographicFormatTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected invalid geographic export to be rejected.");
     }
 

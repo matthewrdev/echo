@@ -38,6 +38,7 @@ internal static class FaceViewSelection
                 FaceViewEvaluation.Evaluate(visibility, occlusion, views, sourcePhotos, candidates, scales, selected,
                     true, reporter, cancellation, scratch);
             }
+
             reporter.Complete();
         }
 
@@ -45,6 +46,7 @@ internal static class FaceViewSelection
         {
             return selected;
         }
+
         reporter.Start(PhotographSelectionPhase.BuildSeamNeighbours);
         var neighbours = SurfaceTopologyBuilder.Build(mesh, cancellation, scratch).Neighbours;
         IList<double> penalties = candidateWork?.Filled(neighbours.Count, 0d, new DoubleRecordCodec(), cancellation) ?? new double[neighbours.Count];
@@ -61,11 +63,13 @@ internal static class FaceViewSelection
                 {
                     continue;
                 }
+
                 var length = (positions[corner] - positions[(corner + 1) % 3]).Length;
                 // Relief is already handled by visibility and the angular data
                 // cost. Colour continuity should not disappear at every crease.
                 penalties[slot] = .5 * Math.Clamp(2 * length / Math.Max(1e-12, scales[index] + scales[other]), .25, 2);
             }
+
             reporter.Update();
         }
 
@@ -84,6 +88,7 @@ internal static class FaceViewSelection
         {
             bestDensity = Math.Max(bestDensity, candidate.Density);
         }
+
         var retained = 0;
         for (var index = 0; index < candidates.Count; index++)
         {
@@ -93,6 +98,7 @@ internal static class FaceViewSelection
                 candidates[retained++] = candidate;
             }
         }
+
         candidates.RemoveRange(retained, candidates.Count - retained);
         FaceViewCandidateRanking.RetainBest(candidates, 32);
     }
@@ -125,10 +131,12 @@ internal static class FaceViewSelection
                     support++;
                 }
             }
+
             if (support < 2)
             {
                 return 0;
             }
+
             difference = 0;
             confidence = .6;
         }

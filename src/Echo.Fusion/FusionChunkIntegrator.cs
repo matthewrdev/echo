@@ -39,11 +39,13 @@ internal sealed class FusionChunkIntegrator : IDisposable
             {
                 throw new InvalidDataException("Fusion grid ranges ended before their declared cell count.");
             }
+
             var samples = integrator.Integrate(length);
             samples.AsSpan().CopyTo(output.AsSpan(retained));
             retained += samples.Count;
             progress?.Invoke(first + length);
         }
+
         cancellation.ThrowIfCancellationRequested();
         return new ArraySegment<VolumeSample>(output, 0, retained);
     }

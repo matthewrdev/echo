@@ -27,11 +27,13 @@ internal static class FeatureDescriptorPacking
                 {
                     continue;
                 }
+
                 offsets[index] = start;
                 data.Span.CopyTo(values.AsSpan(start));
                 start += length;
             }
         }
+
         return start;
     }
 }

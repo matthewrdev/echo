@@ -36,10 +36,12 @@ public sealed class ExclusionRegionTests
         {
             accelerated = probe != null;
         }
+
         if (accelerated)
         {
             tests.Run("Fusion excludes raw depth evidence and volume samples on Metal", () => Fusion(ComputeBackend.Metal));
         }
+
         tests.Run("Mesh exclusions remove crossing triangles even with all vertices outside", Mesh);
     }
 
@@ -151,6 +153,7 @@ public sealed class ExclusionRegionTests
             restored.ExclusionRegions[0].Height = invalid;
             Reject(restored);
         }
+
         restored = json.Clone(settings);
         restored.ExclusionRegions[1].Id = restored.ExclusionRegions[0].Id;
         Reject(restored);
@@ -205,6 +208,7 @@ public sealed class ExclusionRegionTests
                 {
                     region.Hull = CropHullFixture.Box(new V3(0, 0, 10), new V3(2, 2, 1));
                 }
+
                 fixture.Project.Settings.ExclusionRegions = [region];
                 fixture.Project.Settings.ComputeBackend = backend;
                 fixture.Project.Settings.FusionVoxelSize = .125;
@@ -244,6 +248,7 @@ public sealed class ExclusionRegionTests
                     {
                         region.Hull = CropHullFixture.Box(new V3(0, 0, 0), new V3(2, 2, 2));
                     }
+
                     var filtered = SurfaceExclusionFilter.Filter(surface, [region], default, buffers);
                     Check(filtered.Faces.Count == 1 && filtered.Vertices.Count == 3, "Crossing triangle or unused vertices survived");
                     Check(filtered.SourceImages.SequenceEqual(["retained"]), "Source photograph mapping shifted");
@@ -259,6 +264,7 @@ public sealed class ExclusionRegionTests
                     {
                         region.Hull = CropHullFixture.Box(new V3(11, 0, 11), new V3(4, 2, 4));
                     }
+
                     var included = SurfaceExclusionFilter.Filter(surface, [region], default, buffers);
                     Check(included.Faces.Count == 1 && included.Vertices.Count == 3, "Include region did not remove exterior faces");
                     Check(included.SourceImages.SequenceEqual(["retained"]), "Include region lost source image mapping");
@@ -281,6 +287,7 @@ public sealed class ExclusionRegionTests
         {
             return;
         }
+
         throw new InvalidOperationException("Invalid exclusion settings were accepted");
     }
 

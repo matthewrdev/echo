@@ -62,6 +62,7 @@ public static class DepthRangeEstimator
         {
             cameras.Add(pose.ImageId, pose);
         }
+
         var projector = new CameraProjector(photo, camera);
         foreach (var point in scene.Points)
         {

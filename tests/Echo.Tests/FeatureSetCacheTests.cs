@@ -54,6 +54,7 @@ public sealed class FeatureSetCacheTests
             catch (OperationCanceledException)
             {
             }
+
             Check(counting.ReadCount(paths[2]) == 3, "Cancelled reads must not perform I/O");
         }));
     }
@@ -69,6 +70,7 @@ public sealed class FeatureSetCacheTests
             {
                 files.AtomicJson(path, new FeatureSet { ImageId = "same-image" });
             }
+
             action(paths);
         }
         finally

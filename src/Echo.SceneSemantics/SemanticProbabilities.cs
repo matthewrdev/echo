@@ -11,6 +11,7 @@ public static class SemanticProbabilities
         {
             throw new ArgumentException("Invalid ADE20K logits.", nameof(logits));
         }
+
         var map = new SemanticMap { ImageId = imageId, Width = width, Height = height, Vegetation = new byte[count], Rock = new byte[count], Sky = new byte[count] };
         const int blockSize = 256;
         Span<float> maxima = stackalloc float[blockSize];
@@ -34,6 +35,7 @@ public static class SemanticProbabilities
                     maxima[pixel] = Math.Max(maxima[pixel], values[pixel]);
                 }
             }
+
             for (var label = 0; label < 150; label++)
             {
                 var values = logits.Slice(label * count + first, length);
@@ -47,12 +49,14 @@ public static class SemanticProbabilities
                     {
                         vegetation[pixel] += probability;
                     }
+
                     if (isRock)
                     {
                         rock[pixel] += probability;
                     }
                 }
             }
+
             for (var pixel = 0; pixel < length; pixel++)
             {
                 var total = totals[pixel];
@@ -65,6 +69,7 @@ public static class SemanticProbabilities
                 }
             }
         }
+
         return map;
     }
 
@@ -78,6 +83,7 @@ public static class SemanticProbabilities
         {
             return 0;
         }
+
         var first = y * map.Width + x;
         return Math.Min(Math.Min(probabilities[first], probabilities[first + 1]),
             Math.Min(probabilities[first + map.Width], probabilities[first + map.Width + 1])) / 255.0;

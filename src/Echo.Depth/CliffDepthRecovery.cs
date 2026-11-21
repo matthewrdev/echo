@@ -38,6 +38,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
         {
             return new CliffRecoveryResult { Map = result };
         }
+
         var range = new DepthSearchRange(valid[0], valid[^1], valid[valid.Length / 2], valid.Length, "accepted depth");
         var selected = DepthNeighbourSelector.Select(project, scene, camera, range, Math.Max(6, project.Settings.DepthNeighbours), cancellation, source)
             .Where(other => maps.ContainsKey(other.ImageId)).ToArray();
@@ -45,6 +46,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
         {
             return new CliffRecoveryResult { Map = result };
         }
+
         var verification = selected.Select(other => new DepthView(photos[other.ImageId], other, maps[other.ImageId])).ToArray();
         using var sources = new DepthSourceImages(images, store, selected.Length + 1);
         var width = Math.Min(photo.Width, Math.Min(4096, source.Width * 2));
@@ -72,6 +74,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
                 PatchDown = CameraGeometry.Rotate(inverse, down)
             };
         }
+
         var searched = 0;
         var recovered = 0;
         progress?.Invoke($"Searching bounded rock gaps with {fine.Width}px photographs and {views.Length} neighbours; preserving all original samples.");
@@ -90,32 +93,38 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
                 {
                     continue;
                 }
+
                 if (!missing || SemanticProbabilities.ConservativeSample(semantics, semantics.RockSamples,
                     (double)x / source.Width, (double)y / source.Height) < .6)
                 {
                     continue;
                 }
+
                 var anchor = CliffRecoverySearch.Anchor(source, x, y);
                 if (anchor <= 0 || !CliffRecoverySearch.Supported(reference, verification, reference.Point(x, y, anchor), x, y))
                 {
                     continue;
                 }
+
                 var norm = NormalizePatch(sampler, (double)x * fine.Width / source.Width, (double)y * fine.Height / source.Height, patch);
                 if (!double.IsFinite(norm) || norm < .0008)
                 {
                     continue;
                 }
+
                 var ray = (reference.Point(x, y, 1) - reference.Centre);
                 for (var plane = 0; plane < hypotheses.Length; plane++)
                 {
                     hypotheses[plane] = anchor * (.98 + .04 * plane / (hypotheses.Length - 1));
                 }
+
                 Interlocked.Increment(ref searched);
                 var bestPlane = Search(views, reference.Centre, ray, patch, norm, hypotheses, costs);
                 if (bestPlane < 0)
                 {
                     continue;
                 }
+
                 var depth = hypotheses[bestPlane];
                 var point = reference.Centre + ray * depth;
                 if (!CliffRecoverySearch.Supported(reference, verification, point, x, y)
@@ -123,6 +132,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
                 {
                     continue;
                 }
+
                 result.Depth[offset] = (float)depth;
                 result.Confidence[offset] = (float)Math.Min(.95, 1 - costs[bestPlane]);
                 Interlocked.Increment(ref recovered);
@@ -144,6 +154,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
                 mean += patch[index++];
             }
         }
+
         mean /= 25;
         double norm = 0;
         for (var sample = 0; sample < 25; sample++)
@@ -151,6 +162,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
             patch[sample] -= mean;
             norm += patch[sample] * patch[sample];
         }
+
         return norm;
     }
 
@@ -165,6 +177,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
             costs[plane] = pair.First;
             costs[other] = pair.Second;
         }
+
         for (var plane = 0; plane < costs.Length; plane++)
         {
             if (double.IsFinite(costs[plane]) && (best < 0 || costs[plane] < costs[best]))
@@ -172,11 +185,13 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
                 best = plane;
             }
         }
+
         var unacceptable = best <= 0 || best >= hypotheses.Length - 1 || costs[best] >= .12;
         if (unacceptable)
         {
             return -1;
         }
+
         for (var plane = 0; plane < costs.Length; plane++)
         {
             if (costs[plane] - costs[best] < .015 && DistinctProjection(views, centre, ray, hypotheses[plane], hypotheses[best]))
@@ -184,6 +199,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
                 return -1;
             }
         }
+
         return best;
     }
 
@@ -197,6 +213,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
             {
                 continue;
             }
+
             var dx = (a.X / a.Z - b.X / b.Z) * view.Focal;
             var dy = (a.Y / a.Z - b.Y / b.Z) * view.Focal;
             if (dx * dx + dy * dy > 1)
@@ -204,6 +221,7 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
                 return true;
             }
         }
+
         return false;
     }
 
@@ -219,12 +237,14 @@ public sealed class CliffDepthRecovery : ICliffDepthRecovery
             {
                 continue;
             }
+
             var cost = StereoCostBatch.Calculate(views.AsSpan(index, 1), reference.Centre, ray, depth, depth, patch, norm).First;
             if (cost < .15 && ++support >= 2)
             {
                 return true;
             }
         }
+
         return false;
     }
 }

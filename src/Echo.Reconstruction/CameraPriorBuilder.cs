@@ -14,6 +14,7 @@ internal static class CameraPriorBuilder
                 priors.Add(image.Id, new CameraPrior(image));
             }
         }
+
         foreach (var hint in project.Hints)
         {
             var cameraHint = hint.Enabled && hint.Type == "camera";
@@ -21,6 +22,7 @@ internal static class CameraPriorBuilder
             {
                 continue;
             }
+
             var position = hint.Position;
             priors[hint.ImageId] = prior with
             {
@@ -35,6 +37,7 @@ internal static class CameraPriorBuilder
                 Attitude = hint.Attitude ?? prior.Attitude
             };
         }
+
         return priors;
     }
 }

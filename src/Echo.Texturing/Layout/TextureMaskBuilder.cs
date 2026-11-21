@@ -45,6 +45,7 @@ internal static class TextureMaskBuilder
                 {
                     end = Math.Max(end, row[++index].End);
                 }
+
                 spans.Add(new TextureMaskSpan(y, start, end));
             }
         }

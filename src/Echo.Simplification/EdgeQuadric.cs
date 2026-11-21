@@ -40,6 +40,7 @@ internal readonly struct EdgeQuadric
             errors[1] = pair.GetElement(1);
             start = 2;
         }
+
         for (var index = start; index < points.Length; index++)
         {
             errors[index] = Evaluate(points[index]);

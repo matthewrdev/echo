@@ -19,6 +19,7 @@ internal sealed class TextureChartGeometry
         {
             Points.Add(new V3(vertex));
         }
+
         Centres = work?.Filled(surface.Faces.Count, default(V3), new Vector3RecordCodec()) ?? new V3[surface.Faces.Count];
         Normals = work?.Filled(surface.Faces.Count, default(V3), new Vector3RecordCodec()) ?? new V3[surface.Faces.Count];
         Areas = work?.Filled(surface.Faces.Count, 0d, new DoubleRecordCodec()) ?? new double[surface.Faces.Count];

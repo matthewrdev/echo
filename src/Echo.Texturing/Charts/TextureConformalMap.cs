@@ -15,6 +15,7 @@ internal static class TextureConformalMap
         {
             return null;
         }
+
         var points = chart.Points;
         var first = chart.Boundary.MaxBy(vertex => (points[vertex] - points[chart.Boundary[0]]).Length);
         var second = chart.Boundary.MaxBy(vertex => (points[vertex] - points[first]).Length);
@@ -23,6 +24,7 @@ internal static class TextureConformalMap
         {
             return null;
         }
+
         var system = new TextureLinearSystem(points.Length * 2);
         Span<int> indices = stackalloc int[6];
         Span<double> real = stackalloc double[6];
@@ -38,6 +40,7 @@ internal static class TextureConformalMap
             {
                 return null;
             }
+
             var x = edge.Dot(other) / edgeLength;
             var y = area / edgeLength;
             var weight = 1 / Math.Sqrt(area);
@@ -54,6 +57,7 @@ internal static class TextureConformalMap
                 imaginary[corner * 2] = -real[corner * 2 + 1];
                 imaginary[corner * 2 + 1] = real[corner * 2];
             }
+
             for (var row = 0; row < 6; row++)
             {
                 for (var column = 0; column < 6; column++)
@@ -62,6 +66,7 @@ internal static class TextureConformalMap
                 }
             }
         }
+
         return system.Solve(new Dictionary<int, double>
         {
             [first * 2] = 0,

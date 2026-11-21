@@ -30,6 +30,7 @@ public static class SurfaceTopology
             {
                 report.DegenerateFaces++;
             }
+
             for (var corner = 0; corner < 3; corner++)
             {
                 var from = face[corner];
@@ -41,6 +42,7 @@ public static class SurfaceTopology
                     {
                         report.WindingConflicts++;
                     }
+
                     edges[key] = existing with
                     {
                         Count = existing.Count + 1
@@ -52,6 +54,7 @@ public static class SurfaceTopology
                 }
             }
         }
+
         foreach (var edge in edges.Values)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -64,6 +67,7 @@ public static class SurfaceTopology
                 report.NonManifoldEdges++;
             }
         }
+
         if (report.BoundaryEdges > 0)
         {
             foreach (var boundary in SurfaceBoundaryLoops.Find(mesh, cancellation, scratch))
@@ -71,6 +75,7 @@ public static class SurfaceTopology
                 report.Boundaries.Add(Describe(mesh, boundary));
             }
         }
+
         return report;
     }
 
@@ -92,14 +97,17 @@ public static class SurfaceTopology
                 positions.Add(point, mapped);
                 writer.AddVertex(point);
             }
+
             remap[index] = mapped;
         }
+
         for (var index = 0; index < source.Faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             var face = reader.Face(index);
             writer.AddFace(new SurfaceTriangleVertices(remap[face.A], remap[face.B], remap[face.C]));
         }
+
         return mesh;
     }
 
@@ -117,6 +125,7 @@ public static class SurfaceTopology
             area += (point - origin).Cross(next - origin);
             perimeter += (next - point).Length;
         }
+
         centre /= boundary.Vertices.Count;
         var radius = boundary.Vertices.Max(vertex => (new V3(mesh.Vertices[vertex]) - centre).Length);
         return new SurfaceBoundaryReport(boundary.Vertices.Count, perimeter, radius, area.Dot(boundary.AdjacentNormal) < 0);

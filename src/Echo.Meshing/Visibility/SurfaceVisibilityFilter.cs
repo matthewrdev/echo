@@ -24,6 +24,7 @@ public static class SurfaceVisibilityFilter
         {
             throw new ArgumentOutOfRangeException(nameof(relativeTolerance));
         }
+
         using var scratch = work?.CreateScope();
         var origin = views.Count == 0 ? default : views[0].Centre;
         using var acceleration = DepthCompute.Open(compute, backend, views, origin, cancellation);
@@ -51,6 +52,7 @@ public static class SurfaceVisibilityFilter
             {
                 triangles[index] = reader.Triangle(faces[index]);
             }
+
             var accelerated = acceleration != null && !accelerationFailed;
             if (accelerated)
             {
@@ -65,17 +67,20 @@ public static class SurfaceVisibilityFilter
                     accelerated = false;
                 }
             }
+
             if (!accelerated)
             {
                 Parallel.For(0, count, options, index =>
                     rejected[index] = SurfaceVisibilityEvidence.Contradicts(triangles[index], views, relativeTolerance));
             }
+
             for (var index = 0; index < count; index++)
             {
                 if (rejected[index])
                 {
                     continue;
                 }
+
                 var face = faces[index];
 
                 for (var corner = 0; corner < 3; corner++)
@@ -89,17 +94,21 @@ public static class SurfaceVisibilityFilter
                         writer.AddVertex(corner == 0 ? triangle.A : corner == 1 ? triangle.B : triangle.C);
                         vertices[vertex] = mapped;
                     }
+
                     output[corner] = mapped;
                 }
+
                 writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
                 if (assigned)
                 {
                     result.SourceImages.Add(surface.SourceImages[start + index]);
                 }
             }
+
             var message = accelerated ? "Checking triangles with Metal." : "Checking triangles against observed empty space.";
             progress?.Invoke(new("Visibility filtering", message, start + count, surface.Faces.Count, "triangles"));
         }
+
         return result;
     }
 }

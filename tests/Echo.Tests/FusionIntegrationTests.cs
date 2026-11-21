@@ -39,6 +39,7 @@ public sealed class FusionIntegrationTests
                     Check(child.MemoryBudgetBytes == root.MemoryBudgetBytes, "Nested scope escaped its budget");
                 }
             }
+
             Check(compute.MemoryBudgetBytes == original, "Scope did not restore the previous budget");
         });
         tests.Run("Resident depth planning includes maps and work buffers without exceeding the GPU budget", () =>
@@ -79,6 +80,7 @@ public sealed class FusionIntegrationTests
                 progress.Advance(count);
                 progress.Advance(count);
             }
+
             Check(updates[0].Completed == 0 && updates[^1].Completed == 1000, "Throttling lost the first or final update");
             Check(updates.Count(update => update.Completed == 1000) == 1, "Saving a checkpoint repeats its final GPU batch event");
             progress.Start(FusionPhase.Save, 1, "volume");
@@ -115,6 +117,7 @@ public sealed class FusionIntegrationTests
             catch (OperationCanceledException)
             {
             }
+
             Check(store.Builds == 0, "A partial group became a reusable checkpoint");
         });
         tests.Run("Volume block encoding matches individual records without reflection or padding", () =>
@@ -133,6 +136,7 @@ public sealed class FusionIntegrationTests
             {
                 codec.Encode(source[index], expected.AsSpan(index * codec.Size, codec.Size));
             }
+
             var actual = new byte[expected.Length];
             codec.EncodeBlock(source, actual);
             var restored = new VolumeSample[source.Length];
@@ -166,6 +170,7 @@ public sealed class FusionIntegrationTests
                 {
                     actual.AddRange(buffer.AsSpan(0, count).ToArray());
                 }
+
                 Check(actual.SequenceEqual(expected), "Span reader skipped or repeated cells");
             }
         });
@@ -196,6 +201,7 @@ public sealed class FusionIntegrationTests
                     }
                 }
             }
+
             for (var view = 0; view < fixture.Views.Count; view++)
             {
                 for (var index = 0; index < cells.Length; index++)
@@ -234,11 +240,13 @@ public sealed class FusionIntegrationTests
                     {
                         Check(region.Count > 0 && region.Count < map.SampleCount / 4, "Central block did not crop the camera");
                     }
+
                     var depths = new float[region.Count];
                     for (var row = 0; row < region.Height; row++)
                     {
                         map.ReadDepth((region.Top + row) * map.Width + region.Left, depths.AsSpan(row * region.Width, region.Width));
                     }
+
                     var window = new FusionDepthWindow(view, region, 0);
                     for (var x = -1; x <= 1; x++)
                     {
@@ -284,6 +292,7 @@ public sealed class FusionIntegrationTests
                 return;
             }
         }
+
         tests.Run("Cached Metal fusion skips grid planning and depth uploads", () =>
         {
             var fixture = new FusionFixture();
@@ -293,6 +302,7 @@ public sealed class FusionIntegrationTests
             {
                 fixture.Maps[index].Samples = counts[index];
             }
+
             var chunks = new FusionTestChunkStore();
             var fusion = new DepthFusion(compute);
             var resources = new FusionResourcePlan(25600000, 100000);
@@ -317,6 +327,7 @@ public sealed class FusionIntegrationTests
                     var observed = stride > 0 && (stride == 1 || index % stride == 1);
                     cells[index] = observed ? new Grid(index % 9 - 4, index % 7 - 3, 80) : new Grid(0, 0, -1);
                 }
+
                 var expected = new List<VolumeSample>();
                 using (var reference = new FusionBatchIntegrator(fixture.Views, .125, .01,
                     new FusionIntegrationPlan(1024, 8192, 8192), compute, ComputeBackend.Metal, default))
@@ -328,9 +339,11 @@ public sealed class FusionIntegrationTests
                         expected.AddRange(reference.Integrate(length));
                     }
                 }
+
                 batches.Add(cells);
                 references.Add(expected);
             }
+
             foreach (var residentDepths in new[] { 0, 8192 })
             {
                 using var integration = new FusionBatchIntegrator(fixture.Views, .125, .01,
@@ -353,6 +366,7 @@ public sealed class FusionIntegrationTests
             {
                 fixture.Views[index].Map.Samples = counts[index];
             }
+
             var cells = Cells();
             VolumeSample[] expected;
             using (var tiled = new FusionBatchIntegrator(fixture.Views, .125, .01,
@@ -361,6 +375,7 @@ public sealed class FusionIntegrationTests
                 cells.CopyTo(tiled.Cells, 0);
                 expected = tiled.Integrate(cells.Length).ToArray();
             }
+
             var before = counts.Sum(value => value.ReadSamples);
             var total = counts.Sum(value => value.Count);
             using var resident = new FusionBatchIntegrator(fixture.Views, .125, .01,
@@ -372,6 +387,7 @@ public sealed class FusionIntegrationTests
             {
                 Check(resident.Integrate(cells.Length).SequenceEqual(expected), "Resident depth maps changed signed distances or support");
             }
+
             Check(counts.Sum(value => value.ReadSamples) == before, "Resident integration reread depths");
             resident.Cells[0] = new Grid(0, 0, -80);
             Check(resident.Integrate(1).Count == 0, "An invisible batch returned stale resident results");
@@ -421,6 +437,7 @@ public sealed class FusionIntegrationTests
             depths[index % depths.Length] = index % 2 == 0 ? 0 : float.NaN;
             views.Add(new DepthView(photo, camera, new DepthMap { Width = 32, Height = 32, Depth = depths }));
         }
+
         var cells = new Grid[1025];
         for (var index = 0; index < cells.Length; index++)
         {
@@ -428,6 +445,7 @@ public sealed class FusionIntegrationTests
                 (int)(origin.Y * 8) + (index % 5 - 2) * 8,
                 (int)(origin.Z * 8) + (index % 37 - 18) * 8);
         }
+
         cells[0] = new Grid((int)(origin.X * 8), (int)(origin.Y * 8), (int)(origin.Z * 8) + 80);
         using var integration = new FusionBatchIntegrator(views, .125, .01,
             new FusionIntegrationPlan(cells.Length, 1024, views.Count * 1024), compute, ComputeBackend.Metal, default);
@@ -449,10 +467,12 @@ public sealed class FusionIntegrationTests
                 {
                     value.Add(view.Observe(world, .01), view.Focal, .01, .125);
                 }
+
                 if (value.Support < 2)
                 {
                     continue;
                 }
+
                 Check(retained < actual.Count, "Integration removed a supported voxel");
                 var sample = actual[retained++];
                 Check(sample.X == cell.X && sample.Y == cell.Y && sample.Z == cell.Z && sample.Views == value.Support,
@@ -463,6 +483,7 @@ public sealed class FusionIntegrationTests
                     "CPU block selection changed camera evidence");
                 Check(cpuSample.Distance == (float)(value.Sum / value.Weight), "CPU block selection changed the reference field");
             }
+
             Check(retained > 0 && retained == actual.Count, "Integration added unsupported voxels");
         }
     }
@@ -484,11 +505,13 @@ public sealed class FusionIntegrationTests
             {
                 value.Add(view.Observe(world, .01), view.Focal, .01, .125);
             }
+
             if (value.Support >= 2)
             {
                 expected.Add(new VolumeSample { X = cell.X, Y = cell.Y, Z = cell.Z, Distance = (float)(value.Sum / value.Weight), Views = value.Support });
             }
         }
+
         Check(expected.Count > 0 && actual.Length == expected.Count, "Supported coverage differs");
         for (var index = 0; index < actual.Length; index++)
         {
@@ -497,6 +520,7 @@ public sealed class FusionIntegrationTests
             Check(a.X == e.X && a.Y == e.Y && a.Z == e.Z && a.Views == e.Views, "Ordering or support differs");
             Check(Math.Abs(a.Distance - e.Distance) < 2e-5, "Signed distance differs");
         }
+
         integration.Cells[0] = new Grid(0, 0, -80);
         Check(integration.Integrate(1).Count == 0, "Empty batch leaked previous GPU state");
     }
@@ -512,6 +536,7 @@ public sealed class FusionIntegrationTests
             var map = new DepthMap { ImageId = id, Width = 64, Height = 64, Depth = Enumerable.Repeat(depth, 4096).ToArray() };
             fixture.Views.Add(new DepthView(photo, camera, map));
         }
+
         fixture.Maps[0].Depth[32 * 64 + 32] = 0;
         fixture.Maps[1].Depth[31 * 64 + 31] = 20;
         return fixture;
@@ -530,6 +555,7 @@ public sealed class FusionIntegrationTests
                 }
             }
         }
+
         return cells.ToArray();
     }
 

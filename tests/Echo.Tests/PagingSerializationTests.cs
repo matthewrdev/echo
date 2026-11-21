@@ -29,6 +29,7 @@ public sealed class PagingSerializationTests
                     values.Add(value);
                 }
             }
+
             var path = Path.Combine(directory, "depth.json");
             artifacts.Write(path, new DepthMap { Width = values.Count, Height = 1, Depth = values.ToArray(), Confidence = values.ToArray() });
             using var session = artifacts.OpenSession(65536, 0);
@@ -38,6 +39,7 @@ public sealed class PagingSerializationTests
                 Check(BitConverter.SingleToInt32Bits(saved.DepthAt(index)) == BitConverter.SingleToInt32Bits(values[index]), "Depth precision changed");
                 Check(BitConverter.SingleToInt32Bits(saved.ConfidenceAt(index)) == BitConverter.SingleToInt32Bits(values[index]), "Confidence precision changed");
             }
+
             var semanticPath = Path.Combine(directory, "semantics.json");
             artifacts.Write(semanticPath, new SemanticMap { Width = 3, Height = 1, Vegetation = [0, 128, 255], Rock = [255, 1, 0] });
             var semantics = session.Read<SemanticMap>(semanticPath);
@@ -59,6 +61,7 @@ public sealed class PagingSerializationTests
             {
                 stream.SetLength(20);
             }
+
             Reject(() => artifacts.Read<TextureCoordinates>(path));
         }));
         tests.Run("Obsolete bulk JSON is rejected instead of silently converted", () => InDirectory(directory =>
@@ -79,6 +82,7 @@ public sealed class PagingSerializationTests
             catch (OperationCanceledException)
             {
             }
+
             Check(Directory.GetFiles(directory).Length == 0, "Cancelled publication leaked files");
         }));
         tests.Run("Scratch exhaustion stops before exceeding the configured disk limit", () => InDirectory(directory =>
@@ -91,6 +95,7 @@ public sealed class PagingSerializationTests
                 {
                     records.Add(index);
                 }
+
                 throw new InvalidOperationException("Disk budget was ignored");
             }
             catch (EchoException error) when (error.ExitCode == 5)
@@ -111,6 +116,7 @@ public sealed class PagingSerializationTests
         {
             return;
         }
+
         throw new InvalidOperationException("Invalid artifact was accepted");
     }
 

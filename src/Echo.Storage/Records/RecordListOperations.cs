@@ -50,6 +50,7 @@ public static class RecordListOperations
             array.AsSpan(0, count).Fill(value);
             return;
         }
+
         var buffer = ArrayPool<T>.Shared.Rent(Math.Min(4096, Math.Max(1, count)));
         try
         {

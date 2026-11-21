@@ -25,6 +25,7 @@ internal sealed class FailingFusionComputeSession : IComputeSession
         {
             throw new ComputeException("Injected failure after a partial fusion batch.");
         }
+
         inner.Dispatch(kernel, count, parameters);
     }
 }

@@ -14,15 +14,18 @@ internal static class AcceleratedDescriptorMatcher
         {
             return null;
         }
+
         if (settings.ComputeBackend != ComputeBackend.Metal && (long)left.Length * right.Length < 65536)
         {
             return null;
         }
+
         var length = left[0].DescriptorData.Span.Length;
         if (length == 0 || length > 1024)
         {
             return null;
         }
+
         foreach (var feature in left)
         {
             if (feature.DescriptorData.Span.Length != length)
@@ -30,6 +33,7 @@ internal static class AcceleratedDescriptorMatcher
                 return null;
             }
         }
+
         foreach (var feature in right)
         {
             if (feature.DescriptorData.Span.Length != length)
@@ -37,6 +41,7 @@ internal static class AcceleratedDescriptorMatcher
                 return null;
             }
         }
+
         var fixedBytes = (long)(left.Length + right.Length) * length * sizeof(float)
             + (long)left.Length * 32 + (long)right.Length * 16
             + (lines.Length + (long)pixels.Length) * sizeof(float) + 4096;
@@ -47,15 +52,18 @@ internal static class AcceleratedDescriptorMatcher
         {
             rows = Math.Max(1, rows / 2);
         }
+
         if (!compute.CanAllocate(fixedBytes + TileBytes(rows), settings.ComputeBackend))
         {
             return null;
         }
+
         using var session = compute.Open(settings.ComputeBackend, cancellation);
         if (session == null)
         {
             return null;
         }
+
         var leftPacked = ContiguousDescriptors.Find(left, length);
         var rightPacked = ContiguousDescriptors.Find(right, length);
         var packed = leftPacked.IsEmpty || rightPacked.IsEmpty
@@ -90,6 +98,7 @@ internal static class AcceleratedDescriptorMatcher
                     streaming.Submit();
                 }
             }
+
             var leftBest = minima.AsSpan(0, left.Length * 4);
             var rightBest = minima.AsSpan(leftBest.Length, right.Length * 2);
             session.Read<float>(3, leftBest);
@@ -109,6 +118,7 @@ internal static class AcceleratedDescriptorMatcher
                     diagnostics.RejectedAmbiguous++;
                     continue;
                 }
+
                 var b = (int)leftBest[a * 4 + 1];
                 if ((int)rightBest[b * 2 + 1] != a)
                 {
@@ -126,19 +136,23 @@ internal static class AcceleratedDescriptorMatcher
                     diagnostics.RejectedAmbiguous++;
                     continue;
                 }
+
                 if (best >= second * settings.MatchRatioThreshold)
                 {
                     diagnostics.RejectedAmbiguous++;
                     continue;
                 }
+
                 if (best > settings.MatchDistanceThreshold)
                 {
                     diagnostics.RejectedDistance++;
                     continue;
                 }
+
                 diagnostics.Accepted++;
                 result.Matches.Add(new DescriptorCorrespondence(a, b, best));
             }
+
             return result;
         }
         catch (ComputeException) when (settings.ComputeBackend == ComputeBackend.Auto)
@@ -151,6 +165,7 @@ internal static class AcceleratedDescriptorMatcher
             {
                 ArrayPool<float>.Shared.Return(packed);
             }
+
             ArrayPool<float>.Shared.Return(minima);
         }
     }
@@ -163,10 +178,12 @@ internal static class AcceleratedDescriptorMatcher
             session.Upload<float>(slot, contiguous.Span);
             return;
         }
+
         for (var index = 0; index < features.Length; index++)
         {
             features[index].DescriptorData.Span.CopyTo(packed.AsSpan(index * length, length));
         }
+
         session.Upload<float>(slot, packed.AsSpan(0, checked(features.Length * length)));
     }
 
@@ -184,6 +201,7 @@ internal static class AcceleratedDescriptorMatcher
                 reversed += difference * difference;
             }
         }
+
         return reverse ? Math.Min(sum, reversed) : sum;
     }
 }

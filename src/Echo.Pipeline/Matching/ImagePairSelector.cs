@@ -55,6 +55,7 @@ public sealed class ImagePairSelector : IImagePairSelector
                 {
                     continue;
                 }
+
                 candidates.Clear();
                 for (var otherIndex = 0; otherIndex < images.Count; otherIndex++)
                 {
@@ -65,6 +66,7 @@ public sealed class ImagePairSelector : IImagePairSelector
                     {
                         continue;
                     }
+
                     var sameDatum = source.Position.AltitudeDatum == target.Position!.AltitudeDatum;
                     var comparableAltitude = sameDatum && source.Position.Altitude.HasValue && target.Position.Altitude.HasValue;
                     var delta = source.Centre - target.Centre;
@@ -101,12 +103,14 @@ public sealed class ImagePairSelector : IImagePairSelector
                         AddPair(images[imageIndex].Id, candidate.ImageId);
                     }
                 }
+
                 foreach (var candidate in candidates)
                 {
                     if (selected.Count >= budget || candidate.OverlapScore <= 0)
                     {
                         break;
                     }
+
                     if (selected.Add(candidate.ImageIndex))
                     {
                         AddPair(images[imageIndex].Id, candidate.ImageId);
@@ -136,6 +140,7 @@ public sealed class ImagePairSelector : IImagePairSelector
         {
             hints[photo.Id] = new CapturePrior(photo.Gps, photo.Attitude, default, null);
         }
+
         foreach (var hint in project.Hints)
         {
             var cameraHint = hint.Enabled && hint.Type == "camera";
@@ -145,6 +150,7 @@ public sealed class ImagePairSelector : IImagePairSelector
                     hint.Attitude ?? prior.Attitude, default, null);
             }
         }
+
         var priors = new CapturePrior[images.Count];
         GeoPosition? origin = null;
         for (var index = 0; index < images.Count; index++)
@@ -164,8 +170,10 @@ public sealed class ImagePairSelector : IImagePairSelector
                     photo.Width / (2 * photo.FocalPixels), photo.Height / (2 * photo.FocalPixels),
                     project.Settings.PairSearchDistance, position!.UncertaintyMetres);
             }
+
             priors[index] = new CapturePrior(position, attitude, centre, frustum);
         }
+
         return priors;
     }
 

@@ -17,10 +17,12 @@ public static class FundamentalMatrixEstimator
         {
             return null;
         }
+
         if (!double.IsFinite(thresholdPixels) || thresholdPixels <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(thresholdPixels));
         }
+
         var random = new Random(817);
         var sample = new Match[8];
         var best = new List<Match>();
@@ -47,6 +49,7 @@ public static class FundamentalMatrixEstimator
                     RandomSampleSelector.Select<Match>(matches, random, sample);
                     matrices[hypothesis] = Fit(sample);
                 }
+
                 Array.Fill(upperBounds, int.MaxValue);
                 if (acceleration != null && !failed)
                 {
@@ -60,15 +63,18 @@ public static class FundamentalMatrixEstimator
                     }
                 }
             }
+
             if (upperBounds[slot] <= best.Count)
             {
                 continue;
             }
+
             var matrix = matrices[slot];
             if (matrix == null)
             {
                 continue;
             }
+
             Collect(matches, matrix, squaredThreshold, inliers);
             if (inliers.Count < 12 || inliers.Count <= best.Count)
             {
@@ -83,6 +89,7 @@ public static class FundamentalMatrixEstimator
                 {
                     break;
                 }
+
                 var previousCount = inliers.Count;
                 var refinedInliers = new List<Match>(matches.Count);
                 Collect(matches, refined, squaredThreshold, refinedInliers);
@@ -90,6 +97,7 @@ public static class FundamentalMatrixEstimator
                 {
                     break;
                 }
+
                 matrix = refined;
                 inliers = refinedInliers;
                 if (inliers.Count == previousCount)
@@ -97,10 +105,12 @@ public static class FundamentalMatrixEstimator
                     break;
                 }
             }
+
             if (inliers.Count <= best.Count)
             {
                 continue;
             }
+
             var previous = best;
             best = inliers;
             inliers = previous;
@@ -111,6 +121,7 @@ public static class FundamentalMatrixEstimator
                 : (int)Math.Min(8192, Math.Ceiling(Math.Log(.001) / Math.Log(1 - successProbability)));
             maximumIterations = Math.Min(maximumIterations, Math.Max(128, required));
         }
+
         return best.Count >= 12 && bestMatrix != null
             ? new FundamentalMatrixEstimate { Matrix = bestMatrix, Inliers = best, Iterations = iteration }
             : null;
@@ -145,12 +156,14 @@ public static class FundamentalMatrixEstimator
         {
             return null;
         }
+
         var left = Normalize(matches, true);
         var right = Normalize(matches, false);
         if (left == null || right == null)
         {
             return null;
         }
+
         var first = left.Value;
         var second = right.Value;
         // Streaming Givens QR retains the nine-column system without constructing
@@ -176,6 +189,7 @@ public static class FundamentalMatrixEstimator
             equation[8] = 1;
             AddEquation(triangular, equation);
         }
+
         var compact = DenseMatrix.Create(9, 9, 0);
         for (var row = 0; row < 9; row++)
         {
@@ -184,11 +198,13 @@ public static class FundamentalMatrixEstimator
                 compact[row, column] = triangular[row * 9 + column];
             }
         }
+
         var decomposition = compact.Svd(true);
         if (decomposition.S[7] < decomposition.S[0] * 1e-8)
         {
             return null;
         }
+
         var vector = decomposition.VT.Row(8);
         Matrix<double> matrix = DenseMatrix.Create(3, 3, (row, column) => vector[row * 3 + column]);
         var singular = matrix.Svd(true);
@@ -207,6 +223,7 @@ public static class FundamentalMatrixEstimator
             {
                 continue;
             }
+
             var cosine = diagonal / magnitude;
             var sine = incoming / magnitude;
             for (var target = column; target < 9; target++)
@@ -230,6 +247,7 @@ public static class FundamentalMatrixEstimator
             centreX += pixel[0];
             centreY += pixel[1];
         }
+
         centreX /= matches.Count;
         centreY /= matches.Count;
         double distance = 0;
@@ -240,6 +258,7 @@ public static class FundamentalMatrixEstimator
             var dy = pixel[1] - centreY;
             distance += Math.Sqrt(dx * dx + dy * dy);
         }
+
         return distance > 1e-8 && double.IsFinite(distance)
             ? new PixelNormalization(centreX, centreY, Math.Sqrt(2) * matches.Count / distance)
             : null;

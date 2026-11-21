@@ -15,6 +15,7 @@ internal static class SurfaceTriangleIntersection
         {
             return triangle.A;
         }
+
         var bp = point - triangle.B;
         var d3 = ab.Dot(bp);
         var d4 = ac.Dot(bp);
@@ -22,12 +23,14 @@ internal static class SurfaceTriangleIntersection
         {
             return triangle.B;
         }
+
         var vc = d1 * d4 - d3 * d2;
         var onAb = vc <= 0 && d1 >= 0 && d3 <= 0;
         if (onAb)
         {
             return triangle.A + ab * (d1 / (d1 - d3));
         }
+
         var cp = point - triangle.C;
         var d5 = ab.Dot(cp);
         var d6 = ac.Dot(cp);
@@ -35,18 +38,21 @@ internal static class SurfaceTriangleIntersection
         {
             return triangle.C;
         }
+
         var vb = d5 * d2 - d1 * d6;
         var onAc = vb <= 0 && d2 >= 0 && d6 <= 0;
         if (onAc)
         {
             return triangle.A + ac * (d2 / (d2 - d6));
         }
+
         var va = d3 * d6 - d5 * d4;
         var onBc = va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0;
         if (onBc)
         {
             return triangle.B + (triangle.C - triangle.B) * ((d4 - d3) / (d4 - d3 + d5 - d6));
         }
+
         var inverse = 1 / (va + vb + vc);
         return triangle.A + ab * (vb * inverse) + ac * (vc * inverse);
     }
@@ -77,8 +83,10 @@ internal static class SurfaceTriangleIntersection
                     }
                 }
             }
+
             return true;
         }
+
         for (var edge = 0; edge < 3; edge++)
         {
             if (Crosses(a[edge], a[(edge + 1) % 3], second) || Crosses(b[edge], b[(edge + 1) % 3], first))
@@ -86,6 +94,7 @@ internal static class SurfaceTriangleIntersection
                 return true;
             }
         }
+
         return false;
     }
 
@@ -100,6 +109,7 @@ internal static class SurfaceTriangleIntersection
         {
             return false;
         }
+
         var offset = start - triangle.A;
         var u = offset.Dot(cross) / determinant;
         var q = offset.Cross(edgeA);

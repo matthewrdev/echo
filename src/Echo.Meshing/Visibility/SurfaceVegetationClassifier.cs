@@ -35,6 +35,7 @@ public static class SurfaceVegetationClassifier
                 normals[face[corner]] += normal;
             }
         }
+
         IList<bool> result = work?.Filled(surface.Vertices.Count, false, new BoolRecordCodec()) ?? new bool[surface.Vertices.Count];
         var origin = views.Length == 0 ? default : views[0].Centre;
         using var acceleration = SemanticProjectionCompute.Open(compute, project, views, photos, semantics, origin, cancellation);
@@ -70,6 +71,7 @@ public static class SurfaceVegetationClassifier
                         failed = true;
                     }
                 }
+
                 if (projectedVotes != null && occlusion != null)
                 {
                     var count = 0;
@@ -86,6 +88,7 @@ public static class SurfaceVegetationClassifier
                             }
                         }
                     }
+
                     occlusion.Evaluate(rays.AsSpan(0, count), hidden.AsSpan(0, count), cancellation);
                     for (var ray = 0; ray < count; ray++)
                     {
@@ -95,6 +98,7 @@ public static class SurfaceVegetationClassifier
                         }
                     }
                 }
+
                 Parallel.For(start, end, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = Math.Min(8, Environment.ProcessorCount) }, index =>
             {
                 var point = points[index - start];
@@ -111,6 +115,7 @@ public static class SurfaceVegetationClassifier
                         {
                             continue;
                         }
+
                         var acceleratedWeakest = 0;
                         for (var vote = 1; vote < count; vote++)
                         {
@@ -119,24 +124,29 @@ public static class SurfaceVegetationClassifier
                                 acceleratedWeakest = vote;
                             }
                         }
+
                         var acceleratedWeight = projectedVotes[entry];
                         if (count == votes.Length && acceleratedWeight <= votes[acceleratedWeakest].Weight)
                         {
                             continue;
                         }
+
                         if (occlusion == null && visibility.HasOccluder(view.Centre, point))
                         {
                             continue;
                         }
+
                         var acceleratedSlot = count < votes.Length ? count++ : acceleratedWeakest;
                         votes[acceleratedSlot] = new VegetationViewVote(acceleratedWeight, projectedVotes[entry + 1], projectedVotes[entry + 2]);
                         continue;
                     }
+
                     var projection = view.Projection.Project(point);
                     if (!projection.HasValue)
                     {
                         continue;
                     }
+
                     var photo = photos[view.Map.ImageId];
                     var map = semantics[photo.Id];
                     var u = projection.Value.X / photo.Width;
@@ -146,6 +156,7 @@ public static class SurfaceVegetationClassifier
                     {
                         continue;
                     }
+
                     var direction = view.Centre - point;
                     var facing = normal.Length > 0 ? Math.Abs(normal.Unit.Dot(direction.Unit)) : 1;
                     var weight = facing * view.Focal / Math.Max(1e-8, direction.Length);
@@ -157,10 +168,12 @@ public static class SurfaceVegetationClassifier
                             weakest = vote;
                         }
                     }
+
                     if (facing < .05 || (count == votes.Length && weight <= votes[weakest].Weight))
                     {
                         continue;
                     }
+
                     var measured = view.TrySurfacePoint(point, .01, out _);
                     var missingDepth = surface.Faces.Count > 0 && !double.IsFinite(view.Difference(point));
                     if ((!measured && !missingDepth) || visibility.HasOccluder(view.Centre, point))
@@ -175,6 +188,7 @@ public static class SurfaceVegetationClassifier
                     var slot = count < votes.Length ? count++ : weakest;
                     votes[slot] = new VegetationViewVote(weight, vegetation, rock);
                 }
+
                 double total = 0;
                 double plant = 0;
                 double stone = 0;
@@ -189,6 +203,7 @@ public static class SurfaceVegetationClassifier
                         confirmed++;
                     }
                 }
+
                 labels[index - start] = confirmed >= 2 && plant >= total * .65 && stone < total * .2;
             });
                 RecordListOperations.Write(result, start, labels.AsSpan(0, batchCount));
@@ -202,6 +217,7 @@ public static class SurfaceVegetationClassifier
                 ArrayPool<float>.Shared.Return(projectionBuffer);
             }
         }
+
         return (IReadOnlyList<bool>)result;
     }
 
@@ -221,6 +237,7 @@ public static class SurfaceVegetationClassifier
                 result[start + index] = vertices[face.A] && vertices[face.B] && vertices[face.C];
             }
         }
+
         return result;
     }
 
@@ -230,12 +247,14 @@ public static class SurfaceVegetationClassifier
         {
             throw new ArgumentException("Expected one classification per vertex.", nameof(vegetation));
         }
+
         IList<double> result = work?.List(new DoubleRecordCodec()) ?? new List<double>(vegetation.Count);
         foreach (var value in vegetation)
         {
             cancellation.ThrowIfCancellationRequested();
             result.Add(value ? tolerance : 0);
         }
+
         var reader = new SurfaceGeometryReader(surface);
         for (var index = 0; index < surface.Faces.Count; index++)
         {
@@ -252,6 +271,7 @@ public static class SurfaceVegetationClassifier
                 }
             }
         }
+
         using var scratch = work?.CreateScope();
         var neighbours = SurfaceTopologyBuilder.Build(surface, cancellation, scratch).Neighbours;
         for (var face = 0; face < surface.Faces.Count; face++)
@@ -267,6 +287,7 @@ public static class SurfaceVegetationClassifier
                 }
             }
         }
+
         return (IReadOnlyList<double>)result;
     }
 }

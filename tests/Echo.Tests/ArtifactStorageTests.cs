@@ -42,6 +42,7 @@ public sealed class ArtifactStorageTests
                 Check(saved.Artifacts.Count == 1 && saved.Artifacts["alignment"] == alignment, "Earlier work survives, later references are removed");
                 Check(saved.Status == "cancelled", "Run must no longer claim complete output");
             }
+
             Check(Directory.Exists(store.PathFor(cloud)), "Other downstream bytes remain available to storage browser");
         }));
         tests.Run("Semantic mask cleanup invalidates reconstruction and retains original depth provenance", () => WithProject(store =>
@@ -75,6 +76,7 @@ public sealed class ArtifactStorageTests
             {
                 ExpectFailure(() => storage.Delete(store, Selection(null), plan.Token));
             }
+
             File.WriteAllText(store.PathFor("sources/photo.jpg"), "source bytes");
             File.WriteAllText(store.PathFor("previews/photo.jpg"), "preview bytes");
             var originalProject = File.ReadAllText(store.PathFor("project.json"));
@@ -123,6 +125,7 @@ public sealed class ArtifactStorageTests
                     saved = true
                 });
             }
+
             files.AtomicJson(store.PathFor("work/abandoned/scratch.json"), new
             {
                 temporary = true
@@ -139,10 +142,12 @@ public sealed class ArtifactStorageTests
             {
                 Check(Directory.Exists(store.PathFor(path)), "Required artifact was deleted: " + path);
             }
+
             foreach (var path in new[] { obsolete, orphan, "work", $"runs/{old.Id}", $"runs/{support.Id}/traces" })
             {
                 Check(!Directory.Exists(store.PathFor(path)), "Unused data survived cleanup: " + path);
             }
+
             Check(!File.Exists(store.PathFor($"runs/{support.Id}/events.ndjson")), "Older supporting logs should be cleared");
             Check(File.Exists(store.PathFor($"runs/{latest.Id}/events.ndjson")), "Latest logs must survive");
             Check(File.Exists(store.PathFor($"runs/{latest.Id}/traces/index.json")), "Latest trace must survive");
@@ -168,6 +173,7 @@ public sealed class ArtifactStorageTests
             {
                 ExpectFailure(() => storage.Delete(store, request, plan.Token));
             }
+
             var keepHistory = storage.Plan(store, new ArtifactDeletionRequest { Kind = ArtifactDeletionKind.Unused });
             Check(keepHistory.RemovedRuns.Count == 0 && keepHistory.RetainedRuns.Count == 2, "Unspecified retention must keep saved runs");
         }));
@@ -238,6 +244,7 @@ public sealed class ArtifactStorageTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected safe refusal");
     }
 

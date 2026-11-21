@@ -29,6 +29,7 @@ internal sealed class VertexRecordCodec : RecordCodec<Vertex>
                 offset += sizeof(double);
             }
         }
+
         return vertex;
     }
 
@@ -47,6 +48,7 @@ internal sealed class VertexRecordCodec : RecordCodec<Vertex>
                 offset += sizeof(double);
             }
         }
+
         BinaryPrimitives.WriteInt32LittleEndian(bytes[108..], value.PlaneCount);
         BinaryPrimitives.WriteInt32LittleEndian(bytes[112..], value.Revision);
         bytes[116] = value.Removed ? (byte)1 : (byte)0;

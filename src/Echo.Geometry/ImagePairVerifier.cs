@@ -29,6 +29,7 @@ public static class ImagePairVerifier
             ExceptionDispatchInfo.Capture(error.GetBaseException()).Throw();
             throw;
         }
+
         var result = new List<ImagePair>(pairs.Count);
         foreach (var pair in verified)
         {
@@ -37,6 +38,7 @@ public static class ImagePairVerifier
                 result.Add(pair);
             }
         }
+
         return result;
     }
 
@@ -57,6 +59,7 @@ public static class ImagePairVerifier
                 Matches = candidates.Matches.Where(match => match.Manual || match.GeometricInlier == true).ToList()
             };
         }
+
         var automatic = new List<Match>(candidates.Matches.Count);
         foreach (var match in candidates.Matches)
         {
@@ -65,6 +68,7 @@ public static class ImagePairVerifier
                 automatic.Add(match);
             }
         }
+
         var estimate = FundamentalMatrixEstimator.Estimate(automatic, threshold, cancellation, compute, backend);
         var inliers = estimate == null ? new HashSet<Match>() : new HashSet<Match>(estimate.Inliers);
         var verified = new ImagePair { A = candidates.A, B = candidates.B };
@@ -77,6 +81,7 @@ public static class ImagePairVerifier
                 verified.Matches.Add(match);
             }
         }
+
         candidates.Verification = new PairVerification
         {
             AlgorithmVersion = 2,

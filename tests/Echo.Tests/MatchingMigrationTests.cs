@@ -68,6 +68,7 @@ public sealed class MatchingMigrationTests
                 {
                     File.Delete(payload);
                 }
+
                 File.WriteAllText(Path.Combine(pairDirectory, "pair.json"), "{");
                 migrator.Migrate(root);
                 Check(originalMatches == files.Hash(json.Read<ImagePair>(Path.Combine(pairDirectory, "pair.json"))),

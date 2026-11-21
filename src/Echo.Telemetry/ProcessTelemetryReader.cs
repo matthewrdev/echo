@@ -45,11 +45,13 @@ public sealed class ProcessTelemetryReader : IProcessTelemetryReader
             threadFlavor = 5;
             bytes = MacProcessNative.ListThreads(processId, listFlavor, 0, identifiers, identifiers.Length * sizeof(ulong));
         }
+
         while (bytes == identifiers.Length * sizeof(ulong) && identifiers.Length < 32768)
         {
             identifiers = new ulong[identifiers.Length * 2];
             bytes = MacProcessNative.ListThreads(processId, listFlavor, 0, identifiers, identifiers.Length * sizeof(ulong));
         }
+
         if (bytes <= 0)
         {
             return null;
@@ -72,6 +74,7 @@ public sealed class ProcessTelemetryReader : IProcessTelemetryReader
                 CpuPercent = Math.Clamp(info.cpuUsage / 10.0, 0, 100)
             });
         }
+
         return threads;
     }
 }

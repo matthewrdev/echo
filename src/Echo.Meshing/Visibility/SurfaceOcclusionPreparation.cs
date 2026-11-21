@@ -14,6 +14,7 @@ internal static class SurfaceOcclusionPreparation
         {
             return null;
         }
+
         var bytes = checked(index.Nodes.Count * 32L + index.Order.Count * 4L);
         var budget = bytes + SurfaceOcclusionCompute.BatchSize * (SurfaceOcclusionCompute.ResultStride + 8L) * sizeof(int);
         var supported = compute != null && index.Nodes.Count > 0 && bytes <= int.MaxValue;
@@ -21,11 +22,13 @@ internal static class SurfaceOcclusionPreparation
         {
             return null;
         }
+
         var session = sharedSession ?? compute.Open(backend, cancellation);
         if (session == null)
         {
             return null;
         }
+
         var origin = (index.Nodes[0].Minimum + index.Nodes[0].Maximum) * .5;
         var staging = ArrayPool<float>.Shared.Rent(32768);
         try
@@ -50,8 +53,10 @@ internal static class SurfaceOcclusionPreparation
                     staging[slot + 6] = MathF.BitIncrement((float)maximum.Z);
                     staging[slot + 7] = BitConverter.Int32BitsToSingle(node.Left < 0 ? node.Count : node.Right);
                 }
+
                 session.UploadRange<float>(7, start * 8, staging.AsSpan(0, count * 8));
             }
+
             for (var start = 0; start < index.Order.Count; start += staging.Length)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -60,8 +65,10 @@ internal static class SurfaceOcclusionPreparation
                 {
                     staging[local] = BitConverter.Int32BitsToSingle(index.Order[start + local]);
                 }
+
                 session.UploadRange<float>(7, index.Nodes.Count * 8 + start, staging.AsSpan(0, count));
             }
+
             return new SurfaceOcclusionCompute(session, index, origin, sharedSession == null, backend);
         }
         catch (ComputeException) when (backend == ComputeBackend.Auto)
@@ -70,6 +77,7 @@ internal static class SurfaceOcclusionPreparation
             {
                 session.Dispose();
             }
+
             return null;
         }
         catch
@@ -78,6 +86,7 @@ internal static class SurfaceOcclusionPreparation
             {
                 session.Dispose();
             }
+
             throw;
         }
         finally

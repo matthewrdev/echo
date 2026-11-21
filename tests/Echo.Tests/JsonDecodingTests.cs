@@ -31,6 +31,7 @@ public sealed class JsonDecodingTests
                 using var document = JsonDocument.Parse(json.Encode(settings));
                 Check(document.RootElement.GetProperty("computeBackend").GetString() == wire, "Lowercase JSON remains compatible");
             }
+
             foreach (var value in new[] { "42", "0", "\"unknown\"" })
             {
                 try
@@ -109,6 +110,7 @@ public sealed class JsonDecodingTests
                 }),
                     "Checkpoint input bytes remain identical after the type change");
             }
+
             foreach (var field in new[] { "fusionIslandMode", "meshIslandMode" })
             {
                 foreach (var value in new[] { "\"invalid\"", "0", "999", "\"0\"", "null" })
@@ -122,6 +124,7 @@ public sealed class JsonDecodingTests
                     {
                         rejected = true;
                     }
+
                     Check(rejected, $"Unsupported mode {value} must be rejected for {field}");
                 }
             }

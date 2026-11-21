@@ -13,6 +13,7 @@ public static class DepthCompute
         {
             return null;
         }
+
         long length = 0;
         foreach (var view in views)
         {
@@ -24,11 +25,13 @@ public static class DepthCompute
         {
             return null;
         }
+
         var session = compute.Open(backend, cancellation);
         if (session == null)
         {
             return null;
         }
+
         var values = ArrayPool<float>.Shared.Rent(65536);
         try
         {
@@ -48,6 +51,7 @@ public static class DepthCompute
                 {
                     data[4 + k] = (float)view.Inverse[k];
                 }
+
                 data[13] = view.Map.Width;
                 data[14] = view.Map.Height;
                 data[15] = BitConverter.Int32BitsToSingle(offset);
@@ -64,9 +68,11 @@ public static class DepthCompute
                         view.Map.ReadDepth(first, values.AsSpan(0, count));
                         session.UploadRange<float>(1, offset, values.AsSpan(0, count));
                     }
+
                     offset += count;
                 }
             }
+
             session.Upload<float>(0, metadata);
             return session;
         }

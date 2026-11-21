@@ -16,6 +16,7 @@ internal static class CloudSupportCompute
             {
                 return null;
             }
+
             var sine = Math.Sin(settings.CloudMinimumParallaxDegrees * Math.PI / 180);
             session.Upload<float>(2, [(float)settings.CloudDepthTolerance, (float)settings.CloudReprojectionTolerancePixels, (float)(sine * sine)]);
             var support = new int[reference.Map.SampleCount];

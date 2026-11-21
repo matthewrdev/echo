@@ -40,6 +40,7 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
         {
             return 0;
         }
+
         using var span = trace.Begin("Stereo depth cost batch", PerformanceSpanKind.Compute, PerformanceBackend.Metal);
         var packingStarted = span == null ? 0 : Stopwatch.GetTimestamp();
         var packedAt = 0L;
@@ -52,6 +53,7 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
         {
             throw new ArgumentException("The result buffer is too small for the depth batch.", nameof(costs));
         }
+
         var jobs = ArrayPool<float>.Shared.Rent(checked(samples.Count * 32));
         var depths = ArrayPool<float>.Shared.Rent(costCount);
         try
@@ -63,6 +65,7 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                 {
                     throw new ArgumentException("All samples in a depth batch must have the same hypothesis count and 25 patch values.", nameof(samples));
                 }
+
                 var job = jobs.AsSpan(index * 32, 32);
                 var patch = sample.Patch.Span;
                 var hypotheses = sample.Hypotheses.Span;
@@ -77,11 +80,13 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                 {
                     job[7 + element] = (float)patch[element];
                 }
+
                 for (var plane = 0; plane < planeCount; plane++)
                 {
                     depths[index * planeCount + plane] = (float)hypotheses[plane];
                 }
             }
+
             packedAt = span == null ? 0 : Stopwatch.GetTimestamp();
             lock (gate)
             {
@@ -93,9 +98,11 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                 {
                     throw new DepthAccelerationException(error.ToString());
                 }
+
                 gpu = MetalDepthNative.GpuTime(handle) - before;
                 finishedAt = span == null ? 0 : Stopwatch.GetTimestamp();
             }
+
             cancellation.ThrowIfCancellationRequested();
             return costCount;
         }
@@ -121,6 +128,7 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                 trace.Measurement("Depth native execution and readback", Stopwatch.GetElapsedTime(acquiredAt, finishedAt).TotalMilliseconds, "ms");
                 trace.Measurement("Depth samples per batch", samples.Count, "samples");
             }
+
             ArrayPool<float>.Shared.Return(jobs);
             ArrayPool<float>.Shared.Return(depths);
         }

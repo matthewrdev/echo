@@ -22,8 +22,10 @@ public sealed class ComputeTests
                 Console.WriteLine("SKIP compute parity: Metal is unavailable");
                 return;
             }
+
             Console.WriteLine("  Compute device: " + probe.Device);
         }
+
         tests.Run("Metal descriptor blocks preserve mutual, ratio, reversed and tied matches", () =>
         {
             var random = new Random(271);
@@ -33,10 +35,12 @@ public sealed class ComputeTests
             {
                 left[i] = new Feature { Descriptor = Enumerable.Range(0, 128).Select(_ => (float)random.NextDouble() * .1f).ToArray() };
             }
+
             for (var i = 0; i < right.Length; i++)
             {
                 right[i] = new Feature { Descriptor = left[i % left.Length].Descriptor.Select(value => value + .0001f).ToArray() };
             }
+
             right[9].Descriptor = right[8].Descriptor.ToArray();
             right[529].Descriptor = right[8].Descriptor.ToArray();
             left[530].Descriptor = left[17].Descriptor.ToArray();
@@ -70,6 +74,7 @@ public sealed class ComputeTests
                 left.Insert(index * 9, new Feature { Descriptor = descriptor });
                 right.Insert(index * 7, new Feature { Descriptor = descriptor.ToArray() });
             }
+
             right.Add(new Feature { Descriptor = right[20].Descriptor.ToArray() });
             right.Add(new Feature { Descriptor = new float[23] });
             foreach (var reversed in new[] { false, true })
@@ -106,6 +111,7 @@ public sealed class ComputeTests
                 catch (ComputeException)
                 {
                 }
+
                 try
                 {
                     limited.Allocate(1, 4);
@@ -114,8 +120,10 @@ public sealed class ComputeTests
                 catch (ComputeException)
                 {
                 }
+
                 Check(compute.MemoryBudgetBytes == 16, "Inner budget was not applied");
             }
+
             Check(compute.MemoryBudgetBytes == 1024 * 1024, "Parent budget was not restored");
             using (var session = compute.Open(ComputeBackend.Metal, default)!)
             {
@@ -126,6 +134,7 @@ public sealed class ComputeTests
                 session.Dispatch(ComputeKernel.DepthFilter, 128 * 128, [128, 128]);
                 session.Read<int>(3, new int[128 * 128]);
             }
+
             Check(outer.Devices.Length == 1, "Artifact scope did not record GPU work");
         });
         tests.Run("Automatic selection falls back atomically when native memory is exhausted", () =>
@@ -161,6 +170,7 @@ public sealed class ComputeTests
             {
                 session.Dispose();
             }
+
             try
             {
                 session.Allocate(0, 4);
@@ -169,6 +179,7 @@ public sealed class ComputeTests
             catch (ObjectDisposedException)
             {
             }
+
             using var reopened = compute.Open(ComputeBackend.Metal, default);
             Check(reopened != null, "Session lease was not released");
         });

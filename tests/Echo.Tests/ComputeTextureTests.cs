@@ -34,6 +34,7 @@ public sealed class ComputeTextureTests
                 return;
             }
         }
+
         tests.Run("Metal texture projection preserves gradients, seams, channel order and fallback", () =>
         {
             var directory = Path.Combine(Path.GetTempPath(), "echo-compute-texture-" + Guid.NewGuid().ToString("N"));

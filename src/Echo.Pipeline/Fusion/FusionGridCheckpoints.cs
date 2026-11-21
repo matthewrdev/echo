@@ -36,6 +36,7 @@ public sealed class FusionGridCheckpoints : IFusionGridStore
         {
             return generated;
         }
+
         var metadata = json.Read<FusionGridMetadata>(context.Store.PathFor(path + "/grid.json"));
         var valid = metadata.Cells >= 0 && metadata.Spans >= 0 && Enum.IsDefined(metadata.Axis)
             && double.IsFinite(metadata.VoxelSize) && metadata.VoxelSize > 0;
@@ -43,6 +44,7 @@ public sealed class FusionGridCheckpoints : IFusionGridStore
         {
             throw new InvalidDataException("Invalid cached fusion grid metadata.");
         }
+
         var spans = context.Data.Open(context.Store.PathFor(path + "/ranges.bin"), new GridSpanRecordCodec(),
             offset: 0, count: metadata.Spans);
         return new FusionGrid
@@ -74,6 +76,7 @@ public sealed class FusionGridCheckpoints : IFusionGridStore
                     codec.Encode(spans[first + index], batch.Slice(index * codec.Size, codec.Size));
                 }
             }
+
             stream.Write(batch);
         }
     }

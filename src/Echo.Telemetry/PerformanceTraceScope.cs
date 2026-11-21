@@ -46,11 +46,13 @@ public sealed class PerformanceTraceScope : IDisposable
             {
                 return;
             }
+
             if (operation?.Span.Name != progress.Operation || backend.HasValue && operation?.Span.Backend != backend.Value)
             {
                 operation?.Complete(PerformanceStatus.Completed);
                 operation = session.Begin(progress.Operation, PerformanceSpanKind.Operation, backend ?? Span.Backend, Span.Stage, this, () => { });
             }
+
             operation.Span.Items = progress.Completed;
             operation.Span.TotalItems = progress.Total;
             operation.Span.Unit = progress.Unit;
@@ -66,6 +68,7 @@ public sealed class PerformanceTraceScope : IDisposable
             {
                 return;
             }
+
             operation?.Complete(status);
             operation = null;
             completed = true;
@@ -80,6 +83,7 @@ public sealed class PerformanceTraceScope : IDisposable
         {
             return;
         }
+
         Complete();
         disposed = true;
         restore();

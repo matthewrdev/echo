@@ -50,6 +50,7 @@ public sealed class MatchingProjectMigrator
                 {
                     Interlocked.Increment(ref converted);
                 }
+
                 var count = Interlocked.Increment(ref completed);
                 if (count % 100 == 0 || count == paths.Length)
                 {
@@ -57,6 +58,7 @@ public sealed class MatchingProjectMigrator
                 }
             });
         }
+
         var matching = store.PathFor("artifacts/matching");
         if (Directory.Exists(matching))
         {
@@ -65,15 +67,18 @@ public sealed class MatchingProjectMigrator
                 FinalIndex(store, directory);
             }
         }
+
         foreach (var path in Directory.EnumerateFiles(store.PathFor("runs"), "run.json", SearchOption.AllDirectories))
         {
             MigrateRun(store, path);
         }
+
         var previews = store.PathFor("artifacts/matching-preview");
         if (Directory.Exists(previews))
         {
             Directory.Delete(previews, true);
         }
+
         Console.WriteLine($"Completed {root}: {converted:N0} payloads converted and verified; preview history replaced with run journals.");
     }
 
@@ -87,11 +92,13 @@ public sealed class MatchingProjectMigrator
             {
                 journal.Append(indexes.Describe(store.Root, units[index], index));
             }
+
             if (journal.Count != units.Count)
             {
                 throw new InvalidDataException("Final matching index has unexpected entries.");
             }
         }
+
         var manifestPath = Path.Combine(directory, "manifest.json");
         var manifest = json.Read<Artifact>(manifestPath);
         manifest.Files["pairs.ndjson"] = files.HashFile(target);
@@ -113,9 +120,11 @@ public sealed class MatchingProjectMigrator
                     journal.Append(indexes.Describe(store.Root, units[index], index));
                 }
             }
+
             run.Artifacts["matchingPreview"] = preview;
             files.AtomicJson(path, run);
         }
+
         var processingPath = store.PathFor($"runs/{run.Id}/processing.json");
         if (File.Exists(processingPath))
         {
@@ -124,6 +133,7 @@ public sealed class MatchingProjectMigrator
             {
                 processing.Artifacts.Remove(key);
             }
+
             files.AtomicJson(processingPath, processing);
         }
     }

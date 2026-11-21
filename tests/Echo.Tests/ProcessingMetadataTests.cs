@@ -135,6 +135,7 @@ public sealed class ProcessingMetadataTests
                 var packing = metadata.Executions.Single(execution => execution.Component.EndsWith(".texturepacking", StringComparison.Ordinal));
                 Check(packing.Device == "Packing GPU" && packing.Implementation == "packing-test-version" && packing.Precision == "integer-exact", "Packing metadata was lost");
             }
+
             context.Complete();
         }));
         tests.Run("New CPU checkpoints always record provenance; older checkpoints remain explicitly unknown", () => WithProject(store =>

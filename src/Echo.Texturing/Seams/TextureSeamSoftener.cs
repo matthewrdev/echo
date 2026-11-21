@@ -16,16 +16,19 @@ public static class TextureSeamSoftener
         {
             throw new ArgumentOutOfRangeException(nameof(width));
         }
+
         if (width == 0)
         {
             return;
         }
+
         var invalidLayout = size <= 0 || pixels.Length != (long)size * size
             || uvs.Count != mesh.Vertices.Count || mesh.SourceImages.Count != mesh.Faces.Count;
         if (invalidLayout)
         {
             throw new ArgumentException("Seam softening requires a square atlas and textured surface.");
         }
+
         var topology = SurfaceTopologyBuilder.Build(mesh, cancellation, work);
         SKColor[]? source = null;
         var changes = new Dictionary<int, TextureSeamPixelCorrection>();
@@ -39,11 +42,13 @@ public static class TextureSeamSoftener
                 {
                     continue;
                 }
+
                 var photographic = !string.IsNullOrEmpty(mesh.SourceImages[face]) && !string.IsNullOrEmpty(mesh.SourceImages[other]);
                 if (!photographic)
                 {
                     continue;
                 }
+
                 var indices = mesh.Faces[face];
                 var a = indices[edge];
                 var b = indices[(edge + 1) % 3];
@@ -54,6 +59,7 @@ public static class TextureSeamSoftener
                 {
                     continue;
                 }
+
                 source ??= pixels.ToArray();
                 var first = new TextureSeamTriangle(Coordinate(uvs[a], size), Coordinate(uvs[b], size), Coordinate(uvs[indices[(edge + 2) % 3]], size));
                 var second = new TextureSeamTriangle(Coordinate(uvs[others[oa]], size), Coordinate(uvs[others[ob]], size), Coordinate(uvs[others[3 - oa - ob]], size));
@@ -82,6 +88,7 @@ public static class TextureSeamSoftener
         {
             return;
         }
+
         var horizontal = Math.Abs(edge.X) >= Math.Abs(edge.Y);
         var start = horizontal ? own.A.X : own.A.Y;
         var end = horizontal ? own.B.X : own.B.Y;
@@ -103,22 +110,26 @@ public static class TextureSeamSoftener
                 {
                     continue;
                 }
+
                 var t = Math.Clamp((point - own.A).Dot(edge) / (length * length), 0, 1);
                 var distance = (point - own.A - edge * t).Length;
                 if (distance >= width || source[y * size + x].Alpha == 0)
                 {
                     continue;
                 }
+
                 if (!Sample(source, size, own.InsideEdge(t), out var a) || !Sample(source, size, other.InsideEdge(t), out var b))
                 {
                     continue;
                 }
+
                 var difference = (b - a) * .5;
                 difference = new V3(Math.Clamp(difference.X, -32, 32), Math.Clamp(difference.Y, -32, 32), Math.Clamp(difference.Z, -32, 32));
                 if (difference.Length < .5)
                 {
                     continue;
                 }
+
                 var remaining = 1 - distance / width;
                 var weight = remaining * remaining * (3 - 2 * remaining);
                 var index = y * size + x;
@@ -145,15 +156,18 @@ public static class TextureSeamSoftener
                 {
                     continue;
                 }
+
                 var weight = (column == 0 ? 1 - px + x : px - x) * (row == 0 ? 1 - py + y : py - y);
                 colour += new V3(pixel.Red, pixel.Green, pixel.Blue) * weight;
                 total += weight;
             }
         }
+
         if (total < .5)
         {
             return false;
         }
+
         colour /= total;
         return true;
     }

@@ -12,6 +12,7 @@ public static class FusionPreviewSelection
         {
             result.Add(source[(int)index]);
         }
+
         return result;
     }
 }

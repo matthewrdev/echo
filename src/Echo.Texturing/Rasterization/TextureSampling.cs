@@ -12,6 +12,7 @@ internal static class TextureSampling
             x = guarded.X;
             y = guarded.Y;
         }
+
         x = Math.Clamp(x, 0, width - 1);
         y = Math.Clamp(y, 0, height - 1);
         var ix = (int)x;

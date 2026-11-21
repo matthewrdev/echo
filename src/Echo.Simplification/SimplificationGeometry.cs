@@ -16,8 +16,10 @@ internal static class SimplificationGeometry
             {
                 yield return new V3(vertex);
             }
+
             yield break;
         }
+
         var values = new V3[4096];
         var codec = new PositionRecordCodec();
         for (var start = 0; start < paged.Count; start += values.Length)
@@ -39,8 +41,10 @@ internal static class SimplificationGeometry
             {
                 yield return new FaceVertices(face[0], face[1], face[2]);
             }
+
             yield break;
         }
+
         var values = new FaceVertices[4096];
         var codec = new FaceVerticesCodec();
         for (var start = 0; start < paged.Count; start += values.Length)
@@ -73,6 +77,7 @@ internal static class SimplificationGeometry
                 vertices.AddRecord(point, positionCodec);
             }
         }
+
         foreach (var face in Faces(source))
         {
             cancellation.ThrowIfCancellationRequested();
@@ -85,6 +90,7 @@ internal static class SimplificationGeometry
                 faces.AddRecord(face, faceCodec);
             }
         }
+
         return result;
     }
 }

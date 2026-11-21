@@ -21,6 +21,7 @@ public static class SurfaceSupportFilter
             {
                 return true;
             }
+
             var origin = new V3(surface.Vertices[loop.Vertices[0]]);
             var area = new V3();
             for (var index = 0; index < loop.Vertices.Count; index++)
@@ -29,11 +30,13 @@ public static class SurfaceSupportFilter
                 var next = new V3(surface.Vertices[loop.Vertices[(index + 1) % loop.Vertices.Count]]);
                 area += (next - origin).Cross(point - origin);
             }
+
             if (area.Dot(loop.AdjacentNormal) > 1e-12)
             {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -44,6 +47,7 @@ public static class SurfaceSupportFilter
         {
             throw new ArgumentOutOfRangeException(nameof(maximumDistance));
         }
+
         using var scratch = work?.CreateScope();
         using var index = new SurfaceTriangleIndex(observed, cancellation, work);
         var reader = new SurfaceGeometryReader(reconstruction);
@@ -73,8 +77,10 @@ public static class SurfaceSupportFilter
                     supported.Add(accepted[vertex]);
                 }
             }
+
             progress?.Invoke(new("Surface support", "Checking completion against the observed surface.", start + count, reconstruction.Vertices.Count, "vertices"));
         }
+
         var result = work?.Surface() ?? new Surface();
         var writer = new SurfaceGeometryWriter(result);
         Span<int> output = stackalloc int[3];
@@ -102,10 +108,13 @@ public static class SurfaceSupportFilter
                     writer.AddVertex(reader.Vertex(vertex));
                     lookup[vertex] = mapped;
                 }
+
                 output[corner] = mapped;
             }
+
             writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
         }
+
         return result;
     }
 }

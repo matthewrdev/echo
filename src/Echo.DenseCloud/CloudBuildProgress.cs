@@ -40,6 +40,7 @@ internal sealed class CloudBuildProgress
             });
             progressClock.Restart();
         }
+
         var previewDue = previewClock.ElapsedMilliseconds >= 3000 || completedRows == totalRows;
         var hasPreview = preview != null && cloud.Samples.Count > 0;
         if (hasPreview && previewDue)

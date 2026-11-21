@@ -26,6 +26,7 @@ internal static class FusionCpuBlockIntegrator
                 selected[count++] = index;
             }
         }
+
         for (var index = 0; index < cells.Length; index++)
         {
             var key = cells[index];

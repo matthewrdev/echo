@@ -20,6 +20,7 @@ public sealed class PageFile : IDisposable
         {
             throw new ArgumentException("Temporary paging files must be writable.", nameof(writable));
         }
+
         using var handle = File.OpenHandle(path, lifetime == PageFileLifetime.Temporary ? FileMode.CreateNew : writable ? FileMode.OpenOrCreate : FileMode.Open,
             writable ? FileAccess.ReadWrite : FileAccess.Read, FileShare.Read);
         Length = RandomAccess.GetLength(handle);
@@ -67,6 +68,7 @@ public sealed class PageFile : IDisposable
         {
             throw new EndOfStreamException("Truncated paged record.");
         }
+
         cache.Read(this, offset, bytes);
     }
 
@@ -77,6 +79,7 @@ public sealed class PageFile : IDisposable
         {
             throw new InvalidOperationException("Cannot modify this paged file.");
         }
+
         changed = true;
         cache.Write(this, offset, bytes);
     }
@@ -98,6 +101,7 @@ public sealed class PageFile : IDisposable
         {
             return;
         }
+
         try
         {
             if (Lifetime == PageFileLifetime.Temporary)
@@ -134,6 +138,7 @@ public sealed class PageFile : IDisposable
             {
                 throw new EndOfStreamException("Truncated paging file.");
             }
+
             bytes = bytes[count..];
             offset += count;
         }

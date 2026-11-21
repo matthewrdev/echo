@@ -13,6 +13,7 @@ internal static class TextureSkyGuardBuilder
         {
             throw new ArgumentOutOfRangeException(nameof(marginPixels));
         }
+
         var cellSize = Math.Max(1, (int)Math.Ceiling(Math.Max(width, height) / 1024d));
         var columns = (width + cellSize - 1) / cellSize;
         var rows = (height + cellSize - 1) / cellSize;
@@ -37,6 +38,7 @@ internal static class TextureSkyGuardBuilder
                         count++;
                     }
                 }
+
                 var mean = sum / count;
                 var variance = squares / count - new V3(mean.X * mean.X, mean.Y * mean.Y, mean.Z * mean.Z);
                 var smooth = Math.Max(variance.X, Math.Max(variance.Y, variance.Z)) <= 144;
@@ -50,6 +52,7 @@ internal static class TextureSkyGuardBuilder
                 eligible[index] = smooth && (blueSky || paleSky);
             }
         }
+
         var sky = FloodSky(colours, eligible, columns, cancellation);
         if (!sky.Any(value => value) || sky.All(value => value))
         {
@@ -77,6 +80,7 @@ internal static class TextureSkyGuardBuilder
                 pending.Enqueue(x);
             }
         }
+
         Span<int> neighbours = stackalloc int[4];
         while (pending.TryDequeue(out var index))
         {
@@ -89,6 +93,7 @@ internal static class TextureSkyGuardBuilder
                 {
                     continue;
                 }
+
                 var difference = colours[index] - colours[other];
                 var edge = Math.Max(Math.Abs(difference.X), Math.Max(Math.Abs(difference.Y), Math.Abs(difference.Z))) > 24;
                 if (!edge)
@@ -98,6 +103,7 @@ internal static class TextureSkyGuardBuilder
                 }
             }
         }
+
         return sky;
     }
 
@@ -107,6 +113,7 @@ internal static class TextureSkyGuardBuilder
         {
             return false;
         }
+
         var colour = colours[column];
         var blue = colour.Z > colour.X * 1.06 && colour.Z >= colour.Y * .98 && colour.Y >= colour.X * .9;
         var bright = Math.Min(colour.X, Math.Min(colour.Y, colour.Z)) >= 185;
@@ -129,6 +136,7 @@ internal static class TextureSkyGuardBuilder
                 }
             }
         }
+
         return true;
     }
 
@@ -144,6 +152,7 @@ internal static class TextureSkyGuardBuilder
                 pending.Enqueue(index);
             }
         }
+
         Span<int> neighbours = stackalloc int[4];
         while (pending.TryDequeue(out var index))
         {
@@ -152,6 +161,7 @@ internal static class TextureSkyGuardBuilder
             {
                 continue;
             }
+
             var count = Neighbours(index, width, seeds.Length, neighbours);
             foreach (var other in neighbours[..count])
             {
@@ -162,6 +172,7 @@ internal static class TextureSkyGuardBuilder
                 }
             }
         }
+
         return distance;
     }
 
@@ -178,6 +189,7 @@ internal static class TextureSkyGuardBuilder
                 pending.Enqueue(index);
             }
         }
+
         Span<int> neighbours = stackalloc int[4];
         while (pending.TryDequeue(out var index))
         {
@@ -186,6 +198,7 @@ internal static class TextureSkyGuardBuilder
             {
                 continue;
             }
+
             var count = Neighbours(index, width, safe.Length, neighbours);
             foreach (var other in neighbours[..count])
             {
@@ -197,6 +210,7 @@ internal static class TextureSkyGuardBuilder
                 }
             }
         }
+
         return nearest;
     }
 
@@ -207,18 +221,22 @@ internal static class TextureSkyGuardBuilder
         {
             neighbours[count++] = index - 1;
         }
+
         if (index % width < width - 1)
         {
             neighbours[count++] = index + 1;
         }
+
         if (index >= width)
         {
             neighbours[count++] = index - width;
         }
+
         if (index + width < length)
         {
             neighbours[count++] = index + width;
         }
+
         return count;
     }
 }

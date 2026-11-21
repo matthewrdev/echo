@@ -34,6 +34,7 @@ public sealed class PageCache : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(capacity));
         }
+
         this.capacity = capacity;
         this.diskLimit = diskLimit;
         this.pageSize = pageSize;
@@ -62,18 +63,21 @@ public sealed class PageCache : IDisposable
             {
                 return null;
             }
+
             while ((pages.Count + spareBuffers.Count) * (long)pageSize > capacity - reservedMemory - bytes)
             {
                 if (spareBuffers.TryPop(out _))
                 {
                     continue;
                 }
+
                 var oldest = recent.Last!;
                 Flush(oldest.Value);
                 pages.Remove(oldest.Value.Address);
                 recent.RemoveLast();
                 evictions++;
             }
+
             var reservation = new PageMemoryReservation(this, bytes);
             reservedMemory += bytes;
             peak = Math.Max(peak, (pages.Count + spareBuffers.Count) * (long)pageSize + reservedMemory);
@@ -97,6 +101,7 @@ public sealed class PageCache : IDisposable
             {
                 return null;
             }
+
             byte[]? buffer = null;
             var reusePage = capacity == pageSize && !spareBuffers.TryPop(out buffer);
             if (reusePage && recent.Last is { } oldest)
@@ -107,6 +112,7 @@ public sealed class PageCache : IDisposable
                 buffer = oldest.Value.Bytes;
                 evictions++;
             }
+
             var reservation = TryReserveMemory(charge)!;
             try
             {
@@ -179,6 +185,7 @@ public sealed class PageCache : IDisposable
         {
             throw new InvalidOperationException("Paged file handles require the cache lock.");
         }
+
         ObjectDisposedException.ThrowIf(disposed, this);
         if (handles.TryGetValue(file, out var existing))
         {
@@ -186,6 +193,7 @@ public sealed class PageCache : IDisposable
             recentHandles.AddFirst(existing);
             return existing.Value.Handle;
         }
+
         if (handles.Count == 32)
         {
             var oldest = recentHandles.Last!;
@@ -193,6 +201,7 @@ public sealed class PageCache : IDisposable
             handles.Remove(oldest.Value.File);
             recentHandles.RemoveLast();
         }
+
         var opened = file.Open();
         handles.Add(file, recentHandles.AddFirst(new CachedFileHandle(file, opened)));
         handleOpens++;
@@ -214,12 +223,14 @@ public sealed class PageCache : IDisposable
         {
             return;
         }
+
         length = checked((length + pageSize - 1) / pageSize * pageSize);
         var growth = length - file.Length;
         if (file.Writable && diskLimit != 0 && growth > diskLimit - scratch)
         {
             throw new EchoException("Paging scratch-disk budget exceeded. Completed checkpoints are retained; increase ProcessingDiskBudgetMb and resume.", 5);
         }
+
         file.SetLength(length);
         if (file.Writable)
         {
@@ -236,6 +247,7 @@ public sealed class PageCache : IDisposable
             {
                 throw new EchoException("Processing scratch-disk budget exceeded. Saved results are safe. Increase ProcessingDiskBudgetMb and resume.", 5);
             }
+
             scratch = checked(scratch + bytes);
         }
     }
@@ -305,6 +317,7 @@ public sealed class PageCache : IDisposable
                     {
                         Flush(node.Value);
                     }
+
                     pages.Remove(node.Value.Address);
                     recent.Remove(node);
                     if (file.RetainReleasedBuffers)
@@ -312,8 +325,10 @@ public sealed class PageCache : IDisposable
                         spareBuffers.Push(node.Value.Bytes);
                     }
                 }
+
                 node = next;
             }
+
             if (handles.Remove(file, out var handle))
             {
                 recentHandles.Remove(handle);
@@ -330,6 +345,7 @@ public sealed class PageCache : IDisposable
             {
                 return;
             }
+
             try
             {
                 foreach (var page in recent)
@@ -346,6 +362,7 @@ public sealed class PageCache : IDisposable
                 {
                     handle.Handle.Dispose();
                 }
+
                 recentHandles.Clear();
                 handles.Clear();
                 disposed = true;
@@ -364,6 +381,7 @@ public sealed class PageCache : IDisposable
             recent.AddFirst(existing);
             return existing.Value;
         }
+
         misses++;
         byte[] bytes;
         if (spareBuffers.TryPop(out var spare))
@@ -385,6 +403,7 @@ public sealed class PageCache : IDisposable
         {
             bytes = new byte[pageSize];
         }
+
         var offset = index * pageSize;
         var count = overwrite ? 0 : (int)Math.Min(pageSize, Math.Max(0, file.MaterializedLength - offset));
         if (count > 0)
@@ -392,6 +411,7 @@ public sealed class PageCache : IDisposable
             file.Read(offset, bytes.AsSpan(0, count));
             reads += count;
         }
+
         var page = new CachedPage { Address = address, Bytes = bytes };
         pages.Add(address, recent.AddFirst(page));
         peak = Math.Max(peak, (pages.Count + spareBuffers.Count) * (long)pageSize + reservedMemory);
@@ -404,6 +424,7 @@ public sealed class PageCache : IDisposable
         {
             return;
         }
+
         var offset = page.Address.Index * pageSize;
         var count = (int)Math.Min(pageSize, page.Address.File.Length - offset);
         page.Address.File.Write(offset, page.Bytes.AsSpan(0, count));

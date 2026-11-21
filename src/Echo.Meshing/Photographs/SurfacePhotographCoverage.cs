@@ -12,6 +12,7 @@ public static class SurfacePhotographCoverage
         {
             throw new ArgumentException("Expected one photograph assignment per face.", nameof(mesh));
         }
+
         var reader = new SurfaceGeometryReader(mesh);
         var area = 0.0;
         var inferredArea = 0.0;
@@ -31,6 +32,7 @@ public static class SurfacePhotographCoverage
                 inferredArea += triangleArea;
             }
         }
+
         return new PhotographCoverageReport(mesh.Faces.Count, inferredFaces, area, inferredArea);
     }
 }

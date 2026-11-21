@@ -45,6 +45,7 @@ public sealed class MeshQualityTests
             {
                 Check(reduced.Vertices.Any(vertex => vertex.SequenceEqual(point)), "Parallel collapse moved a protected vertex");
             }
+
             Check(EulerCharacteristic(reduced) == 1, "Protected material boundaries developed holes");
             using var cancellation = new CancellationTokenSource();
             ExpectCancellation(() => ParallelMeshCollapse.Reduce((EdgeCollapse)simplifier, source, 200, cancellation.Token, .01,
@@ -73,6 +74,7 @@ public sealed class MeshQualityTests
                 mesh.Faces.Add([start, start + 1, start + 2]);
                 triangles.Add(new SurfaceTriangle(new V3(mesh.Vertices[start]), new V3(mesh.Vertices[start + 1]), new V3(mesh.Vertices[start + 2])));
             }
+
             using var search = new SurfaceTriangleIndex(mesh, default);
             for (var query = 0; query < 100; query++)
             {
@@ -100,6 +102,7 @@ public sealed class MeshQualityTests
                 mesh.Vertices.Add([index * 10, 1, 0]);
                 mesh.Faces.Add([start, start + 1, start + 2]);
             }
+
             var updates = new List<OperationProgress>();
             var clock = System.Diagnostics.Stopwatch.StartNew();
             SurfaceHoleRepair.Fill(mesh, 1, default, progress: updates.Add);
@@ -221,6 +224,7 @@ public sealed class MeshQualityTests
                         cut.Pair(node, other, weights[node, other], weights[node, other]);
                     }
                 }
+
                 double Energy(bool[] labels)
                 {
                     var value = 0.0;
@@ -232,6 +236,7 @@ public sealed class MeshQualityTests
                             value += labels[node] == labels[other] ? 0 : weights[node, other];
                         }
                     }
+
                     return value;
                 }
                 var minimum = Enumerable.Range(0, 1 << count).Min(mask => Energy(Enumerable.Range(0, count).Select(bit => (mask & (1 << bit)) != 0).ToArray()));
@@ -239,6 +244,7 @@ public sealed class MeshQualityTests
                 cut.Solve(labels, default);
                 Check(Math.Abs(Energy(labels) - minimum) < 1e-8, "The cut gives the globally minimal binary energy");
             }
+
             var chain = new BinaryCut(20000);
             chain.Unary(0, 0, 2);
             chain.Unary(19999, 2, 0);
@@ -246,6 +252,7 @@ public sealed class MeshQualityTests
             {
                 chain.Pair(node, node + 1, 1, 1);
             }
+
             var result = new bool[20000];
             chain.Solve(result, default);
             Check(!result[0] && result[^1], "Long augmenting paths do not require recursive stack space");
@@ -261,6 +268,7 @@ public sealed class MeshQualityTests
                     sample.Distance = saddle ? sample.Z + ((sample.X + sample.Y) % 2 == 0 ? .8f : -.8f) - .25f : sample.Z;
                     volume.Samples[index] = sample;
                 }
+
                 var mesh = meshes.Extract(volume, default);
                 Check(EulerCharacteristic(mesh) == 1, "Ambiguous cell faces must not create non-manifold edges or holes");
                 Check(mesh.Faces.All(face => Normal(mesh, face).Length > 1e-10), "Exact grid crossings do not create degenerate triangles");
@@ -308,6 +316,7 @@ public sealed class MeshQualityTests
                     }
                 }
             }
+
             var mesh = meshes.Extract(volume, default);
             Check(mesh.Vertices.All(point => point[0] <= 30), "Sub-voxel floating fragments are removed");
             Check(Math.Abs(Area(mesh) - 600) < 1e-6, "The main surface is unchanged");
@@ -323,6 +332,7 @@ public sealed class MeshQualityTests
                 scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [15, 10, -30] });
                 maps.Add(new DepthMap { ImageId = id, Width = 100, Height = 100, Depth = Enumerable.Repeat(30.25f, 10000).ToArray() });
             }
+
             foreach (var supported in new[] { true, false })
             {
                 var volume = PlaneVolume();
@@ -335,6 +345,7 @@ public sealed class MeshQualityTests
                         Array.Fill(map.Depth, 20f);
                     }
                 }
+
                 meshes.FillHoles(project, scene, maps, mesh, 1, default);
                 Check(EulerCharacteristic(mesh) == (supported ? 1 : 0), "Only a patch with agreeing measured depths closes the hole");
                 if (supported)
@@ -391,6 +402,7 @@ public sealed class MeshQualityTests
                     surface.Vertices.Add([(x - 6) * .1, (y - 6) * .1, (x + y) % 2 == 0 ? .01 : -.01]);
                 }
             }
+
             for (var y = 0; y < 12; y++)
             {
                 for (var x = 0; x < 12; x++)
@@ -400,6 +412,7 @@ public sealed class MeshQualityTests
                     surface.Faces.Add([a, a + 14, a + 13]);
                 }
             }
+
             var project = new ProjectData();
             var scene = new ReconstructionScene();
             var maps = new List<DepthMap>();
@@ -409,6 +422,7 @@ public sealed class MeshQualityTests
                 scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [id == "left" ? -4 : 4, 0, -30] });
                 maps.Add(new DepthMap { ImageId = id, Width = 100, Height = 100, Depth = Enumerable.Repeat(id == "occluded" ? 10f : 30f, 10000).ToArray() });
             }
+
             var assigned = meshes.AssignCameras(project, scene, maps, surface, default);
             var topology = SurfaceTopologyBuilder.Build(assigned, default);
             var seams = Enumerable.Range(0, topology.Neighbours.Count).Count(slot => topology.Neighbours[slot] >= 0
@@ -440,6 +454,7 @@ public sealed class MeshQualityTests
                         map.Depth[y * 100 + x] = depth;
                     }
                 }
+
                 var assigned = meshes.AssignCameras(project, scene, [map], surface, default);
                 Check(assigned.Faces.Count == (depth == 0 ? 2 : 1),
                     "Unknown central depth can use agreeing boundary depths; an observed occluder cannot");
@@ -471,6 +486,7 @@ public sealed class MeshQualityTests
                 }
             }
         }
+
         return volume;
     }
 
@@ -485,6 +501,7 @@ public sealed class MeshQualityTests
                 surface.Vertices.Add([x, y, height]);
             }
         }
+
         for (var x = 0; x < 30; x++)
         {
             for (var y = 0; y < 20; y++)
@@ -494,6 +511,7 @@ public sealed class MeshQualityTests
                 surface.Faces.Add([a, a + 22, a + 1]);
             }
         }
+
         return surface;
     }
 
@@ -520,6 +538,7 @@ public sealed class MeshQualityTests
                 used.Add(a);
             }
         }
+
         Check(edges.Values.All(count => count <= 2), "No non-manifold edges are introduced");
         return used.Count - edges.Count + mesh.Faces.Count;
     }
@@ -534,6 +553,7 @@ public sealed class MeshQualityTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected cancellation");
     }
 

@@ -26,6 +26,7 @@ internal sealed class SurfaceGeometryReader
             paged.ReadRange(index, point, vertices);
             return point[0];
         }
+
         return new V3(surface.Vertices[index]);
     }
 
@@ -36,6 +37,7 @@ internal sealed class SurfaceGeometryReader
             paged.ReadRange(start, destination, vertices);
             return;
         }
+
         for (var index = 0; index < destination.Length; index++)
         {
             destination[index] = new V3(surface.Vertices[start + index]);
@@ -49,6 +51,7 @@ internal sealed class SurfaceGeometryReader
             paged.ReadRange(start, destination, faces);
             return;
         }
+
         for (var index = 0; index < destination.Length; index++)
         {
             var face = surface.Faces[start + index];

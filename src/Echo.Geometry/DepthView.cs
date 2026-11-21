@@ -12,6 +12,7 @@ public sealed class DepthView
         {
             throw new EchoException($"Invalid depth-map dimensions or sample count for image {map.ImageId}.", 5);
         }
+
         Projection = new CameraProjector(photo, camera);
         Map = map;
         Camera = camera;
@@ -56,6 +57,7 @@ public sealed class DepthView
         {
             return false;
         }
+
         var x = local.X / local.Z * Focal + Map.Width * .5;
         var y = local.Y / local.Z * Focal + Map.Height * .5;
         var insideX = x >= 0 && x < Map.Width - 1;
@@ -64,6 +66,7 @@ public sealed class DepthView
         {
             return false;
         }
+
         var ix = (int)x;
         var iy = (int)y;
         var tolerance = Math.Max(local.Z / Focal * 2, local.Z * relativeTolerance);
@@ -88,16 +91,20 @@ public sealed class DepthView
                     {
                         continue;
                     }
+
                     return false;
                 }
+
                 sum += depth * w;
                 weight += w;
             }
         }
+
         if (weight < .5)
         {
             return false;
         }
+
         surface = Centre + (world - Centre) * (sum / weight / local.Z);
         return true;
     }
@@ -109,6 +116,7 @@ public sealed class DepthView
         {
             return false;
         }
+
         var dx = local.X / local.Z * Focal + Map.Width * .5 - x;
         var dy = local.Y / local.Z * Focal + Map.Height * .5 - y;
         return dx * dx + dy * dy <= pixelTolerance * pixelTolerance;

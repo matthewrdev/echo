@@ -108,6 +108,7 @@ public sealed class GisWriter : IGisWriter
             {
                 continue;
             }
+
             photo.Gps.Validate();
             var reference = AltitudeReferenceResolver.Resolve(photo.Gps, photo.Metadata);
             var position = new GeoPosition
@@ -133,6 +134,7 @@ public sealed class GisWriter : IGisWriter
             writer.WriteEndObject();
             writer.WriteEndObject();
         }
+
         EndCollection(writer);
     }
 
@@ -171,10 +173,12 @@ public sealed class GisWriter : IGisWriter
             {
                 writer.WriteNumberValue(value);
             }
+
             writer.WriteEndArray();
             writer.WriteEndObject();
             writer.WriteEndObject();
         }
+
         EndCollection(writer);
     }
 
@@ -190,6 +194,7 @@ public sealed class GisWriter : IGisWriter
             {
                 throw new EchoException("Invalid triangle in geographic export.", 2);
             }
+
             var points = face.Select(vertex => Position(surface.Vertices[vertex], origin)).ToArray();
             if (points.Max(point => point.Longitude) - points.Min(point => point.Longitude) > 180)
             {
@@ -206,6 +211,7 @@ public sealed class GisWriter : IGisWriter
             {
                 Coordinate(writer, points[vertex], height);
             }
+
             writer.WriteEndArray();
             writer.WriteEndArray();
             writer.WriteEndObject();
@@ -220,6 +226,7 @@ public sealed class GisWriter : IGisWriter
             writer.WriteEndObject();
             writer.WriteEndObject();
         }
+
         EndCollection(writer);
     }
 
@@ -242,6 +249,7 @@ public sealed class GisWriter : IGisWriter
         {
             throw new EchoException("Invalid local coordinate in geographic export.", 2);
         }
+
         return GeographicCoordinates.FromLocal(new V3(values), origin);
     }
 
@@ -276,6 +284,7 @@ public sealed class GisWriter : IGisWriter
         {
             writer.WriteNumberValue(point.Altitude!.Value);
         }
+
         writer.WriteEndArray();
     }
 

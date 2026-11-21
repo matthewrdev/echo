@@ -39,6 +39,7 @@ public sealed class ComputeScope : IDisposable
         {
             executions.Add(execution);
         }
+
         parent?.Record(execution);
     }
 

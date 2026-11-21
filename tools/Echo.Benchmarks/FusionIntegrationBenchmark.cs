@@ -33,6 +33,7 @@ public sealed class FusionIntegrationBenchmark
         {
             throw new EchoException("Usage: fusion-integration PROJECT RUN GRID_FILE AXIS VOXEL CELL_LIMIT MODE (Reference, Cpu, Metal, MetalTiled) [KEEP_EVERY_N].", 2);
         }
+
         var axis = Enum.Parse<GridAxis>(args[3], true);
         var voxel = double.Parse(args[4], CultureInfo.InvariantCulture);
         var limit = int.Parse(args[5], CultureInfo.InvariantCulture);
@@ -42,6 +43,7 @@ public sealed class FusionIntegrationBenchmark
         {
             throw new EchoException("Use a valid axis/mode, positive voxel size and 1–262144 cells.", 2);
         }
+
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
         using var data = new BulkDataSession(512L * 1024 * 1024, 0);
@@ -66,6 +68,7 @@ public sealed class FusionIntegrationBenchmark
                 cells[index] = new Grid(int.MaxValue / 2, int.MaxValue / 2, int.MaxValue / 2);
             }
         }
+
         using var scope = compute.BeginScope(mode == FusionIntegrationBenchmarkMode.Metal ? 3L << 30 : 512L << 20);
         var plan = FusionIntegrationPlanning.Resolve(8L << 30, compute.MemoryBudgetBytes, count,
             mode == FusionIntegrationBenchmarkMode.Metal ? views.Sum(view => (long)view.Map.SampleCount) : long.MaxValue);
@@ -83,6 +86,7 @@ public sealed class FusionIntegrationBenchmark
         {
             Execute();
         }
+
         for (var repeat = 0; repeat < 7; repeat++)
         {
             var uploaded = compute.UploadedBytes;
@@ -95,6 +99,7 @@ public sealed class FusionIntegrationBenchmark
             {
                 samples = Execute();
             }
+
             watch.Stop();
             var measurement = new FusionIntegrationMeasurement(mode, count, samples.Count, watch.Elapsed.TotalSeconds / iterations,
                 (GC.GetTotalAllocatedBytes(false) - allocated) / iterations, (data.Statistics.ReadBytes - read) / iterations, scope.Devices.Length > 0,
@@ -103,6 +108,7 @@ public sealed class FusionIntegrationBenchmark
                 (compute.ReadbackBytes - readback) / iterations);
             Console.WriteLine(JsonSerializer.Serialize(measurement, FusionPlanningBenchmarkJsonContext.Default.FusionIntegrationMeasurement));
         }
+
         return 0;
     }
 
@@ -118,8 +124,10 @@ public sealed class FusionIntegrationBenchmark
             {
                 codec.Encode(samples[first + index], bytes.AsSpan(index * codec.Size, codec.Size));
             }
+
             hash.AppendData(bytes.AsSpan(0, count * codec.Size));
         }
+
         return Convert.ToHexString(hash.GetHashAndReset());
     }
 

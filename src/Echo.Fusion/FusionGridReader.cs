@@ -31,14 +31,17 @@ internal sealed class FusionGridReader
                 {
                     break;
                 }
+
                 z = current.FirstZ;
             }
+
             var length = (int)Math.Min(destination.Length - count, current.LastZ - z + 1);
             for (var index = 0; index < length; index++)
             {
                 destination[count++] = FusionGridAxes.ToWorld(new Grid(current.X, current.Y, (int)z++), axis);
             }
         }
+
         return count;
     }
 
@@ -53,8 +56,10 @@ internal sealed class FusionGridReader
                 {
                     throw new InvalidDataException("Fusion grid ranges ended before their declared cell count.");
                 }
+
                 z = current.FirstZ;
             }
+
             var length = Math.Min(count, current.LastZ - z + 1);
             z += length;
             count -= length;
@@ -71,6 +76,7 @@ internal sealed class FusionGridReader
             {
                 return false;
             }
+
             if (source is PagedList<GridSpan> paged)
             {
                 paged.ReadRange(next, buffer.AsSpan(0, available));
@@ -82,9 +88,11 @@ internal sealed class FusionGridReader
                     buffer[index] = source[next + index];
                 }
             }
+
             next += available;
             position = 0;
         }
+
         current = buffer[position++];
         return true;
     }

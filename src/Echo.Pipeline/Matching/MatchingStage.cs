@@ -60,6 +60,7 @@ public sealed class MatchingStage : IPipelineStage
         {
             photos.Add(photo.Id, photo);
         }
+
         context.ReportProgress("matching", $"Selected {wanted.Count:N0} image pairs using viewing overlap, spatial neighbours, capture sequence and hints.");
 
         var pairUnits = new List<string>();
@@ -69,10 +70,12 @@ public sealed class MatchingStage : IPipelineStage
         {
             throw new InvalidDataException("Matching journal contains pairs outside these run inputs.");
         }
+
         if (context.Run.Artifacts.GetValueOrDefault("matchingPreview") != preview)
         {
             context.Publish("matchingPreview", preview);
         }
+
         var plan = workPlanner.Matching(project.Settings, wanted.Count);
         using var cache = cacheFactory.Create(plan.FeatureCacheBytes);
         workExecutor.Run(wanted.Count, plan.Workers, index => BuildPair(context, wanted[index], photos, featureUnits, cache), (index, unit) =>

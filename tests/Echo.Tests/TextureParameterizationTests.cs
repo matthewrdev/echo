@@ -54,6 +54,7 @@ public sealed class TextureParameterizationTests
             {
                 wrapped.Vertices[vertex] = [vertex % 49, vertex / 49, 0];
             }
+
             var wrappedChart = new TextureChartMesh(new TextureChartGeometry(wrapped, default), Enumerable.Range(0, wrapped.Faces.Count).ToList());
             var overlap = wrappedChart.Points.SelectMany(point => new[]
             {
@@ -71,6 +72,7 @@ public sealed class TextureParameterizationTests
                 Check(patches.Count == 1, "Changing world units should not introduce seams");
                 Validate(new TextureChartGeometry(mesh, default), patches);
             }
+
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
             try
@@ -93,6 +95,7 @@ public sealed class TextureParameterizationTests
                 Check(patch.AtlasBounds.Left >= 8 && patch.AtlasBounds.Top >= 8, "Padding survives at atlas edges");
                 Check(patch.AtlasBounds.Right <= 8192 - 8 && patch.AtlasBounds.Bottom <= 8192 - 8, "Chart remains inside padded bounds");
             }
+
             Check(layout.Patches.Sum(patch => patch.Faces.Count) == mesh.Faces.Count, "Resolution planning never removes faces");
         });
         tests.Run("Atlas reductions use linear-light area filtering without introducing colour-channel swaps", () =>
@@ -106,6 +109,7 @@ public sealed class TextureParameterizationTests
                     source.SetPixel(x, y, x < 2 ? (y % 2 == 0 ? SKColors.Red : SKColors.Black) : SKColors.Blue);
                 }
             }
+
             using var reduced = TextureAtlasDownsampler.Half(source, default);
             var red = reduced.GetPixel(0, 0);
             var blue = reduced.GetPixel(1, 0);
@@ -126,6 +130,7 @@ public sealed class TextureParameterizationTests
                 mesh.Vertices.Add([scale * Math.Cos(theta), scale * y / rows, scale * Math.Sin(theta)]);
             }
         }
+
         for (var y = 0; y < rows; y++)
         {
             for (var x = 0; x < columns; x++)
@@ -140,6 +145,7 @@ public sealed class TextureParameterizationTests
                 mesh.SourceImages.Add(x % 2 == 0 ? "b" : "a");
             }
         }
+
         return mesh;
     }
 
@@ -157,6 +163,7 @@ public sealed class TextureParameterizationTests
                 coordinates[local * 2] = entry.Value[0];
                 coordinates[local * 2 + 1] = entry.Value[1];
             }
+
             Check(TextureChartValidation.Accept(chart, coordinates, default), "Chart has finite, non-overlapping, bounded-stretch UVs");
         }
     }

@@ -2,7 +2,10 @@ using Echo.Geometry;
 
 namespace Echo.Fusion;
 
-internal readonly record struct FusionDepthWindow(DepthView View, FusionDepthRegion Region, int Offset)
+internal readonly record struct FusionDepthWindow(
+    DepthView View,
+    FusionDepthRegion Region,
+    int Offset)
 {
     public DepthObservation Observe(V3 world, double relativeTolerance, ReadOnlySpan<float> depths)
     {
@@ -11,6 +14,7 @@ internal readonly record struct FusionDepthWindow(DepthView View, FusionDepthReg
         {
             return default;
         }
+
         var x = local.X / local.Z * View.Focal + View.Map.Width * .5;
         var y = local.Y / local.Z * View.Focal + View.Map.Height * .5;
         var insideX = x >= Region.Left && x < Region.Left + Region.Width - 1;
@@ -19,6 +23,7 @@ internal readonly record struct FusionDepthWindow(DepthView View, FusionDepthReg
         {
             return default;
         }
+
         var ix = (int)x;
         var iy = (int)y;
         var minimum = double.PositiveInfinity;
@@ -36,6 +41,7 @@ internal readonly record struct FusionDepthWindow(DepthView View, FusionDepthReg
                     complete = false;
                     continue;
                 }
+
                 minimum = Math.Min(minimum, depth);
                 maximum = Math.Max(maximum, depth);
                 var w = (dx == 0 ? 1 - (x - ix) : x - ix) * (dy == 0 ? 1 - (y - iy) : y - iy);
@@ -43,11 +49,13 @@ internal readonly record struct FusionDepthWindow(DepthView View, FusionDepthReg
                 weight += w;
             }
         }
+
         var tolerance = Math.Max(local.Z * relativeTolerance, local.Z / View.Focal * 2);
         if (weight < .5 || maximum - minimum > tolerance * 2)
         {
             return default;
         }
+
         return new DepthObservation(sum / weight - local.Z, local.Z, complete);
     }
 }

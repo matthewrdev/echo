@@ -14,7 +14,7 @@ public sealed class LineDetector : ILineDetector
         this.images = images;
     }
 
-    public List<LineFeature> Detect(float[] gray, int width, int height, int limit, double minimumLength, CancellationToken cancellation, LineDetectionOptions? options = null)
+    public IReadOnlyList<LineFeature> Detect(float[] gray, int width, int height, int limit, double minimumLength, CancellationToken cancellation, LineDetectionOptions? options = null)
     {
         cancellation.ThrowIfCancellationRequested();
         options ??= new LineDetectionOptions();
@@ -22,6 +22,7 @@ public sealed class LineDetector : ILineDetector
         {
             throw new ArgumentOutOfRangeException(nameof(options), "The line gradient threshold must be finite and positive.");
         }
+
         var threshold = (float)options.GradientThreshold;
         var continuationThreshold = threshold * .5f;
         var pixelCount = gray.Length;
@@ -48,6 +49,7 @@ public sealed class LineDetector : ILineDetector
                 {
                     SmoothRow(gray, width, nextRow, smooth.Slice(nextRow % 3 * width, width));
                 }
+
                 var previous = smooth.Slice((y - 1) % 3 * width, width);
                 var current = smooth.Slice(y % 3 * width, width);
                 var following = smooth.Slice((y + 1) % 3 * width, width);
@@ -74,6 +76,7 @@ public sealed class LineDetector : ILineDetector
                 {
                     continue;
                 }
+
                 region.Clear();
                 region.Add(seed);
                 visited[seed] = true;
@@ -108,6 +111,7 @@ public sealed class LineDetector : ILineDetector
                             {
                                 continue;
                             }
+
                             visited[index] = true;
                             region.Add(index);
                             normalX += gx[index] / strength[index];
@@ -151,6 +155,7 @@ public sealed class LineDetector : ILineDetector
                 high = middle;
             }
         }
+
         if (low >= limit)
         {
             return;
@@ -182,6 +187,7 @@ public sealed class LineDetector : ILineDetector
         {
             return;
         }
+
         var fit = Fit(region, strength, width);
         var isStraight = fit.SquaredError / fit.Weight <= 2.25;
         var isSupported = fit.Length >= minimumLength && isStraight && region.Length / fit.Length >= .7;
@@ -198,8 +204,10 @@ public sealed class LineDetector : ILineDetector
             {
                 RetainLine(lines, line, limit);
             }
+
             return;
         }
+
         var canSplit = splitRegions && level < 8 && region.Length >= minimumLength * 1.4;
         if (!canSplit)
         {
@@ -220,10 +228,12 @@ public sealed class LineDetector : ILineDetector
                 region[index] = previous;
             }
         }
+
         if (count == 0 || count == region.Length)
         {
             return;
         }
+
         DetectSegments(region[..count], strength, gray, width, height, minimumLength, limit, splitRegions, lines, level + 1, cancellation);
         DetectSegments(region[count..], strength, gray, width, height, minimumLength, limit, splitRegions, lines, level + 1, cancellation);
     }
@@ -240,6 +250,7 @@ public sealed class LineDetector : ILineDetector
             y += index / width * w;
             weight += w;
         }
+
         x /= weight;
         y /= weight;
         double xx = 0;
@@ -253,6 +264,7 @@ public sealed class LineDetector : ILineDetector
             xy += dx * dy * strength[index];
             yy += dy * dy * strength[index];
         }
+
         var angle = .5 * Math.Atan2(2 * xy, xx - yy);
         var tx = Math.Cos(angle);
         var ty = Math.Sin(angle);
@@ -269,6 +281,7 @@ public sealed class LineDetector : ILineDetector
             maximum = Math.Max(maximum, along);
             squaredError += across * across * strength[index];
         }
+
         return new LineRegionFit(x, y, tx, ty, minimum, maximum, squaredError, weight);
     }
 
@@ -291,13 +304,15 @@ public sealed class LineDetector : ILineDetector
                 {
                     return [];
                 }
+
                 descriptor[along * 4 + across] = sample;
             }
         }
+
         return Normalize(descriptor) ? descriptor : [];
     }
 
-    public List<Feature> Junctions(IReadOnlyList<LineFeature> lines, float[] gray, int width, int height, int limit, CancellationToken cancellation)
+    public IReadOnlyList<Feature> Junctions(IReadOnlyList<LineFeature> lines, float[] gray, int width, int height, int limit, CancellationToken cancellation)
     {
         var result = new List<Feature>();
         var directions = new LineDirection[lines.Count];
@@ -305,6 +320,7 @@ public sealed class LineDetector : ILineDetector
         {
             directions[index] = new LineDirection(lines[index]);
         }
+
         for (var a = 0; a < lines.Count; a++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -323,6 +339,7 @@ public sealed class LineDetector : ILineDetector
                 {
                     continue;
                 }
+
                 var dx = second.Start[0] - first.Start[0];
                 var dy = second.Start[1] - first.Start[1];
                 var t = (dx * by - dy * bx) / cross;
@@ -334,6 +351,7 @@ public sealed class LineDetector : ILineDetector
                 {
                     continue;
                 }
+
                 var x = first.Start[0] + t * ax;
                 var y = first.Start[1] + t * ay;
                 var insideWidth = x >= 9 && x < width - 9;
@@ -343,6 +361,7 @@ public sealed class LineDetector : ILineDetector
                 {
                     continue;
                 }
+
                 var descriptor = new float[64];
                 var index = 0;
                 for (var py = -7; py <= 7; py += 2)
@@ -352,16 +371,19 @@ public sealed class LineDetector : ILineDetector
                         descriptor[index++] = images.Sample(gray, width, height, x + px, y + py);
                     }
                 }
+
                 if (Normalize(descriptor))
                 {
                     result.Add(new Feature { X = x, Y = y, Kind = "junction", Descriptor = descriptor });
                 }
+
                 if (result.Count >= limit)
                 {
                     return result;
                 }
             }
         }
+
         return result;
     }
 
@@ -374,6 +396,7 @@ public sealed class LineDetector : ILineDetector
                 return true;
             }
         }
+
         return false;
     }
 
@@ -384,21 +407,25 @@ public sealed class LineDetector : ILineDetector
         {
             sum += value;
         }
+
         var mean = sum / descriptor.Length;
         double squared = 0;
         foreach (var value in descriptor)
         {
             squared += (value - mean) * (value - mean);
         }
+
         var norm = Math.Sqrt(squared);
         if (norm < .05)
         {
             return false;
         }
+
         for (var i = 0; i < descriptor.Length; i++)
         {
             descriptor[i] = (float)((descriptor[i] - mean) / norm);
         }
+
         return true;
     }
 }

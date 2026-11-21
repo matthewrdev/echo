@@ -17,6 +17,7 @@ public static class SurfaceExclusionFilter
         {
             return surface;
         }
+
         using var scratch = work?.CreateScope();
         IList<int> vertices = scratch?.Filled(surface.Vertices.Count, -1, new IntRecordCodec(), cancellation)
             ?? Enumerable.Repeat(-1, surface.Vertices.Count).ToArray();
@@ -45,14 +46,17 @@ public static class SurfaceExclusionFilter
                     vertices[vertex] = result.Vertices.Count;
                     writer.AddVertex(reader.Vertex(vertex));
                 }
+
                 output[corner] = vertices[vertex];
             }
+
             writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
             if (assigned)
             {
                 result.SourceImages.Add(surface.SourceImages[index]);
             }
         }
+
         return result;
     }
 }

@@ -70,6 +70,7 @@ public sealed class TexturePriorityTests
                 Check(patch.AtlasBounds.Left >= 4 && patch.AtlasBounds.Top >= 4, "Gutters remain reserved");
                 Check(patch.AtlasBounds.Right <= 252 && patch.AtlasBounds.Bottom <= 252, "Charts stay inside the atlas");
             }
+
             Expect<OperationCanceledException>(() => TexturePriorityBudget.Classify(mesh, project.Settings.TexturePriority, new CancellationToken(true)));
         });
         tests.Run("Adjacent priority bands remain separate through chart merging and vegetation budgeting", () =>
@@ -149,6 +150,7 @@ public sealed class TexturePriorityTests
         {
             return;
         }
+
         throw new Exception($"Expected {typeof(T).Name}.");
     }
 }

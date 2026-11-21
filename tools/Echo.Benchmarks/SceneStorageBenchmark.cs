@@ -34,12 +34,14 @@ public sealed class SceneStorageBenchmark
         {
             throw new EchoException("scene-storage requires a JSON scene fixture and a new output directory.", 2);
         }
+
         var source = Path.GetFullPath(args[0]);
         var output = Path.GetFullPath(args[1]);
         if (Directory.Exists(output))
         {
             throw new EchoException("Use a new output directory for the storage benchmark.", 2);
         }
+
         Directory.CreateDirectory(output);
         // JSON input exists only for this explicit storage comparison. Production
         // readers require the new binary scene contract.
@@ -80,6 +82,7 @@ public sealed class SceneStorageBenchmark
                 () => files.AtomicData(Path.Combine(binaryOutput, "scene.json"), scene), records);
             Directory.Delete(binaryOutput, true);
         }
+
         var bytes = Directory.GetFiles(output).Sum(file => new FileInfo(file).Length);
         var report = new
         {
@@ -120,6 +123,7 @@ public sealed class SceneStorageBenchmark
         {
             throw new InvalidDataException("Scene counts changed.");
         }
+
         for (var index = 0; index < expected.Points.Count; index++)
         {
             var a = expected.Points[index];
@@ -141,6 +145,7 @@ public sealed class SceneStorageBenchmark
         {
             return false;
         }
+
         for (var index = 0; index < a.Length; index++)
         {
             if (BitConverter.DoubleToInt64Bits(a[index]) != BitConverter.DoubleToInt64Bits(b[index]))
@@ -148,6 +153,7 @@ public sealed class SceneStorageBenchmark
                 return false;
             }
         }
+
         return true;
     }
 }

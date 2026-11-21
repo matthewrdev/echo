@@ -21,10 +21,12 @@ public static class TextureMaskSearch
                         bestBottom = y + mask.Height;
                         break;
                     }
+
                     x = next;
                 }
             }
         }
+
         return best;
     }
 }

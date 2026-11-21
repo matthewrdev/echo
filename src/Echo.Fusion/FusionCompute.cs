@@ -26,6 +26,7 @@ internal sealed class FusionCompute : IDisposable
         {
             streaming = null;
         }
+
         metadata = new float[Math.Max(128, viewCount) * 24];
         session.Allocate(0, metadata.Length * sizeof(float));
         session.Allocate(1, checked(Math.Max(plan.ResidentDepthCount, plan.DepthCapacity) * sizeof(float)));
@@ -37,6 +38,7 @@ internal sealed class FusionCompute : IDisposable
             session.Allocate(5, metadata.Length * sizeof(float));
             session.Allocate(6, checked(plan.DepthCapacity * sizeof(float)));
         }
+
         jobs = ArrayPool<float>.Shared.Rent(plan.BatchCapacity * 4);
         try
         {
@@ -61,6 +63,7 @@ internal sealed class FusionCompute : IDisposable
             jobs[index * 4 + 2] = (float)(key.Z * voxel - origin.Z);
             jobs[index * 4 + 3] = 0;
         }
+
         session.Upload<float>(2, jobs.AsSpan(0, cells.Length * 4));
         session.Upload<float>(4, [(float)tolerance, (float)voxel]);
     }
@@ -81,6 +84,7 @@ internal sealed class FusionCompute : IDisposable
         {
             session.Dispatch(ComputeKernel.FusionIntegrate, count, [tiles.Count, first ? 1 : 0]);
         }
+
         first = false;
     }
 
@@ -103,6 +107,7 @@ internal sealed class FusionCompute : IDisposable
                 view.Map.ReadDepth(start, staging[..count]);
                 session.UploadRange<float>(1, offset + start, staging[..count]);
             }
+
             offset = checked(offset + view.Map.SampleCount);
             progress?.Invoke(index + 1, views.Count);
         }
@@ -118,12 +123,15 @@ internal sealed class FusionCompute : IDisposable
             {
                 continue;
             }
+
             WriteMetadata(new ReadOnlySpan<FusionDepthWindow>(in window), origin, selected++);
         }
+
         if (selected == 0)
         {
             return;
         }
+
         session.Upload<float>(0, metadata.AsSpan(0, selected * 24));
         session.Dispatch(ComputeKernel.FusionIntegrate, count, [selected, 1]);
         first = false;
@@ -145,6 +153,7 @@ internal sealed class FusionCompute : IDisposable
             {
                 data[4 + component] = (float)view.Inverse[component];
             }
+
             data[13] = view.Map.Width;
             data[14] = view.Map.Height;
             data[15] = BitConverter.Int32BitsToSingle(window.Offset);
@@ -161,6 +170,7 @@ internal sealed class FusionCompute : IDisposable
         {
             return 0;
         }
+
         var compacted = false;
         var readCount = cells.Length;
         // Small batches cost less to compact on CPU. Dense batches keep the
@@ -180,17 +190,20 @@ internal sealed class FusionCompute : IDisposable
             {
                 throw new ComputeException("Invalid retained fusion sample count.");
             }
+
             if (retainedCount[0] == 0)
             {
                 compactionUseful = true;
                 return 0;
             }
+
             if (retainedCount[0] < cells.Length * 3 / 4)
             {
                 compacted = true;
                 readCount = retainedCount[0];
             }
         }
+
         session.Read<float>(compacted ? 6 : 3, values.AsSpan(0, readCount * 4));
         var retained = 0;
         for (var index = 0; index < readCount; index++)
@@ -199,6 +212,7 @@ internal sealed class FusionCompute : IDisposable
             {
                 cancellation.ThrowIfCancellationRequested();
             }
+
             var support = (int)values[index * 4 + 2];
             if (support >= 2)
             {
@@ -213,6 +227,7 @@ internal sealed class FusionCompute : IDisposable
                 };
             }
         }
+
         compactionUseful = retained < cells.Length * 3 / 4;
         return retained;
     }
@@ -223,6 +238,7 @@ internal sealed class FusionCompute : IDisposable
         {
             return;
         }
+
         disposed = true;
         ArrayPool<float>.Shared.Return(jobs);
         ArrayPool<float>.Shared.Return(values);

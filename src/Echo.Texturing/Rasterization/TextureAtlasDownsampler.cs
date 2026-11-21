@@ -17,12 +17,14 @@ internal static class TextureAtlasDownsampler
         {
             throw new ArgumentException("Expected an even-sized packed RGBA/BGRA atlas.", nameof(source));
         }
+
         var decode = new double[256];
         for (var value = 0; value < decode.Length; value++)
         {
             var srgb = value / 255.0;
             decode[value] = srgb <= .04045 ? srgb / 12.92 : Math.Pow((srgb + .055) / 1.055, 2.4);
         }
+
         var encode = new byte[65536];
         for (var value = 0; value < encode.Length; value++)
         {
@@ -30,6 +32,7 @@ internal static class TextureAtlasDownsampler
             var srgb = linear <= .0031308 ? linear * 12.92 : 1.055 * Math.Pow(linear, 1 / 2.4) - .055;
             encode[value] = (byte)Math.Clamp((int)Math.Round(srgb * 255), 0, 255);
         }
+
         var result = new SKBitmap(source.Width / 2, source.Height / 2, source.ColorType, SKAlphaType.Opaque);
         try
         {
@@ -49,9 +52,11 @@ internal static class TextureAtlasDownsampler
                             + decode[input[bottom + channel]] + decode[input[bottom + 4 + channel]]) * .25;
                         output[target + channel] = encode[Math.Clamp((int)Math.Round(average * 65535), 0, 65535)];
                     }
+
                     output[target + 3] = 255;
                 }
             }
+
             return result;
         }
         catch

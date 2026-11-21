@@ -29,6 +29,7 @@ internal sealed class FusionVolumeAppender
             Write(segment.AsSpan());
             return;
         }
+
         var count = 0;
         foreach (var sample in samples)
         {
@@ -36,6 +37,7 @@ internal sealed class FusionVolumeAppender
             {
                 continue;
             }
+
             buffer[count++] = sample;
             if (count == buffer.Length)
             {
@@ -43,6 +45,7 @@ internal sealed class FusionVolumeAppender
                 count = 0;
             }
         }
+
         Write(buffer.AsSpan(0, count));
     }
 
@@ -59,6 +62,7 @@ internal sealed class FusionVolumeAppender
                 output.Add(sample);
             }
         }
+
         preview?.AddRange(samples);
     }
 }

@@ -21,11 +21,14 @@ internal sealed class TextureChartMesh
                     LocalVertices.Add(welded, local);
                     points.Add(geometry.Points[vertex]);
                 }
+
                 triangle[corner] = local;
             }
+
             Triangles.Add(triangle);
             Area += geometry.Areas[face];
         }
+
         Points = points.ToArray();
         Boundary = FindBoundary();
     }
@@ -60,6 +63,7 @@ internal sealed class TextureChartMesh
                 {
                     return [];
                 }
+
                 counts[edge] = counts.GetValueOrDefault(edge) + 1;
                 edges[edge] = a;
             }
@@ -71,6 +75,7 @@ internal sealed class TextureChartMesh
         {
             return [];
         }
+
         var next = new Dictionary<int, int>();
         foreach (var edge in counts.Where(entry => entry.Value == 1).Select(entry => entry.Key))
         {
@@ -81,10 +86,12 @@ internal sealed class TextureChartMesh
                 return [];
             }
         }
+
         if (next.Count < 3)
         {
             return [];
         }
+
         var boundary = new List<int>();
         var first = next.Keys.Min();
         var current = first;

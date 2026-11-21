@@ -29,6 +29,7 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
         {
             return 0;
         }
+
         var ordered = patches.OrderByDescending(p => Math.Max(p.Bounds.Width, p.Bounds.Height))
             .ThenByDescending(p => p.Bounds.Width * p.Bounds.Height).ToArray();
         var baseline = TryPackSkyline(ordered, size, gutter, cancellation, operationProgress);
@@ -49,6 +50,7 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
         {
             area += Math.Max(1e-12, patch.Bounds.Width * patch.Bounds.Height);
         }
+
         var lower = 0.0;
         var upper = Math.Sqrt((double)size * size / area);
         for (var iteration = 0; iteration < 16; iteration++)
@@ -63,6 +65,7 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
             {
                 upper = candidate;
             }
+
             operationProgress?.Invoke(PackingProgress(0, "Packing rectangular chart bounds…", iteration + 1, 16));
         }
 
@@ -83,6 +86,7 @@ public sealed class TexturePatchPacker : ITexturePatchPacker
                 {
                     silhouetteUpper = candidate;
                 }
+
                 operationProgress?.Invoke(PackingProgress(1, "Packing chart silhouettes…", iteration + 1, 8));
             }
 

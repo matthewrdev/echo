@@ -19,6 +19,7 @@ internal static class SurfaceHoleRepair
         {
             throw new ArgumentException("Inferred patches require a visibility check.", nameof(acceptsTriangle));
         }
+
         using var scratch = work?.CreateScope();
         work = scratch;
         var maximumLoop = supportsSurface != null ? 8192 : allowCurvedInference ? 1024 : 256;
@@ -39,23 +40,27 @@ internal static class SurfaceHoleRepair
                     progress?.Invoke(new OperationProgress("Hole repair", $"Examined {examined:N0} enclosed boundaries; closed {repaired:N0} holes.", examined, Unit: "boundaries"));
                     progressClock.Restart();
                 }
+
                 examined++;
                 var loop = boundary.Vertices;
                 if (loop.Count > maximumLoop)
                 {
                     continue;
                 }
+
                 loop.Reverse();
                 var points = positions.AsSpan(0, loop.Count);
                 for (var vertex = 0; vertex < loop.Count; vertex++)
                 {
                     points[vertex] = new V3(mesh.Vertices[loop[vertex]]);
                 }
+
                 if (!SupportedLoop(points, boundary.AdjacentNormal, voxelSize, supportsSurface != null, allowCurvedInference,
                     out var patchNormal, out var requiresObservation))
                 {
                     continue;
                 }
+
                 var verifyObservation = requiresObservation && !allowCurvedInference;
                 if (verifyObservation && supportsSurface == null)
                 {
@@ -76,19 +81,23 @@ internal static class SurfaceHoleRepair
                 {
                     patch = Triangulate(loop, points, patchNormal, edges, cancellation);
                 }
+
                 if (patch == null && supportsSurface != null)
                 {
                     index ??= new SurfaceTriangleIndex(mesh, cancellation, work);
                     patch = CurvedHoleTriangulation.Fill(mesh, loop, edges, index, cancellation, work);
                 }
+
                 if (patch == null)
                 {
                     continue;
                 }
+
                 if (verifyObservation && !ObservedPatch(mesh, patch, supportsSurface!, cancellation))
                 {
                     continue;
                 }
+
                 if (acceptsTriangle != null)
                 {
                     index ??= new SurfaceTriangleIndex(mesh, cancellation, work);
@@ -103,6 +112,7 @@ internal static class SurfaceHoleRepair
                 {
                     mesh.Faces.Add(face);
                 }
+
                 foreach (var face in patch)
                 {
                     index?.Add(new SurfaceTriangle(new V3(mesh.Vertices[face[0]]), new V3(mesh.Vertices[face[1]]), new V3(mesh.Vertices[face[2]])));
@@ -126,6 +136,7 @@ internal static class SurfaceHoleRepair
             index?.Dispose();
             ArrayPool<V3>.Shared.Return(positions);
         }
+
         progress?.Invoke(new OperationProgress("Hole repair", $"Examined {examined:N0} enclosed boundaries; closed {repaired:N0} holes.", examined, examined, "boundaries"));
         return repaired;
     }
@@ -143,6 +154,7 @@ internal static class SurfaceHoleRepair
                 return false;
             }
         }
+
         return true;
     }
 
@@ -160,6 +172,7 @@ internal static class SurfaceHoleRepair
             area += (point - origin).Cross(next - origin);
             centre += point;
         }
+
         normal = area.Unit;
         centre /= points.Length;
         if (area.Length < voxelSize * voxelSize * 1e-6 || normal.Dot(adjacentNormal) < .5)
@@ -172,10 +185,12 @@ internal static class SurfaceHoleRepair
         {
             radius = Math.Max(radius, (point - centre).Length);
         }
+
         if (allowCurvedInference && radius > voxelSize * 24)
         {
             return false;
         }
+
         foreach (var point in points)
         {
             var deviation = Math.Abs((point - centre).Dot(normal));
@@ -186,6 +201,7 @@ internal static class SurfaceHoleRepair
             {
                 return false;
             }
+
             if (!allowObservedCompletion && !allowCurvedInference)
             {
                 foreach (var other in points)
@@ -197,6 +213,7 @@ internal static class SurfaceHoleRepair
                 }
             }
         }
+
         requiresObservation |= radius > voxelSize * 6;
 
         return true;
@@ -217,6 +234,7 @@ internal static class SurfaceHoleRepair
                 return false;
             }
         }
+
         return true;
     }
 

@@ -73,10 +73,12 @@ public sealed class VisualReconstructor : IVisualReconstructor
                 {
                     continue;
                 }
+
                 scene.Cameras.Add(pose);
                 registered.Add(pose.ImageId);
                 added = true;
             }
+
             if (!added)
             {
                 break;
@@ -92,6 +94,7 @@ public sealed class VisualReconstructor : IVisualReconstructor
         {
             return null;
         }
+
         bundleAdjuster.Refine(working, scene, pairs, cancellation, checkpoint, progress);
         foreach (var id in photos.Keys)
         {
@@ -110,6 +113,7 @@ public sealed class VisualReconstructor : IVisualReconstructor
             // feeding arbitrary visual units to metric depth settings.
             return null;
         }
+
         checkpoint?.Invoke(scene);
         return scene;
     }
@@ -153,6 +157,7 @@ public sealed class VisualReconstructor : IVisualReconstructor
                 return scene;
             }
         }
+
         return null;
     }
 
@@ -188,6 +193,7 @@ public sealed class VisualReconstructor : IVisualReconstructor
                 Attitude = photo.Attitude
             });
         }
+
         return working;
     }
 

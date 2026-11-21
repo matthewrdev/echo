@@ -49,6 +49,7 @@ internal sealed class RecordListView<TRecord, TValue> : IList<TValue>
                 return index;
             }
         }
+
         return -1;
     }
 

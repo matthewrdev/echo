@@ -114,6 +114,7 @@ public sealed class PhotoDeduplicationTests
             {
                 ExpectFailure(() => deduplicator.Apply(store, plan));
             }
+
             store.Edit(project => project.Images[0].Enabled = false);
             ExpectFailure(() => deduplicator.Apply(store, plan));
             Check(store.Load().Images[1].Enabled, "A stale plan cannot disable the remaining photo");
@@ -130,6 +131,7 @@ public sealed class PhotoDeduplicationTests
             {
                 different[index] = .9f;
             }
+
             Check(!PhotoSimilarity.Matches(original, new PhotoSimilaritySample(photo, new GrayscaleImage(64, 64, different), original.Image, 0, false)), "Keep changed local content");
             var blank = new PhotoSimilaritySample(photo, new GrayscaleImage(64, 64, new float[4096]), original.Image, 0, false);
             Check(!PhotoSimilarity.Matches(blank, blank), "Blank photos cannot establish duplicate viewpoints");
@@ -165,6 +167,7 @@ public sealed class PhotoDeduplicationTests
                 bitmap.SetPixel(x, y, new SKColor(value, value, value));
             }
         }
+
         var path = $"sources/{id}.png";
         images.Save(bitmap, store.PathFor(path), SKEncodedImageFormat.Png);
         return new Photo

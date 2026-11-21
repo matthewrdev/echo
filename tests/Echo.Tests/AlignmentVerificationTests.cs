@@ -30,6 +30,7 @@ public sealed class AlignmentVerificationTests
                 var point = new V3(random.NextDouble() * 4 - 2, random.NextDouble() * 3 - 1, -8 - random.NextDouble() * 8);
                 pair.Matches.Add(new Match { A = CameraGeometry.Project(left, leftPose, point)![..2], B = CameraGeometry.Project(right, rightPose, point)![..2] });
             }
+
             ImagePairVerifier.Verify(left, right, pair, default);
             var firstVerification = pair.Verification;
             ImagePairVerifier.Verify(left, right, pair, default);
@@ -63,6 +64,7 @@ public sealed class AlignmentVerificationTests
                 wrong.Add(match);
                 pair.Matches.Add(match);
             }
+
             var previews = 0;
             var contaminated = reconstructor.Align(project, [pair], default, preview =>
             {
@@ -84,6 +86,7 @@ public sealed class AlignmentVerificationTests
                     Check(Math.Abs(clean.Cameras[camera].Rotation[entry] - contaminated.Cameras[camera].Rotation[entry]) < 1e-9, "Rejected candidates biased initial rotation");
                 }
             }
+
             var reduced = new ImagePair { A = left.Id, B = right.Id, Matches = pair.Matches.GetRange(0, 69) };
             var alias = new Match { A = pair.Matches[0].A, B = [pair.Matches[0].B[0] + 40, pair.Matches[0].B[1]] };
             var proposed = new ImagePair { A = left.Id, B = right.Id, Matches = [pair.Matches[69], alias] };

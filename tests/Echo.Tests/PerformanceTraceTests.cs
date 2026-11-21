@@ -49,6 +49,7 @@ public sealed class PerformanceTraceTests
                 first.Statistics[0].Count = -1;
                 Check(session.Snapshot().Spans.Count > 0, "Snapshots must own their collections");
             }
+
             session.Finish(PerformanceStatus.Completed);
             var saved = session.Snapshot();
             var byId = saved.Spans.ToDictionary(span => span.Id);
@@ -57,6 +58,7 @@ public sealed class PerformanceTraceTests
                 Check(byId[span.ParentId!.Value].Name == "search", "Parallel operation lost its parent");
                 Check(span.Status == PerformanceStatus.Completed && span.DurationMilliseconds >= 0, "Invalid duration/status");
             }
+
             var aggregate = saved.Statistics.Single(value => value.Name == "kernel");
             Check(aggregate.Count == 12 && aggregate.Items == 120 && aggregate.Bytes == 384, "Aggregate lost parallel work");
             Check(aggregate.GpuMilliseconds == 30 && saved.Summary.Status == PerformanceStatus.Completed, "GPU time or terminal status lost");
@@ -72,6 +74,7 @@ public sealed class PerformanceTraceTests
                     item!.Measure(1);
                 }
             }
+
             session.Finish(PerformanceStatus.Completed);
             var saved = session.Snapshot();
             Check(saved.Spans.Count == 2001 && saved.Summary.DroppedSpans == 18100, "Timeline is not bounded");
@@ -88,6 +91,7 @@ public sealed class PerformanceTraceTests
                     using var item = trace.Begin("kernel", PerformanceSpanKind.Compute);
                 }
             }
+
             var first = session.CaptureCheckpoint();
             var directory = store.PathFor($"runs/{first.Document.Summary.RunId}");
             traces.Save(directory, first.Document);
@@ -100,6 +104,7 @@ public sealed class PerformanceTraceTests
                 using var operation = trace.Begin("verify pair", PerformanceSpanKind.Operation);
                 using var kernel = trace.Begin("later kernel", PerformanceSpanKind.Compute);
             }
+
             var next = session.CaptureCheckpoint();
             Check(next.Document.Spans.Count == 3, "An incremental snapshot repeated completed history");
             traces.Save(directory, next.Document);
@@ -124,6 +129,7 @@ public sealed class PerformanceTraceTests
                 }, directory => files.AtomicBytes(Path.Combine(directory, "sample"), [1]));
                 context.Complete();
             }
+
             using (var context = contexts.Create(store, run, default, null))
             {
                 context.Start();
@@ -143,6 +149,7 @@ public sealed class PerformanceTraceTests
                     context.Cancel();
                 }
             }
+
             var directory = store.PathFor($"runs/{run.Id}");
             var attempts = traces.List(directory);
             Check(attempts.Count == 2 && attempts.Select(value => value.Id).Distinct().Count() == 2, "Resume overwrote an attempt");
@@ -183,6 +190,7 @@ public sealed class PerformanceTraceTests
                     Console.WriteLine("SKIP GPU timing: no Metal device");
                     return;
                 }
+
                 gpu.Upload<float>(0, Enumerable.Repeat(1f, 128 * 128).ToArray());
                 gpu.Upload<float>(1, new float[128 * 128]);
                 gpu.Upload<float>(2, new float[128 * 128]);
@@ -190,6 +198,7 @@ public sealed class PerformanceTraceTests
                 gpu.Dispatch(ComputeKernel.DepthFilter, 128 * 128, [128, 128]);
                 gpu.Read<int>(3, new int[128 * 128]);
             }
+
             session.Finish(PerformanceStatus.Completed);
             var saved = session.Snapshot();
             Check(saved.Spans.Any(span => span.GpuMilliseconds > 0), "Completed GPU duration was not captured");

@@ -34,6 +34,7 @@ internal static class FusionCandidatePlanner
         {
             return null;
         }
+
         status.Start(FusionPhase.HaloExpansion, occupied.Count * 4, "cell ranges");
         var runs = new FusionGridRuns(records, cancellation, limit);
         var expandedX = runs.MergeSorted(Enumerable.Range(-1, 4).Select(x => Expand(occupied, x, 0, true, cancellation, status)));
@@ -76,11 +77,13 @@ internal static class FusionCandidatePlanner
                                 return;
                             }
                         }
+
                         start += count;
                         // The final point is ready only once this worker's
                         // sorted coverage has finished writing.
                         status.AdvanceBy(count - (start == end ? 1 : 0));
                     }
+
                     if (Volatile.Read(ref exceeded) == 0)
                     {
                         batch.Flush();
@@ -102,10 +105,12 @@ internal static class FusionCandidatePlanner
             ExceptionDispatchInfo.Capture(error.Flatten().InnerExceptions[0]).Throw();
             throw;
         }
+
         if (exceeded != 0)
         {
             return null;
         }
+
         status.Start(FusionPhase.Merge, outputs.Sum(output => output!.Count), "cell ranges");
         var combined = new FusionGridRuns(records, cancellation, limit);
         var result = combined.MergeSorted(outputs.Select(output => ReportRead(output!, cancellation, status)));
@@ -113,6 +118,7 @@ internal static class FusionCandidatePlanner
         {
             records.Delete(output!);
         }
+
         return result;
     }
 
@@ -126,6 +132,7 @@ internal static class FusionCandidatePlanner
             {
                 cancellation.ThrowIfCancellationRequested();
             }
+
             yield return span;
             count++;
             if (count == 4096)
@@ -134,6 +141,7 @@ internal static class FusionCandidatePlanner
                 count = 0;
             }
         }
+
         status.AdvanceBy(count);
     }
 
@@ -164,6 +172,7 @@ internal static class FusionCandidatePlanner
             {
                 cancellation.ThrowIfCancellationRequested();
             }
+
             yield return new GridSpan(span.X + x, span.Y + y, span.FirstZ - (expandZ ? 1 : 0), span.LastZ + (expandZ ? 2 : 0));
             completed++;
             if (completed == 4096)
@@ -172,6 +181,7 @@ internal static class FusionCandidatePlanner
                 completed = 0;
             }
         }
+
         status.AdvanceBy(completed);
     }
 
@@ -190,6 +200,7 @@ internal static class FusionCandidatePlanner
             {
                 return null;
             }
+
             batch[size++] = span;
             if (size == batch.Length)
             {
@@ -197,6 +208,7 @@ internal static class FusionCandidatePlanner
                 size = 0;
             }
         }
+
         cancellation.ThrowIfCancellationRequested();
         Append(result, batch.AsSpan(0, size));
         return new FusionCandidateGrid(result, count, axis);

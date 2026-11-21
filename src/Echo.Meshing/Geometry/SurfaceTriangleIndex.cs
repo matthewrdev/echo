@@ -34,6 +34,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
             buffers.Dispose();
             throw;
         }
+
         try
         {
             if (order.Count > 0)
@@ -63,6 +64,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
         {
             return geometry.Triangle(index);
         }
+
         return reader.Triangle(reader.Face(index));
     }
 
@@ -107,8 +109,10 @@ internal sealed class SurfaceTriangleIndex : IDisposable
                 {
                     return false;
                 }
+
                 continue;
             }
+
             var first = (low - origin) / delta;
             var last = (high - origin) / delta;
             near = Math.Max(near, Math.Min(first, last));
@@ -118,10 +122,12 @@ internal sealed class SurfaceTriangleIndex : IDisposable
                 return false;
             }
         }
+
         if (node.Left >= 0)
         {
             return HasOccluder(node.Left, start, end) || HasOccluder(node.Right, start, end);
         }
+
         for (var offset = node.Start; offset < node.Start + node.Count; offset++)
         {
             if (SurfaceTriangleIntersection.Crosses(start, end, Triangle(Face(offset))))
@@ -129,6 +135,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
                 return true;
             }
         }
+
         return false;
     }
 
@@ -139,6 +146,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
         {
             Nearest(0, point, ref result);
         }
+
         return result;
     }
 
@@ -149,6 +157,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
         {
             return;
         }
+
         if (node.Left >= 0)
         {
             var left = Node(node.Left);
@@ -158,6 +167,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
             Nearest(leftFirst ? node.Right : node.Left, point, ref result);
             return;
         }
+
         for (var offset = node.Start; offset < node.Start + node.Count; offset++)
         {
             var triangle = Triangle(Face(offset));
@@ -183,6 +193,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
         {
             return true;
         }
+
         return additions.Intersects(triangle);
     }
 
@@ -193,10 +204,12 @@ internal sealed class SurfaceTriangleIndex : IDisposable
         {
             return false;
         }
+
         if (node.Left >= 0)
         {
             return Intersects(node.Left, triangle, minimum, maximum) || Intersects(node.Right, triangle, minimum, maximum);
         }
+
         for (var offset = node.Start; offset < node.Start + node.Count; offset++)
         {
             if (SurfaceTriangleIntersection.Intersects(triangle, Triangle(Face(offset))))
@@ -204,6 +217,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
                 return true;
             }
         }
+
         return false;
     }
 
@@ -218,12 +232,14 @@ internal sealed class SurfaceTriangleIndex : IDisposable
             {
                 cancellation.ThrowIfCancellationRequested();
             }
+
             var triangle = Triangle(Face(index));
             var low = triangle.Minimum;
             var high = triangle.Maximum;
             minimum = new V3(Math.Min(minimum.X, low.X), Math.Min(minimum.Y, low.Y), Math.Min(minimum.Z, low.Z));
             maximum = new V3(Math.Max(maximum.X, high.X), Math.Max(maximum.Y, high.Y), Math.Max(maximum.Z, high.Z));
         }
+
         var slot = nodes.Count;
         nodes.Add(default);
         var left = -1;
@@ -241,6 +257,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
                 {
                     cancellation.ThrowIfCancellationRequested();
                 }
+
                 var value = Triangle(Face(index));
                 var centre = value.A + value.B + value.C;
                 var coordinate = axis == 0 ? centre.X : axis == 1 ? centre.Y : centre.Z;
@@ -253,10 +270,12 @@ internal sealed class SurfaceTriangleIndex : IDisposable
                     centres[Face(index)] = coordinate;
                 }
             }
+
             SurfaceMedianPartition.Select(order, start, count, centres, cancellation);
             left = Build(start, count / 2, centres, cancellation);
             right = Build(start + count / 2, count - count / 2, centres, cancellation);
         }
+
         nodes[slot] = new SurfaceSearchNode(minimum, maximum, start, count, left, right);
         return slot;
     }

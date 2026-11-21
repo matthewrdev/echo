@@ -28,6 +28,7 @@ public sealed class StringTableCodec : RecordCodec<string>
         {
             throw new InvalidDataException("Invalid photograph index.");
         }
+
         return strings[index];
     }
 
@@ -39,6 +40,7 @@ public sealed class StringTableCodec : RecordCodec<string>
             indices.Add(value, index);
             strings.Add(value);
         }
+
         BinaryPrimitives.WriteInt32LittleEndian(bytes, index);
     }
 }

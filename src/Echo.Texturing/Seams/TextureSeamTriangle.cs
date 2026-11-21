@@ -2,7 +2,10 @@ using Echo.Geometry;
 
 namespace Echo.Texturing.Seams;
 
-internal readonly record struct TextureSeamTriangle(V3 A, V3 B, V3 C)
+internal readonly record struct TextureSeamTriangle(
+    V3 A,
+    V3 B,
+    V3 C)
 {
     public bool Contains(V3 point)
     {

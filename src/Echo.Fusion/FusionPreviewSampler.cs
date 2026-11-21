@@ -21,15 +21,18 @@ internal sealed class FusionPreviewSampler
         {
             return;
         }
+
         if (samples.Count == limit)
         {
             for (var target = 0; target < samples.Count / 2; target++)
             {
                 samples[target] = samples[target * 2];
             }
+
             samples.RemoveRange(samples.Count / 2, samples.Count - samples.Count / 2);
             stride *= 2;
         }
+
         if (index % stride == 0)
         {
             samples.Add(sample);
@@ -48,6 +51,7 @@ internal sealed class FusionPreviewSampler
                 observed += remaining;
                 return;
             }
+
             observed += skip;
             offset += (int)skip;
             // Add may increase the stride, so calculate the next retained index

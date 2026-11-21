@@ -17,6 +17,7 @@ internal static class TextureChartPatch
                 patch.Coordinates[vertex] = [coordinates[local * 2], coordinates[local * 2 + 1]];
             }
         }
+
         return patch;
     }
 }

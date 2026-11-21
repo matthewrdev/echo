@@ -32,6 +32,7 @@ public sealed class PerformanceTraceService : IPerformanceTrace
         {
             return null;
         }
+
         var previous = scope.Value;
         var parent = previous?.EffectiveParent;
         var result = current.Begin(name, kind, backend, stage ?? parent?.Span.Stage ?? "preparation", parent,

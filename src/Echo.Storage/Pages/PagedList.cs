@@ -40,9 +40,11 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
             {
                 throw new InvalidDataException("Unsupported binary record header.");
             }
+
             Count = BinaryPrimitives.ReadInt32LittleEndian(bytes[12..]);
             committedCount = Count;
         }
+
         if (Count < 0 || offset + (long)Count * codec.Size > file.Length)
         {
             throw new InvalidDataException("Truncated binary records.");
@@ -72,10 +74,12 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentException("The buffer must contain whole records.", nameof(destination));
         }
+
         if (start < 0 || start > Count - destination.Length / codec.Size)
         {
             throw new ArgumentOutOfRangeException(nameof(start));
         }
+
         file.ReadBytes(offset + (long)start * codec.Size, destination);
     }
 
@@ -114,6 +118,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
+
             Span<byte> bytes = stackalloc byte[codec.Size];
             file.ReadBytes(offset + (long)index * codec.Size, bytes);
             return codec.Decode(bytes);
@@ -124,6 +129,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
+
             Write(index, value);
         }
     }
@@ -134,6 +140,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new InvalidDataException("Record count exceeds the supported index range.");
         }
+
         Write(Count, value);
         Count++;
     }
@@ -145,6 +152,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentException("The record layout must have the same size.", nameof(recordCodec));
         }
+
         Span<byte> bytes = stackalloc byte[codec.Size];
         recordCodec.Encode(value, bytes);
         AddEncodedRecords(bytes);
@@ -157,11 +165,13 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentException("The buffer must contain whole records.", nameof(bytes));
         }
+
         var count = bytes.Length / codec.Size;
         if (count > int.MaxValue - Count)
         {
             throw new InvalidDataException("Record count exceeds the supported index range.");
         }
+
         if (count > 0)
         {
             file.WriteBytes(offset + (long)Count * codec.Size, bytes);
@@ -183,14 +193,17 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentException("The record layout must have the same size.", nameof(recordCodec));
         }
+
         if (start < 0 || start > Count - destination.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(start));
         }
+
         if (destination.IsEmpty)
         {
             return;
         }
+
         if ((long)destination.Length * codec.Size <= 1024)
         {
             Span<byte> records = stackalloc byte[destination.Length * codec.Size];
@@ -198,6 +211,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
             recordCodec.DecodeBlock(records, destination);
             return;
         }
+
         var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(codec.Size, 65536));
         try
         {
@@ -223,6 +237,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(start));
         }
+
         var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(codec.Size, 65536));
         try
         {
@@ -248,6 +263,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new InvalidDataException("Record count exceeds the supported index range.");
         }
+
         var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(codec.Size, 65536));
         try
         {
@@ -275,10 +291,12 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new InvalidDataException("Record count exceeds the supported index range.");
         }
+
         if (count == 0)
         {
             return;
         }
+
         var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(codec.Size, 65536));
         try
         {
@@ -291,6 +309,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
                 bytes.AsSpan(0, copy * codec.Size).CopyTo(bytes.AsSpan(filled * codec.Size));
                 filled += copy;
             }
+
             while (count > 0)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -333,6 +352,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             return;
         }
+
         try
         {
             if (file.Lifetime == PageFileLifetime.Persistent)
@@ -362,6 +382,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new NotSupportedException();
         }
+
         Count = 0;
     }
 
@@ -374,6 +395,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
                 return index;
             }
         }
+
         return -1;
     }
 
@@ -392,11 +414,13 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }
+
         Add(item);
         for (var move = Count - 1; move > index; move--)
         {
             this[move] = this[move - 1];
         }
+
         this[index] = item;
     }
 
@@ -406,10 +430,12 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }
+
         for (var move = index; move < Count - 1; move++)
         {
             this[move] = this[move + 1];
         }
+
         Count--;
     }
 
@@ -420,6 +446,7 @@ public sealed class PagedList<T> : IRecordList<T>, IDisposable
         {
             return false;
         }
+
         RemoveAt(index);
         return true;
     }

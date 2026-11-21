@@ -43,8 +43,10 @@ public sealed class FeatureArtifactStore : IFeatureArtifactStore
                     values[index] = BinaryPrimitives.ReadSingleLittleEndian(bytes[(index * 4)..]);
                 }
             }
+
             stream.Position = 16;
         }
+
         var result = new FeatureSet { ImageId = header.ImageId, Features = new(header.PointCount), Lines = new(header.LineCount) };
         Span<byte> record = stackalloc byte[48];
         for (var index = 0; index < header.PointCount; index++)
@@ -55,6 +57,7 @@ public sealed class FeatureArtifactStore : IFeatureArtifactStore
             {
                 throw new InvalidDataException("Invalid feature kind.");
             }
+
             result.Features.Add(new Feature
             {
                 X = BinaryPrimitives.ReadDoubleLittleEndian(record),
@@ -63,6 +66,7 @@ public sealed class FeatureArtifactStore : IFeatureArtifactStore
                 DescriptorData = Descriptor(record[16..], values, header.DescriptorCount, descriptors)
             });
         }
+
         for (var index = 0; index < header.LineCount; index++)
         {
             stream.ReadExactly(record);
@@ -74,6 +78,7 @@ public sealed class FeatureArtifactStore : IFeatureArtifactStore
                 DescriptorData = Descriptor(record[40..], values, header.DescriptorCount, descriptors)
             });
         }
+
         return result;
     }
 
@@ -134,6 +139,7 @@ public sealed class FeatureArtifactStore : IFeatureArtifactStore
             {
                 throw new InvalidDataException("Line features require two-dimensional endpoints.");
             }
+
             BinaryPrimitives.WriteDoubleLittleEndian(row, line.Start[0]);
             BinaryPrimitives.WriteDoubleLittleEndian(row[8..], line.Start[1]);
             BinaryPrimitives.WriteDoubleLittleEndian(row[16..], line.End[0]);
@@ -154,6 +160,7 @@ public sealed class FeatureArtifactStore : IFeatureArtifactStore
         {
             throw new InvalidDataException("Invalid feature descriptor range.");
         }
+
         return included ? values.AsMemory(offset, length) : ReadOnlyMemory<float>.Empty;
     }
 }

@@ -47,6 +47,7 @@ public sealed class MatchArtifactStore : IMatchArtifactStore
             {
                 throw new InvalidDataException("Invalid match kind or flags.");
             }
+
             pair.Matches.Add(new Match
             {
                 A = (flags & 8) == 0 ? [] : Pixel(row),
@@ -57,6 +58,7 @@ public sealed class MatchArtifactStore : IMatchArtifactStore
                 GeometricInlier = (flags & 3) == 0 ? null : (flags & 3) == 2
             });
         }
+
         for (var index = 0; index < header.LineCount; index++)
         {
             stream.ReadExactly(row);
@@ -71,6 +73,7 @@ public sealed class MatchArtifactStore : IMatchArtifactStore
                 Score = BinaryPrimitives.ReadDoubleLittleEndian(row[72..])
             });
         }
+
         return pair;
     }
 
@@ -141,10 +144,12 @@ public sealed class MatchArtifactStore : IMatchArtifactStore
         {
             return;
         }
+
         if (pixel.Length != 2)
         {
             throw new InvalidDataException("Matches require two-dimensional coordinates.");
         }
+
         BinaryPrimitives.WriteDoubleLittleEndian(row, pixel[0]);
         BinaryPrimitives.WriteDoubleLittleEndian(row[8..], pixel[1]);
     }

@@ -40,10 +40,12 @@ public sealed class TextureRunOptionsTests
             {
                 Expect<EchoException>(() => TextureRunOptionParser.Parse(parser.Parse(["run", "start", "--colour-tuning", value])));
             }
+
             foreach (var value in new[] { "-1", "17", "2.5", "yes" })
             {
                 Expect<EchoException>(() => TextureRunOptionParser.Parse(parser.Parse(["run", "start", "--edge-softening", value])));
             }
+
             Expect<EchoException>(() => parser.Parse(["run", "start", "--colour-tuning"]));
             Expect<EchoException>(() => parser.Parse(["run", "start", "--edge-softening", "on", "--edge-softening", "off"]));
         });
@@ -75,6 +77,7 @@ public sealed class TextureRunOptionsTests
                     FocalPixels = 64
                 });
             }
+
             store.Edit(project =>
             {
                 project.Images = photos;
@@ -116,6 +119,7 @@ public sealed class TextureRunOptionsTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected " + typeof(TException).Name);
     }
 

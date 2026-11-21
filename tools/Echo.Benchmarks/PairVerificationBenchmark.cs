@@ -25,6 +25,7 @@ public sealed class PairVerificationBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks verify-pair PROJECT RUN LEFT_NAME RIGHT_NAME OUTPUT.json");
             return 2;
         }
+
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
         var left = run.Snapshot.Images.Single(photo => photo.Name == args[2]);
@@ -38,6 +39,7 @@ public sealed class PairVerificationBenchmark
             {
                 continue;
             }
+
             var verified = FundamentalMatrixEstimator.Estimate(pair.Matches, Math.Max(left.Width, right.Width) / 1000.0, default);
             var decisions = new List<object>();
             for (var index = 0; index < pair.Matches.Count; index++)
@@ -50,6 +52,7 @@ public sealed class PairVerificationBenchmark
                     accepted = verified?.Inliers.Contains(match) == true
                 });
             }
+
             files.AtomicJson(Path.GetFullPath(args[4]), new
             {
                 unit,
@@ -63,6 +66,7 @@ public sealed class PairVerificationBenchmark
             Console.WriteLine($"{pair.Matches.Count} point candidates; {verified?.Inliers.Count ?? 0} geometrically consistent; {pair.LineMatches.Count} unverified lines.");
             return 0;
         }
+
         throw new EchoException("The selected run does not contain this image pair.");
     }
 }

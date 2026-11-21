@@ -28,6 +28,7 @@ public sealed class FeatureMatcher : IFeatureMatcher
                 CollectionsMarshal.AsSpan(rightFeatures.Features), settings, cancellation, compute: compute);
             matching?.Measure(points.Matches.Count);
         }
+
         var result = new ImagePair { A = leftFeatures.ImageId, B = rightFeatures.ImageId, Diagnostics = points.Diagnostics };
         foreach (var match in points.Matches)
         {
@@ -49,6 +50,7 @@ public sealed class FeatureMatcher : IFeatureMatcher
                 CollectionsMarshal.AsSpan(rightFeatures.Lines), settings, cancellation, allowReversedDescriptor: true, compute: compute);
             matching?.Measure(lines.Matches.Count);
         }
+
         foreach (var match in lines.Matches)
         {
             var first = leftFeatures.Lines[match.A];
@@ -64,6 +66,7 @@ public sealed class FeatureMatcher : IFeatureMatcher
                 Score = match.Distance
             });
         }
+
         return result;
     }
 }

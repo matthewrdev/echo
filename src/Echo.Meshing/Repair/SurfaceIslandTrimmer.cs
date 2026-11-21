@@ -17,18 +17,22 @@ public static class SurfaceIslandTrimmer
         {
             throw new ArgumentOutOfRangeException(nameof(mode));
         }
+
         if (!double.IsFinite(minimumAreaPercent) || minimumAreaPercent is < 0 or > 100)
         {
             throw new ArgumentOutOfRangeException(nameof(minimumAreaPercent));
         }
+
         if (mode == IslandTrimMode.Off)
         {
             return new SurfaceIslandTrimResult { Surface = source };
         }
+
         if (source.SourceImages.Count != 0 && source.SourceImages.Count != source.Faces.Count)
         {
             throw new ArgumentException("Photograph assignments must be empty or match the face count.", nameof(source));
         }
+
         if (source.Faces.Count == 0)
         {
             return new SurfaceIslandTrimResult { Surface = source, InputComponents = 0 };
@@ -57,6 +61,7 @@ public static class SurfaceIslandTrimmer
                 largest = index;
             }
         }
+
         var threshold = areas[largest] * minimumAreaPercent / 100;
         IList<bool> remove = scratch?.Filled(areas.Count, false, new BoolRecordCodec()) ?? new bool[areas.Count];
         var componentCount = 0;
@@ -69,6 +74,7 @@ public static class SurfaceIslandTrimmer
             {
                 continue;
             }
+
             componentCount++;
             remove[index] = index != largest && (mode == IslandTrimMode.Main || areas[index] < threshold);
             if (remove[index])
@@ -77,6 +83,7 @@ public static class SurfaceIslandTrimmer
                 removedArea += areas[index];
             }
         }
+
         var result = removedCount == 0 ? source : CopyRetainedFaces(source, parents, remove, cancellation, work);
         return new SurfaceIslandTrimResult
         {
@@ -105,6 +112,7 @@ public static class SurfaceIslandTrimmer
                 id = positions.Count;
                 positions.Add(point, id);
             }
+
             welded[index] = id;
         }
 
@@ -113,6 +121,7 @@ public static class SurfaceIslandTrimmer
         {
             parents.Add(index);
         }
+
         IList<int> sizes = scratch?.Filled(parents.Count, 1, new IntRecordCodec()) ?? Enumerable.Repeat(1, parents.Count).ToArray();
         var edges = new BinaryHashIndex<SurfaceEdge, int>(source.Faces.Count, new SurfaceEdgeRecordCodec(), new IntRecordCodec(), scratch, cancellation);
         for (var index = 0; index < source.Faces.Count; index++)
@@ -122,6 +131,7 @@ public static class SurfaceIslandTrimmer
             {
                 progress?.Invoke(new OperationProgress("Island connectivity", "Connecting triangles across shared edges…", index, source.Faces.Count, "triangles"));
             }
+
             var face = reader.Face(index);
             for (var corner = 0; corner < 3; corner++)
             {
@@ -131,6 +141,7 @@ public static class SurfaceIslandTrimmer
                 {
                     continue;
                 }
+
                 var edge = new SurfaceEdge(Math.Min(a, b), Math.Max(a, b));
                 if (edges.TryGetValue(edge, out var neighbour))
                 {
@@ -140,6 +151,7 @@ public static class SurfaceIslandTrimmer
                     {
                         continue;
                     }
+
                     if (sizes[first] < sizes[second])
                     {
                         parents[first] = second;
@@ -157,6 +169,7 @@ public static class SurfaceIslandTrimmer
                 }
             }
         }
+
         return parents;
     }
 
@@ -175,6 +188,7 @@ public static class SurfaceIslandTrimmer
             {
                 continue;
             }
+
             var face = reader.Face(index);
             for (var corner = 0; corner < 3; corner++)
             {
@@ -186,14 +200,17 @@ public static class SurfaceIslandTrimmer
                     remap[vertex] = mapped;
                     writer.AddVertex(reader.Vertex(vertex));
                 }
+
                 output[corner] = mapped;
             }
+
             writer.AddFace(new SurfaceTriangleVertices(output[0], output[1], output[2]));
             if (source.SourceImages.Count > 0)
             {
                 result.SourceImages.Add(source.SourceImages[index]);
             }
         }
+
         return result;
     }
 
@@ -204,6 +221,7 @@ public static class SurfaceIslandTrimmer
             parents[face] = parents[parents[face]];
             face = parents[face];
         }
+
         return face;
     }
 }

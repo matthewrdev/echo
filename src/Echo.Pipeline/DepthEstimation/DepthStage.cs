@@ -112,6 +112,7 @@ public sealed class DepthStage : IPipelineStage
             {
                 processing.SourceArtifacts.Add(context.Artifact("semantics"));
             }
+
             var depth = context.Build("depth-image", inputs, directory =>
             {
                 var map = depthEstimator.Estimate(store, project, scene, camera, cancellation, plan.WorkersPerImage, message =>
@@ -129,12 +130,14 @@ public sealed class DepthStage : IPipelineStage
                         context.ReportProgress(Name, $"{photo.Name} · Removed {removed:N0} sky depth samples", completed, scene.Cameras.Count);
                     }
                 }
+
                 detected = map;
                 cancellation.ThrowIfCancellationRequested();
                 lock (progressGate)
                 {
                     context.ReportProgress(Name, $"Image {index + 1}/{scene.Cameras.Count} · {photo.Name} · saving depth and confidence maps", completed, scene.Cameras.Count);
                 }
+
                 fileOperations.AtomicData(Path.Combine(directory, "depth.json"), map, cancellation);
             }, () => processing, algorithmVersion);
             depthUnits[index] = depth;
@@ -153,6 +156,7 @@ public sealed class DepthStage : IPipelineStage
                         PublishPreview(context, previewUnits);
                     }
                 }
+
                 var action = reused ? "Reused" : "Found";
                 context.Report("imageCheckpoint", new
                 {
@@ -175,6 +179,7 @@ public sealed class DepthStage : IPipelineStage
             context.BeginStep(Name, stepNames, stepIndex++, originalUnits.Length);
             depthUnits = cliffRecovery.Build(context, scene, originalUnits, semantics, subjectDistance);
         }
+
         context.BeginStep(Name, stepNames, stepIndex, 1);
         var artifact = context.Build("depth", depthUnits, directory =>
         {

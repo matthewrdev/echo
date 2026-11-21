@@ -18,6 +18,7 @@ internal static class TextureChartRegions
             {
                 continue;
             }
+
             var region = Grow(geometry, owner, regions.Count, seed, maximumFaces, angle, materials, cancellation);
             regions.Add(region);
         }
@@ -42,16 +43,19 @@ internal static class TextureChartRegions
             {
                 continue;
             }
+
             if (region.Count > 0 && !CanAppend(geometry, face, vertices, owner, id))
             {
                 continue;
             }
+
             owner[face] = id;
             region.Add(face);
             foreach (var vertex in geometry.Surface.Faces[face])
             {
                 vertices.Add(geometry.WeldedVertices[vertex]);
             }
+
             for (var edge = 0; edge < 3; edge++)
             {
                 var adjacent = geometry.Neighbours[face * 3 + edge];
@@ -59,6 +63,7 @@ internal static class TextureChartRegions
                 {
                     continue;
                 }
+
                 var delta = geometry.Centres[adjacent] - geometry.Centres[seed];
                 var bend = 1 - geometry.Normals[seed].Dot(geometry.Normals[adjacent]);
                 // Prefer compact regions and broad shape continuity. Local folds
@@ -67,6 +72,7 @@ internal static class TextureChartRegions
                 pending.Enqueue(adjacent, cost);
             }
         }
+
         return region;
     }
 
@@ -81,6 +87,7 @@ internal static class TextureChartRegions
             {
                 sharedEdges++;
             }
+
             if (vertices.Contains(geometry.WeldedVertices[geometry.Surface.Faces[face][corner]]))
             {
                 sharedVertices++;
@@ -105,6 +112,7 @@ internal static class TextureChartRegions
                 {
                     continue;
                 }
+
                 var neighbours = new Dictionary<int, int>();
                 foreach (var face in region)
                 {
@@ -115,6 +123,7 @@ internal static class TextureChartRegions
                         {
                             continue;
                         }
+
                         var other = owner[adjacent];
                         var differentMaterial = materials != null && materials[adjacent] != materials[face];
                         if (!differentMaterial && region.Count + regions[other].Count <= maximumFaces)
@@ -123,6 +132,7 @@ internal static class TextureChartRegions
                         }
                     }
                 }
+
                 foreach (var other in neighbours.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key).Select(pair => pair.Key))
                 {
                     var union = regions[other].Concat(region).ToList();
@@ -130,11 +140,13 @@ internal static class TextureChartRegions
                     {
                         continue;
                     }
+
                     regions[other] = union;
                     foreach (var face in region)
                     {
                         owner[face] = other;
                     }
+
                     region.Clear();
                     break;
                 }
@@ -149,6 +161,7 @@ internal static class TextureChartRegions
         {
             centre += geometry.Centres[face];
         }
+
         centre /= faces.Count;
         var seed = faces.MaxBy(face => (geometry.Centres[face] - centre).Length);
         var remaining = faces.ToHashSet();
@@ -162,6 +175,7 @@ internal static class TextureChartRegions
             {
                 continue;
             }
+
             first.Add(face);
             for (var edge = 0; edge < 3; edge++)
             {
@@ -172,6 +186,7 @@ internal static class TextureChartRegions
                 }
             }
         }
+
         var parts = new List<List<int>> { first };
         pending.Clear();
         foreach (var start in faces)
@@ -180,6 +195,7 @@ internal static class TextureChartRegions
             {
                 continue;
             }
+
             var part = new List<int>();
             pending.Enqueue(start);
             while (pending.TryDequeue(out var face))
@@ -189,6 +205,7 @@ internal static class TextureChartRegions
                 {
                     continue;
                 }
+
                 part.Add(face);
                 for (var edge = 0; edge < 3; edge++)
                 {
@@ -199,8 +216,10 @@ internal static class TextureChartRegions
                     }
                 }
             }
+
             parts.Add(part);
         }
+
         return parts;
     }
 }

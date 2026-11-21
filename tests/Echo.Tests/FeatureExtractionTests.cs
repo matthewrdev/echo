@@ -64,6 +64,7 @@ public sealed class FeatureExtractionTests
                 catch (OperationCanceledException)
                 {
                 }
+
                 Check(files.Hash(extractor.Extract(store, photo, settings, default)) == expectedHash, "Cancellation does not affect the next extraction");
             }
             finally
@@ -94,9 +95,11 @@ public sealed class FeatureExtractionTests
                     var insideY = y >= 30 && y < 160;
                     color = insideX && insideY ? new SKColor(200, 180, 160) : new SKColor(10, 20, 30);
                 }
+
                 pixels[y * bitmap.Width + x] = color;
             }
         }
+
         bitmap.Pixels = pixels;
         return bitmap;
     }

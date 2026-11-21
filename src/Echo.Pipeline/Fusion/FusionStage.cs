@@ -93,6 +93,7 @@ public sealed class FusionStage : IPipelineStage
                     {
                         context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Cleanup, true, "Removing disconnected fusion regions before meshing…"));
                     }
+
                     var trimming = FusionIslandTrimmer.Trim(volume, project.Settings.FusionIslandMode,
                         project.Settings.FusionIslandMinimumSizePercent, cancellation, context.Work, message => context.ReportProgress(Name, message));
                     volume = trimming.Volume;
@@ -100,6 +101,7 @@ public sealed class FusionStage : IPipelineStage
                     {
                         context.ReportProgress(Name, $"Removed {trimming.RemovedRegions:N0} fusion regions ({trimming.RemovedSamples:N0} volume samples) before meshing.");
                     }
+
                     context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Save,
                         project.Settings.FusionIslandMode != IslandTrimMode.Off, "Saving the integrated volume…", 0, 1, "volumes"));
                     fileOperations.AtomicData(Path.Combine(dir, "volume.json"), volume, cancellation);

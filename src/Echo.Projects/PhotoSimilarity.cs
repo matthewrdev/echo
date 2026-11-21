@@ -22,11 +22,13 @@ public static class PhotoSimilarity
         {
             return false;
         }
+
         var hasPositions = a.Gps != null && b.Gps != null;
         if (hasPositions && Distance(a.Gps!, b.Gps!) > .75)
         {
             return false;
         }
+
         if (a.Attitude != null && b.Attitude != null)
         {
             var sameDirection = Angle(a.Attitude.Yaw, b.Attitude.Yaw) <= 1
@@ -55,10 +57,12 @@ public static class PhotoSimilarity
         {
             return false;
         }
+
         if (sameCaptureView)
         {
             return true;
         }
+
         var matchingTiles = 0;
         for (var y = 0; y < 4; y++)
         {
@@ -71,6 +75,7 @@ public static class PhotoSimilarity
                 }
             }
         }
+
         return matchingTiles >= 14;
     }
 
@@ -88,6 +93,7 @@ public static class PhotoSimilarity
                 energy += laplacian * laplacian;
             }
         }
+
         return energy / pixels.Length;
     }
 
@@ -100,6 +106,7 @@ public static class PhotoSimilarity
         {
             return false;
         }
+
         for (var y = y0; y < y1; y++)
         {
             for (var x = x0; x < x1; x++)
@@ -114,6 +121,7 @@ public static class PhotoSimilarity
                 product += left * right;
             }
         }
+
         var varianceA = Math.Max(0, squareA / count - Math.Pow(sumA / count, 2));
         var varianceB = Math.Max(0, squareB / count - Math.Pow(sumB / count, 2));
         var covariance = product / count - sumA * sumB / count / count;
@@ -130,6 +138,7 @@ public static class PhotoSimilarity
             var wholeImage = x0 == 0 && y0 == 0 && x1 == a.Width && y1 == a.Height;
             return !wholeImage && Math.Max(varianceA, varianceB) < .0001;
         }
+
         return covariance / Math.Sqrt(varianceA * varianceB) >= minimumCorrelation;
     }
 

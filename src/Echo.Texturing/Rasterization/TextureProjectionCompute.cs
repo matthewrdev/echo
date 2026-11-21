@@ -54,6 +54,7 @@ internal sealed class TextureProjectionCompute
             triangle[16 + corner * 3] = (float)corrections[corner].Y;
             triangle[17 + corner * 3] = (float)corrections[corner].Z;
         }
+
         if (++count == 1024)
         {
             Flush();
@@ -72,6 +73,7 @@ internal sealed class TextureProjectionCompute
         {
             return;
         }
+
         Array.Clear(offsets);
         for (var i = 0; i < count; i++)
         {
@@ -84,6 +86,7 @@ internal sealed class TextureProjectionCompute
                 }
             }
         }
+
         var activeCount = 0;
         for (var i = 0; i < cursors.Length; i++)
         {
@@ -91,13 +94,16 @@ internal sealed class TextureProjectionCompute
             {
                 active[activeCount++] = i;
             }
+
             offsets[i + 1] = checked(offsets[i + 1] + offsets[i]);
             cursors[i] = offsets[i];
         }
+
         if (offsets[^1] > 16 * 1024 * 1024)
         {
             throw new ComputeException("Texture triangle bins exceed the bounded compute batch.");
         }
+
         var indices = ArrayPool<int>.Shared.Rent(offsets[^1]);
         try
         {
@@ -112,6 +118,7 @@ internal sealed class TextureProjectionCompute
                     }
                 }
             }
+
             session.Upload<float>(2, triangles.AsSpan(0, count * 32));
             session.Upload<int>(3, offsets);
             session.Upload<int>(4, indices.AsSpan(0, offsets[^1]));
@@ -120,6 +127,7 @@ internal sealed class TextureProjectionCompute
             {
                 session.Dispatch(ComputeKernel.TextureProject, activeCount * 256, [size, width, height, swap ? 1 : 0]);
             }
+
             count = 0;
         }
         finally

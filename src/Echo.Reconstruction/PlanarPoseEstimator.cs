@@ -16,6 +16,7 @@ internal static class PlanarPoseEstimator
         {
             mean += new V3(observation.Point);
         }
+
         mean /= observations.Count;
         var covariance = DenseMatrix.Create(3, 3, 0);
         foreach (var observation in observations)
@@ -29,11 +30,13 @@ internal static class PlanarPoseEstimator
                 }
             }
         }
+
         var plane = covariance.Svd(true);
         if (plane.S[1] < 1e-10 || plane.S[2] > plane.S[1] * .01)
         {
             return null;
         }
+
         var first = new V3(plane.U.Column(0).ToArray());
         var second = new V3(plane.U.Column(1).ToArray());
         var normal = first.Cross(second);
@@ -54,6 +57,7 @@ internal static class PlanarPoseEstimator
                 design[i * 2 + 1, j + 6] = -ray.Y * p[j];
             }
         }
+
         var vector = design.Svd(true).VT.Row(8);
         var h = DenseMatrix.Create(3, 3, (r, c) => vector[r * 3 + c]);
         var magnitude = (h.Column(0).L2Norm() + h.Column(1).L2Norm()) * .5;
@@ -72,6 +76,7 @@ internal static class PlanarPoseEstimator
         {
             uRotation.SetColumn(2, -uRotation.Column(2));
         }
+
         var rotation = uRotation * rotationSvd.VT * basis.Transpose();
         var translation = h.Column(2) * scale - rotation * DenseVector.OfArray(mean.Array);
         return new CameraPose

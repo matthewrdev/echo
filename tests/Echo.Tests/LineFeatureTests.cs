@@ -27,11 +27,13 @@ public sealed class LineFeatureTests
                 {
                     gray[y * 256 + x] = contrast;
                 }
+
                 for (var x = 200; x < 230; x++)
                 {
                     gray[y * 256 + x] = .07f;
                 }
             }
+
             var result = detector.Detect(gray, 256, 192, 100, 30, default,
                 new LineDetectionOptions { GradientThreshold = .04, SplitRegions = true });
             Check(result.Any(line => Math.Abs(line.Start[0] - 79.5) < 2 && Math.Abs(line.End[0] - 79.5) < 2
@@ -49,6 +51,7 @@ public sealed class LineFeatureTests
                     gray[y * 256 + x] = .8f;
                 }
             }
+
             var lines = detector.Detect(gray, 256, 192, 100, 30, default);
             Check(lines.Count >= 4, "Rectangle edges detected");
             Check(lines.Any(line => Math.Abs(line.Start[0] - 59.5) < 2 && Math.Abs(line.End[0] - 59.5) < 2), "Vertical edge geometry");
@@ -67,6 +70,7 @@ public sealed class LineFeatureTests
                     faint[y * 256 + x] = .05f;
                 }
             }
+
             for (var y = 20; y < 165; y++)
             {
                 for (var x = 30; x < 480; x++)
@@ -75,6 +79,7 @@ public sealed class LineFeatureTests
                     curved[y * 512 + x] = (float)(Math.Clamp(y - boundary, 0, 1) * .8);
                 }
             }
+
             var original = detector.Detect(faint, 256, 192, 100, 20, default);
             var sensitive = detector.Detect(faint, 256, 192, 100, 20, default,
                 new LineDetectionOptions { GradientThreshold = .015, SplitRegions = true });
@@ -95,6 +100,7 @@ public sealed class LineFeatureTests
                 a.Lines.Add(new LineFeature { Start = [10, i * 20], End = [100, i * 20], Descriptor = descriptor });
                 b.Lines.Add(new LineFeature { Start = [22, i * 20 + 7], End = [112, i * 20 + 7], Descriptor = descriptor.Reverse().ToArray() });
             }
+
             var result = matcher.Match(a, b, new Settings(), default);
             Check(result.LineMatches.Count == 3, "Mutual line matches including reversed endpoint order");
             Check(result.Matches.Count == 0, "Segment endpoints are not point correspondences");
@@ -111,6 +117,7 @@ public sealed class LineFeatureTests
                 a.Features.Add(new Feature { X = 40 + i * 20, Y = 80, Kind = "junction", Descriptor = descriptor });
                 b.Features.Add(new Feature { X = 30 + i * 20, Y = 80, Kind = "junction", Descriptor = descriptor });
             }
+
             var result = matcher.Match(a, b, new Settings(), default);
             Check(result.Matches.Count == 3 && result.Matches.All(match => match.Kind == "junction"), "Junction matches preserved");
         });

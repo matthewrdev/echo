@@ -38,6 +38,7 @@ public sealed class CrossPassBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks cross-pass PROJECT OUTPUT_DIRECTORY WIDTH LIMIT LEFT_NAME RIGHT_NAME [RIGHT_NAME...]");
             return 2;
         }
+
         var store = stores.Open(args[0]);
         var project = store.Load();
         var directory = Path.GetFullPath(args[1]);
@@ -49,6 +50,7 @@ public sealed class CrossPassBenchmark
         {
             photos.Add(project.Images.Single(photo => photo.Name == args[index]));
         }
+
         var results = new List<object>();
         foreach (var method in new[] { "legacy", "scale-space" })
         {
@@ -74,9 +76,11 @@ public sealed class CrossPassBenchmark
                         feature.Y *= (double)photo.Height / gray.Height;
                     }
                 }
+
                 features.Add(set);
                 files.AtomicJson(Path.Combine(directory, method + "-" + photo.Id + ".json"), set);
             }
+
             var extractionSeconds = watch.Elapsed.TotalSeconds;
             var extractionBytes = GC.GetTotalAllocatedBytes(true) - allocated;
             for (var index = 1; index < photos.Count; index++)
@@ -115,6 +119,7 @@ public sealed class CrossPassBenchmark
                 Console.WriteLine(json.Encode(result));
             }
         }
+
         files.AtomicJson(Path.Combine(directory, "metrics.json"), results);
         return 0;
     }

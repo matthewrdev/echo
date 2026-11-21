@@ -29,6 +29,7 @@ internal sealed class FusionGridBatch
                 return;
             }
         }
+
         CommitPending();
         pending = new GridSpan(cell.X, cell.Y, cell.Z, cell.Z);
     }
@@ -59,6 +60,7 @@ internal sealed class FusionGridBatch
         {
             return;
         }
+
         ranges.CopyTo(spans);
         Array.Sort(spans, 0, count);
         runs.Add(spans.Take(count));

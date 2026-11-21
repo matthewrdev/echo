@@ -9,6 +9,7 @@ internal static class SurfaceMedianPartition
             SelectResident(residentOrder, start, count, residentCentres, cancellation);
             return;
         }
+
         var target = start + count / 2;
         var low = start;
         var high = start + count - 1;
@@ -26,8 +27,10 @@ internal static class SurfaceMedianPartition
                 {
                     HeapSort(order, low, high - low + 1, centres, cancellation);
                 }
+
                 return;
             }
+
             var pivot = order[low + (high - low) / 2];
             var left = low;
             var right = high;
@@ -37,10 +40,12 @@ internal static class SurfaceMedianPartition
                 {
                     left++;
                 }
+
                 while (Compare(order[right], pivot, centres) > 0)
                 {
                     right--;
                 }
+
                 if (left <= right)
                 {
                     var previous = order[left];
@@ -48,6 +53,7 @@ internal static class SurfaceMedianPartition
                     order[right--] = previous;
                 }
             }
+
             if (target <= right)
             {
                 high = right;
@@ -69,6 +75,7 @@ internal static class SurfaceMedianPartition
         {
             Sift(order, start, count, root, centres, cancellation);
         }
+
         for (var end = count - 1; end > 0; end--)
         {
             var value = order[start];
@@ -88,10 +95,12 @@ internal static class SurfaceMedianPartition
             {
                 child++;
             }
+
             if (Compare(order[start + root], order[start + child], centres) >= 0)
             {
                 return;
             }
+
             var value = order[start + root];
             order[start + root] = order[start + child];
             order[start + child] = value;
@@ -119,6 +128,7 @@ internal static class SurfaceMedianPartition
                 Array.Sort(order, low, high - low + 1, Comparer<int>.Create((a, b) => CompareResident(a, b, centres)));
                 return;
             }
+
             var pivot = order[low + (high - low) / 2];
             var left = low;
             var right = high;
@@ -128,10 +138,12 @@ internal static class SurfaceMedianPartition
                 {
                     left++;
                 }
+
                 while (CompareResident(order[right], pivot, centres) > 0)
                 {
                     right--;
                 }
+
                 if (left <= right)
                 {
                     var previous = order[left];
@@ -139,6 +151,7 @@ internal static class SurfaceMedianPartition
                     order[right--] = previous;
                 }
             }
+
             if (target <= right)
             {
                 high = right;

@@ -50,6 +50,7 @@ public sealed class FinalHoleRepairTests
                 scene.Cameras.Add(new CameraPose { ImageId = id, Centre = [(index - 1) * .1, 0, 0] });
                 maps.Add(new DepthMap { ImageId = id, Width = 100, Height = 100, Depth = Enumerable.Repeat(12f, 10000).ToArray() });
             }
+
             Check(meshes.RepairFinalHoles(project, scene, maps, CurvedRing(1), .1, default).AddedFaces == 0,
                 "Three independent views through an opening prevent a curved cap");
             var folded = CurvedRing(1);
@@ -96,6 +97,7 @@ public sealed class FinalHoleRepairTests
                 scene.Cameras.Add(new CameraPose { ImageId = id });
                 maps.Add(new DepthMap { ImageId = id, Width = 100, Height = 100, Depth = Enumerable.Repeat(12f, 10000).ToArray() });
             }
+
             var surface = Ring();
             Check(meshes.RepairFinalHoles(project, scene, maps, surface, .25, default).AddedFaces == 0,
                 "Hole repair cannot reverse a coherent free-space rejection");
@@ -103,6 +105,7 @@ public sealed class FinalHoleRepairTests
             {
                 Array.Fill(map.Depth, 10f);
             }
+
             Check(meshes.RepairFinalHoles(project, scene, maps, surface, .25, default).RepairedHoles == 1,
                 "The same opening closes when measured depths agree with its surface");
         });
@@ -120,8 +123,10 @@ public sealed class FinalHoleRepairTests
                         map.Depth[y * 100 + x] = 12;
                     }
                 }
+
                 views.Add(new DepthView(photo, new CameraPose(), map));
             }
+
             var surface = new Surface { Vertices = [[-2, -2, 10], [2, -2, 10], [0, 2, 10]], Faces = [[0, 1, 2]] };
             Check(views.All(view => view.Observe(new V3(0, -2.0 / 3, 10), .01).Distance > 1),
                 "All three depth maps disagree at the triangle centre");
@@ -131,6 +136,7 @@ public sealed class FinalHoleRepairTests
             {
                 Array.Fill(view.Map.Depth, 12f);
             }
+
             Check(SurfaceVisibilityFilter.Filter(surface, views, .01, default).Faces.Count == 0,
                 "A real sheet in front of the observed cliff is still removed");
         });
@@ -165,6 +171,7 @@ public sealed class FinalHoleRepairTests
                 surface.Vertices[index][axis] *= scale;
             }
         }
+
         return surface;
     }
 
@@ -186,6 +193,7 @@ public sealed class FinalHoleRepairTests
         {
             return;
         }
+
         throw new Exception($"Expected {typeof(T).Name}.");
     }
 }

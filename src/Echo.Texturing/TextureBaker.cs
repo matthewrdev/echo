@@ -71,6 +71,7 @@ public sealed class TextureBaker : ITextureBaker
                 surface.Faces.Add([lookup[face[0]], lookup[face[1]], lookup[face[2]]]);
                 surface.SourceImages.Add(mesh.SourceImages[index]);
             }
+
             completedCharts++;
             if (completedCharts % 1000 == 0 || completedCharts == patches.Count)
             {
@@ -92,6 +93,7 @@ public sealed class TextureBaker : ITextureBaker
             progress?.Invoke("Finishing texture contrast and colour…");
             TextureColourEnhancer.Apply(atlas, project.Settings.TextureColourEnhancement, cancellation);
         }
+
         if (project.Settings.ColourGrade is { IsIdentity: false } grade)
         {
             operationProgress?.Invoke(new OperationProgress("Colour grading", "Applying saved colour grade…"));
@@ -99,6 +101,7 @@ public sealed class TextureBaker : ITextureBaker
             new ColourGradeTransform(grade).Apply(atlas, cancellation);
             result.ColourGrade = grade;
         }
+
         operationProgress?.Invoke(new OperationProgress("Atlas encoding", "Encoding the photographic texture atlas…", 0, 1, "atlases"));
         progress?.Invoke("Encoding the photographic texture atlas…");
         images.Save(atlas, output, SKEncodedImageFormat.Jpeg, project.Settings.TextureJpegQuality);

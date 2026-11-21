@@ -83,6 +83,7 @@ public sealed class TextureProfileBuilder : ITextureProfileBuilder
         {
             maximum = Math.Max(maximum, value);
         }
+
         return new TextureProfile(paddedTop, paddedBottom, maximum, quarterTurns);
     }
 }

@@ -27,6 +27,7 @@ internal sealed class ParallelCollapseProgress
             {
                 examined[region] = update.Completed ?? 0;
             }
+
             if (clock.ElapsedMilliseconds >= 250)
             {
                 Publish();

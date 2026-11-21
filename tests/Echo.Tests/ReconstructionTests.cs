@@ -506,6 +506,7 @@ public sealed class ReconstructionTests
                             alignmentSubsteps++;
                         }
                     }
+
                     var meshProgress = record.GetProperty("type").GetString() == "stageProgress"
                         && payload.GetProperty("stage").GetString() == "mesh";
                     if (meshProgress && payload.TryGetProperty("stageStepIndex", out var phase))
@@ -518,6 +519,7 @@ public sealed class ReconstructionTests
                         Check(steps[0].GetString() == "Load inputs" && steps[steps.GetArrayLength() - 1].GetString() == "Save mesh", "Mesh plan must cover loading through saving");
                         Check(store.GetRun(paused.Id).Progress!.StageStepIndex == index, "Live and polled mesh phases differ");
                     }
+
                     var featureCheckpoint = record.GetProperty("type").GetString() == "imageCheckpoint"
                         && payload.GetProperty("stage").GetString() == "features";
                     if (featureCheckpoint)
@@ -536,6 +538,7 @@ public sealed class ReconstructionTests
                         Check(current.Progress?.Stage == "features", "Preview writes must not replace feature progress");
                         Check(!current.Artifacts.ContainsKey("features"), "Features are viewable before stage completion");
                     }
+
                     var depthCheckpoint = record.GetProperty("type").GetString() == "imageCheckpoint"
                         && payload.GetProperty("stage").GetString() == "depth";
                     if (depthCheckpoint)
@@ -552,6 +555,7 @@ public sealed class ReconstructionTests
                         Check(current.Progress?.Stage == "depth", "Preview writes must not replace depth progress");
                         Check(!current.Artifacts.ContainsKey("depth"), "Depth maps are viewable before stage completion");
                     }
+
                     if (record.GetProperty("type").GetString() == "stageProgress"
                         && payload.GetProperty("stage").GetString() == "cloud")
                     {
@@ -613,6 +617,7 @@ public sealed class ReconstructionTests
                             Check(steps.GetArrayLength() == 4, "Disabled recovery must not show recovery phases");
                             phases.Add(steps[payload.GetProperty("stageStepIndex").GetInt32()].GetString()!);
                         }
+
                         if (record.GetProperty("type").GetString() == "artifactReused")
                         {
                             reusedInitial |= jsonCodec.Encode(value).Contains("alignment-initial", StringComparison.Ordinal);
@@ -648,10 +653,12 @@ public sealed class ReconstructionTests
                 {
                     Check(changed.Artifacts[stage] == original.Artifacts[stage], "Subject distance preserves " + stage);
                 }
+
                 foreach (var stage in new[] { "depth", "cloud", "fusion", "mesh", "texture", "export" })
                 {
                     Check(changed.Artifacts[stage] != original.Artifacts[stage], "Subject distance invalidates " + stage);
                 }
+
                 var plan = jsonCodec.Read<Echo.Depth.SubjectDistancePlan>(store.PathFor(changed.Artifacts["depth"] + "/subject-distance.json"));
                 Check(plan.Mode == SubjectDistanceMode.Manual && plan.MaximumDistance == 50, "The artifact records the effective subject limit");
                 var restored = processor.Execute(store, "export", default);
@@ -685,10 +692,12 @@ public sealed class ReconstructionTests
                     {
                         Check(cropped.Artifacts[stage] == before.Artifacts[stage], "Exclusions must preserve " + stage);
                     }
+
                     foreach (var stage in new[] { "fusion", "mesh", "texture", "export" })
                     {
                         Check(cropped.Artifacts[stage] != before.Artifacts[stage], "Exclusions must rebuild " + stage);
                     }
+
                     var croppedMesh = jsonCodec.Read<Surface>(store.PathFor(cropped.Artifacts["mesh"] + "/mesh.json"));
                     Check(croppedMesh.Faces.Count > 0, "Cropping a small region removed the entire mesh");
                     Check(croppedMesh.Faces.All(face => !ExclusionGeometry.Intersects(region,
@@ -698,6 +707,7 @@ public sealed class ReconstructionTests
                     Check(resumed.Snapshot.Settings.ExclusionRegions.Count == 0 && resumed.Artifacts["export"] == before.Artifacts["export"],
                         "Resume must retain the original regions and outputs");
                 }
+
                 store.Edit(project => project.Settings.ExclusionRegions.Clear());
             });
             tests.Run("A triangle-budget edit reuses fusion and rebuilds only the mesh and downstream artifacts", () =>
@@ -709,6 +719,7 @@ public sealed class ReconstructionTests
                 {
                     Check(changed.Artifacts[stage] == before.Artifacts[stage], "Triangle budgets preserve " + stage);
                 }
+
                 foreach (var stage in new[] { "mesh", "texture", "export" })
                 {
                     Check(changed.Artifacts[stage] != before.Artifacts[stage], "Triangle budgets rebuild " + stage);
@@ -723,10 +734,12 @@ public sealed class ReconstructionTests
                 {
                     Check(changed.Artifacts[stage] == before.Artifacts[stage], "Completion setting preserves " + stage);
                 }
+
                 foreach (var stage in new[] { "mesh", "texture", "export" })
                 {
                     Check(changed.Artifacts[stage] != before.Artifacts[stage], "Completion setting rebuilds " + stage);
                 }
+
                 using var report = JsonDocument.Parse(File.ReadAllText(store.PathFor(changed.Artifacts["mesh"] + "/mesh.report.json")));
                 Check(!report.RootElement.GetProperty("completed").GetBoolean(), "Disabled completion must not reconstruct missing surfaces");
                 Check(report.RootElement.GetProperty("completionDistance").GetDouble() == 0, "Disabled completion has no extrapolation reach");
@@ -760,15 +773,18 @@ public sealed class ReconstructionTests
                     {
                         Check(changed.Artifacts[stage] == before.Artifacts[stage], "Island trimming preserves " + stage);
                     }
+
                     foreach (var stage in new[] { "mesh", "texture", "export" })
                     {
                         Check(changed.Artifacts[stage] != before.Artifacts[stage], "Island trimming rebuilds " + stage);
                     }
+
                     using var report = JsonDocument.Parse(File.ReadAllText(store.PathFor(changed.Artifacts["mesh"] + "/mesh.report.json")));
                     var trimming = report.RootElement.GetProperty("islandTrimming");
                     Check(trimming.GetProperty("mode").GetString() == mode.ToString().ToLowerInvariant() && trimming.GetProperty("inputComponents").GetInt32() > 0,
                         "Mesh reports the requested post-completion trimming pass");
                 }
+
                 var previous = store.GetRun();
                 store.Edit(p => p.Settings.MeshIslandMinimumAreaPercent = 1);
                 var thresholdChanged = processor.Execute(store, "export", default);
@@ -801,6 +817,7 @@ public sealed class ReconstructionTests
                     {
                         Check(changed.Artifacts[stage] == before.Artifacts[stage], "Fusion controls preserve " + stage);
                     }
+
                     foreach (var stage in new[] { "fusion", "mesh", "texture", "export" })
                     {
                         Check(changed.Artifacts[stage] != before.Artifacts[stage], "Fusion controls rebuild " + stage);

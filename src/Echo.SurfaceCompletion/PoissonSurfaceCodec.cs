@@ -40,6 +40,7 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
                     BinaryPrimitives.WriteDoubleLittleEndian(bytes[32..], sample.Normal.Y);
                     BinaryPrimitives.WriteDoubleLittleEndian(bytes[40..], sample.Normal.Z);
                 }
+
                 stream.Write(buffer.AsSpan(0, count * 48));
                 start += count;
             }
@@ -60,6 +61,7 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
         {
             throw new EchoException("Invalid completed-surface header.", 5);
         }
+
         var vertices = BinaryPrimitives.ReadUInt64LittleEndian(header[8..]);
         var faces = BinaryPrimitives.ReadUInt64LittleEndian(header[16..]);
         var validCounts = vertices > 0 && vertices <= 10000000 && faces > 0 && faces <= 20000000;
@@ -67,6 +69,7 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
         {
             throw new EchoException("Invalid completed-surface size.", 5);
         }
+
         var surface = work?.Surface() ?? new Surface
         {
             Vertices = new List<double[]>((int)vertices),
@@ -91,17 +94,21 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
                     {
                         throw new EchoException("The completed surface contains a non-finite vertex.", 5);
                     }
+
                     if (surface.Vertices is not PagedList<double[]>)
                     {
                         surface.Vertices.Add([x, y, z]);
                     }
                 }
+
                 if (surface.Vertices is PagedList<double[]> pagedVertices)
                 {
                     pagedVertices.AddEncodedRecords(buffer.AsSpan(0, count * 24));
                 }
+
                 start += count;
             }
+
             for (var start = 0; start < (int)faces;)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -119,15 +126,18 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
                     {
                         throw new EchoException("The completed surface contains an invalid triangle.", 5);
                     }
+
                     if (surface.Faces is not PagedList<int[]>)
                     {
                         surface.Faces.Add([(int)a, (int)b, (int)c]);
                     }
                 }
+
                 if (surface.Faces is PagedList<int[]> pagedFaces)
                 {
                     pagedFaces.AddEncodedRecords(buffer.AsSpan(0, count * 12));
                 }
+
                 start += count;
             }
         }
@@ -135,6 +145,7 @@ public sealed class PoissonSurfaceCodec : IPoissonSurfaceCodec
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
+
         return surface;
     }
 }

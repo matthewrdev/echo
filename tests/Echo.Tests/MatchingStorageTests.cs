@@ -49,6 +49,7 @@ public sealed class MatchingStorageTests
             {
                 corrupt.SetLength(corrupt.Length - 1);
             }
+
             Throws(() => features.Read(path));
         }));
         tests.Run("Binary matches preserve manual ties, verification states, line endpoints and scores", () => Temporary(root =>
@@ -85,6 +86,7 @@ public sealed class MatchingStorageTests
             {
                 journal.Append(first);
             }
+
             File.AppendAllText(path, "{\"sequence\":1");
             Check(indexes.Read(path).Count == 1, "Live readers must ignore uncommitted journal tails");
             using (var journal = indexes.Open(path))
@@ -94,6 +96,7 @@ public sealed class MatchingStorageTests
                 journal.Append(new MatchingIndexEntry(1, "artifacts/match-pair/b", "b", "c", 7, 1));
                 Throws(() => journal.Append(first with { Artifact = "changed" }));
             }
+
             Check(indexes.Read(path).Count == 2, "Resume must not duplicate completed entries");
         }));
     }
@@ -130,6 +133,7 @@ public sealed class MatchingStorageTests
         {
             return;
         }
+
         throw new InvalidOperationException("Expected rejection of invalid persisted data.");
     }
 }

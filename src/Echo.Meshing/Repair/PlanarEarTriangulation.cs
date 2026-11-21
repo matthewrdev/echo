@@ -14,6 +14,7 @@ internal static class PlanarEarTriangulation
         {
             return null;
         }
+
         var points = source.ToArray();
         var count = points.Length;
         var before = new int[count];
@@ -44,6 +45,7 @@ internal static class PlanarEarTriangulation
             {
                 return;
             }
+
             if (watchPrevious[index] < 0)
             {
                 watchHead[vertex] = watchNext[index];
@@ -52,10 +54,12 @@ internal static class PlanarEarTriangulation
             {
                 watchNext[watchPrevious[index]] = watchNext[index];
             }
+
             if (watchNext[index] >= 0)
             {
                 watchPrevious[watchNext[index]] = watchPrevious[index];
             }
+
             watched[index] = -1;
         }
         bool Evaluate(int index, int searchStart)
@@ -72,6 +76,7 @@ internal static class PlanarEarTriangulation
             {
                 return false;
             }
+
             for (var vertex = searchStart; vertex < count; vertex++)
             {
                 var corner = vertex == first || vertex == index || vertex == last;
@@ -79,6 +84,7 @@ internal static class PlanarEarTriangulation
                 {
                     continue;
                 }
+
                 var point = points[vertex];
                 var inside = (b - a).Cross(point - a).Dot(normal) >= -1e-12
                     && (c - b).Cross(point - b).Dot(normal) >= -1e-12
@@ -92,16 +98,19 @@ internal static class PlanarEarTriangulation
                     {
                         watchPrevious[watchHead[vertex]] = index;
                     }
+
                     watchHead[vertex] = index;
                     return false;
                 }
             }
+
             return true;
         }
         for (var index = 0; index < count; index++)
         {
             ears.Add(index);
         }
+
         var result = new List<int[]>(count - 2);
         var remaining = count;
         while (remaining > 3)
@@ -111,12 +120,14 @@ internal static class PlanarEarTriangulation
             {
                 return null;
             }
+
             var index = ears.Min;
             ears.Remove(index);
             if (!Evaluate(index, searchStarts[index]))
             {
                 continue;
             }
+
             var first = before[index];
             var last = after[index];
             result.Add([boundary[first], boundary[index], boundary[last]]);
@@ -131,6 +142,7 @@ internal static class PlanarEarTriangulation
                 searchStarts[neighbour] = 0;
                 ears.Add(neighbour);
             }
+
             while (watchHead[index] >= 0)
             {
                 var blocked = watchHead[index];
@@ -138,8 +150,10 @@ internal static class PlanarEarTriangulation
                 searchStarts[blocked] = index + 1;
                 ears.Add(blocked);
             }
+
             remaining--;
         }
+
         var start = Array.FindIndex(active, value => value);
         var middle = after[start];
         var end = after[middle];
@@ -147,6 +161,7 @@ internal static class PlanarEarTriangulation
         {
             return null;
         }
+
         result.Add([boundary[start], boundary[middle], boundary[end]]);
         return result;
     }

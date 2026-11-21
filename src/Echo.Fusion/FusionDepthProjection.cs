@@ -27,11 +27,13 @@ internal static class FusionDepthProjection
         {
             return default;
         }
+
         var map = view.Map;
         if (!(minimum.Z > 0))
         {
             return new FusionDepthRegion(0, 0, map.Width, map.Height);
         }
+
         var left = Math.Min(minimum.X / minimum.Z, minimum.X / maximum.Z) * view.Focal + map.Width * .5;
         var right = Math.Max(maximum.X / minimum.Z, maximum.X / maximum.Z) * view.Focal + map.Width * .5;
         var top = Math.Min(minimum.Y / minimum.Z, minimum.Y / maximum.Z) * view.Focal + map.Height * .5;
@@ -42,6 +44,7 @@ internal static class FusionDepthProjection
         {
             return default;
         }
+
         var x = (int)Math.Clamp(Math.Floor(left) - 2, 0, map.Width - 1);
         var y = (int)Math.Clamp(Math.Floor(top) - 2, 0, map.Height - 1);
         var endX = (int)Math.Clamp(Math.Ceiling(right) + 3, 0, map.Width);

@@ -26,6 +26,7 @@ public sealed class RegionCropFilter
                 return true;
             }
         }
+
         foreach (var region in includes)
         {
             if (region.Contains(point))
@@ -33,6 +34,7 @@ public sealed class RegionCropFilter
                 return false;
             }
         }
+
         return includes.Length > 0;
     }
 
@@ -55,6 +57,7 @@ public sealed class RegionCropFilter
                 return false;
             }
         }
+
         return includes.Length > 0;
     }
 }

@@ -67,6 +67,7 @@ public sealed class ChecksummedWriteStream : Stream
         {
             hash.Dispose();
         }
+
         base.Dispose(disposing);
     }
 }

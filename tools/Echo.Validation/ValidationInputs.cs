@@ -24,12 +24,14 @@ public sealed class ValidationInputs : IValidationInputs
         {
             throw new InvalidDataException("Source photo manifest changed; review the fixture before accepting new inputs.");
         }
+
         var manifest = json.Read<ValidationPhotoManifest>(manifestPath);
         var selected = fixture.PhotoHashes.ToHashSet(StringComparer.Ordinal);
         if (selected.Count < 3 || selected.Count != fixture.PhotoHashes.Count)
         {
             throw new InvalidDataException("A fixture requires at least three distinct original photo hashes.");
         }
+
         var photos = manifest.Photos.Where(photo => selected.Contains(photo.Sha256)).ToArray();
         if (photos.Length != selected.Count || photos.Select(photo => photo.Sha256).Distinct().Count() != selected.Count)
         {
@@ -53,6 +55,7 @@ public sealed class ValidationInputs : IValidationInputs
                     throw new InvalidDataException($"Original photo failed checksum verification: {photo.File}.");
                 }
             }
+
             var store = stores.Open(Path.Combine(output, "model.echo"));
             store.Init(fixture.Name);
             store.Import(staging, fixture.Dataset, int.MaxValue);
@@ -61,6 +64,7 @@ public sealed class ValidationInputs : IValidationInputs
             {
                 throw new InvalidDataException("Import did not retain every pinned photograph.");
             }
+
             store.Edit(data => data.Settings = json.Clone(fixture.Settings));
             return store;
         }

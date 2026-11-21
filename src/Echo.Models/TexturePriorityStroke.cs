@@ -12,6 +12,7 @@ public sealed class TexturePriorityStroke
         {
             throw new EchoException("Texture priorities need a weight between 0.25 and 4 and an array of brush samples.", 2);
         }
+
         foreach (var sample in Samples)
         {
             sample.Validate();

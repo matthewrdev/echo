@@ -31,6 +31,7 @@ public sealed class AlignmentBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks align PROJECT RUN OUTPUT_DIRECTORY");
             return 2;
         }
+
         var store = stores.Open(args[0]);
         var run = store.GetRun(args[1]);
         var output = Path.GetFullPath(args[2]);
@@ -40,6 +41,7 @@ public sealed class AlignmentBenchmark
         {
             pairs.Add(json.Read<ImagePair>(store.PathFor(unit + "/pair.json")));
         }
+
         var clock = Stopwatch.StartNew();
         var scene = reconstructor.Align(run.Snapshot, pairs, default, preview =>
         {
@@ -62,10 +64,13 @@ public sealed class AlignmentBenchmark
                         recovered.Matches.Add(match);
                     }
                 }
+
                 pairs[index] = recovered;
             }
+
             index++;
         }
+
         if (index > 0)
         {
             pairs = AlignmentRecoveryFilter.Filter(run.Snapshot, scene, originals, pairs, default);
@@ -74,6 +79,7 @@ public sealed class AlignmentBenchmark
                 Console.WriteLine($"{clock.Elapsed.TotalSeconds:F1}s: second pass, {preview.Bundle?.AcceptedIterations ?? 0} accepted iterations");
             });
         }
+
         files.AtomicData(Path.Combine(output, "final.json"), scene);
         files.AtomicJson(Path.Combine(output, "metrics.json"), new
         {

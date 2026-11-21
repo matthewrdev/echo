@@ -20,6 +20,7 @@ internal sealed class TestDepthCostAccelerator : IDepthCostAccelerator
         {
             throw new DepthAccelerationException("Test device unavailable");
         }
+
         var session = new TestDepthCostSession(mode);
         Sessions.Add(session);
         return session;

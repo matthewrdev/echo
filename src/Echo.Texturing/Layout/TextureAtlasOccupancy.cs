@@ -46,6 +46,7 @@ public sealed class TextureAtlasOccupancy
         {
             return false;
         }
+
         return NextX(mask, x, y) == x;
     }
 
@@ -60,6 +61,7 @@ public sealed class TextureAtlasOccupancy
                 return end - span.Start;
             }
         }
+
         return x;
     }
 
@@ -74,6 +76,7 @@ public sealed class TextureAtlasOccupancy
                 words[(y + span.Y) * WordsPerRow + word] |= RangeBits(start, end, word);
             }
         }
+
         UsedHeight = Math.Max(UsedHeight, y + mask.Height);
         ChangedFirstRow = y;
         ChangedRowCount = mask.Height;
@@ -97,8 +100,10 @@ public sealed class TextureAtlasOccupancy
             {
                 empty = ~words[row + ++word];
             }
+
             return Math.Min(Size, word * 32 + BitOperations.TrailingZeroCount(empty));
         }
+
         return -1;
     }
 

@@ -22,6 +22,7 @@ internal sealed class RunResourceMonitor : IDisposable
         {
             return;
         }
+
         try
         {
             context.ReportResources();

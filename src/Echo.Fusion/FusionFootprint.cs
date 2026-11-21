@@ -22,6 +22,7 @@ internal static class FusionFootprint
             {
                 continue;
             }
+
             var local = CameraGeometry.Rotate(view.Inverse, new V3(sample.X, sample.Y, sample.Z) - view.Centre);
             var footprint = local.Z / view.Focal;
             var validFootprint = local.Z > 0 && footprint > 0 && double.IsFinite(footprint);
@@ -30,10 +31,12 @@ internal static class FusionFootprint
                 footprints.Add(footprint);
             }
         }
+
         if (footprints.Count == 0)
         {
             throw new EchoException("No verified surface samples have a valid source-camera footprint.", 5);
         }
+
         footprints.Sort();
         // The lower quartile keeps closer, more detailed observations influential
         // without allowing a single near-camera outlier to dictate the grid.

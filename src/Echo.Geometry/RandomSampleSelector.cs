@@ -8,6 +8,7 @@ public static class RandomSampleSelector
         {
             throw new ArgumentException("The sample cannot exceed the source collection.", nameof(sample));
         }
+
         Span<int> keys = sample.Length <= 128 ? stackalloc int[sample.Length] : new int[sample.Length];
         var filled = 0;
         for (var index = 0; index < source.Count; index++)
@@ -19,15 +20,18 @@ public static class RandomSampleSelector
             {
                 position--;
             }
+
             if (position >= sample.Length)
             {
                 continue;
             }
+
             for (var move = Math.Min(filled, sample.Length - 1); move > position; move--)
             {
                 keys[move] = keys[move - 1];
                 sample[move] = sample[move - 1];
             }
+
             keys[position] = key;
             sample[position] = source[index];
             filled = Math.Min(sample.Length, filled + 1);

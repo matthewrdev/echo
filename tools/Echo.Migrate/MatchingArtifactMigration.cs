@@ -29,6 +29,7 @@ public sealed class MatchingArtifactMigration
         {
             Complete(directory, transaction);
         }
+
         using (var input = File.OpenRead(path))
         {
             Span<byte> prefix = stackalloc byte[80];
@@ -39,12 +40,14 @@ public sealed class MatchingArtifactMigration
                 return false;
             }
         }
+
         VerifyManifest(directory);
         var prepared = transaction + ".preparing";
         if (Directory.Exists(prepared))
         {
             Directory.Delete(prepared, true);
         }
+
         Directory.CreateDirectory(prepared);
         try
         {
@@ -71,11 +74,13 @@ public sealed class MatchingArtifactMigration
                     throw new InvalidDataException("Matching migration changed correspondences or verification.");
                 }
             }
+
             var manifest = json.Read<Artifact>(Path.Combine(directory, "manifest.json"));
             foreach (var file in Directory.GetFiles(prepared))
             {
                 manifest.Files[Path.GetFileName(file)] = files.HashFile(file);
             }
+
             files.AtomicJson(Path.Combine(prepared, "manifest.json"), manifest);
             Directory.Move(prepared, transaction);
             Complete(directory, transaction);
@@ -127,19 +132,23 @@ public sealed class MatchingArtifactMigration
                 File.Move(source, destination, true);
                 continue;
             }
+
             var temporary = destination + ".migration.tmp";
             File.Copy(source, temporary, true);
             using (var stream = new FileStream(temporary, FileMode.Open, FileAccess.Write, FileShare.None))
             {
                 stream.Flush(true);
             }
+
             File.Move(temporary, destination, true);
         }
+
         VerifyManifest(directory);
         foreach (var name in manifest.Files.Keys)
         {
             File.Delete(Path.Combine(directory, name) + ".migration.tmp");
         }
+
         Directory.Delete(transaction, true);
     }
 }

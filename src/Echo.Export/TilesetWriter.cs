@@ -19,6 +19,7 @@ public sealed class TilesetWriter : ITilesetWriter
         {
             throw new EchoException("3D Tiles needs a known WGS84 ellipsoidal height for Earth-centred placement.", 2);
         }
+
         var bounds = new ModelBounds(surface);
         var m = CameraGeometry.LocalToEcefMatrix(origin);
         // 3D Tiles converts glTF Y-up to Z-up: (x,y,z) -> (x,-z,y).

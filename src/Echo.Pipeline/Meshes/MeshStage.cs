@@ -103,6 +103,7 @@ public sealed class MeshStage : IPipelineStage
                     {
                         reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: work, progress: progress.Report));
                     }
+
                     progress.Begin(MeshPhase.CompleteSurface);
                     context.ReportProgress(Name, "Removing surfaces contradicted by visible depth rays…");
                     var facesBeforeVisibility = reduced.Faces.Count;
@@ -131,6 +132,7 @@ public sealed class MeshStage : IPipelineStage
                             context.ReportProgress(Name, "Restricting surface completion to the scanned neighbourhood…");
                             supported = completionBuffers.Replace(work => SurfaceSupportFilter.Filter(reconstructed, observed, volume.VoxelSize * 24, cancellation, work, progress.Report));
                         }
+
                         context.ReportProgress(Name, "Adapting the completed surface to its geometric detail…");
                         reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance, work: work, progress: progress.Report));
                         if (!project.Settings.MeshCloseHull)
@@ -142,6 +144,7 @@ public sealed class MeshStage : IPipelineStage
                             context.ReportProgress(Name, $"Rejected {rejectedAfterCompletion:N0} completed triangles contradicted by observed empty space.");
                         }
                     }
+
                     context.ReportProgress(Name, "Repairing bounded enclosed holes after visibility cleanup…");
                     progress.Begin(MeshPhase.RepairFinalHoles);
                     var finalRepair = meshBuilder.RepairFinalHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report, depthContext);
@@ -150,6 +153,7 @@ public sealed class MeshStage : IPipelineStage
                     {
                         reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: work, progress: progress.Report));
                     }
+
                     var vegetationRemovedFaces = 0;
                     if (project.Settings.OptimiseVegetation)
                     {
@@ -165,6 +169,7 @@ public sealed class MeshStage : IPipelineStage
                         vegetationRemovedFaces = before - reduced.Faces.Count;
                         context.ReportProgress(Name, $"Removed {vegetationRemovedFaces:N0} vegetation triangles; rock and material boundaries remain fixed.");
                     }
+
                     var facesBeforeExclusions = reduced.Faces.Count;
                     reduced = geometryBuffers.Replace(work => SurfaceExclusionFilter.Filter(reduced, project.Settings.ExclusionRegions, cancellation, work));
                     var excludedFaces = facesBeforeExclusions - reduced.Faces.Count;
@@ -172,11 +177,13 @@ public sealed class MeshStage : IPipelineStage
                     {
                         context.ReportProgress(Name, $"Removed {excludedFaces:N0} triangles outside the crop selection after surface completion.");
                     }
+
                     if (project.Settings.MeshIslandMode != IslandTrimMode.Off)
                     {
                         progress.Begin(MeshPhase.TrimIslands);
                         context.ReportProgress(Name, "Trimming disconnected islands after surface completion…");
                     }
+
                     var trimming = SurfaceIslandTrimmer.Trim(reduced, project.Settings.MeshIslandMode,
                         project.Settings.MeshIslandMinimumAreaPercent, cancellation, context.Work, progress.Report);
                     if (trimming.InputComponents.HasValue)
@@ -201,6 +208,7 @@ public sealed class MeshStage : IPipelineStage
                         var faces = SurfaceVegetationClassifier.FaceLabels(mesh, labels, cancellation);
                         fileOperations.AtomicJson(Path.Combine(dir, "vegetation.json"), faces);
                     }
+
                     progress.Begin(MeshPhase.SaveMesh);
                     fileOperations.AtomicData(Path.Combine(dir, "mesh.json"), mesh, cancellation);
                     plyWriter.Write(Path.Combine(dir, "mesh.ply"), mesh.Vertices, mesh.Faces);

@@ -24,11 +24,13 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
         {
             throw new ArgumentOutOfRangeException(nameof(voxelSize));
         }
+
         var executable = Path.Combine(AppContext.BaseDirectory, "echo-poisson");
         if (!File.Exists(executable))
         {
             throw new EchoException("The screened Poisson reconstruction worker is missing. Rebuild the processing application.", 5);
         }
+
         using var sampleWork = work?.CreateScope();
         // Add interior constraints only on faces spanning several reconstruction
         // cells; already dense curved surfaces retain their original sampling.
@@ -38,6 +40,7 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
         {
             throw new EchoException("Too few oriented samples for surface completion.", 5);
         }
+
         var minimum = samples[0].Position;
         var maximum = minimum;
         foreach (var sample in samples)
@@ -47,6 +50,7 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
             minimum = new V3(Math.Min(minimum.X, point.X), Math.Min(minimum.Y, point.Y), Math.Min(minimum.Z, point.Z));
             maximum = new V3(Math.Max(maximum.X, point.X), Math.Max(maximum.Y, point.Y), Math.Max(maximum.Z, point.Z));
         }
+
         var extent = maximum - minimum;
         var width = Math.Max(extent.X, Math.Max(extent.Y, extent.Z));
         var depth = Math.Clamp((int)Math.Ceiling(Math.Log2(Math.Max(width * 1.25 / voxelSize, 1))), 5, 12);
@@ -90,14 +94,17 @@ public sealed class PoissonSurfaceReconstructor : ISurfaceReconstructor
                 {
                     process.Kill(entireProcessTree: true);
                 }
+
                 process.WaitForExit();
                 throw;
             }
+
             var details = error.GetAwaiter().GetResult();
             if (process.ExitCode != 0)
             {
                 throw new EchoException($"Surface completion failed: {details.Trim()}", 5);
             }
+
             return codec.Read(output, cancellation, work);
         }
         finally

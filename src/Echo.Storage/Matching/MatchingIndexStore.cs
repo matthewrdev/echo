@@ -22,6 +22,7 @@ public sealed class MatchingIndexStore : IMatchingIndexStore
         {
             return result;
         }
+
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         var length = stream.Length;
         long committed = 0;
@@ -33,14 +34,17 @@ public sealed class MatchingIndexStore : IMatchingIndexStore
             {
                 break;
             }
+
             var entry = JsonSerializer.Deserialize(line, MatchingStorageJsonContext.Default.MatchingIndexEntry)
                 ?? throw new InvalidDataException("Missing matching index entry.");
             if (entry.Sequence != result.Count)
             {
                 throw new InvalidDataException("Invalid matching index sequence.");
             }
+
             result.Add(entry);
         }
+
         return result;
     }
 

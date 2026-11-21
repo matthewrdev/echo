@@ -42,6 +42,7 @@ public sealed class WorkBuffers : IDisposable
             resources.Add(resident);
             return resident;
         }
+
         var result = session.OpenTemporary(path, codec);
         resources.Add(result);
         return result;
@@ -61,6 +62,7 @@ public sealed class WorkBuffers : IDisposable
         {
             return;
         }
+
         List<Exception>? failures = null;
         foreach (var resource in resources)
         {
@@ -73,6 +75,7 @@ public sealed class WorkBuffers : IDisposable
                 (failures ??= []).Add(error);
             }
         }
+
         resources.Clear();
         if (ownsSession)
         {
@@ -86,6 +89,7 @@ public sealed class WorkBuffers : IDisposable
                 (failures ??= []).Add(error);
             }
         }
+
         disposed = true;
         if (failures != null)
         {
@@ -113,6 +117,7 @@ public sealed class WorkBuffers : IDisposable
                 result.Add(value);
             }
         }
+
         return result;
     }
 

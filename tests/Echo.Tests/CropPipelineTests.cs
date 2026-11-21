@@ -127,6 +127,7 @@ public sealed class CropPipelineTests
                 Check(Process(store).Artifacts["cloud"] == run.Artifacts["cloud"], "The rebuilt full cloud was not reusable");
             }));
         }
+
         tests.Run("Previously cropped checkpoints cannot become full-cloud inputs", () => WithProject(store =>
         {
             var legacy = SaveLegacy(store, 7, cropped: true);
@@ -178,6 +179,7 @@ public sealed class CropPipelineTests
                     inputs
                 };
             }
+
             var key = files.Hash(new
             {
                 storageVersion = 3,
@@ -190,6 +192,7 @@ public sealed class CropPipelineTests
                 return;
             }
         }
+
         throw new InvalidOperationException("Saved cloud does not match a compatible complete-cloud key");
     }
 
@@ -208,6 +211,7 @@ public sealed class CropPipelineTests
                 bitmap.Erase(SKColors.Gray);
                 images.Save(bitmap, store.PathFor(photo.Source), SKEncodedImageFormat.Png);
             }
+
             fixture.Project.Settings.ComputeBackend = ComputeBackend.Cpu;
             fixture.Project.Settings.CloudMinimumSupport = 1;
             fixture.Project.Settings.FusionVoxelSize = .25;
@@ -229,6 +233,7 @@ public sealed class CropPipelineTests
                 units.Add(unit);
                 files.AtomicData(store.PathFor(unit + "/depth.json"), map);
             }
+
             files.AtomicJson(store.PathFor("artifacts/depth/test/units.json"), units);
             action(store);
         }
@@ -256,6 +261,7 @@ public sealed class CropPipelineTests
         {
             fusionStage.Execute(context);
         }
+
         context.Complete();
         return run;
     }

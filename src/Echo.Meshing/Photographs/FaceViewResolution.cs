@@ -23,6 +23,7 @@ internal static class FaceViewResolution
         {
             return 0;
         }
+
         var u = second!.Value - first!.Value;
         var v = third!.Value - first.Value;
         // Both areas omit the same factor of one half. Original-photo pixels
@@ -38,6 +39,7 @@ internal static class FaceViewResolution
         {
             return false;
         }
+
         var insideX = pixel.Value.X >= 1 && pixel.Value.X < photo.Width - 1;
         var insideY = pixel.Value.Y >= 1 && pixel.Value.Y < photo.Height - 1;
         return insideX && insideY;

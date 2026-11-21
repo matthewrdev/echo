@@ -19,6 +19,7 @@ internal sealed class VertexFacesStore
             heads.Add(new AdjacencyHead(-1, -1, -1, 0));
             progress?.Invoke(index + 1);
         }
+
         slots = work?.List(new AdjacencySlotCodec()) ?? new List<AdjacencySlot>();
     }
 
@@ -31,6 +32,7 @@ internal sealed class VertexFacesStore
         {
             throw new InvalidOperationException("Adjacency is already initialized.");
         }
+
         for (var index = 0; index < faces.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -50,6 +52,7 @@ internal sealed class VertexFacesStore
                 }
             }
         }
+
         for (var vertex = 0; vertex < heads.Count; vertex++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -58,11 +61,13 @@ internal sealed class VertexFacesStore
             {
                 continue;
             }
+
             var start = slots.Count;
             for (var slot = 0; slot < count; slot++)
             {
                 slots.Add(default);
             }
+
             heads[vertex] = new AdjacencyHead(start, slots.Count - 1, start, count);
         }
         // Each vertex's initial chain occupies a contiguous range, retaining
@@ -81,6 +86,7 @@ internal sealed class VertexFacesStore
                 {
                     continue;
                 }
+
                 var head = heads[vertex];
                 var slot = head.Free;
                 slots[slot] = new AdjacencySlot(index, slot == head.Last ? -1 : slot + 1, -1, slot == head.First ? -1 : slot - 1);
@@ -98,6 +104,7 @@ internal sealed class VertexFacesStore
         {
             return;
         }
+
         var head = heads[vertex];
         var slot = head.Free;
         if (slot >= 0)
@@ -112,6 +119,7 @@ internal sealed class VertexFacesStore
                 previous = next;
                 next = slots[next].Next;
             }
+
             slots[slot] = new AdjacencySlot(face, next, -1, previous);
             if (previous >= 0)
             {
@@ -120,6 +128,7 @@ internal sealed class VertexFacesStore
                     Next = slot
                 };
             }
+
             if (next >= 0)
             {
                 slots[next] = slots[next] with
@@ -127,6 +136,7 @@ internal sealed class VertexFacesStore
                     Previous = slot
                 };
             }
+
             head = head with
             {
                 Free = old.FreeNext,
@@ -145,12 +155,14 @@ internal sealed class VertexFacesStore
                     Next = slot
                 };
             }
+
             head = head with
             {
                 First = head.First < 0 ? slot : head.First,
                 Last = slot
             };
         }
+
         heads[vertex] = head with
         {
             Count = head.Count + 1
@@ -164,6 +176,7 @@ internal sealed class VertexFacesStore
         {
             return false;
         }
+
         var head = heads[vertex];
         var removed = slots[slot];
         if (removed.Previous >= 0)
@@ -173,6 +186,7 @@ internal sealed class VertexFacesStore
                 Next = removed.Next
             };
         }
+
         if (removed.Next >= 0)
         {
             slots[removed.Next] = slots[removed.Next] with
@@ -180,6 +194,7 @@ internal sealed class VertexFacesStore
                 Previous = removed.Previous
             };
         }
+
         slots[slot] = removed with
         {
             Face = -1,
@@ -208,8 +223,10 @@ internal sealed class VertexFacesStore
             {
                 return slot;
             }
+
             slot = item.Next;
         }
+
         return -1;
     }
 

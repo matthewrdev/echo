@@ -51,6 +51,7 @@ public sealed class TemporaryRecordFile<T>
                     position = 0;
                 }
             }
+
             if (position > 0)
             {
                 StoreBlock(ref stream, bytes.AsSpan(0, position));
@@ -75,10 +76,12 @@ public sealed class TemporaryRecordFile<T>
         {
             yield return record;
         }
+
         if (!created)
         {
             yield break;
         }
+
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.SequentialScan);
         var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(65536, codec.Size));
         try
@@ -93,6 +96,7 @@ public sealed class TemporaryRecordFile<T>
                 {
                     yield return codec.Decode(bytes.AsSpan(index * codec.Size, codec.Size));
                 }
+
                 remaining -= count;
             }
         }
@@ -108,10 +112,12 @@ public sealed class TemporaryRecordFile<T>
         {
             yield return record;
         }
+
         if (!created)
         {
             yield break;
         }
+
         PageFile source;
         lock (readGate)
         {
@@ -120,6 +126,7 @@ public sealed class TemporaryRecordFile<T>
                 RetainReleasedBuffers = true
             };
         }
+
         var bytes = ArrayPool<byte>.Shared.Rent(Math.Max(65536, codec.Size));
         try
         {
@@ -131,6 +138,7 @@ public sealed class TemporaryRecordFile<T>
                 {
                     yield return codec.Decode(bytes.AsSpan(index * codec.Size, codec.Size));
                 }
+
                 first += count;
             }
         }
@@ -150,6 +158,7 @@ public sealed class TemporaryRecordFile<T>
             File.Delete(path);
             created = false;
         }
+
         cache.ReleaseSequentialScratch(reserved);
         reserved = 0;
     }
@@ -160,11 +169,13 @@ public sealed class TemporaryRecordFile<T>
         {
             return;
         }
+
         if (stream == null)
         {
             stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.SequentialScan);
             created = true;
         }
+
         WriteBlock(stream, bytes);
     }
 
@@ -175,6 +186,7 @@ public sealed class TemporaryRecordFile<T>
         {
             return false;
         }
+
         try
         {
             bytes.CopyTo(block.Bytes);
@@ -206,6 +218,7 @@ public sealed class TemporaryRecordFile<T>
         {
             block.Dispose();
         }
+
         blocks.Clear();
         residentCount = 0;
     }

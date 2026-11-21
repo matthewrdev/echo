@@ -36,12 +36,14 @@ public sealed class MeshDepthContext : IDisposable
             var camera = cameras[map.ImageId];
             Views[index] = new DepthView(photo, camera, DepthExclusions.Apply(photo, camera, map, project.Settings.ExclusionRegions));
         }
+
         var bytes = Views.Where(view => view.Map.Samples != null).Sum(view => view.Map.SampleCount * 4L + 256);
         reservation = bytes == 0 ? null : work?.TryReserveMemory(bytes);
         if (reservation == null)
         {
             return;
         }
+
         try
         {
             for (var index = 0; index < Views.Length; index++)
@@ -53,6 +55,7 @@ public sealed class MeshDepthContext : IDisposable
                 {
                     continue;
                 }
+
                 var snapshot = new DepthMap
                 {
                     ImageId = map.ImageId,

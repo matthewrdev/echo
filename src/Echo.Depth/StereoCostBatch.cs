@@ -54,6 +54,7 @@ internal static class StereoCostBatch
                 columnsY[column] = py + Vector128.Create(view.PatchRight.Y) * distance;
                 columnsZ[column] = pz + Vector128.Create(view.PatchRight.Z) * distance;
             }
+
             var sampleIndex = 0;
             for (var row = -2; row <= 2; row++)
             {
@@ -61,6 +62,7 @@ internal static class StereoCostBatch
                 {
                     break;
                 }
+
                 var distance = Vector128.Create((double)row) * depths;
                 var downX = Vector128.Create(view.PatchDown.X) * distance;
                 var downY = Vector128.Create(view.PatchDown.Y) * distance;
@@ -80,6 +82,7 @@ internal static class StereoCostBatch
                     {
                         break;
                     }
+
                     var samples = Vector128.Create((double)sampleFirst, (double)sampleSecond);
                     sum += samples;
                     // The original squared sample rounds in float before double accumulation.
@@ -87,6 +90,7 @@ internal static class StereoCostBatch
                     dot += Vector128.Create(patch[sampleIndex++]) * samples;
                 }
             }
+
             for (var lane = 0; lane < 2; lane++)
             {
                 var valid = lane == 0 ? validFirst : validSecond;
@@ -96,6 +100,7 @@ internal static class StereoCostBatch
                 {
                     continue;
                 }
+
                 var cost = 1 - Math.Clamp(dot.GetElement(lane) / Math.Sqrt(norm * variance), -1, 1);
                 counts[lane]++;
                 if (cost < first[lane])
@@ -109,6 +114,7 @@ internal static class StereoCostBatch
                 }
             }
         }
+
         var minimumSupport = Math.Min(2, views.Length);
         var firstCost = counts[0] < minimumSupport ? double.PositiveInfinity : counts[0] == 1 ? first[0] : (first[0] + second[0]) * .5;
         var secondCost = counts[1] < minimumSupport ? double.PositiveInfinity : counts[1] == 1 ? first[1] : (first[1] + second[1]) * .5;

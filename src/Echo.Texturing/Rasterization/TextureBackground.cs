@@ -13,6 +13,7 @@ internal static class TextureBackground
             {
                 pixels[0] = new SKColor(48, 52, 58);
             }
+
             return;
         }
 
@@ -37,12 +38,14 @@ internal static class TextureBackground
                         {
                             continue;
                         }
+
                         red += colour.Red;
                         green += colour.Green;
                         blue += colour.Blue;
                         count++;
                     }
                 }
+
                 if (count > 0)
                 {
                     coarse[y * coarseSize + x] = new SKColor((byte)(red / count), (byte)(green / count), (byte)(blue / count));
@@ -60,6 +63,7 @@ internal static class TextureBackground
             {
                 progress?.Invoke(new OperationProgress("Atlas background", $"Completing colour continuation at {size:N0} × {size:N0}…", y, size, "rows"));
             }
+
             cancellation.ThrowIfCancellationRequested();
             for (var x = 0; x < size; x++)
             {
@@ -68,6 +72,7 @@ internal static class TextureBackground
                 {
                     continue;
                 }
+
                 pixels[index] = Interpolate(coarse, coarseSize, x * .5 - .25, y * .5 - .25);
             }
         }

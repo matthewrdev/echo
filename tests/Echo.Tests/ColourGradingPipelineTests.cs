@@ -129,6 +129,7 @@ public sealed class ColourGradingPipelineTests
                 updates.Add(payload.Clone());
             }
         }
+
         string[] required = ["Load inputs", "UV charts", "Atlas packing", "UV mesh", "Seam indexing", "Seam sampling",
             "Exposure correction", "Local seam correction", "Texture projection", "Atlas gutters", "Atlas background",
             "Atlas pixels", "Colour grading", "Atlas encoding", "Save texture"];
@@ -136,6 +137,7 @@ public sealed class ColourGradingPipelineTests
         {
             Check(updates.Any(update => update.GetProperty("operation").GetString() == name), $"Texture must report {name}.");
         }
+
         foreach (var update in updates)
         {
             var steps = update.GetProperty("stageSteps").EnumerateArray().Select(value => value.GetString()).ToArray();
@@ -143,6 +145,7 @@ public sealed class ColourGradingPipelineTests
             Check(steps[index] == update.GetProperty("operation").GetString(), "Every operation must identify its coloured stage.");
             Check(!steps.Contains("Colour enhancement") && !steps.Contains("Seam softening"), "Disabled finishing steps must not be planned.");
         }
+
         var charts = updates.Where(update => update.GetProperty("operation").GetString() == "UV charts"
             && update.GetProperty("stepIndex").ValueKind == JsonValueKind.Number).ToArray();
         Check(charts.Select(update => update.GetProperty("stepIndex").GetInt32()).Distinct().Count() == 5,

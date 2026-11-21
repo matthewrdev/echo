@@ -23,6 +23,7 @@ public sealed class ImageWorkPlanner : IImageWorkPlanner
                 largest = Math.Max(largest, budget);
                 continue;
             }
+
             var sourcePixels = (long)image.Width * image.Height;
             var scale = Math.Min(1.0, (double)settings.FeatureWidth / Math.Max(1, image.Width));
             var analysisPixels = (long)Math.Ceiling(image.Width * scale) * (long)Math.Ceiling(image.Height * scale);

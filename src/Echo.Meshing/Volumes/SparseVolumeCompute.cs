@@ -22,6 +22,7 @@ internal static class SparseVolumeCompute
         {
             capacity *= 2;
         }
+
         var tableBytes = capacity * sizeof(int);
         var sampleBytes = samples.Count * 4L * sizeof(int);
         var addressable = tableBytes <= int.MaxValue && sampleBytes <= int.MaxValue;
@@ -29,12 +30,14 @@ internal static class SparseVolumeCompute
         {
             return null;
         }
+
         mask = (int)capacity - 1;
         var session = compute.Open(backend, cancellation);
         if (session == null)
         {
             return null;
         }
+
         var records = ArrayPool<int>.Shared.Rent(16384);
         try
         {
@@ -56,6 +59,7 @@ internal static class SparseVolumeCompute
                     count = 0;
                 }
             }
+
             if (count > 0)
             {
                 session.UploadRange<int>(1, offset, records.AsSpan(0, count));
@@ -94,6 +98,7 @@ internal static class SparseVolumeCompute
                 jobs[cell * 4 + 2] = keys[cell].Z;
                 jobs[cell * 4 + 3] = 0;
             }
+
             session.Upload<int>(2, jobs.AsSpan(0, keys.Length * 4));
             session.Allocate(3, keys.Length * 8 * sizeof(float));
             session.Allocate(4, keys.Length * sizeof(int));
@@ -113,10 +118,12 @@ internal static class SparseVolumeCompute
             {
                 throw new ComputeException("Invalid active-cell count.");
             }
+
             if (count > 0)
             {
                 session.Read<int>(6, records[..checked(count * 12)]);
             }
+
             return count;
         }
         finally
@@ -137,6 +144,7 @@ internal static class SparseVolumeCompute
                 jobs[i * 4 + 2] = keys[i].Z;
                 jobs[i * 4 + 3] = 0;
             }
+
             session.Upload<int>(2, jobs.AsSpan(0, keys.Length * 4));
             session.Allocate(3, values.Length * sizeof(float));
             session.Dispatch(ComputeKernel.VolumeCorners, keys.Length, [mask]);

@@ -32,6 +32,7 @@ public sealed class SceneSegmentationSession : ISceneSegmentationSession
                 ["ModelCacheDirectory"] = cache
             });
         }
+
         session = new InferenceSession(modelPath, options);
     }
 
@@ -45,6 +46,7 @@ public sealed class SceneSegmentationSession : ISceneSegmentationSession
         {
             throw new EchoException("Unable to resize the semantic input image.", 5);
         }
+
         var input = new DenseTensor<float>(new[] { 1, 3, 512, 512 });
         var pixels = resized.Pixels;
         for (var index = 0; index < pixels.Length; index++)
@@ -54,6 +56,7 @@ public sealed class SceneSegmentationSession : ISceneSegmentationSession
             input.Buffer.Span[pixels.Length + index] = (colour.Green / 255f - .456f) / .224f;
             input.Buffer.Span[2 * pixels.Length + index] = (colour.Blue / 255f - .406f) / .225f;
         }
+
         using var runOptions = new RunOptions();
         using var registration = cancellation.Register(() => runOptions.Terminate = true);
         trace?.Operation(new OperationProgress("Semantic inference", "Classifying sky, rock and vegetation"), inferenceBackend);
@@ -65,6 +68,7 @@ public sealed class SceneSegmentationSession : ISceneSegmentationSession
         {
             throw new EchoException("The scene model must produce ADE20K logits [1,150,height,width].", 5);
         }
+
         trace?.Operation(new OperationProgress("Decode semantic probabilities", "Combining semantic classes"), PerformanceBackend.Cpu);
         var values = logits is DenseTensor<float> dense ? dense.Buffer.Span : logits.ToArray();
         return SemanticProbabilities.Decode(imageId, dimensions[3], dimensions[2], values);

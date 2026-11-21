@@ -36,6 +36,7 @@ public sealed class ScaleSpaceFeatureTests
                     transformed[y * width + x] = Sample(source, width, cosine * dx + sine * dy + width * .5, -sine * dx + cosine * dy + width * .5);
                 }
             }
+
             var left = new FeatureSet { Features = ScaleSpaceFeatures.Detect(source, width, width, 600, default) };
             var right = new FeatureSet { Features = ScaleSpaceFeatures.Detect(transformed, width, width, 600, default) };
             var pair = matcher.Match(left, right, new Settings(), default);
@@ -51,6 +52,7 @@ public sealed class ScaleSpaceFeatureTests
                     correct++;
                 }
             }
+
             Check(correct >= 25 && correct >= pair.Matches.Count * .9,
                 $"Need at least 25 correct and 90% precision; got {correct}/{pair.Matches.Count}, features {left.Features.Count}/{right.Features.Count}");
             var hash = files.Hash(left);
@@ -94,6 +96,7 @@ public sealed class ScaleSpaceFeatureTests
                 }
             }
         }
+
         return pixels;
     }
 
@@ -104,6 +107,7 @@ public sealed class ScaleSpaceFeatureTests
         {
             return .5f;
         }
+
         var column = (int)x;
         var row = (int)y;
         var dx = x - column;

@@ -15,6 +15,7 @@ internal static class GuidedDescriptorCompute
         {
             return null;
         }
+
         var lines = ArrayPool<float>.Shared.Rent(left.Features.Count * 4);
         var pixels = ArrayPool<float>.Shared.Rent(right.Features.Count * 2);
         try
@@ -29,11 +30,13 @@ internal static class GuidedDescriptorCompute
                 lines[i * 4 + 2] = (float)(matrix[6] * feature.X + matrix[7] * feature.Y + matrix[8]);
                 lines[i * 4 + 3] = (float)(threshold * Math.Sqrt(x * x + y * y));
             }
+
             for (var i = 0; i < right.Features.Count; i++)
             {
                 pixels[i * 2] = (float)right.Features[i].X;
                 pixels[i * 2 + 1] = (float)right.Features[i].Y;
             }
+
             var matches = AcceleratedDescriptorMatcher.TryMatch<Feature>(CollectionsMarshal.AsSpan(left.Features),
                 CollectionsMarshal.AsSpan(right.Features), settings, false, compute, cancellation,
                 lines.AsSpan(0, left.Features.Count * 4), pixels.AsSpan(0, right.Features.Count * 2));
@@ -41,6 +44,7 @@ internal static class GuidedDescriptorCompute
             {
                 return null;
             }
+
             var result = new List<Match>(matches.Matches.Count);
             foreach (var match in matches.Matches)
             {
@@ -48,6 +52,7 @@ internal static class GuidedDescriptorCompute
                 var second = right.Features[match.B];
                 result.Add(new Match { A = [first.X, first.Y], B = [second.X, second.Y], Score = match.Distance, Kind = first.Kind });
             }
+
             return result;
         }
         finally

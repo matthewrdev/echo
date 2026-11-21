@@ -27,6 +27,7 @@ internal sealed class SurfaceGeometryWriter
         {
             surface.Vertices.Add(point.Array);
         }
+
         return index;
     }
 

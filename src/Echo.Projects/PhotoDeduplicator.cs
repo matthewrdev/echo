@@ -25,6 +25,7 @@ public sealed class PhotoDeduplicator : IPhotoDeduplicator
             var gray = images.ResizeGray(bitmap, 320);
             samples.Add(new PhotoSimilaritySample(photo, gray, images.ResizeGray(bitmap, 80), PhotoSimilarity.Sharpness(gray), protectedIds.Contains(photo.Id) || photo.KeepWhenTrimming));
         }
+
         var ordered = samples.OrderByDescending(sample => sample.Protected)
             .ThenByDescending(sample => sample.Sharpness)
             .ThenBy(sample => sample.Photo.CapturedAt, StringComparer.Ordinal)
@@ -38,6 +39,7 @@ public sealed class PhotoDeduplicator : IPhotoDeduplicator
             {
                 continue;
             }
+
             var duplicates = new List<Photo>();
             foreach (var candidate in ordered)
             {
@@ -47,14 +49,17 @@ public sealed class PhotoDeduplicator : IPhotoDeduplicator
                 {
                     continue;
                 }
+
                 excluded.Add(candidate.Photo.Id);
                 duplicates.Add(candidate.Photo);
             }
+
             if (duplicates.Count > 0)
             {
                 groups.Add(new PhotoDuplicateGroup(keeper.Photo, duplicates));
             }
         }
+
         return new PhotoDeduplicationPlan(project.Revision, samples.Count, groups);
     }
 
@@ -79,6 +84,7 @@ public sealed class PhotoDeduplicator : IPhotoDeduplicator
         {
             return;
         }
+
         var keepers = new Dictionary<string, string>();
         foreach (var group in plan.Groups)
         {
@@ -87,12 +93,14 @@ public sealed class PhotoDeduplicator : IPhotoDeduplicator
                 keepers.Add(duplicate.Id, group.Keep.Id);
             }
         }
+
         store.Edit(project =>
         {
             if (project.Revision != plan.Revision)
             {
                 throw new EchoException("The photo selection changed. Scan for similar photos again.", 6);
             }
+
             foreach (var photo in project.Images.Where(photo => keepers.ContainsKey(photo.Id)))
             {
                 photo.Enabled = false;

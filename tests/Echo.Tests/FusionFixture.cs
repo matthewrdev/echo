@@ -24,6 +24,7 @@ internal sealed class FusionFixture
             Views.Add(new DepthView(photo, camera, map));
             Cloud.ImageIds.Add(id);
         }
+
         for (var x = -6; x <= 6; x++)
         {
             for (var y = -6; y <= 6; y++)
@@ -31,6 +32,7 @@ internal sealed class FusionFixture
                 Cloud.Samples.Add(new DenseSample(x * .25f, y * .25f, 10, 0, 0, 0, 0, 1));
             }
         }
+
         Cloud.InputSamples = Cloud.Samples.Count;
     }
 }

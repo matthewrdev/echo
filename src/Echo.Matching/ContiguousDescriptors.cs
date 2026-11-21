@@ -11,6 +11,7 @@ internal static class ContiguousDescriptors
         {
             return default;
         }
+
         for (var index = 0; index < features.Length; index++)
         {
             var available = MemoryMarshal.TryGetArray(features[index].DescriptorData, out var item)
@@ -20,6 +21,7 @@ internal static class ContiguousDescriptors
                 return default;
             }
         }
+
         return first.Array.AsMemory(first.Offset, checked(features.Length * length));
     }
 }

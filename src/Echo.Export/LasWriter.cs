@@ -16,6 +16,7 @@ public sealed class LasWriter : ILasWriter
         {
             throw new EchoException("LAS needs a known WGS84 ellipsoidal height for EPSG:4978 coordinates.", 2);
         }
+
         const string wkt = "GEOCCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Geocentric X\",OTHER],AXIS[\"Geocentric Y\",OTHER],AXIS[\"Geocentric Z\",NORTH],AUTHORITY[\"EPSG\",\"4978\"]]";
         var crs = Encoding.ASCII.GetBytes(wkt + "\0");
         const int headerSize = 375;
@@ -53,10 +54,12 @@ public sealed class LasWriter : ILasWriter
             writer.Write((ushort)(point.Blue * 257));
             count++;
         }
+
         if (count == 0)
         {
             throw new EchoException("The point cloud contains no points.", 2);
         }
+
         stream.Position = 0;
         FixedText(writer, "LASF", 4);
         writer.Write((ushort)0);
@@ -78,15 +81,18 @@ public sealed class LasWriter : ILasWriter
         {
             writer.Write(0.001d);
         }
+
         foreach (var value in offset)
         {
             writer.Write(value);
         }
+
         for (var axis = 0; axis < 3; axis++)
         {
             writer.Write(maximum[axis]);
             writer.Write(minimum[axis]);
         }
+
         writer.Write(0UL); // No waveform data.
         writer.Write(0UL); // No EVLRs.
         writer.Write(0u);
@@ -103,6 +109,7 @@ public sealed class LasWriter : ILasWriter
         {
             throw new EchoException("LAS coordinate exceeds the supported millimetre precision range.", 2);
         }
+
         writer.Write((int)scaled);
         var value = scaled * 0.001 + offset[axis];
         minimum[axis] = Math.Min(minimum[axis], value);

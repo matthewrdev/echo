@@ -48,6 +48,7 @@ internal sealed class FusionPlanningProgress
             {
                 return;
             }
+
             completed = count;
             if (completed == total || clock.ElapsedMilliseconds >= 500)
             {

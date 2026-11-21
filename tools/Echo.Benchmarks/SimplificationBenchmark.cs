@@ -33,6 +33,7 @@ public sealed class SimplificationBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks simplification OUTPUT_DIRECTORY [GRID_SIZE] [CACHE_MB]");
             return 2;
         }
+
         var size = args.Length > 1 ? int.Parse(args[1]) : 384;
         var cacheMb = args.Length > 2 ? int.Parse(args[2]) : 32;
         if (size is < 2 or > 4096 || cacheMb < 1)
@@ -63,6 +64,7 @@ public sealed class SimplificationBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks simplification-artifact VOLUME_OR_SURFACE_JSON OUTPUT_DIRECTORY [CACHE_MB] [TARGET_FACES]");
             return 2;
         }
+
         var output = Path.GetFullPath(args[1]);
         var cacheMb = args.Length > 2 ? int.Parse(args[2]) : 16384;
         var target = args.Length > 3 ? int.Parse(args[3]) : 1500000;
@@ -100,6 +102,7 @@ public sealed class SimplificationBenchmark
                     tolerance = System.Text.Json.JsonSerializer.Deserialize<double>(File.ReadAllText(savedTolerance));
                 }
             }
+
             Console.Error.WriteLine($"Input: {source.Vertices.Count:N0} vertices, {source.Faces.Count:N0} triangles; tolerance {tolerance:G17}.");
             var reduced = Measure(source, target, tolerance, work, session, cacheMb);
             files.AtomicData(Path.Combine(output, "reduced.json"), reduced);
@@ -128,10 +131,12 @@ public sealed class SimplificationBenchmark
                 {
                     collapseSeconds += (clock.Elapsed - collapseStarted).TotalSeconds;
                 }
+
                 if (update.Operation is "Collapse edges" or "Parallel edge collapse")
                 {
                     collapseStarted = clock.Elapsed;
                 }
+
                 operation = update.Operation;
                 Console.Error.WriteLine($"{clock.Elapsed.TotalSeconds:F2}s: {update.Message}");
             }
@@ -162,6 +167,7 @@ public sealed class SimplificationBenchmark
                 }
             }
         }
+
         return surface;
     }
 }

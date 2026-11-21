@@ -69,6 +69,7 @@ public sealed class GeoPackageWriter : IGeoPackageWriter
                 Vertices = face
             }));
         }
+
         transaction.Commit();
     }
 
@@ -113,6 +114,7 @@ public sealed class GeoPackageWriter : IGeoPackageWriter
         {
             command.Parameters.AddWithValue(parameter, DBNull.Value);
         }
+
         double minX = double.PositiveInfinity, minY = double.PositiveInfinity;
         double maxX = double.NegativeInfinity, maxY = double.NegativeInfinity;
         foreach (var feature in features)
@@ -140,6 +142,7 @@ public sealed class GeoPackageWriter : IGeoPackageWriter
                 maxY = Math.Max(maxY, coordinate.Latitude);
             }
         }
+
         if (double.IsFinite(minX))
         {
             using var extent = connection.CreateCommand();
@@ -167,6 +170,7 @@ public sealed class GeoPackageWriter : IGeoPackageWriter
                 polygon = false;
             }
         }
+
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream);
         writer.Write(new byte[] { 0x47, 0x50, 0, 1 }); // GeoPackage v0, little endian, no envelope.
@@ -182,16 +186,19 @@ public sealed class GeoPackageWriter : IGeoPackageWriter
         {
             writer.Write((uint)points.Length);
         }
+
         foreach (var point in points)
         {
             writer.Write(point.Longitude);
             writer.Write(point.Latitude);
         }
+
         if (polygon)
         {
             writer.Write(points[0].Longitude);
             writer.Write(points[0].Latitude);
         }
+
         return stream.ToArray();
     }
 

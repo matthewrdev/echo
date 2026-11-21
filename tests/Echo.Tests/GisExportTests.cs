@@ -137,6 +137,7 @@ public sealed class GisExportTests
                 {
                     Check(File.ReadAllText(Path.Combine(output, "model.geojson")) == before, "Existing export unchanged");
                 }
+
                 var scene = Scene();
                 scene.Origin = null;
                 Directory.Delete(store.PathFor("artifacts/alignment/test"), recursive: true);

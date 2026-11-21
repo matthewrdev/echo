@@ -22,6 +22,7 @@ internal sealed class FusionProfileCheckpoints : IFusionChunkStore, IFusionGridS
         {
             return saved;
         }
+
         var result = build().ToArray();
         chunks.Add(first, result);
         Builds++;
@@ -34,6 +35,7 @@ internal sealed class FusionProfileCheckpoints : IFusionChunkStore, IFusionGridS
         {
             return grid;
         }
+
         var value = build();
         grid = new FusionGrid
         {

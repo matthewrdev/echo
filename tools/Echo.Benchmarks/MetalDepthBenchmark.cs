@@ -32,6 +32,7 @@ public sealed class MetalDepthBenchmark
             Console.Error.WriteLine("Usage: Echo.Benchmarks metal-depth export|verify PROJECT RUN WIDTH DIRECTORY STRIDE [CAMERA_INDEX]");
             return 2;
         }
+
         var store = stores.Open(args[1]);
         var run = store.GetRun(args[2]);
         var project = run.Snapshot;
@@ -81,6 +82,7 @@ public sealed class MetalDepthBenchmark
                 }
             }
         }
+
         var depths = Enumerable.Range(0, project.Settings.DepthPlanes)
             .Select(plane => 1 / (1 / range.Near + (1 / range.Far - 1 / range.Near) * plane / (project.Settings.DepthPlanes - 1))).ToArray();
         Directory.CreateDirectory(directory);
@@ -96,6 +98,7 @@ public sealed class MetalDepthBenchmark
         {
             throw new ArgumentException("Choose export or verify.");
         }
+
         return 0;
     }
 
@@ -152,6 +155,7 @@ public sealed class MetalDepthBenchmark
             viewData.AddRange([(float)view.Focal, view.Width, view.Height, BitConverter.Int32BitsToSingle(grayData.Count), 0, 0]);
             grayData.AddRange(view.Gray.AsSpan(0, view.Width * view.Height).ToArray());
         }
+
         var jobs = samples.SelectMany(sample => centre.Array.Concat(sample.Ray.Array).Append(sample.Norm).Concat(sample.Patch))
             .Select(value => (float)value).ToArray();
         WriteArray(Path.Combine(directory, "views.bin"), viewData.ToArray());
@@ -172,6 +176,7 @@ public sealed class MetalDepthBenchmark
         {
             throw new InvalidOperationException("GPU cost count does not match the exported fixture.");
         }
+
         var finiteCosts = 0;
         var finiteSupportChanges = 0;
         var roundedCostChanges = 0;
@@ -197,6 +202,7 @@ public sealed class MetalDepthBenchmark
                 maxCostError = Math.Max(maxCostError, Math.Abs(reference[index] - gpu[index]));
             }
         }
+
         for (var pixel = 0; pixel < samples.Count; pixel++)
         {
             var cpuDecision = Decide(implementation, views, centre, samples[pixel].Ray, depths, reference.AsSpan(pixel * depths.Length, depths.Length));
@@ -212,6 +218,7 @@ public sealed class MetalDepthBenchmark
                 maxRelativeDepthError = Math.Max(maxRelativeDepthError, Math.Abs(cpuDecision.Depth - gpuDecision.Depth) / cpuDecision.Depth);
             }
         }
+
         var report = json.Encode(new
         {
             samples = samples.Count,
@@ -245,10 +252,12 @@ public sealed class MetalDepthBenchmark
                 bestPlane = plane;
             }
         }
+
         if (bestPlane < 0 || best >= .18)
         {
             return new MetalDepthDecision(false, bestPlane, 0, 0);
         }
+
         for (var plane = 0; plane < costs.Length; plane++)
         {
             var competing = plane != bestPlane && costs[plane] - best < .015;
@@ -257,6 +266,7 @@ public sealed class MetalDepthBenchmark
                 return new MetalDepthDecision(false, bestPlane, 0, 0);
             }
         }
+
         var depth = implementation.InterpolateDepth(depths, costs, bestPlane, best);
         return new MetalDepthDecision(true, bestPlane, (float)depth, (float)(1 - best));
     }
