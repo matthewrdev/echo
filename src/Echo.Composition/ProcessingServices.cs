@@ -9,6 +9,7 @@ using Echo.Fusion;
 using Echo.Imaging;
 using Echo.Infrastructure;
 using Echo.Lines;
+using Echo.Logging;
 using Echo.Matching;
 using Echo.Meshing;
 using Echo.Metadata;
@@ -51,6 +52,8 @@ public sealed class ProcessingServices
 {
     public void Register(IServiceCollection services)
     {
+        new LoggingServices().Register(services);
+
         services.AddSingleton<IComputeService, ComputeService>();
         services.AddSingleton<IComputeDevice, MetalComputeDevice>();
 

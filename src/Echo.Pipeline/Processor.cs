@@ -2,6 +2,8 @@ using Echo.Infrastructure;
 using Echo.Models;
 using Echo.Pipeline.Runs;
 using Echo.Projects;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Echo.Pipeline;
 
@@ -10,14 +12,17 @@ public sealed class Processor : IProcessor
     private readonly IReadOnlyList<IPipelineStage> stages;
     private readonly IRunContextFactory contextFactory;
     private readonly IFileOperations fileOperations;
+    private readonly ILogger<Processor> logger;
 
     public Processor(IEnumerable<IPipelineStage> stages,
         IRunContextFactory contextFactory,
-        IFileOperations fileOperations)
+        IFileOperations fileOperations,
+        ILogger<Processor>? logger = null)
     {
         this.stages = stages.OrderBy(stage => stage.Order).ToArray();
         this.contextFactory = contextFactory;
         this.fileOperations = fileOperations;
+        this.logger = logger ?? NullLogger<Processor>.Instance;
     }
 
     public IReadOnlyList<string> Stages => stages.Select(stage => stage.Name).ToArray();
@@ -34,10 +39,12 @@ public sealed class Processor : IProcessor
         {
             throw new EchoException("Resume preserves its saved texture settings. Use run start to change colour tuning or edge softening.", 2);
         }
+
         if (resumeId != null && subjectDistanceOptions != null)
         {
             throw new EchoException("Resume preserves its saved subject distance settings. Use run start to change --subject-distance.", 2);
         }
+
         using var lease = store.Lock("run");
         var run = resumeId == null
             ? CreateRun(store, target)
@@ -93,6 +100,7 @@ public sealed class Processor : IProcessor
                     throw;
                 }
             }
+
             foreach (var stage in stages)
             {
                 context.Cancellation.ThrowIfCancellationRequested();
@@ -104,6 +112,7 @@ public sealed class Processor : IProcessor
                     {
                         throw resourceError;
                     }
+
                     context.Complete();
                     return run;
                 }
@@ -119,6 +128,7 @@ public sealed class Processor : IProcessor
                 context.Fail(resourceError);
                 throw resourceError;
             }
+
             context.Cancel();
             throw;
         }
@@ -126,6 +136,7 @@ public sealed class Processor : IProcessor
         {
             resourceMonitor.Dispose();
             context.Fail(error);
+            logger.LogError(error, "Processing run {RunId} failed", run.Id);
             throw;
         }
     }
@@ -135,6 +146,7 @@ public sealed class Processor : IProcessor
         using var span = context.Trace.Begin(stage.Name, PerformanceSpanKind.Stage, PerformanceBackend.Mixed, stage.Name);
         try
         {
+            logger.LogDebug("Starting processing stage {Stage}", stage.Name);
             context.PrepareStageResources(stage.Name);
             stage.Execute(context);
             context.ReleaseStageResources();

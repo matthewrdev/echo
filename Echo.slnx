@@ -19,6 +19,7 @@
     <Project Path="src/Echo.Geometry/Echo.Geometry.csproj" />
     <Project Path="src/Echo.Imaging/Echo.Imaging.csproj" />
     <Project Path="src/Echo.Lines/Echo.Lines.csproj" />
+    <Project Path="src/Echo.Logging/Echo.Logging.csproj" />
     <Project Path="src/Echo.Matching/Echo.Matching.csproj" />
     <Project Path="src/Echo.Meshing/Echo.Meshing.csproj" />
     <Project Path="src/Echo.Metadata/Echo.Metadata.csproj" />

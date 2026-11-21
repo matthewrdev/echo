@@ -1,5 +1,7 @@
 using Echo.Models;
 using Echo.Telemetry;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Echo.Compute;
 
@@ -7,12 +9,14 @@ public sealed class ComputeService : IComputeService
 {
     private readonly IComputeDevice[] devices;
     private readonly IPerformanceTrace trace;
+    private readonly ILogger<ComputeService> logger;
     private readonly AsyncLocal<ComputeScope?> scope = new();
 
-    public ComputeService(IEnumerable<IComputeDevice> devices, IPerformanceTrace trace)
+    public ComputeService(IEnumerable<IComputeDevice> devices, IPerformanceTrace trace, ILogger<ComputeService>? logger = null)
     {
         this.devices = devices.ToArray();
         this.trace = trace;
+        this.logger = logger ?? NullLogger<ComputeService>.Instance;
     }
 
     public string GetImplementation(ComputeOperation operation) => string.Join(";", devices.Select(device => device.GetImplementation(operation)));
@@ -25,14 +29,17 @@ public sealed class ComputeService : IComputeService
         {
             return false;
         }
+
         if (byteCount >= 0 && byteCount <= MemoryBudgetBytes)
         {
             return true;
         }
+
         if (backend == ComputeBackend.Metal)
         {
             throw new ComputeException("The requested compute operation exceeds the Metal session memory budget.");
         }
+
         return false;
     }
 
@@ -53,10 +60,12 @@ public sealed class ComputeService : IComputeService
         {
             throw new ArgumentOutOfRangeException(nameof(backend));
         }
+
         if (backend == ComputeBackend.Cpu)
         {
             return null;
         }
+
         foreach (var device in devices)
         {
             try
@@ -82,20 +91,22 @@ public sealed class ComputeService : IComputeService
                             };
                             executions.Add(operation, execution);
                         }
+
                         RecordExecution(execution);
                     }, trace);
                 }
             }
-            catch (ComputeException) when (backend == ComputeBackend.Auto)
+            catch (ComputeException error) when (backend == ComputeBackend.Auto)
             {
-                // A missing or incompatible GPU implementation cannot prevent an
-                // automatic run from using the managed processing paths.
+                logger.LogDebug(error, "Could not open {DeviceType} for automatic compute", device.GetType().Name);
             }
         }
+
         if (backend == ComputeBackend.Metal)
         {
             throw new ComputeException("Metal processing was requested but no Metal compute device is available.");
         }
+
         return null;
     }
 }
