@@ -1,3 +1,5 @@
+/// Checks depth agreement across projected views for candidate cloud points.
+/// Writes the support counts and quality statistics used to decide which samples to publish.
 // Preserve a measured side of a depth edge without interpolating across it.
 // The shared depth_surface helper remains conservative for mesh evidence.
 bool cloud_surface(device const float* view, device const float* depths, float3 world, float relative, thread float3& surface) {

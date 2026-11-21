@@ -1,3 +1,5 @@
+/// Evaluates normalized stereo patch cost for individual pixel and depth hypotheses.
+/// The host supplies packed views and grayscale images. Each GPU thread scores one hypothesis.
 #include <metal_stdlib>
 using namespace metal;
 

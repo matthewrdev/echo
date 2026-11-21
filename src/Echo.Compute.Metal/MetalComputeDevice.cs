@@ -18,7 +18,7 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
             {
                 using var stream = assembly.GetManifestResourceStream(name)!;
                 using var reader = new StreamReader(stream);
-                return reader.ReadToEnd();
+                return MetalShaderSource.WithoutDocumentation(reader.ReadToEnd());
             }, StringComparer.Ordinal);
         library = new MetalComputeLibrary(sources);
     }
@@ -31,6 +31,7 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
         {
             return null;
         }
+
         gate.Wait(cancellation);
         var transferred = false;
         try
@@ -39,6 +40,7 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
             {
                 return null;
             }
+
             if (handle == null)
             {
                 var details = new StringBuilder(4096);
@@ -52,18 +54,22 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
                     unavailable = true;
                     return null;
                 }
+
                 if (pointer == IntPtr.Zero)
                 {
                     if (!details.ToString().Contains("No Metal compute device", StringComparison.Ordinal))
                     {
                         throw new ComputeException(details.ToString());
                     }
+
                     unavailable = true;
                     return null;
                 }
+
                 handle = new MetalComputeHandle(pointer);
                 device = details.ToString();
             }
+
             var session = new MetalComputeSession(MetalComputeNative.Open(handle, memoryBudgetBytes), device, gate, cancellation);
             transferred = true;
             return session;

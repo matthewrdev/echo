@@ -1,4 +1,5 @@
 using System.Text;
+using Echo.Compute;
 using Echo.Telemetry;
 using System.Security.Cryptography;
 
@@ -22,9 +23,11 @@ public sealed class MetalDepthCostAccelerator : IDepthCostAccelerator
         {
             throw new DepthAccelerationException("Metal requires macOS.");
         }
+
         try
         {
-            var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "StereoCost.metal"));
+            var path = Path.Combine(AppContext.BaseDirectory, "StereoCost.metal");
+            var source = MetalShaderSource.WithoutDocumentation(File.ReadAllText(path));
             var packedViews = new float[checked(views.Length * 24)];
             // Remove large world-coordinate offsets before reducing precision.
             // Stereo geometry depends on relative positions, not the world origin.
@@ -43,6 +46,7 @@ public sealed class MetalDepthCostAccelerator : IDepthCostAccelerator
                 {
                     packed[3 + element] = (float)view.WorldToCamera[element];
                 }
+
                 packed[12] = (float)view.PatchRight.X;
                 packed[13] = (float)view.PatchRight.Y;
                 packed[14] = (float)view.PatchRight.Z;
@@ -57,12 +61,14 @@ public sealed class MetalDepthCostAccelerator : IDepthCostAccelerator
                 view.Gray.AsSpan(0, count).CopyTo(gray.AsSpan(offset));
                 offset += count;
             }
+
             var details = new StringBuilder(2048);
             var pointer = MetalDepthNative.Create(source, packedViews, views.Length, gray, gray.Length, details, details.Capacity);
             if (pointer == IntPtr.Zero)
             {
                 throw new DepthAccelerationException(details.ToString());
             }
+
             var shaderHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
             return new MetalDepthCostSession(new MetalDepthHandle(pointer), details.ToString(), shaderHash, origin, trace);
         }

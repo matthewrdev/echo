@@ -1,3 +1,5 @@
+/// Unpacks camera and depth-map data used by projection-based kernels.
+/// Helpers project world points into a source view and sample its depth and confidence.
 float3 depth_local(device const float* view, float3 world) {
     float3 d = world - float3(view[0], view[1], view[2]);
     return float3(dot(d, float3(view[4], view[5], view[6])),

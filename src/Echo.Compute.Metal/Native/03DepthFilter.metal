@@ -1,3 +1,5 @@
+/// Filters estimated depth samples using their spatial neighbourhood.
+/// Separate input and output buffers keep the filter independent of thread scheduling.
 kernel void depth_filter(device const float* raw [[buffer(0)]], device float* depth [[buffer(1)]],
     device float* confidence [[buffer(2)]], device int* retained [[buffer(3)]],
     constant int* p [[buffer(8)]], uint id [[thread_position_in_grid]]) {

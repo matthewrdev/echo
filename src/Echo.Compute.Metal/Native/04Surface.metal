@@ -1,3 +1,5 @@
+/// Finds active volume cells and evaluates camera visibility, occlusion and semantic evidence.
+/// Volume indexing and compaction kernels prepare sparse inputs for mesh extraction.
 kernel void surface_visibility(device const float* views [[buffer(0)]], device const float* depths [[buffer(1)]],
     device const float4* triangles [[buffer(2)]], device int* rejected [[buffer(3)]],
     device const float* settings [[buffer(4)]], constant int* p [[buffer(8)]], uint id [[thread_position_in_grid]]) {

@@ -1,3 +1,5 @@
+/// Projects source photographs into texture atlas charts and fills padding texels.
+/// Projection and padding each write to the output addresses supplied by the host.
 float3 texture_sample(device const uchar4* source, int width, int height, float2 coordinate, bool swap) {
     coordinate = clamp(coordinate, float2(0), float2(width - 1, height - 1));
     int2 base = int2(coordinate), end = min(base + 1, int2(width - 1, height - 1));

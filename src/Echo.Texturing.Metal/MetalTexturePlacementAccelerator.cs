@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Echo.Compute;
 using Echo.Texturing.Layout;
 
 namespace Echo.Texturing.Metal;
@@ -12,7 +13,7 @@ public sealed class MetalTexturePlacementAccelerator : ITexturePlacementAccelera
     {
         using var stream = typeof(MetalTexturePlacementAccelerator).Assembly.GetManifestResourceStream("Echo.Texturing.Metal.Native.TexturePlacement.metal")!;
         using var reader = new StreamReader(stream);
-        source = reader.ReadToEnd();
+        source = MetalShaderSource.WithoutDocumentation(reader.ReadToEnd());
         Implementation = "echo-texture-metal-2;integer;" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
     }
 
@@ -28,6 +29,7 @@ public sealed class MetalTexturePlacementAccelerator : ITexturePlacementAccelera
         {
             throw new TextureAccelerationException("Metal requires macOS.");
         }
+
         try
         {
             var details = new StringBuilder(2048);
@@ -36,6 +38,7 @@ public sealed class MetalTexturePlacementAccelerator : ITexturePlacementAccelera
             {
                 throw new TextureAccelerationException(details.ToString());
             }
+
             return new MetalTexturePlacementSession(new MetalTextureHandle(pointer), size, details.ToString(), Implementation);
         }
         catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException or IOException)

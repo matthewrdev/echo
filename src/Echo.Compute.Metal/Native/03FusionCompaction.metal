@@ -1,3 +1,5 @@
+/// Compacts retained fusion results using per-group counts and prefix offsets.
+/// Dispatch the count, offset and write kernels in that order.
 // Stable copy-only compaction: keep accumulation and division unchanged. It is
 // intentionally separate from the field kernel's algorithm fingerprint.
 kernel void fusion_retained_counts(device const float4* values [[buffer(3)]],

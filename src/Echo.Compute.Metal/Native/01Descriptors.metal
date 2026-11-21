@@ -1,3 +1,5 @@
+/// Scores descriptor distances and selects nearest candidates in either direction.
+/// The tiled kernels reduce partial results so large image pairs can use a bounded buffer.
 // Parameters: left count, right count, descriptor length, reverse, first left,
 // batch size. No distance matrix survives the current bounded row block.
 kernel void descriptor_pairs(device const float* left [[buffer(0)]], device const float* right [[buffer(1)]],

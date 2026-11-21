@@ -1,3 +1,5 @@
+/// Applies separable Gaussian blur to feature images.
+/// The horizontal pass writes the intermediate image consumed by the vertical pass.
 kernel void gaussian_horizontal(device const float* source [[buffer(0)]], device float* intermediate [[buffer(1)]],
     device const float* weights [[buffer(3)]], constant int* p [[buffer(8)]], uint id [[thread_position_in_grid]]) {
     int x = id % p[0], row = id - x;

@@ -1,3 +1,5 @@
+/// Filters descriptor pairs by epipolar geometry and counts the candidates.
+/// The host supplies image correspondences and the matrices for its geometry hypotheses.
 kernel void epipolar_candidates(device const float4* matches [[buffer(0)]], device const float* matrices [[buffer(1)]],
     device int* candidates [[buffer(2)]], constant int* p [[buffer(8)]], uint id [[thread_position_in_grid]]) {
     float4 m = matches[id % p[0]];

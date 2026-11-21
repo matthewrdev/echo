@@ -1,3 +1,5 @@
+/// Integrates signed-depth evidence from the source views for candidate volume samples.
+/// Each thread evaluates a sample and records its fused value and supporting evidence.
 // Fusion uploads cropped depth windows; bilinear base-pixel regions do not
 // overlap between tiles, so every camera votes at most once per voxel.
 float4 fusion_depth_observe(device const float* view, device const float* depths, float3 world, float relative) {

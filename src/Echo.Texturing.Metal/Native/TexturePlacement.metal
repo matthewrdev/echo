@@ -1,3 +1,5 @@
+/// Scores masked texture chart placements against the atlas occupancy.
+/// The host selects the placement and updates occupancy between dispatches.
 #include <metal_stdlib>
 using namespace metal;
 

@@ -1,3 +1,5 @@
+/// Triangulates matches from two calibrated cameras into candidate 3D points.
+/// The kernel returns a candidate and its validity for each observation pair.
 kernel void triangulate_pairs(device const float* views [[buffer(0)]], device const float4* matches [[buffer(1)]],
     device float4* output [[buffer(2)]], constant int* p [[buffer(8)]], uint id [[thread_position_in_grid]]) {
     device const float* a = views; device const float* b = views + 24;

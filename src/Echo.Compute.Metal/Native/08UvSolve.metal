@@ -1,3 +1,5 @@
+/// Computes an iterative warm start for the sparse texture chart UV solve.
+/// Each thread updates one coordinate using the row offsets, indices and coefficients.
 float uv_reduce(threadgroup float* sums, uint lane, float value) {
     sums[lane] = value;
     threadgroup_barrier(mem_flags::mem_threadgroup);
