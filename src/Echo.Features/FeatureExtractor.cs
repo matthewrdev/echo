@@ -1,6 +1,6 @@
 using System.Buffers;
 using System.Runtime.ExceptionServices;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Compute;
 using Echo.Imaging;
 using Echo.Lines;

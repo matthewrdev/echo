@@ -1,5 +1,5 @@
 using System.Collections;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Geometry;
 

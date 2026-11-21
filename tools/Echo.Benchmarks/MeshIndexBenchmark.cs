@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Echo.Geometry;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Meshing;
 using Echo.Storage;
 

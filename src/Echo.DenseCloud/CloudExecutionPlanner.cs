@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.DenseCloud;
 

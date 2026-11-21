@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Meshing;
 

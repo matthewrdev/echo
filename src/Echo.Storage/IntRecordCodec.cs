@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Storage;
 

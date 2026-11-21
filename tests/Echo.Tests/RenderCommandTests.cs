@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Echo.Cli;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Infrastructure;
 using Echo.Projects;
 using Echo.Rendering;

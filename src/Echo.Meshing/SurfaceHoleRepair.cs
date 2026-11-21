@@ -1,6 +1,6 @@
 using System.Buffers;
 using System.Diagnostics;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Storage;
 using Echo.Geometry;
 

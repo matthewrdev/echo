@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text.Json;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.DenseCloud;
 using Echo.Fusion;
 using Echo.Geometry;

@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Echo.Storage;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Infrastructure;
 

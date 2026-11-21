@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Compute;
 using Echo.Telemetry;
 

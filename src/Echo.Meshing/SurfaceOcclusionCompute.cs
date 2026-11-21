@@ -1,6 +1,6 @@
 using System.Buffers;
 using Echo.Compute;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Geometry;
 
 namespace Echo.Meshing;

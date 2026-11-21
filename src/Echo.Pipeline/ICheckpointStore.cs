@@ -1,5 +1,5 @@
 using Echo.Projects;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Pipeline;
 

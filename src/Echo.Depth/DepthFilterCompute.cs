@@ -1,6 +1,6 @@
 using System.Buffers;
 using Echo.Compute;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Depth;
 

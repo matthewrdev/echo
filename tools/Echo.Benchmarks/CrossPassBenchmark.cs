@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Features;
 using Echo.Geometry;
 using Echo.Imaging;

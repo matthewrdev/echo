@@ -1,4 +1,4 @@
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Infrastructure;
 using System.Text;
 using System.Text.Json;

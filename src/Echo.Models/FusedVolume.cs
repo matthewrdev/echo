@@ -1,0 +1,22 @@
+namespace Echo.Models;
+
+public sealed class FusedVolume
+{
+    public double VoxelSize
+    {
+        get; set;
+    }
+    public int InputSamples
+    {
+        get; set;
+    }
+    public int ConsistentSamples
+    {
+        get; set;
+    }
+    public IList<VolumeSample> Samples { get; set; } = [];
+    public FusionResolutionReport? Resolution
+    {
+        get; set;
+    }
+}

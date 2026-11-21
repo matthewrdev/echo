@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Infrastructure;
 

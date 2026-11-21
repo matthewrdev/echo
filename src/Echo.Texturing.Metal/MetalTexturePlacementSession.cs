@@ -1,4 +1,4 @@
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Telemetry;
 using System.Buffers;
 using System.Text;

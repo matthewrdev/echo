@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Depth;
 using Echo.Infrastructure;
 using Echo.Projects;

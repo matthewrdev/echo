@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.Intrinsics;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Compute;
 using Echo.Telemetry;
 using Echo.Geometry;

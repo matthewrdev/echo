@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Buffers;
 using System.Buffers.Binary;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Storage;
 

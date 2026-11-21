@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Geometry;
 using Echo.Infrastructure;
 

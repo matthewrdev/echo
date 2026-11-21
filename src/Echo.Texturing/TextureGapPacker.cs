@@ -1,6 +1,6 @@
 using Echo.Compute;
 using Echo.Telemetry;
-using Echo.Contracts;
+using Echo.Models;
 using SkiaSharp;
 
 namespace Echo.Texturing;

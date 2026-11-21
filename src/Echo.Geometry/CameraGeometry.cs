@@ -1,4 +1,4 @@
-using Echo.Contracts;
+using Echo.Models;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 

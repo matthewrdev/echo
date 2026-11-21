@@ -6,7 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" />
     <ProjectReference Include="../Echo.Metadata/Echo.Metadata.csproj" />
-    <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
+    <ProjectReference Include="../Echo.Models/Echo.Models.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" /></ItemGroup>
 </Project>

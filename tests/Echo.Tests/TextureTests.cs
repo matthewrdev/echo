@@ -1,4 +1,4 @@
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Imaging;
 using Echo.Projects;
 using Echo.Texturing;

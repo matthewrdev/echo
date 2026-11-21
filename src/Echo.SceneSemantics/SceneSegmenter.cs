@@ -1,6 +1,6 @@
 using Echo.Imaging;
 using Echo.Telemetry;
-using Echo.Contracts;
+using Echo.Models;
 using Microsoft.ML.OnnxRuntime;
 
 namespace Echo.SceneSemantics;

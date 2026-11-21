@@ -1,6 +1,6 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Imaging;
 
 namespace Echo.Lines;

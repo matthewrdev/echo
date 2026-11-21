@@ -1,5 +1,5 @@
 using Echo.Compute;
-using Echo.Contracts;
+using Echo.Models;
 using System.Diagnostics;
 using Echo.Texturing;
 using SkiaSharp;

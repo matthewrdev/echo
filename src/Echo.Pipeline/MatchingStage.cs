@@ -1,4 +1,4 @@
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Compute;
 using Echo.Infrastructure;
 using Echo.Matching;

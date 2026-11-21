@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Geometry;
 

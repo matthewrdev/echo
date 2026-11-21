@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Compute;
 using Echo.Geometry;
 using Echo.Meshing;

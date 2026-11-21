@@ -1,5 +1,5 @@
 using System.Globalization;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Cli;
 

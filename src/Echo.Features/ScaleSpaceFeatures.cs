@@ -1,5 +1,5 @@
 using System.Buffers;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Compute;
 
 namespace Echo.Features;

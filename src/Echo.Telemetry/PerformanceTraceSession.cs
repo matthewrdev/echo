@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime;
 using System.Runtime.InteropServices;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Telemetry;
 

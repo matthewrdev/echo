@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Echo.Storage;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Infrastructure;
 

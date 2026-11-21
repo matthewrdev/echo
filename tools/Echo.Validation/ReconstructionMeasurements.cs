@@ -1,4 +1,4 @@
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Export;
 using Echo.Infrastructure;
 using Echo.Meshing;

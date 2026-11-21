@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
+    <ProjectReference Include="../Echo.Models/Echo.Models.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../Echo.Storage/Echo.Storage.csproj" /></ItemGroup>
 </Project>

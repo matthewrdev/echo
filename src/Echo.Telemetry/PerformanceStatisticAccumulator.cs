@@ -1,5 +1,5 @@
 using System.Numerics;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Telemetry;
 

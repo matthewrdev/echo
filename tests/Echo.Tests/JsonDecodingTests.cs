@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Cli;
 using Echo.Infrastructure;
 using Echo.Texturing;

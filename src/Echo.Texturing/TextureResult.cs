@@ -1,4 +1,4 @@
-using Echo.Contracts;
+using Echo.Models;
 using System.Text.Json.Serialization;
 
 namespace Echo.Texturing;

@@ -1,5 +1,5 @@
 using System.Text;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Infrastructure;
 using Echo.Storage;
 

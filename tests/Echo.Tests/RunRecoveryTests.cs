@@ -1,5 +1,5 @@
 using Echo.Cli;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Depth;
 using Echo.Infrastructure;
 using Echo.Pipeline;

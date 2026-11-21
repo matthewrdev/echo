@@ -1,5 +1,5 @@
 using SkiaSharp;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Texturing;
 

@@ -1,5 +1,5 @@
 using Echo.Cli;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Imaging;
 using Echo.Projects;
 using SkiaSharp;

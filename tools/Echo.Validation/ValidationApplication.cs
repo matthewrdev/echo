@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Infrastructure;
 using Echo.Pipeline;
 using Echo.Projects;

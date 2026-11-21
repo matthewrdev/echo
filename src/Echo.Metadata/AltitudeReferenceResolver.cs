@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Metadata;
 

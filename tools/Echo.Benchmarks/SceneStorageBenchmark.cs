@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Infrastructure;
 using Echo.Storage;
 

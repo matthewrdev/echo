@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.DenseCloud;
 using Echo.Infrastructure;
 using Echo.Projects;

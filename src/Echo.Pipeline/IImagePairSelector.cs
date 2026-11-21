@@ -1,4 +1,4 @@
-using Echo.Contracts;
+using Echo.Models;
 namespace Echo.Pipeline;
 
 public interface IImagePairSelector

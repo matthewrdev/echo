@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.SceneSemantics;
 

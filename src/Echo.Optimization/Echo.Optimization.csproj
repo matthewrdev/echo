@@ -1,2 +1,2 @@
-<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" /><ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" /></ItemGroup>  <ItemGroup><ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" /></ItemGroup>
+<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../Echo.Models/Echo.Models.csproj" /><ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" /></ItemGroup>  <ItemGroup><ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" /></ItemGroup>
 </Project>

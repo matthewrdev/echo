@@ -2,7 +2,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Echo.Tests" />
     <InternalsVisibleTo Include="Echo.Benchmarks" />
-    <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
+    <ProjectReference Include="../Echo.Models/Echo.Models.csproj" />
     <ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../Echo.Storage/Echo.Storage.csproj" /></ItemGroup>

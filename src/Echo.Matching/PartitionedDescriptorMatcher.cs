@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 using Echo.Compute;
-using Echo.Contracts;
+using Echo.Models;
 
 namespace Echo.Matching;
 

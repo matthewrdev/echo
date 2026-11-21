@@ -4,7 +4,7 @@
     <ProjectReference Include="../Echo.Telemetry/Echo.Telemetry.csproj" />
     <ProjectReference Include="../Echo.SceneSemantics/Echo.SceneSemantics.csproj" />
     <ProjectReference Include="../Echo.SurfaceCompletion/Echo.SurfaceCompletion.csproj" />
-    <ProjectReference Include="../Echo.Contracts/Echo.Contracts.csproj" />
+    <ProjectReference Include="../Echo.Models/Echo.Models.csproj" />
     <ProjectReference Include="../Echo.Projects/Echo.Projects.csproj" />
     <ProjectReference Include="../Echo.Features/Echo.Features.csproj" />
     <ProjectReference Include="../Echo.Matching/Echo.Matching.csproj" />

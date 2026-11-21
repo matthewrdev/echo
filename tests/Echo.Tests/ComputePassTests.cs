@@ -1,5 +1,5 @@
 using Echo.Compute;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.DenseCloud;
 using Echo.Depth;
 using Echo.Features;

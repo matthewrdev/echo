@@ -1,6 +1,6 @@
 using System.Text;
 using Echo.Telemetry;
-using Echo.Contracts;
+using Echo.Models;
 using System.Buffers;
 using Echo.Geometry;
 using System.Diagnostics;

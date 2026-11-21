@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Echo.Compute;
-using Echo.Contracts;
+using Echo.Models;
 using Echo.Features;
 using Echo.Matching;
 using Echo.Fusion;
