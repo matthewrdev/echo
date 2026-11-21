@@ -1,11 +1,16 @@
 using System.Text.Json;
-using Echo.Models;
 using Echo.Features;
 using Echo.Imaging;
 using Echo.Infrastructure;
 using Echo.Matching;
+using Echo.Models;
+using Echo.Pipeline.Features;
+using Echo.Pipeline.Matching;
+using Echo.Pipeline.Runs;
+using Echo.Pipeline.Semantics;
 using Echo.Pipeline;
 using Echo.Projects;
+using Echo.Storage.Matching;
 using Echo.Storage;
 using SkiaSharp;
 

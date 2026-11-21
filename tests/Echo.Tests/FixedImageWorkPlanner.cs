@@ -1,4 +1,5 @@
 using Echo.Models;
+using Echo.Pipeline.Features;
 using Echo.Pipeline;
 
 namespace Echo.Tests;

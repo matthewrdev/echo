@@ -1,0 +1,10 @@
+using Echo.Models;
+
+namespace Echo.Storage.Matching;
+
+public interface IMatchingIndexStore
+{
+    MatchingIndexJournal Open(string path);
+    IReadOnlyList<MatchingIndexEntry> Read(string path);
+    MatchingIndexEntry Describe(string projectRoot, string artifact, int sequence);
+}

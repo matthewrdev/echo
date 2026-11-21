@@ -1,4 +1,7 @@
+using Echo.Meshing.Repair;
+using Echo.Meshing.Visibility;
 using Echo.Models;
+using Echo.Storage.Resources;
 using Echo.Storage;
 
 namespace Echo.Meshing;

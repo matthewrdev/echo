@@ -1,6 +1,7 @@
 using System.Text.Json;
-using Echo.Models;
 using Echo.Geometry;
+using Echo.Models;
+using Echo.Texturing.Layout;
 using Echo.Texturing;
 
 namespace Echo.Tests;

@@ -1,5 +1,6 @@
-using Echo.Models;
 using Echo.Infrastructure;
+using Echo.Models;
+using Echo.Pipeline.Artifacts;
 using Echo.Pipeline;
 using Echo.Projects;
 

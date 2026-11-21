@@ -1,7 +1,16 @@
-using Echo.Models;
 using Echo.Compute;
-using Echo.Storage;
 using Echo.Geometry;
+using Echo.Meshing.Geometry;
+using Echo.Meshing.Photographs;
+using Echo.Meshing.Repair;
+using Echo.Meshing.Topology;
+using Echo.Meshing.Visibility;
+using Echo.Meshing.Volumes;
+using Echo.Models;
+using Echo.Storage.Pages;
+using Echo.Storage.Records;
+using Echo.Storage.Resources;
+using Echo.Storage;
 
 namespace Echo.Meshing;
 

@@ -1,5 +1,7 @@
-using Echo.Models;
 using System.Text.Json.Serialization;
+using Echo.Models;
+using Echo.Texturing.Rasterization;
+using Echo.Texturing.Seams;
 
 namespace Echo.Texturing;
 

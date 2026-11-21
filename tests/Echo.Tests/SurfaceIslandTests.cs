@@ -1,5 +1,6 @@
-using Echo.Models;
+using Echo.Meshing.Repair;
 using Echo.Meshing;
+using Echo.Models;
 
 namespace Echo.Tests;
 

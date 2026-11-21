@@ -1,3 +1,4 @@
+using Echo.Texturing.Rasterization;
 using Echo.Texturing;
 using SkiaSharp;
 

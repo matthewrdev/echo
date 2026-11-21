@@ -1,5 +1,6 @@
-using Echo.Models;
+using Echo.Meshing.Topology;
 using Echo.Meshing;
+using Echo.Models;
 using Echo.Projects;
 
 namespace Echo.Validation;

@@ -1,7 +1,8 @@
 using System.Text.Json;
-using Echo.Models;
 using Echo.Infrastructure;
+using Echo.Meshing.Topology;
 using Echo.Meshing;
+using Echo.Models;
 using Echo.Validation;
 
 namespace Echo.Tests;

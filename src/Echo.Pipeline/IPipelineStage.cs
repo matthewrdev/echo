@@ -1,3 +1,4 @@
+using Echo.Pipeline.Runs;
 namespace Echo.Pipeline;
 
 public interface IPipelineStage

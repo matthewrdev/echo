@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using Echo.Compute;
 using Echo.Models;
-using System.Diagnostics;
+using Echo.Texturing.Charts;
+using Echo.Texturing.Layout;
 using Echo.Texturing;
 using SkiaSharp;
 

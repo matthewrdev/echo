@@ -1,8 +1,9 @@
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using Echo.Models;
+using System.Text.Json;
 using Echo.Infrastructure;
+using Echo.Models;
+using Echo.Storage.Artifacts;
 using Echo.Storage;
 
 namespace Echo.Benchmarks;

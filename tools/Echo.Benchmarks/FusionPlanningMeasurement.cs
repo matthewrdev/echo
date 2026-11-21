@@ -1,5 +1,6 @@
-using Echo.Storage;
 using Echo.Fusion;
+using Echo.Storage.Pages;
+using Echo.Storage;
 
 namespace Echo.Benchmarks;
 

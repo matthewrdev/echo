@@ -1,3 +1,4 @@
+using Echo.Storage.Pages;
 using Echo.Storage;
 
 namespace Echo.Fusion;

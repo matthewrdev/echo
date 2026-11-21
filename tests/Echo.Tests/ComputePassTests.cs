@@ -1,12 +1,18 @@
 using Echo.Compute;
-using Echo.Models;
 using Echo.DenseCloud;
 using Echo.Depth;
 using Echo.Features;
 using Echo.Fusion;
 using Echo.Geometry;
-using Echo.Meshing;
 using Echo.Matching;
+using Echo.Meshing.Geometry;
+using Echo.Meshing.Visibility;
+using Echo.Meshing.Volumes;
+using Echo.Meshing;
+using Echo.Models;
+using Echo.Texturing.Charts;
+using Echo.Texturing.Rasterization;
+using Echo.Texturing.Seams;
 using Echo.Texturing;
 using SkiaSharp;
 
@@ -208,18 +214,18 @@ public sealed class ComputePassTests
 
     private void Extraction()
     {
-        var samples = new Dictionary<Echo.Meshing.Grid, float>();
+        var samples = new Dictionary<Echo.Meshing.Volumes.Grid, float>();
         for (var x = 0; x < 34; x++)
         {
             for (var y = 0; y < 34; y++)
             {
                 for (var z = 0; z < 34; z++)
                 {
-                    samples.Add(new Echo.Meshing.Grid(20000001 + x, -20000001 + y, z), z - 8.3f);
+                    samples.Add(new Echo.Meshing.Volumes.Grid(20000001 + x, -20000001 + y, z), z - 8.3f);
                 }
             }
         }
-        samples.Remove(new Echo.Meshing.Grid(20000009, -19999993, 9));
+        samples.Remove(new Echo.Meshing.Volumes.Grid(20000009, -19999993, 9));
         var cpu = TetrahedralSurface.Extract(samples, .1, default);
         var gpu = TetrahedralSurface.Extract(samples, .1, default, compute: compute, backend: ComputeBackend.Metal);
         Check(cpu.Vertices.Count > 0 && cpu.Vertices.Count == gpu.Vertices.Count && cpu.Faces.Count == gpu.Faces.Count, "Extracted topology differs");
@@ -246,14 +252,14 @@ public sealed class ComputePassTests
         Check(session != null, "The old four-million-sample limit still disabled Metal");
         Check(GC.GetAllocatedBytesForCurrentThread() - allocated < 8 * 1024 * 1024,
             "Uploading the volume retained a full-size managed staging table");
-        ReadOnlySpan<Echo.Meshing.Grid> offsets = [new(0, 0, 0), new(1, 0, 0), new(1, 1, 0), new(0, 1, 0),
+        ReadOnlySpan<Echo.Meshing.Volumes.Grid> offsets = [new(0, 0, 0), new(1, 0, 0), new(1, 1, 0), new(0, 1, 0),
             new(0, 0, 1), new(1, 0, 1), new(1, 1, 1), new(0, 1, 1)];
-        var keys = new Echo.Meshing.Grid[4096];
+        var keys = new Echo.Meshing.Volumes.Grid[4096];
         var values = new float[keys.Length * 8];
         var random = new Random(645);
         for (var index = 0; index < keys.Length; index++)
         {
-            keys[index] = new Echo.Meshing.Grid(random.Next(-1, 163) - 20000001, random.Next(-1, 163) + 20000001, random.Next(-1, 163));
+            keys[index] = new Echo.Meshing.Volumes.Grid(random.Next(-1, 163) - 20000001, random.Next(-1, 163) + 20000001, random.Next(-1, 163));
         }
         foreach (var count in new[] { keys.Length, 17 })
         {

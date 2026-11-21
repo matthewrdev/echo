@@ -1,8 +1,10 @@
 using Echo.Compute;
-using Echo.Models;
 using Echo.Geometry;
 using Echo.Imaging;
+using Echo.Models;
 using Echo.Projects;
+using Echo.Texturing.Rasterization;
+using Echo.Texturing.Seams;
 using Echo.Texturing;
 using SkiaSharp;
 

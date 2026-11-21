@@ -1,12 +1,17 @@
 using System.Diagnostics;
 using Echo.Compute;
-using Echo.Models;
-using Echo.Features;
-using Echo.Matching;
-using Echo.Fusion;
 using Echo.Depth;
+using Echo.Features;
+using Echo.Fusion;
 using Echo.Geometry;
+using Echo.Matching;
+using Echo.Meshing.Geometry;
+using Echo.Meshing.Visibility;
+using Echo.Meshing.Volumes;
 using Echo.Meshing;
+using Echo.Models;
+using Echo.Texturing.Charts;
+using Echo.Texturing.Seams;
 using Echo.Texturing;
 
 namespace Echo.Tests;
@@ -81,14 +86,14 @@ public sealed class ComputeBenchmarks
                 fixture.Project.Settings.ComputeBackend = ComputeBackend.Metal;
                 fusion.Fuse(fixture.Project, fixture.Scene, fixture.Maps, fixture.Cloud, resources, default);
             });
-        var samples = new Dictionary<Echo.Meshing.Grid, float>();
+        var samples = new Dictionary<Echo.Meshing.Volumes.Grid, float>();
         for (var x = 0; x < 50; x++)
         {
             for (var y = 0; y < 50; y++)
             {
                 for (var z = 0; z < 50; z++)
                 {
-                    samples.Add(new Echo.Meshing.Grid(x, y, z), z - 24.3f);
+                    samples.Add(new Echo.Meshing.Volumes.Grid(x, y, z), z - 24.3f);
                 }
             }
         }

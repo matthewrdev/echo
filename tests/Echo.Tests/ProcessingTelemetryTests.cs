@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Echo.Models;
+using Echo.Storage.Resources;
 using Echo.Storage;
 using Echo.Telemetry;
 

@@ -1,9 +1,12 @@
-using Echo.Models;
 using Echo.Compute;
 using Echo.Fusion;
 using Echo.Geometry;
 using Echo.Infrastructure;
+using Echo.Meshing.Visibility;
 using Echo.Meshing;
+using Echo.Models;
+using Echo.Storage.Artifacts;
+using Echo.Storage.Resources;
 using Echo.Storage;
 
 namespace Echo.Tests;

@@ -1,7 +1,8 @@
 using System.Text.Json;
+using Echo.Cli.Commands.Tracing;
 using Echo.Cli;
-using Echo.Models;
 using Echo.Infrastructure;
+using Echo.Models;
 using Echo.Projects;
 using Echo.Telemetry;
 

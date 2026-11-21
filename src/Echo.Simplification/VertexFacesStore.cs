@@ -1,3 +1,4 @@
+using Echo.Storage.Resources;
 using Echo.Storage;
 
 namespace Echo.Simplification;

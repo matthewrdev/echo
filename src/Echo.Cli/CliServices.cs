@@ -1,3 +1,12 @@
+using Echo.Cli.Commands.Configuration;
+using Echo.Cli.Commands.Export;
+using Echo.Cli.Commands.Hints;
+using Echo.Cli.Commands.Images;
+using Echo.Cli.Commands.Processing;
+using Echo.Cli.Commands.Projects;
+using Echo.Cli.Commands.Runtime;
+using Echo.Cli.Commands.Storage;
+using Echo.Cli.Commands.Tracing;
 using Echo.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -2,8 +2,11 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Echo.Geometry;
-using Echo.Models;
+using Echo.Meshing.Geometry;
 using Echo.Meshing;
+using Echo.Models;
+using Echo.Storage.Artifacts;
+using Echo.Storage.Resources;
 using Echo.Storage;
 
 namespace Echo.Benchmarks;

@@ -1,5 +1,5 @@
-using Echo.Models;
 using Echo.Geometry;
+using Echo.Models;
 
 namespace Echo.Fusion;
 

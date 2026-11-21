@@ -1,3 +1,4 @@
+using Echo.Texturing.Layout;
 using Echo.Texturing;
 
 namespace Echo.Tests;

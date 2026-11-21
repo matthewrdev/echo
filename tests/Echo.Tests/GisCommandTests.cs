@@ -1,6 +1,7 @@
+using Echo.Cli.Commands.Hints;
 using Echo.Cli;
-using Echo.Models;
 using Echo.Infrastructure;
+using Echo.Models;
 using Echo.Projects;
 
 namespace Echo.Tests;

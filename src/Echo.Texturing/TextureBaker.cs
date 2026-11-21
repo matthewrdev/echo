@@ -1,7 +1,12 @@
-using Echo.Models;
-using Echo.Storage;
 using Echo.Imaging;
+using Echo.Models;
 using Echo.Projects;
+using Echo.Storage.Records;
+using Echo.Storage.Resources;
+using Echo.Storage;
+using Echo.Texturing.Layout;
+using Echo.Texturing.Rasterization;
+using Echo.Texturing.Seams;
 using SkiaSharp;
 
 namespace Echo.Texturing;

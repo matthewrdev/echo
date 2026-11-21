@@ -1,7 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
-using Echo.Models;
 using Echo.Geometry;
+using Echo.Models;
+using Echo.Pipeline.Artifacts;
 using SkiaSharp;
 
 namespace Echo.Tests;
@@ -26,8 +27,8 @@ public sealed class ReconstructionTests
     private readonly FeatureExtractionTests featureExtractionTests;
     private readonly CloudProcessingTests cloudProcessingTests;
     private readonly VisualReconstructionTests visualReconstructionTests;
-    private readonly Echo.Pipeline.IStageResetService resetService;
-    public ReconstructionTests(Echo.Imaging.IRasterImageService rasterImageService, Echo.Infrastructure.IJsonCodec jsonCodec, Echo.Infrastructure.IFileOperations fileOperations, Echo.Reconstruction.IReconstructor reconstructor, Echo.Optimization.IBundleAdjuster bundleAdjuster, Echo.Meshing.IMeshBuilder meshBuilder, Echo.Simplification.IEdgeCollapse edgeCollapse, Echo.Export.IGlbWriter glbWriter, Echo.Projects.IProjectStoreFactory storeFactory, Echo.Pipeline.IProcessor processor, ProcessingSettingsTests settingsTests, TextureTests textureTests, Echo.Pipeline.IStageResetService resetService, ProcessingEfficiencyTests efficiencyTests, LineFeatureTests lineTests, ResetCommandTests resetCommandTests, FeatureExtractionTests featureExtractionTests, CloudProcessingTests cloudProcessingTests, VisualReconstructionTests visualReconstructionTests)
+    private readonly Echo.Pipeline.Artifacts.IStageResetService resetService;
+    public ReconstructionTests(Echo.Imaging.IRasterImageService rasterImageService, Echo.Infrastructure.IJsonCodec jsonCodec, Echo.Infrastructure.IFileOperations fileOperations, Echo.Reconstruction.IReconstructor reconstructor, Echo.Optimization.IBundleAdjuster bundleAdjuster, Echo.Meshing.IMeshBuilder meshBuilder, Echo.Simplification.IEdgeCollapse edgeCollapse, Echo.Export.IGlbWriter glbWriter, Echo.Projects.IProjectStoreFactory storeFactory, Echo.Pipeline.IProcessor processor, ProcessingSettingsTests settingsTests, TextureTests textureTests, Echo.Pipeline.Artifacts.IStageResetService resetService, ProcessingEfficiencyTests efficiencyTests, LineFeatureTests lineTests, ResetCommandTests resetCommandTests, FeatureExtractionTests featureExtractionTests, CloudProcessingTests cloudProcessingTests, VisualReconstructionTests visualReconstructionTests)
     {
         this.rasterImageService = rasterImageService;
         this.jsonCodec = jsonCodec;

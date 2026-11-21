@@ -1,7 +1,10 @@
-using Echo.Models;
 using Echo.Fusion;
 using Echo.Geometry;
 using Echo.Infrastructure;
+using Echo.Meshing.Volumes;
+using Echo.Models;
+using Echo.Storage.Artifacts;
+using Echo.Storage.Resources;
 
 namespace Echo.Tests;
 
@@ -111,8 +114,8 @@ public sealed class FusionSettingsTests
             Directory.CreateDirectory(directory);
             try
             {
-                using var data = new Echo.Storage.BulkDataSession(65536, 0);
-                var work = new Echo.Storage.WorkBuffers(data, directory);
+                using var data = new Echo.Storage.Artifacts.BulkDataSession(65536, 0);
+                var work = new Echo.Storage.Resources.WorkBuffers(data, directory);
                 var grid = FusionGridBuilder.Build(fixture.Views, fixture.Cloud, fixture.Project.Settings,
                     new FusionResourcePlan(256000, 1000), default, work: work);
                 Check(grid.Keys.Count <= 1000 && grid.VoxelSize > grid.RequestedVoxelSize, "Paged storage bypassed the automatic voxel budget");

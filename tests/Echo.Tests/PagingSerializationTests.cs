@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Echo.Models;
+using Echo.Storage.Artifacts;
+using Echo.Storage.Records;
 using Echo.Storage;
 
 namespace Echo.Tests;

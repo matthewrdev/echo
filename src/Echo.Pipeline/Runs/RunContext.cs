@@ -1,0 +1,685 @@
+using System.Diagnostics;
+using System.Text.Json;
+using Echo.Compute;
+using Echo.Infrastructure;
+using Echo.Models;
+using Echo.Pipeline.Artifacts;
+using Echo.Projects;
+using Echo.Storage.Artifacts;
+using Echo.Storage.Resources;
+using Echo.Storage;
+using Echo.Telemetry;
+
+namespace Echo.Pipeline.Runs;
+
+public sealed class RunContext : IDisposable
+{
+    private readonly ICheckpointStore checkpoints;
+    private readonly IJsonCodec jsonCodec;
+    private readonly IFileOperations fileOperations;
+    private readonly Action<object>? output;
+    private readonly JsonSerializerOptions eventOptions;
+    private readonly object reportGate = new();
+    private readonly object traceSaveGate = new();
+    private readonly OperationProgressFilter progressFilter = new();
+    private readonly Stopwatch progressClock = Stopwatch.StartNew();
+    private readonly HashSet<string> processingStages = new(StringComparer.Ordinal);
+    private readonly RunProcessingMetadata processing;
+    private bool processingDirty = true;
+    private long sequence;
+    private readonly IBulkArtifactStore bulk;
+    private readonly IProcessingResourcePlanner resourcePlanner;
+    private readonly ProcessingResourcePlan runResources;
+    private BulkDataSession? data;
+    private string? scratchDirectory;
+    private long lastResourceReport;
+    private long lastProgressSave = long.MinValue;
+    private StreamWriter? eventWriter;
+    private WorkBuffers? work;
+    private long diskReadBytes;
+    private long diskWrittenBytes;
+    private long pageEvictions;
+    private long cachePeakBytes;
+    private readonly ProcessingTelemetryTracker telemetry;
+    private readonly IComputeService? compute;
+    private readonly IPerformanceTraceStore traces;
+    private PerformanceTraceSession? traceSession;
+    private bool traceWriteWarning;
+    public IPerformanceTrace Trace
+    {
+        get;
+    }
+
+    public RunContext(IProjectStore store,
+        RunData run,
+        CancellationToken cancellation,
+        Action<object>? output,
+        ICheckpointStore checkpoints,
+        IJsonCodec jsonCodec,
+        IFileOperations fileOperations, IBulkArtifactStore bulk, IProcessingResourcePlanner resourcePlanner, ProcessingResourcePlan resources, ProcessingMemoryTracker memory,
+        ProcessingTelemetryTracker telemetry, IPerformanceTrace trace, IPerformanceTraceStore traces, IComputeService? compute = null)
+    {
+        this.compute = compute;
+        Trace = trace;
+        this.traces = traces;
+        Store = store;
+        Run = run;
+        Cancellation = cancellation;
+        this.output = output;
+        this.checkpoints = checkpoints;
+        this.jsonCodec = jsonCodec;
+        this.fileOperations = fileOperations;
+        this.bulk = bulk;
+        this.resourcePlanner = resourcePlanner;
+        runResources = resources;
+        Resources = resources;
+        Memory = memory;
+        this.telemetry = telemetry;
+        eventOptions = new JsonSerializerOptions(jsonCodec.Options)
+        {
+            WriteIndented = false
+        };
+        Images = run.Snapshot.Images
+            .Where(image => image.Enabled)
+            .OrderBy(image => image.CapturedAt)
+            .ThenBy(image => image.Name)
+            .ToList();
+        var processingPath = store.PathFor($"runs/{run.Id}/processing.json");
+        processing = File.Exists(processingPath)
+            ? jsonCodec.Read<RunProcessingMetadata>(processingPath)
+            : new RunProcessingMetadata { RunId = run.Id, RequestedDepthBackend = run.Snapshot.Settings.DepthBackend };
+        var eventPath = store.PathFor($"runs/{run.Id}/events.ndjson");
+        sequence = File.Exists(eventPath) ? File.ReadLines(eventPath).LongCount() : 0;
+    }
+
+    public string ComputeImplementation(ComputeOperation operation) =>
+        Run.Snapshot.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : compute?.GetImplementation(operation) ?? "cpu";
+
+    public IProjectStore Store
+    {
+        get;
+    }
+
+    public ProcessingMemoryTracker Memory
+    {
+        get;
+    }
+    public ProcessingResourcePlan Resources
+    {
+        get; private set;
+    }
+    public long WorkingMemoryBytes => Resources.MemoryBytes - Resources.HeadroomBytes - Resources.CacheBytes;
+    public bool Paged => Resources.Mode == ProcessingMemoryMode.Paged;
+    public BulkDataSession Data => data ??= bulk.OpenSession(Resources.CacheBytes, Resources.DiskBytes);
+    public WorkBuffers? Work => Paged ? work ??= new WorkBuffers(Data, ScratchDirectory) : null;
+
+    public string ScratchDirectory
+    {
+        get
+        {
+            if (scratchDirectory == null)
+            {
+                scratchDirectory = Store.PathFor($"work/paging-{Run.Id}-{Guid.NewGuid():N}");
+                Directory.CreateDirectory(scratchDirectory);
+            }
+            return scratchDirectory;
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (reportGate)
+        {
+            ReleaseStageResources();
+            Memory.Dispose();
+            traceSession?.Dispose();
+            eventWriter?.Dispose();
+        }
+    }
+
+    public void ReleaseStageResources()
+    {
+        lock (reportGate)
+        {
+            ReleaseBuffers();
+        }
+    }
+
+    public void PrepareStageResources(string stage)
+    {
+        lock (reportGate)
+        {
+            ReleaseBuffers();
+            Resources = resourcePlanner.PlanStage(runResources, stage);
+        }
+    }
+
+    private void ReleaseBuffers()
+    {
+        work = null;
+        if (data != null)
+        {
+            data.Dispose();
+            var final = data.Statistics;
+            diskReadBytes += final.ReadBytes;
+            diskWrittenBytes += final.WrittenBytes;
+            pageEvictions += final.Evictions;
+            cachePeakBytes = Math.Max(cachePeakBytes, final.PeakResidentBytes);
+            data = null;
+        }
+        if (scratchDirectory != null)
+        {
+            Directory.Delete(scratchDirectory, true);
+            scratchDirectory = null;
+        }
+    }
+
+    public T ReadData<T>(string path)
+    {
+        Cancellation.ThrowIfCancellationRequested();
+        return Paged && bulk.SupportsPaging(typeof(T)) ? Data.Read<T>(path) : jsonCodec.Read<T>(path);
+    }
+
+    public IEnumerable<VolumeSample> ReadArtifactChunk(string artifact)
+        => jsonCodec.Read<FusedVolume>(Store.PathFor(artifact + "/volume.json")).Samples;
+
+    public ResourceProgress MeasureResources()
+    {
+        var usage = Memory.Sample();
+        var paging = data?.Statistics;
+        return new ResourceProgress
+        {
+            Processor = telemetry.Sample(Memory.ProcessIds()),
+            WorkingSetBytes = usage.ResidentBytes,
+            PeakWorkingSetBytes = usage.PeakBytes,
+            ManagedBytes = usage.ManagedBytes,
+            MemoryBudgetBytes = Resources.MemoryBytes,
+            CacheResidentBytes = paging?.ResidentBytes ?? 0,
+            CachePeakBytes = Math.Max(cachePeakBytes, paging?.PeakResidentBytes ?? 0),
+            DiskReadBytes = diskReadBytes + (paging?.ReadBytes ?? 0),
+            DiskWrittenBytes = diskWrittenBytes + (paging?.WrittenBytes ?? 0),
+            PageEvictions = pageEvictions + (paging?.Evictions ?? 0),
+            ScratchBytes = paging?.ScratchBytes ?? 0
+        };
+    }
+    public void ReportResources()
+    {
+        lock (reportGate)
+        {
+            var usage = MeasureResources();
+            if (usage.WorkingSetBytes > Resources.MemoryBytes)
+            {
+                throw new EchoException($"Processing exceeded its {Resources.MemoryBytes / 1048576:N0} MiB RAM budget (observed {usage.WorkingSetBytes / 1048576:N0} MiB, including registered native workers). Completed checkpoints are retained. Increase ProcessingMemoryBudgetMb and resume; resolution was not changed.", 5);
+            }
+            if (Run.Progress != null && Environment.TickCount64 - lastResourceReport >= 5000)
+            {
+                lastResourceReport = Environment.TickCount64;
+                SaveTrace();
+                Run.Progress.Resources = usage;
+                SaveProgress(true);
+                Report("resourceProgress", new
+                {
+                    stage = Run.Progress.Stage,
+                    resources = usage
+                });
+            }
+        }
+    }
+
+    public RunData Run
+    {
+        get;
+    }
+    public CancellationToken Cancellation
+    {
+        get;
+    }
+    public IReadOnlyList<Photo> Images
+    {
+        get;
+    }
+
+    public string Artifact(string stage) => Run.Artifacts[stage];
+
+    public T ReadArtifact<T>(string stage, string file) => jsonCodec.Read<T>(Store.PathFor(Artifact(stage) + "/" + file));
+
+    public ReconstructionScene Scene() => ReadData<ReconstructionScene>(Store.PathFor(Artifact("alignment") + "/scene.json"));
+
+    public List<string> DepthUnits() => ReadArtifact<List<string>>("depth", "units.json");
+
+    public List<DepthMap> DepthMaps() => DepthUnits().Select(path => ReadData<DepthMap>(Store.PathFor(path + "/depth.json"))).ToList();
+
+    private ProcessingExecution DescribeCompute(string component, ComputeScope? scope)
+    {
+        var devices = scope?.Devices ?? [];
+        var accelerated = devices.Length > 0;
+        return new ProcessingExecution
+        {
+            Component = component,
+            RequestedBackend = Run.Snapshot.Settings.ComputeBackend.ToString().ToLowerInvariant(),
+            ActualBackend = accelerated ? "cpu+metal" : "cpu",
+            Device = accelerated ? string.Join("; ", devices) : null,
+            Implementation = accelerated ? string.Join("; ", scope!.Executions.Select(execution => execution.Implementation).Distinct(StringComparer.Ordinal)) : "Echo managed processing",
+            Precision = accelerated ? "see operation executions; stage-defined CPU" : "stage-defined"
+        };
+    }
+
+    private List<ProcessingExecution> DescribeExecutions(string component, ComputeScope? scope)
+    {
+        var result = new List<ProcessingExecution> { DescribeCompute(component, scope) };
+        foreach (var execution in scope?.Executions ?? [])
+        {
+            result.Add(new ProcessingExecution
+            {
+                Component = component + "." + execution.Operation.ToString().ToLowerInvariant(),
+                RequestedBackend = Run.Snapshot.Settings.ComputeBackend.ToString().ToLowerInvariant(),
+                ActualBackend = execution.Backend.ToString().ToLowerInvariant(),
+                Device = execution.Device,
+                Implementation = execution.Implementation,
+                Precision = execution.Precision == ComputePrecision.IntegerExact ? "integer-exact" : "float32"
+            });
+        }
+        return result;
+    }
+
+    public string Build(string stage, object inputs, Action<string> action, Func<ProcessingMetadata>? metadata = null,
+        string? algorithmVersion = null, IReadOnlyList<object>? compatibleInputs = null)
+    {
+        var owner = stage switch
+        {
+            "feature-image" => "features",
+            "features-preview" => "features",
+            "match-pair" => "matching",
+            "matching-feature-image" => "matching",
+            "matching-preview" => "matching",
+            "semantic-image" => "depth",
+            "semantics" => "depth",
+            "cliff-depth-image" => "depth",
+            "depth-image" => "depth",
+            "depth-preview" => "depth",
+            "alignment-preview" => "alignment",
+            "alignment-initial" => "alignment",
+            "alignment-guided-pair" => "alignment",
+            "cloud-preview" => "cloud",
+            "fusion-chunk" => "fusion",
+            "fusion-grid" => "fusion",
+            _ => stage
+        };
+        if (Run.Snapshot.StageRevisions.TryGetValue(owner, out var resetRevision))
+        {
+            inputs = new
+            {
+                resetRevision,
+                inputs
+            };
+            compatibleInputs = compatibleInputs?.Select(compatible => (object)new
+            {
+                resetRevision,
+                inputs = compatible
+            }).ToArray();
+        }
+
+        using var performance = Trace.Begin(stage, PerformanceSpanKind.Checkpoint, PerformanceBackend.Mixed, owner);
+        using var computeScope = compute?.BeginScope(Math.Max(4, WorkingMemoryBytes / 4));
+        var reused = true;
+        if (metadata == null)
+        {
+            metadata = () => new ProcessingMetadata
+            {
+                SourceArtifacts = ProcessingArtifactReferences.Find(inputs, jsonCodec.Options),
+                Executions = DescribeExecutions(stage, computeScope)
+            };
+        }
+        else
+        {
+            var sourceMetadata = metadata;
+            metadata = () =>
+            {
+                var result = sourceMetadata();
+                if (computeScope?.Devices.Length > 0)
+                {
+                    result.Executions.AddRange(DescribeExecutions(stage + ".compute", computeScope));
+                }
+                return result;
+            };
+        }
+        string artifact;
+        try
+        {
+            artifact = checkpoints.Build(Store, stage, inputs, directory =>
+            {
+                reused = false;
+                action(directory);
+            }, Cancellation, Report, metadata, algorithmVersion, compatibleInputs);
+            performance?.Complete(reused ? PerformanceStatus.Reused : PerformanceStatus.Completed);
+        }
+        catch (OperationCanceledException)
+        {
+            performance?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            performance?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        lock (reportGate)
+        {
+            var path = artifact + "/processing.json";
+            var manifest = jsonCodec.Read<Artifact>(Store.PathFor(artifact + "/manifest.json"));
+            var recorded = manifest.Files.ContainsKey("processing.json");
+            processing.Artifacts[artifact] = new ArtifactProcessingReference
+            {
+                Stage = stage,
+                Reused = reused,
+                MetadataPath = recorded ? path : null,
+                ProvenanceStatus = recorded ? "recorded" : "unknown-legacy"
+            };
+            processingDirty = true;
+            Report("artifactProcessing", new
+            {
+                stage,
+                artifact,
+                processing = processing.Artifacts[artifact]
+            });
+        }
+        return artifact;
+    }
+
+    public void Publish(string stage, string artifact)
+    {
+        lock (reportGate)
+        {
+            Run.Artifacts[stage] = artifact;
+            SaveRun();
+            Report("checkpoint", new
+            {
+                stage,
+                artifact
+            });
+        }
+    }
+
+    public void BeginOperation(string stage, string operation)
+        => ReportOperation(stage, new OperationProgress(operation, operation + "…"));
+
+    public void ReportOperation(string stage, OperationProgress progress)
+    {
+        lock (reportGate)
+        {
+            if (!progressFilter.Accept(stage, progress, progressClock.Elapsed))
+            {
+                return;
+            }
+            Trace.Operation(progress);
+            Report("stageProgress", new
+            {
+                stage,
+                operation = progress.Operation,
+                steps = progress.Steps,
+                stepIndex = progress.StepIndex,
+                stageSteps = progress.StageSteps,
+                stageStepIndex = progress.StageStepIndex,
+                message = progress.Message,
+                completed = progress.Completed,
+                total = progress.Total,
+                unit = progress.Unit
+            });
+        }
+    }
+
+    public void ReportProgress(string stage, string message, int? completed = null, int? total = null, string? unit = null)
+    {
+        lock (reportGate)
+        {
+            if (completed.HasValue && !progressFilter.Accept(stage, new OperationProgress("", message, completed, total), progressClock.Elapsed))
+            {
+                return;
+            }
+            Report("stageProgress", new
+            {
+                stage,
+                message,
+                completed,
+                total,
+                unit = unit ?? (stage == "matching" ? "image pairs" : stage is "features" or "depth" ? "images" : "items")
+            });
+        }
+    }
+
+    public void BeginStep(string stage, string[] steps, int stepIndex, int? total = null)
+    {
+        ReportOperation(stage, new OperationProgress(steps[stepIndex],
+            $"{steps[stepIndex]} · step {stepIndex + 1} of {steps.Length}", 0, total,
+            stepIndex == steps.Length - 1 ? "results" : "images")
+        {
+            Steps = steps,
+            StepIndex = stepIndex
+        });
+    }
+
+    public void Start()
+    {
+        traceSession = Trace.BeginRun(Run.Id, Run.Target);
+        SaveTrace();
+        Run.Status = "running";
+        Run.Error = null;
+        SaveRun();
+        Report("runStarted", new
+        {
+            Run.Target,
+            revision = Run.Snapshot.Revision
+        });
+    }
+
+    public void Complete()
+    {
+        traceSession?.Finish(PerformanceStatus.Completed);
+        SaveTrace();
+        Run.Status = "completed";
+        SaveRun();
+        Report("runCompleted", new
+        {
+            stage = Run.Target,
+            Run.Artifacts
+        });
+    }
+
+    public void Cancel()
+    {
+        traceSession?.Finish(PerformanceStatus.Cancelled);
+        SaveTrace();
+        Run.Status = "cancelled";
+        SaveRun();
+        Report("runCancelled", new
+        {
+        });
+    }
+
+    public void Fail(Exception error)
+    {
+        traceSession?.Finish(PerformanceStatus.Failed);
+        SaveTrace();
+        Run.Status = error is EchoException { ExitCode: 5 } ? "needs-input" : "failed";
+        Run.Error = error.Message;
+        SaveRun();
+        Report("runFailed", new
+        {
+            error = error.Message,
+            details = error.ToString()
+        });
+    }
+
+    public void Report(string type, object payload)
+    {
+        lock (reportGate)
+        {
+            UpdateProgress(type, payload);
+
+            var record = new
+            {
+                schemaVersion = 1,
+                sequence = ++sequence,
+                timestamp = DateTimeOffset.UtcNow,
+                runId = Run.Id,
+                type,
+                payload
+            };
+            eventWriter ??= new StreamWriter(Store.PathFor($"runs/{Run.Id}/events.ndjson"), append: true);
+            eventWriter.WriteLine(JsonSerializer.Serialize(record, eventOptions));
+            eventWriter.Flush();
+            output?.Invoke(record);
+        }
+    }
+
+    private void UpdateProgress(string type, object payload)
+    {
+        if (type is "stageStarted" or "stageProgress" or "imageCheckpoint" or "pairCheckpoint")
+        {
+            var data = JsonSerializer.SerializeToElement(payload, jsonCodec.Options);
+            var stage = data.GetProperty("stage").GetString() ?? "";
+            var reportedStage = stage;
+            if (stage is "cloud-preview" or "features-preview" or "matching-preview" or "depth-preview")
+            {
+                return;
+            }
+            stage = stage switch
+            {
+                "feature-image" => "features",
+                "match-pair" => "matching",
+                "matching-feature-image" => "matching",
+                "alignment-preview" => "alignment",
+                "alignment-initial" => "alignment",
+                "alignment-guided-pair" => "alignment",
+                "semantic-image" or "semantics" => Run.Progress?.Stage == "matching" ? "matching" : "depth",
+                "cliff-depth-image" => "depth",
+                "fusion-chunk" => "fusion",
+                "fusion-grid" => "fusion",
+                "depth-image" => "depth",
+                _ => stage
+            };
+            if (type == "stageStarted")
+            {
+                processingStages.Add(stage);
+            }
+            var checking = !processingStages.Contains(stage);
+            var previous = Run.Progress?.Stage == stage ? Run.Progress : null;
+            var beginsChildCheckpoint = type == "stageStarted" && reportedStage != stage;
+            if (beginsChildCheckpoint && previous?.Phase == "processing")
+            {
+                // Checkpoint plumbing must not erase the algorithm's useful
+                // operation/counters or pretend another work item has finished.
+                return;
+            }
+            var completed = data.TryGetProperty("completed", out var done) && done.ValueKind == JsonValueKind.Number
+                ? (long?)done.GetInt64()
+                : null;
+            var total = data.TryGetProperty("total", out var count) && count.ValueKind == JsonValueKind.Number
+                ? (long?)count.GetInt64()
+                : null;
+            var unit = data.TryGetProperty("unit", out var workUnit) ? workUnit.GetString() ?? "items"
+                : stage == "matching" ? "image pairs" : "images";
+            var operation = data.TryGetProperty("operation", out var activity) ? activity.GetString() ?? "" : previous?.Operation ?? "";
+            var operationChanged = operation != previous?.Operation;
+            var stageSteps = data.TryGetProperty("stageSteps", out var stageStepNames) && stageStepNames.ValueKind == JsonValueKind.Array
+                ? stageStepNames.EnumerateArray().Select(value => value.GetString() ?? "").ToArray()
+                : previous?.StageSteps ?? [];
+            var stageStepIndex = data.TryGetProperty("stageStepIndex", out var stageIndex) && stageIndex.ValueKind == JsonValueKind.Number
+                ? stageIndex.GetInt32() : previous?.StageStepIndex;
+            var steps = data.TryGetProperty("steps", out var stepNames) && stepNames.ValueKind == JsonValueKind.Array
+                ? stepNames.EnumerateArray().Select(value => value.GetString() ?? "").ToArray()
+                : operationChanged ? [] : previous?.Steps ?? [];
+            var stepIndex = data.TryGetProperty("stepIndex", out var index) && index.ValueKind == JsonValueKind.Number
+                ? index.GetInt32() : operationChanged ? null : previous?.StepIndex;
+            var continuesStep = steps.Length > 0 && !(data.TryGetProperty("stepIndex", out var step) && step.ValueKind == JsonValueKind.Number);
+            var uncounted = !completed.HasValue && !total.HasValue;
+            var messageOnly = type == "stageProgress" && !data.TryGetProperty("operation", out _) && uncounted;
+            if (continuesStep || messageOnly)
+            {
+                completed ??= previous?.Completed;
+                total ??= previous?.Total;
+                if (messageOnly)
+                {
+                    unit = previous?.Unit ?? unit;
+                }
+            }
+
+            var started = operation == previous?.Operation ? previous.OperationStarted : DateTimeOffset.UtcNow;
+            Run.Progress = new RunProgress
+            {
+                Steps = steps,
+                StepIndex = stepIndex,
+                StageSteps = stageSteps,
+                StageStepIndex = stageStepIndex,
+                Resources = previous?.Resources ?? MeasureResources(),
+                Operation = operation,
+                OperationStarted = started,
+                Unit = unit,
+                Stage = stage,
+                Phase = checking ? "checking" : "processing",
+                Completed = completed,
+                Total = total,
+                Message = data.TryGetProperty("message", out var message) ? message.GetString() ?? "" : completed.HasValue
+                    ? checking ? $"Reusing saved {stage}: {completed:N0} of {total:N0} {unit} checked."
+                        : $"{completed:N0} / {total:N0} {unit} completed"
+                    : "Processing saved inputs…"
+            };
+            var completedOperation = total.HasValue && completed >= total;
+            SaveProgress(operationChanged || completedOperation || previous == null);
+        }
+    }
+
+    private void SaveProgress(bool force)
+    {
+        var now = Environment.TickCount64;
+        if (!force && lastProgressSave != long.MinValue && now - lastProgressSave < 1000)
+        {
+            return;
+        }
+        // events.ndjson is the incremental history. Polling only needs this
+        // small latest-value snapshot, not another copy of every source photo.
+        fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/progress.json"), Run.Progress);
+        lastProgressSave = now;
+    }
+
+    public void SaveTrace()
+    {
+        if (traceSession == null)
+        {
+            return;
+        }
+        try
+        {
+            lock (traceSaveGate)
+            {
+                var checkpoint = traceSession.CaptureCheckpoint();
+                traces.Save(Store.PathFor($"runs/{Run.Id}"), checkpoint.Document);
+                traceSession.Acknowledge(checkpoint);
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            if (!traceWriteWarning)
+            {
+                traceWriteWarning = true;
+                Report("warning", new
+                {
+                    message = "Performance trace could not be saved: " + error.Message
+                });
+            }
+        }
+    }
+
+    private void SaveRun()
+    {
+        Run.ProcessingMetadataFile = "processing.json";
+        if (processingDirty)
+        {
+            fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/processing.json"), processing);
+            processingDirty = false;
+        }
+        fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/run.json"), Run);
+        File.Delete(Store.PathFor($"runs/{Run.Id}/progress.json"));
+        lastProgressSave = long.MinValue;
+    }
+}

@@ -1,8 +1,0 @@
-using Echo.Models;
-
-namespace Echo.Pipeline;
-
-public interface ISceneSemanticArtifacts
-{
-    IReadOnlyDictionary<string, SemanticMap> Build(RunContext context, string progressStage = "depth");
-}

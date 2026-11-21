@@ -1,11 +1,21 @@
 using System.Text.Json;
-using Echo.Models;
 using Echo.Fusion;
 using Echo.Geometry;
+using Echo.Meshing.Geometry;
+using Echo.Meshing.Repair;
+using Echo.Meshing.Topology;
+using Echo.Meshing.Visibility;
+using Echo.Meshing.Volumes;
 using Echo.Meshing;
-using Echo.Storage;
-using Echo.Simplification;
+using Echo.Models;
+using Echo.Pipeline.Meshes;
 using Echo.Pipeline;
+using Echo.Simplification;
+using Echo.Storage.Artifacts;
+using Echo.Storage.Pages;
+using Echo.Storage.Records;
+using Echo.Storage.Resources;
+using Echo.Storage;
 
 namespace Echo.Tests;
 

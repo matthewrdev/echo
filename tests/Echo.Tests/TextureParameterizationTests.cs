@@ -1,5 +1,8 @@
-using Echo.Models;
 using Echo.Geometry;
+using Echo.Models;
+using Echo.Texturing.Charts;
+using Echo.Texturing.Layout;
+using Echo.Texturing.Rasterization;
 using Echo.Texturing;
 using SkiaSharp;
 

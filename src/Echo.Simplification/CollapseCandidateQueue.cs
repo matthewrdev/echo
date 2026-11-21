@@ -1,3 +1,5 @@
+using Echo.Storage.Records;
+using Echo.Storage.Resources;
 using Echo.Storage;
 
 namespace Echo.Simplification;

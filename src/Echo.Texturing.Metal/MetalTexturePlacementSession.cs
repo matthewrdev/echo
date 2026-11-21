@@ -1,7 +1,8 @@
-using Echo.Models;
-using Echo.Telemetry;
 using System.Buffers;
 using System.Text;
+using Echo.Models;
+using Echo.Telemetry;
+using Echo.Texturing.Layout;
 
 namespace Echo.Texturing.Metal;
 

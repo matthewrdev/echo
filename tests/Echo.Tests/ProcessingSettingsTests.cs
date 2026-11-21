@@ -1,6 +1,7 @@
-using Echo.Models;
 using Echo.Geometry;
 using Echo.Matching;
+using Echo.Models;
+using Echo.Pipeline.Matching;
 using Echo.Pipeline;
 
 namespace Echo.Tests;

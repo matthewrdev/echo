@@ -1,11 +1,15 @@
 using System.Text.Json;
-using Echo.Models;
 using Echo.Depth;
 using Echo.Geometry;
 using Echo.Imaging;
-using Echo.Projects;
-using Echo.Pipeline;
 using Echo.Infrastructure;
+using Echo.Models;
+using Echo.Pipeline.Artifacts;
+using Echo.Pipeline.DepthEstimation;
+using Echo.Pipeline.Runs;
+using Echo.Pipeline.Semantics;
+using Echo.Pipeline;
+using Echo.Projects;
 using SkiaSharp;
 
 namespace Echo.Tests;
