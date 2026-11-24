@@ -8,10 +8,9 @@ namespace Echo.Fusion;
 
 internal static class FusionExclusions
 {
-    public static DenseCloudData Filter(DenseCloudData cloud, IReadOnlyList<ExclusionRegion> regions,
+    public static DenseCloudData Filter(DenseCloudData cloud, RegionCropFilter crop,
         CancellationToken cancellation, WorkBuffers? work)
     {
-        var crop = new RegionCropFilter(regions);
         if (!crop.HasRegions)
         {
             return cloud;

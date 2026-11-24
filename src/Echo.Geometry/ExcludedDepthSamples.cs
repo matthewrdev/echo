@@ -9,10 +9,10 @@ public sealed class ExcludedDepthSamples : IDepthSamples
     private readonly RegionCropFilter crop;
     private BitArray? excluded;
 
-    public ExcludedDepthSamples(DepthView source, IReadOnlyList<ExclusionRegion> regions)
+    public ExcludedDepthSamples(DepthView source, RegionCropFilter crop)
     {
         this.source = source;
-        crop = new RegionCropFilter(regions);
+        this.crop = crop;
     }
 
     public int Count => source.Map.SampleCount;

@@ -18,6 +18,47 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     private var probe: GeographicProbeAnnotation?
     private var probeCircle: MKCircle?
     private var probeSignature = ""
+    private var gpsPolygons: [GpsPolygon] = []
+    private var gpsDraft: GpsPolygon?
+    private var gpsOverlays: [MKOverlay] = []
+    private var gpsColors: [ObjectIdentifier: NSColor] = [:]
+
+    func updateGpsPolygons(map: MKMapView, polygons: [GpsPolygon], draft: GpsPolygon?) {
+        guard gpsPolygons != polygons || gpsDraft != draft else { return }
+        gpsPolygons = polygons
+        gpsDraft = draft
+        map.removeOverlays(gpsOverlays)
+        gpsOverlays.removeAll()
+        gpsColors.removeAll()
+        for polygon in polygons {
+            addGpsOverlay(map: map, polygon: polygon, isDraft: false)
+        }
+        if let draft {
+            addGpsOverlay(map: map, polygon: draft, isDraft: true)
+        }
+    }
+
+    private func addGpsOverlay(map: MKMapView, polygon: GpsPolygon, isDraft: Bool) {
+        let coordinates = polygon.vertices.map(\.coordinate)
+        let color: NSColor = polygon.mode == .include ? .systemGreen : .systemRed
+        if coordinates.count >= 3 {
+            addGpsOverlay(MKPolygon(coordinates: coordinates, count: coordinates.count), color: color, map: map)
+        } else if coordinates.count == 2 {
+            addGpsOverlay(MKPolyline(coordinates: coordinates, count: coordinates.count), color: color, map: map)
+        }
+
+        if isDraft {
+            for coordinate in coordinates {
+                addGpsOverlay(MKCircle(center: coordinate, radius: 1), color: color, map: map)
+            }
+        }
+    }
+
+    private func addGpsOverlay(_ overlay: MKOverlay, color: NSColor, map: MKMapView) {
+        gpsOverlays.append(overlay)
+        gpsColors[ObjectIdentifier(overlay)] = color
+        map.addOverlay(overlay, level: .aboveLabels)
+    }
 
     @objc func pickTestLocation(_ gesture: NSClickGestureRecognizer) {
         guard let pickLocation, let map = gesture.view as? MKMapView else { return }
@@ -99,11 +140,12 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
 
     private func rebuild(map: MKMapView, cameras: [MapCamera], fit: Bool) {
         map.removeAnnotations(map.annotations.filter { $0 is PhotoMapAnnotation })
-        map.removeOverlays(map.overlays.filter { !($0 is ModelMapOverlay) && $0 !== probeCircle })
+        map.removeOverlays(cameraOverlays.values.flatMap { $0 })
         colors.removeAll()
         cameraIDs.removeAll()
         cameraOverlays.removeAll()
         var extent = model?.boundingMapRect ?? MKMapRect.null
+        for overlay in gpsOverlays { extent = extent.union(overlay.boundingMapRect) }
         for camera in cameras {
             let annotation = PhotoMapAnnotation(camera: camera)
             map.addAnnotation(annotation)
@@ -182,6 +224,22 @@ final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        if let color = gpsColors[ObjectIdentifier(overlay)] {
+            let renderer: MKOverlayPathRenderer
+            if let polygon = overlay as? MKPolygon {
+                renderer = MKPolygonRenderer(polygon: polygon)
+            } else if let circle = overlay as? MKCircle {
+                renderer = MKCircleRenderer(circle: circle)
+            } else if let line = overlay as? MKPolyline {
+                renderer = MKPolylineRenderer(polyline: line)
+            } else {
+                return MKOverlayRenderer(overlay: overlay)
+            }
+            renderer.strokeColor = color
+            renderer.fillColor = color.withAlphaComponent(0.22)
+            renderer.lineWidth = 2.5
+            return renderer
+        }
         if let circle = overlay as? MKCircle, circle === probeCircle {
             let renderer = MKCircleRenderer(circle: circle)
             renderer.strokeColor = .systemPink

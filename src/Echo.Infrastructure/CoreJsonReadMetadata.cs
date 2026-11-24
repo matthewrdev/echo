@@ -23,6 +23,7 @@ public sealed class CoreJsonReadMetadata : IJsonReadMetadata
                 new JsonStringEnumConverter<PerformanceSpanKind>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<ComputeBackend>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<SubjectDistanceMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
+                new JsonStringEnumConverter<CropRegionMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<IslandTrimMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<ProcessingMemoryMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false)
             }

@@ -69,16 +69,17 @@ public sealed class FusionStage : IPipelineStage
             project.Settings.FusionVoxelSize,
             project.Settings.FusionAllowCoarserResolution
         };
+        var cropGridInputs = GpsCropFingerprint.Apply(gridInputs, project.Settings.GpsPolygons);
         var integrationInputs = new
         {
-            gridInputs,
+            gridInputs = cropGridInputs,
             project.Settings.ComputeBackend,
             inputs.computeImplementation,
             // Auto backend selection and checkpoint boundaries depend on budgets.
             resources.MemoryBudgetBytes,
             computeBudget = context.WorkingMemoryBytes / 4
         };
-        var fusionPath = context.Build("fusion", inputs, dir =>
+        var fusionPath = context.Build("fusion", GpsCropFingerprint.Apply(inputs, project.Settings.GpsPolygons), dir =>
                 {
                     var previews = context.Headless ? null : new RunPreviewPublisher(context, fileOperations, RunPreviewStage.Fusion);
                     var maps = context.DepthMaps();
@@ -95,7 +96,7 @@ public sealed class FusionStage : IPipelineStage
                                 previews.PublishFusion(preview);
                             }
                         },
-                        context.Paged ? new FusionGridCheckpoints(context, gridInputs, fileOperations, jsonCodec) : null);
+                        context.Paged ? new FusionGridCheckpoints(context, cropGridInputs, fileOperations, jsonCodec) : null);
                     if (project.Settings.FusionIslandMode != IslandTrimMode.Off)
                     {
                         context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Cleanup, true, "Removing disconnected fusion regions before meshing…"));

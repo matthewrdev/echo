@@ -57,7 +57,7 @@ public sealed class MeshStage : IPipelineStage
         var semanticsPath = project.Settings.OptimiseVegetation ? context.Artifact("semantics") : null;
         var semanticUnits = semanticsPath == null ? new Dictionary<string, string>()
             : context.ReadArtifact<Dictionary<string, string>>("semantics", "units.json");
-        var meshPath = context.Build("mesh", new
+        var meshInputs = new
         {
             fusionPath,
             depthUnits,
@@ -78,7 +78,8 @@ public sealed class MeshStage : IPipelineStage
             project.Settings.FaceLimit,
             project.Settings.MeshIslandMode,
             project.Settings.MeshIslandMinimumAreaPercent
-        }, dir =>
+        };
+        var meshPath = context.Build("mesh", GpsCropFingerprint.Apply(meshInputs, project.Settings.GpsPolygons), dir =>
                 {
                     var progress = new MeshProgress(project.Settings, update => context.ReportOperation(Name, update));
                     progress.Begin(MeshPhase.LoadInputs);
@@ -92,14 +93,14 @@ public sealed class MeshStage : IPipelineStage
                     using var geometryBuffers = new MeshGeometryBuffers(context.Work);
                     var extracted = geometryBuffers.Replace(work => meshBuilder.Extract(volume, cancellation, work,
                         message => context.ReportProgress(Name, message), progress.Report, project.Settings.ComputeBackend));
-                    extracted = geometryBuffers.Replace(work => SurfaceExclusionFilter.Filter(extracted, project.Settings.ExclusionRegions, cancellation, work));
+                    extracted = geometryBuffers.Replace(work => SurfaceExclusionFilter.Filter(extracted, depthContext.Crop, cancellation, work));
                     var extractedFaces = extracted.Faces.Count;
                     var detailTolerance = volume.VoxelSize * .15;
                     progress.Begin(MeshPhase.SimplifyGeometry);
                     var reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(extracted, project.Settings.FaceLimit, cancellation, detailTolerance, work: work, progress: progress.Report));
                     progress.Begin(MeshPhase.RepairObservedHoles);
                     meshBuilder.FillHoles(project, scene, maps, reduced, volume.VoxelSize, cancellation, context.Work, progress.Report, depthContext);
-                    reduced = geometryBuffers.Replace(work => SurfaceExclusionFilter.Filter(reduced, project.Settings.ExclusionRegions, cancellation, work));
+                    reduced = geometryBuffers.Replace(work => SurfaceExclusionFilter.Filter(reduced, depthContext.Crop, cancellation, work));
                     if (reduced.Faces.Count > project.Settings.FaceLimit)
                     {
                         reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(reduced, project.Settings.FaceLimit, cancellation, work: work, progress: progress.Report));
@@ -126,7 +127,7 @@ public sealed class MeshStage : IPipelineStage
                         progress.Report(new OperationProgress("Surface reconstruction", "Reconstructing missing surface…"));
                         var reconstructed = completionBuffers.Replace(work => surfaceReconstructor.Reconstruct(observed, scene, volume.VoxelSize, cancellation,
                             message => context.ReportProgress(Name, message), context.Memory, work));
-                        reconstructed = completionBuffers.Replace(work => SurfaceExclusionFilter.Filter(reconstructed, project.Settings.ExclusionRegions, cancellation, work));
+                        reconstructed = completionBuffers.Replace(work => SurfaceExclusionFilter.Filter(reconstructed, depthContext.Crop, cancellation, work));
                         var supported = reconstructed;
                         if (!project.Settings.MeshCloseHull)
                         {
@@ -172,9 +173,9 @@ public sealed class MeshStage : IPipelineStage
                     }
 
                     var facesBeforeExclusions = reduced.Faces.Count;
-                    reduced = geometryBuffers.Replace(work => SurfaceExclusionFilter.Filter(reduced, project.Settings.ExclusionRegions, cancellation, work));
+                    reduced = geometryBuffers.Replace(work => SurfaceExclusionFilter.Filter(reduced, depthContext.Crop, cancellation, work));
                     var excludedFaces = facesBeforeExclusions - reduced.Faces.Count;
-                    if (project.Settings.ExclusionRegions.Any(region => region.Enabled))
+                    if (depthContext.Crop.HasRegions)
                     {
                         context.ReportProgress(Name, $"Removed {excludedFaces:N0} triangles outside the crop selection after surface completion.");
                     }

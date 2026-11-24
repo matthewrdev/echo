@@ -14,6 +14,8 @@ struct NativePhotoMap: NSViewRepresentable {
     var testLocation: GeoPosition? = nil
     var testAccuracy = 0.0
     var pickLocation: ((CLLocationCoordinate2D) -> Void)? = nil
+    var gpsPolygons: [GpsPolygon] = []
+    var gpsDraft: GpsPolygon? = nil
 
     func makeCoordinator() -> PhotoMapCoordinator {
         PhotoMapCoordinator(selection: singleSelection ?? { selected = $0 })
@@ -53,6 +55,7 @@ struct NativePhotoMap: NSViewRepresentable {
             }
         }
         context.coordinator.updateModel(map: map, model: modelOverlay, opacity: modelOpacity)
+        context.coordinator.updateGpsPolygons(map: map, polygons: gpsPolygons, draft: gpsDraft)
         context.coordinator.update(map: map, cameras: cameras, identity: identity, selected: selected, boxed: boxed)
         context.coordinator.updateProbe(map: map, position: testLocation, accuracy: testAccuracy)
     }

@@ -729,6 +729,13 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             }, actionTitle: "Delete", destructive: true)
     }
 
+    func save(gpsPolygons: [GpsPolygon], completion: @escaping @MainActor () -> Void) {
+        perform("Saving GPS crop polygons…") {
+            try await self.client.importValue(root: self.root, command: "gps-polygons", value: gpsPolygons)
+            completion()
+        }
+    }
+
     func save(settings: ProcessingSettings) {
         perform("Saving processing settings…") {
             try await self.client.importValue(root: self.root, command: "config", value: settings)

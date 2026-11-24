@@ -43,6 +43,49 @@ public sealed class ExclusionRegionTests
         }
 
         tests.Run("Mesh exclusions remove crossing triangles even with all vertices outside", Mesh);
+        tests.Run("GPS crops support concave rings, exclusions, and antimeridian vertices", GpsGeometry);
+    }
+
+    private void GpsGeometry()
+    {
+        var origin = new GeoPosition { Latitude = 0, Longitude = 180 };
+        var include = new GpsPolygon
+        {
+            Mode = CropRegionMode.Include,
+            Vertices = [
+                new(0, 179.999), new(0, -179.999), new(.0004, -179.999),
+                new(.0004, 180), new(.001, 180), new(.001, 179.999)
+            ]
+        };
+        var separate = new GpsPolygon
+        {
+            Mode = CropRegionMode.Include,
+            Vertices = [new(0, -179.998), new(0, -179.997), new(.001, -179.997), new(.001, -179.998)]
+        };
+        var exclude = new GpsPolygon
+        {
+            Vertices = [new(.0001, 179.9994), new(.0001, 179.9996), new(.0002, 179.9995)]
+        };
+
+        GpsPolygonValidation.ValidateAll([include, separate, exclude]);
+        var crop = new RegionCropFilter([], [include, separate, exclude], origin);
+
+        V3 Local(double latitude, double longitude, double height = 0)
+        {
+            var point = CameraGeometry.ToLocal(new GeoPosition { Latitude = latitude, Longitude = longitude }, origin);
+            return new V3(point.X, height, point.Z);
+        }
+
+        Check(!crop.IsExcluded(Local(.0003, -179.9995, 500)), "GPS crop had an altitude bound");
+        Check(!crop.IsExcluded(Local(.0003, -179.9975)), "Separate inclusion was lost");
+        Check(crop.IsExcluded(Local(.0008, -179.9995)), "Concave notch was filled");
+        Check(crop.IsExcluded(Local(.00015, 179.9995)), "Exclusion inside an inclusion was lost");
+        Check(crop.ExcludesTriangle(Local(.00005, 179.9992), Local(.00005, 179.9998), Local(.00035, 179.9995)),
+            "Triangle containing an exclusion polygon was retained");
+        Check(crop.ExcludesTriangle(Local(.0008, 179.9998), Local(.00035, -179.9992), Local(.0001, -179.9992)),
+            "A triangle bridged the concave inclusion boundary");
+        Check(!crop.ExcludesTriangle(Local(.0005, 179.9992), Local(.0005, 179.9998), Local(.0008, 179.9995)),
+            "A triangle within the inclusion was removed");
     }
 
     private void PaintedHull()

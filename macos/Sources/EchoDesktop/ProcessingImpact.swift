@@ -40,7 +40,7 @@ struct ProcessingImpact {
             || old.cloudMinimumParallaxDegrees != new.cloudMinimumParallaxDegrees
         if cloud { return .cloud }
         let fusion =
-            old.exclusionRegions != new.exclusionRegions
+            old.exclusionRegions != new.exclusionRegions || old.gpsPolygons != new.gpsPolygons
             || old.fusionDetailMultiplier != new.fusionDetailMultiplier
             || old.fusionMemoryBudgetMb != new.fusionMemoryBudgetMb
             || old.fusionVoxelSize != new.fusionVoxelSize

@@ -35,15 +35,16 @@ public sealed class DepthFusion : IDepthFusion
             cameras.Add(camera.ImageId, camera);
         }
 
+        var crop = new RegionCropFilter(project.Settings.ExclusionRegions, project.Settings.GpsPolygons, scene.Origin);
         var views = new DepthView[maps.Count];
         for (var index = 0; index < maps.Count; index++)
         {
             var source = maps[index];
-            var map = DepthExclusions.Apply(photos[source.ImageId], cameras[source.ImageId], source, project.Settings.ExclusionRegions);
+            var map = DepthExclusions.Apply(photos[source.ImageId], cameras[source.ImageId], source, crop);
             views[index] = new DepthView(photos[map.ImageId], cameras[map.ImageId], map);
         }
 
-        cloud = FusionExclusions.Filter(cloud, project.Settings.ExclusionRegions, cancellation, work);
+        cloud = FusionExclusions.Filter(cloud, crop, cancellation, work);
         FusionGrid BuildGrid() => FusionGridBuilder.Build(views, cloud, project.Settings, resources, cancellation, progress, work, operationProgress);
         var grid = grids?.ReadOrBuild(BuildGrid) ?? BuildGrid();
         progress?.Invoke($"Fusion resolution: requested {grid.RequestedVoxelSize:G6} m; using {grid.VoxelSize:G6} m across {grid.Keys.Count:N0} grid samples.");
@@ -95,7 +96,7 @@ public sealed class DepthFusion : IDepthFusion
             return integrator;
         }
         var previewSamples = preview == null ? null : new FusionPreviewSampler();
-        var appender = new FusionVolumeAppender(result.Samples, previewSamples, project.Settings.ExclusionRegions, voxel);
+        var appender = new FusionVolumeAppender(result.Samples, previewSamples, crop, voxel);
         long lastPreview = 0;
         using var batches = new FusionChunkIntegrator(PrepareIntegrator, keys.OpenReader(),
             chunks == null ? plan.BatchCapacity : Math.Max(plan.BatchCapacity, plan.CheckpointCapacity), cancellation);

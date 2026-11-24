@@ -21,6 +21,11 @@ public sealed class MeshDepthContext : IDisposable
         get;
     }
 
+    public RegionCropFilter Crop
+    {
+        get;
+    }
+
     public MeshDepthContext(ProjectData project, ReconstructionScene scene, IReadOnlyList<DepthMap> maps,
         WorkBuffers? work = null, CancellationToken cancellation = default)
     {
@@ -28,13 +33,14 @@ public sealed class MeshDepthContext : IDisposable
         var cameras = scene.Cameras.ToDictionary(camera => camera.ImageId, StringComparer.Ordinal);
         Photos = photos;
         Views = new DepthView[maps.Count];
+        Crop = new RegionCropFilter(project.Settings.ExclusionRegions, project.Settings.GpsPolygons, scene.Origin);
         for (var index = 0; index < maps.Count; index++)
         {
             cancellation.ThrowIfCancellationRequested();
             var map = maps[index];
             var photo = photos[map.ImageId];
             var camera = cameras[map.ImageId];
-            Views[index] = new DepthView(photo, camera, DepthExclusions.Apply(photo, camera, map, project.Settings.ExclusionRegions));
+            Views[index] = new DepthView(photo, camera, DepthExclusions.Apply(photo, camera, map, Crop));
         }
 
         var bytes = Views.Where(view => view.Map.Samples != null).Sum(view => view.Map.SampleCount * 4L + 256);

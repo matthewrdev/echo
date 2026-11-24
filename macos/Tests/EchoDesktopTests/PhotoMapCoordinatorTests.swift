@@ -5,6 +5,31 @@ import XCTest
 
 final class PhotoMapCoordinatorTests: XCTestCase {
     @MainActor
+    func testSavedGpsPolygonsSurviveCameraFiltering() throws {
+        let settings = try JSONDecoder().decode(
+            ProcessingSettings.self,
+            from: Data(
+                """
+                {"gpsPolygons":[{"id":"crop","mode":"include","vertices":[
+                    {"latitude":-33,"longitude":150},{"latitude":-33,"longitude":150.001},
+                    {"latitude":-33.001,"longitude":150}
+                ]}]}
+                """.utf8))
+        XCTAssertEqual(ProcessingImpact().firstChangedStage(from: ProcessingSettings(), to: settings), .fusion)
+        let coordinator = PhotoMapCoordinator(selection: { _ in })
+        let map = MKMapView()
+        coordinator.updateGpsPolygons(map: map, polygons: settings.gpsPolygons, draft: nil)
+        let polygon = try XCTUnwrap(map.overlays.first as? MKPolygon)
+        coordinator.update(map: map, cameras: try cameras(), identity: "project", selected: nil)
+        coordinator.update(map: map, cameras: [], identity: "project", selected: nil)
+        XCTAssertEqual(map.overlays.count, 1)
+        XCTAssertTrue(map.overlays.first === polygon)
+        let renderer = try XCTUnwrap(coordinator.mapView(map, rendererFor: polygon) as? MKPolygonRenderer)
+        XCTAssertEqual(renderer.strokeColor, NSColor.systemGreen)
+        XCTAssertEqual(polygon.pointCount, 3)
+    }
+
+    @MainActor
     func testBoxHighlightsMultipleCamerasWithoutOpeningACallout() throws {
         let cameras = try cameras()
         let coordinator = PhotoMapCoordinator(selection: { _ in })

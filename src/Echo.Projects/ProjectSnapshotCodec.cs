@@ -7,13 +7,15 @@ namespace Echo.Projects;
 public sealed class ProjectSnapshotCodec
 {
     private const uint Magic = 0x31525045; // EPR1
+    private const uint GpsPolygonMagic = 0x32525045; // EPR2
     private readonly PhotoRecordCodec photos = new();
 
     public ProjectData Read(string path)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
         using var reader = new BinaryReader(stream);
-        if (reader.ReadUInt32() != Magic)
+        var magic = reader.ReadUInt32();
+        if (magic != Magic && magic != GpsPolygonMagic)
         {
             throw new InvalidDataException("Unsupported project snapshot.");
         }
@@ -34,6 +36,11 @@ public sealed class ProjectSnapshotCodec
             project.StageRevisions.Add(reader.ReadString(), reader.ReadString());
         }
 
+        if (magic == GpsPolygonMagic)
+        {
+            project.Settings.GpsPolygons = GpsPolygonCodec.Read(reader);
+        }
+
         if (stream.Position != stream.Length)
         {
             throw new InvalidDataException("Unexpected project snapshot data.");
@@ -45,7 +52,9 @@ public sealed class ProjectSnapshotCodec
     public void Write(Stream stream, ProjectData project)
     {
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
-        writer.Write(Magic);
+        var polygons = project.Settings.GpsPolygons;
+        var hasPolygons = polygons is { Count: > 0 };
+        writer.Write(hasPolygons ? GpsPolygonMagic : Magic);
         writer.Write(project.SchemaVersion);
         writer.Write(project.Id);
         writer.Write(project.Name);
@@ -58,6 +67,11 @@ public sealed class ProjectSnapshotCodec
         {
             writer.Write(pair.Key);
             writer.Write(pair.Value);
+        }
+
+        if (hasPolygons)
+        {
+            GpsPolygonCodec.Write(writer, polygons!);
         }
     }
 }

@@ -30,6 +30,7 @@ namespace Echo.Infrastructure;
 [JsonSerializable(typeof(ProcessingMetadata))]
 [JsonSerializable(typeof(RunProcessingMetadata))]
 [JsonSerializable(typeof(Settings))]
+[JsonSerializable(typeof(List<GpsPolygon>))]
 [JsonSerializable(typeof(Photo))]
 [JsonSerializable(typeof(PhotoImportEntry[]))]
 [JsonSerializable(typeof(List<Hint>))]

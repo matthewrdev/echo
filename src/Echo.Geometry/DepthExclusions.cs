@@ -4,9 +4,12 @@ namespace Echo.Geometry;
 
 public static class DepthExclusions
 {
-    public static DepthMap Apply(Photo photo, CameraPose camera, DepthMap map, IReadOnlyList<ExclusionRegion> regions)
+    public static DepthMap Apply(Photo photo, CameraPose camera, DepthMap map, IReadOnlyList<ExclusionRegion> regions) =>
+        Apply(photo, camera, map, new RegionCropFilter(regions));
+
+    public static DepthMap Apply(Photo photo, CameraPose camera, DepthMap map, RegionCropFilter crop)
     {
-        if (!regions.Any(region => region.Enabled))
+        if (!crop.HasRegions)
         {
             return map;
         }
@@ -16,7 +19,7 @@ public static class DepthExclusions
             ImageId = map.ImageId,
             Width = map.Width,
             Height = map.Height,
-            Samples = new ExcludedDepthSamples(new DepthView(photo, camera, map), regions)
+            Samples = new ExcludedDepthSamples(new DepthView(photo, camera, map), crop)
         };
     }
 }

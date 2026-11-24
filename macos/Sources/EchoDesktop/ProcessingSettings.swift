@@ -2,6 +2,7 @@ import Foundation
 
 struct ProcessingSettings: Codable {
     var colourGrade: ColourGrade?
+    var gpsPolygons: [GpsPolygon] = []
     var exclusionRegions: [ExclusionRegion] = []
     var texturePriority: TexturePriorityPainting?
     var processingMemoryMode: ProcessingMemoryMode = .paged
@@ -79,6 +80,7 @@ struct ProcessingSettings: Codable {
         let values = try decoder.container(keyedBy: ProcessingSettingsKey.self)
         colourGrade = try values.decodeIfPresent(ColourGrade.self, forKey: .colourGrade)
         texturePriority = try values.decodeIfPresent(TexturePriorityPainting.self, forKey: .texturePriority)
+        gpsPolygons = try values.decodeIfPresent([GpsPolygon].self, forKey: .gpsPolygons) ?? []
         exclusionRegions = try values.decodeIfPresent([ExclusionRegion].self, forKey: .exclusionRegions) ?? []
         processingMemoryMode =
             try values.decodeIfPresent(ProcessingMemoryMode.self, forKey: .processingMemoryMode) ?? .paged
@@ -162,6 +164,7 @@ struct ProcessingSettings: Codable {
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: ProcessingSettingsKey.self)
         try values.encodeIfPresent(colourGrade, forKey: .colourGrade)
+        if !gpsPolygons.isEmpty { try values.encode(gpsPolygons, forKey: .gpsPolygons) }
         try values.encode(exclusionRegions, forKey: .exclusionRegions)
         try values.encodeIfPresent(texturePriority, forKey: .texturePriority)
         try values.encode(processingMemoryMode, forKey: .processingMemoryMode)

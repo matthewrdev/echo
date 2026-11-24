@@ -14,11 +14,11 @@ internal sealed class FusionVolumeAppender
     private readonly VolumeSample[] buffer = new VolumeSample[4096];
 
     public FusionVolumeAppender(IList<VolumeSample> output, FusionPreviewSampler? preview,
-        IReadOnlyList<ExclusionRegion> regions, double voxelSize)
+        RegionCropFilter crop, double voxelSize)
     {
         this.output = output;
         this.preview = preview;
-        crop = new RegionCropFilter(regions);
+        this.crop = crop;
         this.voxelSize = voxelSize;
     }
 

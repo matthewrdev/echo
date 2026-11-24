@@ -10,9 +10,12 @@ namespace Echo.Meshing.Visibility;
 public static class SurfaceExclusionFilter
 {
     public static Surface Filter(Surface surface, IReadOnlyList<ExclusionRegion> regions,
+        CancellationToken cancellation, WorkBuffers? work = null) =>
+        Filter(surface, new RegionCropFilter(regions), cancellation, work);
+
+    public static Surface Filter(Surface surface, RegionCropFilter crop,
         CancellationToken cancellation, WorkBuffers? work = null)
     {
-        var crop = new RegionCropFilter(regions);
         if (!crop.HasRegions)
         {
             return surface;

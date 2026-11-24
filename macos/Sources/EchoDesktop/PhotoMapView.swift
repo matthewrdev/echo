@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct PhotoMapView: View {
@@ -6,6 +7,7 @@ struct PhotoMapView: View {
     @State private var layer = PhotoMapLayer.satellite
     @State private var distance = 20.0
     @State private var boxed: Set<String> = []
+    @State private var draft: GpsPolygon?
     private let projector = MapCameraProjector()
 
     private var cameras: [MapCamera] {
@@ -13,6 +15,8 @@ struct PhotoMapView: View {
             photos: workspace.filteredPhotos, hints: workspace.inspection?.project.hints ?? [],
             reconstruction: nil, aligned: false, distance: distance)
     }
+
+    private var polygons: [GpsPolygon] { workspace.inspection?.project.settings.gpsPolygons ?? [] }
 
     var body: some View {
         let cameras = cameras
@@ -27,6 +31,9 @@ struct PhotoMapView: View {
                 }
                 Text("Down ← tilt → Up · Scroll to zoom · Drag to pan · Shift-drag to select")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            GpsPolygonEditor(polygons: polygons, canEdit: workspace.canEdit, draft: $draft) { updated in
+                workspace.save(gpsPolygons: updated) { draft = nil }
             }
             mapSurface(cameras)
             let selected = cameras.map(\.photo).filter { boxed.contains($0.id) }
@@ -54,7 +61,16 @@ struct PhotoMapView: View {
             }
         }
         .onChange(of: cameras.map(\.id)) { _, visible in boxed.formIntersection(visible) }
-        .onChange(of: workspace.root) { _, _ in boxed.removeAll() }
+        .onChange(of: workspace.root) { _, _ in
+            boxed.removeAll()
+            draft = nil
+        }
+        .onChange(of: draft?.id) { _, id in
+            if id != nil {
+                if layer == .offline { layer = .satellite }
+                selectOne(nil)
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -64,7 +80,7 @@ struct PhotoMapView: View {
 
     private func mapSurface(_ cameras: [MapCamera]) -> some View {
         Group {
-            if cameras.isEmpty {
+            if cameras.isEmpty && polygons.isEmpty && draft == nil {
                 ContentUnavailableView(
                     "No located photos", systemImage: "location.slash",
                     description: Text(
@@ -73,7 +89,10 @@ struct PhotoMapView: View {
                 NativePhotoMap(
                     cameras: cameras, identity: mapIdentity,
                     satellite: layer == .satellite, selected: $workspace.selectedPhotoID,
-                    boxed: boxed, boxSelection: addToSelection, singleSelection: selectOne)
+                    boxed: boxed, boxSelection: draft == nil ? addToSelection : nil,
+                    singleSelection: { id in if draft == nil { selectOne(id) } },
+                    pickLocation: draft != nil && workspace.canEdit ? addVertex : nil,
+                    gpsPolygons: polygons.filter { $0.id != draft?.id }, gpsDraft: draft)
             } else {
                 VStack(spacing: 8) {
                     CanvasControls(controller: controller, showsInstructions: false)
@@ -92,9 +111,16 @@ struct PhotoMapView: View {
             VStack(spacing: 6) {
                 PhotoMapFrustumControl(distance: $distance)
                     .disabled(cameras.isEmpty)
-                PhotoMapLayerControls(layer: $layer)
+                PhotoMapLayerControls(layer: $layer).disabled(draft != nil)
             }.padding(12)
         }
+    }
+
+    private func addVertex(_ coordinate: CLLocationCoordinate2D) {
+        guard abs(coordinate.latitude) <= 85 else { return }
+        let vertex = GpsPolygonVertex(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        guard draft?.vertices.contains(vertex) == false else { return }
+        draft?.vertices.append(vertex)
     }
 
     private func selectOne(_ id: String?) {

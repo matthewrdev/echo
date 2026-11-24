@@ -4,6 +4,12 @@ public sealed class Settings
 {
     public const double MinimumFusionVoxelSize = .025;
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<GpsPolygon>? GpsPolygons
+    {
+        get; set;
+    }
+
     public List<ExclusionRegion> ExclusionRegions { get; set; } = [];
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ColourGrade? ColourGrade
@@ -95,6 +101,7 @@ public sealed class Settings
     {
         ColourGrade?.Validate();
         TexturePriority?.Validate();
+        GpsPolygonValidation.ValidateAll(GpsPolygons ?? []);
         if (ExclusionRegions == null || ExclusionRegions.Any(region => region == null))
         {
             throw new EchoException("Exclusion regions must be an array of regions.", 2);

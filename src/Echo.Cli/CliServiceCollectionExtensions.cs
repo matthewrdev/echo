@@ -22,6 +22,7 @@ public static class CliServiceCollectionExtensions
         services.AddSingleton<ICliCommand, DoctorCommand>();
         services.AddSingleton<ICliCommand, GisCommand>();
         services.AddSingleton<ICliCommand, GlbCommand>();
+        services.AddSingleton<ICliCommand, GpsPolygonsCommand>();
         services.AddSingleton<IHintFactory, HintFactory>();
         services.AddSingleton<ICliCommand, HintsCommand>();
         services.AddSingleton<ICliCommand, ImagesCommand>();

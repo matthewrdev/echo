@@ -93,6 +93,35 @@ public sealed class CropPipelineTests
             store.Edit(project => project.Settings.ExclusionRegions.Clear());
             Check(Process(store, fusion: true).Artifacts["fusion"] == original.Artifacts["fusion"], "Clearing paint must restore existing checkpoints");
         }));
+        tests.Run("GPS polygons persist in run snapshots and rebuild cropped fusion", () =>
+        {
+            var origin = new GeoPosition { Latitude = -33, Longitude = 150, Altitude = 50 };
+            WithProject(store =>
+            {
+                store.Edit(project => project.Settings.FusionIslandMode = IslandTrimMode.Off);
+                var original = Process(store, fusion: true);
+                var include = GpsRectangle(origin, CropRegionMode.Include, -4, 4, 8, 12);
+                var exclude = GpsRectangle(origin, CropRegionMode.Exclude, 1, 2, 8.5, 11.5);
+                store.Edit(project => project.Settings.GpsPolygons = [include, exclude]);
+
+                var cropped = Process(store, fusion: true);
+                Check(cropped.Artifacts["cloud"] == original.Artifacts["cloud"], "GPS crop rebuilt the complete cloud");
+                Check(cropped.Artifacts["fusion"] != original.Artifacts["fusion"], "GPS crop reused unfiltered fusion");
+                var saved = store.GetRun(cropped.Id).Snapshot.Settings.GpsPolygons;
+                Check(saved is { Count: 2 } && saved[1].Vertices.SequenceEqual(exclude.Vertices), "GPS vertices were lost in the saved run");
+                var crop = new RegionCropFilter([], saved, origin);
+                var volume = json.Read<FusedVolume>(store.PathFor(cropped.Artifacts["fusion"] + "/volume.json"));
+                Check(volume.Samples.Count > 0 && volume.Samples.All(sample => !crop.IsExcluded(
+                    new V3(sample.X * volume.VoxelSize, sample.Y * volume.VoxelSize, sample.Z * volume.VoxelSize))),
+                    "GPS inclusion or exclusion was lost during fusion");
+                Check(Directory.GetDirectories(store.PathFor("artifacts/fusion-grid")).Length == 2,
+                    "GPS polygons did not invalidate the cached grid");
+
+                store.Edit(project => project.Settings.GpsPolygons = null);
+                Check(Process(store, fusion: true).Artifacts["fusion"] == original.Artifacts["fusion"],
+                    "Clearing GPS polygons did not restore the unfiltered checkpoint");
+            }, origin);
+        });
         tests.Run("Fusion cleanup reuses integration and grid checkpoints while reset and resolution changes invalidate them", () => WithProject(store =>
         {
             store.Edit(project => project.Settings.FusionIslandMode = IslandTrimMode.Off);
@@ -196,7 +225,21 @@ public sealed class CropPipelineTests
         throw new InvalidOperationException("Saved cloud does not match a compatible complete-cloud key");
     }
 
-    private void WithProject(Action<IProjectStore> action)
+    private GpsPolygon GpsRectangle(GeoPosition origin, CropRegionMode mode, double minX, double maxX, double minZ, double maxZ)
+    {
+        var corners = new V3[] { new(minX, 0, minZ), new(maxX, 0, minZ), new(maxX, 0, maxZ), new(minX, 0, maxZ) };
+        return new GpsPolygon
+        {
+            Mode = mode,
+            Vertices = corners.Select(corner =>
+            {
+                var position = GeographicCoordinates.FromLocal(corner, origin);
+                return new GpsPolygonVertex(position.Latitude, position.Longitude);
+            }).ToList()
+        };
+    }
+
+    private void WithProject(Action<IProjectStore> action, GeoPosition? origin = null)
     {
         var root = Path.Combine(Path.GetTempPath(), "echo-crop-pipeline-" + Guid.NewGuid().ToString("N"));
         var store = stores.Open(root);
@@ -204,6 +247,7 @@ public sealed class CropPipelineTests
         try
         {
             var fixture = new FusionFixture();
+            fixture.Scene.Origin = origin;
             foreach (var photo in fixture.Project.Images)
             {
                 photo.Source = photo.Id + ".png";

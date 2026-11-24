@@ -1,7 +1,7 @@
 enum ProcessingSettingsKey: String, CodingKey {
     case excludeVegetationFromMatching
     case colourGrade
-    case exclusionRegions, texturePriority
+    case exclusionRegions, texturePriority, gpsPolygons
     case processingMemoryMode, processingMemoryBudgetMb, processingDiskBudgetMb
     case optimiseVegetation, vegetationMeshToleranceMultiplier, vegetationTextureScale, recoverCliffDepth
     case computeBackend, depthBackend, depthSuppressSky
