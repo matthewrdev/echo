@@ -7,6 +7,8 @@ import XCTest
 final class NativeRunLogTests: XCTestCase {
     @MainActor
     func testLargeHistoryAppendsWithoutRebuildingTextOrLosingSelection() async throws {
+        try WindowedTests.requireOptIn()
+
         let entries = (0..<10_000).map { index in
             RunLogEntry(id: index, timestamp: "2026-11-19T04:00:00Z", stage: "matching", message: "Pair \(index) ✓")
         }
@@ -59,6 +61,8 @@ final class NativeRunLogTests: XCTestCase {
 
     @MainActor
     func testFollowingReachesTheEndAndPausedHistoryKeepsItsScrollPosition() async throws {
+        try WindowedTests.requireOptIn()
+
         var entries = (0..<1000).map { index in
             RunLogEntry(id: index, timestamp: "2026-11-19T04:00:00Z", stage: "depth", message: "Depth image \(index)")
         }

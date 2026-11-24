@@ -8,6 +8,8 @@ import XCTest
 final class SparseCameraRefreshTests: XCTestCase {
     @MainActor
     func testLiveRefreshKeepsSelectedCameraAndViewButClearsForAnotherRun() async throws {
+        try WindowedTests.requireOptIn()
+
         let photo = try JSONDecoder().decode(
             Photo.self,
             from: Data(

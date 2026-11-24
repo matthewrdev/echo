@@ -8,6 +8,8 @@ import XCTest
 final class SavedCloudOrbitTests: XCTestCase {
     @MainActor
     func testSavedSparseAndDenseCloudOrbit() async throws {
+        try WindowedTests.requireOptIn()
+
         let environment = ProcessInfo.processInfo.environment
         guard let project = environment["ECHO_TEST_ORBIT_PROJECT"], let runID = environment["ECHO_TEST_ORBIT_RUN"]
         else { throw XCTSkip("Set ECHO_TEST_ORBIT_PROJECT and ECHO_TEST_ORBIT_RUN to inspect saved cloud orbit.") }

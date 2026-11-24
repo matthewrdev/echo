@@ -9,6 +9,8 @@ import XCTest
 final class SavedCameraComparisonTests: XCTestCase {
     @MainActor
     func testSavedCloudMeshAndTextureCameraComparisonAndKeyboardFocus() async throws {
+        try WindowedTests.requireOptIn()
+
         let environment = ProcessInfo.processInfo.environment
         guard let project = environment["ECHO_TEST_CAMERA_PROJECT"], let runID = environment["ECHO_TEST_CAMERA_RUN"]
         else {

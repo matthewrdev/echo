@@ -31,6 +31,8 @@ final class PhotoMapCoordinatorTests: XCTestCase {
 
     @MainActor
     func testShiftDragConsumesMapPanEventsAndFinishesSelection() throws {
+        try WindowedTests.requireOptIn()
+
         let bounds = CGRect(x: 0, y: 0, width: 400, height: 300)
         let map = ScrollablePhotoMap(frame: bounds)
         let window = NSWindow(contentRect: bounds, styleMask: .borderless, backing: .buffered, defer: false)

@@ -54,6 +54,8 @@ final class SavedDepthArtifactReaderTests: XCTestCase {
     }
 
     func testSavedProjectDepthOpeningTimingsAndSampleParity() async throws {
+        try WindowedTests.requireOptIn()
+
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["ECHO_TEST_PROJECT"], let id = environment["ECHO_TEST_RUN"] else {
             throw XCTSkip("Saved reconstruction fixture unavailable")

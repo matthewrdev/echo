@@ -61,6 +61,8 @@ final class PipelineGroupTests: XCTestCase {
 
     @MainActor
     func testRenderGroupedSidebar() async throws {
+        try WindowedTests.requireOptIn()
+
         guard let path = ProcessInfo.processInfo.environment["ECHO_TEST_GROUP_RENDER"] else {
             throw XCTSkip("Set ECHO_TEST_GROUP_RENDER to capture the grouped sidebar")
         }

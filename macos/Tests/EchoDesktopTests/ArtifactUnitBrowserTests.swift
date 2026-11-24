@@ -7,6 +7,8 @@ import XCTest
 final class ArtifactUnitBrowserTests: XCTestCase {
     @MainActor
     func testLargePairBrowserReusesVisibleRowsAndKeepsSelectionAcrossRefreshes() async throws {
+        try WindowedTests.requireOptIn()
+
         let units = (0..<10_000).map { index in
             ArtifactUnit(
                 id: "pair-\(index)", title: "Photograph \(index) ↔ Photograph \(index + 1)",

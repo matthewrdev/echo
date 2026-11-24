@@ -96,6 +96,8 @@ final class ExclusionRegionTests: XCTestCase {
 
     @MainActor
     func testSavedCloudDisplaysBothExclusionShapes() async throws {
+        try WindowedTests.requireOptIn()
+
         let environment = ProcessInfo.processInfo.environment
         guard let project = environment["ECHO_TEST_CROP_PROJECT"], let runID = environment["ECHO_TEST_CROP_RUN"] else {
             throw XCTSkip("Set ECHO_TEST_CROP_PROJECT and ECHO_TEST_CROP_RUN to inspect exclusions on saved artifacts.")

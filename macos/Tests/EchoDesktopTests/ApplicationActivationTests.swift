@@ -5,7 +5,9 @@ import XCTest
 
 @MainActor
 final class ApplicationActivationTests: XCTestCase {
-    func testStandaloneLaunchPromotesBackgroundApplicationToForeground() {
+    func testStandaloneLaunchPromotesBackgroundApplicationToForeground() throws {
+        try WindowedTests.requireOptIn()
+
         let app = NSApplication.shared
         let originalPolicy = app.activationPolicy()
         defer { app.setActivationPolicy(originalPolicy) }

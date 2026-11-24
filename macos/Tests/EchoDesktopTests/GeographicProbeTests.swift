@@ -100,6 +100,8 @@ final class GeographicProbeTests: XCTestCase {
 
     @MainActor
     func testProbeOnSavedModelAndNativeRender() async throws {
+        try WindowedTests.requireOptIn()
+
         let env = ProcessInfo.processInfo.environment
         guard let project = env["ECHO_TEST_PROJECT"], let runID = env["ECHO_TEST_RUN"] else {
             throw XCTSkip("Set ECHO_TEST_PROJECT and ECHO_TEST_RUN for a saved geographic probe.")

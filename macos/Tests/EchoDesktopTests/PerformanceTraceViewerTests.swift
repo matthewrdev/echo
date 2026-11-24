@@ -7,6 +7,8 @@ import XCTest
 final class PerformanceTraceViewerTests: XCTestCase {
     @MainActor
     func testSavedTraceFromProcessorRendersTimelineAndTable() async throws {
+        try WindowedTests.requireOptIn()
+
         let environment = ProcessInfo.processInfo.environment
         guard let root = environment["ECHO_TEST_TRACE_PROJECT"], let cli = environment["ECHO_TEST_CLI"],
             let output = environment["ECHO_TEST_RENDER_DIR"]

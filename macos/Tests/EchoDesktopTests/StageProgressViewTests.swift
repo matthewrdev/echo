@@ -7,6 +7,8 @@ import XCTest
 final class StageProgressViewTests: XCTestCase {
     @MainActor
     func testAlignmentProgressShowsWorkflowAndActiveBundleIteration() async throws {
+        try WindowedTests.requireOptIn()
+
         let progress = RunProgress(
             stageSteps: [
                 "Load matches", "Initial alignment", "Save initial alignment", "Guided matching",
@@ -45,6 +47,8 @@ final class StageProgressViewTests: XCTestCase {
 
     @MainActor
     func testTextureProgressRendersTheWholePlanAndChartSubsteps() async throws {
+        try WindowedTests.requireOptIn()
+
         let progress = RunProgress(
             stageSteps: [
                 "Load inputs", "UV charts", "Atlas packing", "Vegetation budget", "UV mesh", "Seam indexing",
@@ -78,6 +82,8 @@ final class StageProgressViewTests: XCTestCase {
 
     @MainActor
     func testMeshProgressRendersBeforeSimplificationAndWithNestedSteps() async throws {
+        try WindowedTests.requireOptIn()
+
         let data = Data(
             #"{"stage":"mesh","message":"Loading","stageSteps":["Load inputs","Extract surface","Simplify geometry","Repair observed holes","Complete surface","Repair final holes","Select photographs","Save mesh"],"stageStepIndex":0}"#
                 .utf8)

@@ -122,6 +122,8 @@ final class TexturePriorityTests: XCTestCase {
 
     @MainActor
     func testBrushPicksFrontSurfaceCommitsOneStrokeAndPreservesCameraAndGeometry() async throws {
+        try WindowedTests.requireOptIn()
+
         let scene = NativeSceneFactory().make(
             reconstruction: nil,
             points: [
@@ -172,6 +174,8 @@ final class TexturePriorityTests: XCTestCase {
 
     @MainActor
     func testSavedCloudPriorityPreview() async throws {
+        try WindowedTests.requireOptIn()
+
         let environment = ProcessInfo.processInfo.environment
         guard let project = environment["ECHO_TEST_PRIORITY_PROJECT"], let runID = environment["ECHO_TEST_PRIORITY_RUN"]
         else {

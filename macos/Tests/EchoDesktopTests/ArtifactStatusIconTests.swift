@@ -7,6 +7,8 @@ import XCTest
 final class ArtifactStatusIconTests: XCTestCase {
     @MainActor
     func testOnlyActiveStatusMovesAndReduceMotionKeepsItStill() async throws {
+        try WindowedTests.requireOptIn()
+
         for isProcessing in [true, false] {
             let view = NSHostingView(
                 rootView: ArtifactStatusIcon(

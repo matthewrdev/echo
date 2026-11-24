@@ -9,6 +9,8 @@ import XCTest
 final class CameraNavigationStressTests: XCTestCase {
     @MainActor
     func testRapidCameraKeysWhileBothCloudViewsRender() async throws {
+        try WindowedTests.requireOptIn()
+
         let photos = try (0..<8).map { index in
             try JSONDecoder().decode(
                 Photo.self,
@@ -41,6 +43,8 @@ final class CameraNavigationStressTests: XCTestCase {
 
     @MainActor
     func testRapidCameraKeysWithSavedCloud() async throws {
+        try WindowedTests.requireOptIn()
+
         let environment = ProcessInfo.processInfo.environment
         guard let project = environment["ECHO_TEST_CAMERA_PROJECT"], let runID = environment["ECHO_TEST_CAMERA_RUN"]
         else {

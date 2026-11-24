@@ -8,6 +8,8 @@ import XCTest
 final class SavedWorkspaceViewerTests: XCTestCase {
     @MainActor
     func testSavedFeatureControlsAndSharedActivityDivider() async throws {
+        try WindowedTests.requireOptIn()
+
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["ECHO_TEST_UI_PROJECT"], let runID = environment["ECHO_TEST_UI_RUN"],
             let cli = environment["ECHO_TEST_CLI"], let output = environment["ECHO_TEST_UI_RENDER"]

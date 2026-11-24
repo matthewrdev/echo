@@ -7,11 +7,15 @@ import XCTest
 final class PersistentSplitViewTests: XCTestCase {
     @MainActor
     func testSidebarSizeSurvivesReopeningAndWindowResizing() async throws {
+        try WindowedTests.requireOptIn()
+
         try await verifySavedSize(layout: .sidebar, defaultLength: 280, position: 340, savedLength: 340)
     }
 
     @MainActor
     func testActivitySizeSurvivesReopeningAndWindowResizing() async throws {
+        try WindowedTests.requireOptIn()
+
         try await verifySavedSize(layout: .activity, defaultLength: 160, position: 579, savedLength: 220)
     }
 
