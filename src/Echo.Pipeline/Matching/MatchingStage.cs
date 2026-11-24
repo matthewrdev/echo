@@ -65,13 +65,13 @@ public sealed class MatchingStage : IPipelineStage
 
         var pairUnits = new List<string>();
         var preview = $"runs/{context.Run.Id}/previews/matching";
-        using var journal = indexes.Open(context.Store.PathFor(preview + "/pairs.ndjson"));
-        if (journal.Count > wanted.Count)
+        using var journal = context.Headless ? null : indexes.Open(context.Store.PathFor(preview + "/pairs.bin"));
+        if (journal?.Count > wanted.Count)
         {
             throw new InvalidDataException("Matching journal contains pairs outside these run inputs.");
         }
 
-        if (context.Run.Artifacts.GetValueOrDefault("matchingPreview") != preview)
+        if (journal != null && context.Run.Artifacts.GetValueOrDefault("matchingPreview") != preview)
         {
             context.Publish("matchingPreview", preview);
         }
@@ -82,15 +82,15 @@ public sealed class MatchingStage : IPipelineStage
         {
             var pair = wanted[index];
             pairUnits.Add(unit);
-            journal.Append(indexes.Describe(context.Store.Root, unit, index));
+            journal?.Append(indexes.Describe(context.Store.Root, unit, index));
 
-            context.Report("pairCheckpoint", new
+            context.Report("pairCheckpoint", new Dictionary<string, object?>
             {
-                stage = "matching",
-                pair.A,
-                pair.B,
-                completed = pairUnits.Count,
-                total = wanted.Count
+                ["stage"] = "matching",
+                ["a"] = pair.A,
+                ["b"] = pair.B,
+                ["completed"] = pairUnits.Count,
+                ["total"] = wanted.Count
             });
         }, cancellation);
 
@@ -112,7 +112,16 @@ public sealed class MatchingStage : IPipelineStage
                 fileOperations.AtomicJson(Path.Combine(directory, "feature-units.json"), featureUnits);
             }
 
-            journal.CopyTo(Path.Combine(directory, "pairs.ndjson"));
+            var finalIndex = Path.Combine(directory, "pairs.bin");
+            if (journal != null)
+            {
+                journal.CopyTo(finalIndex);
+            }
+            else
+            {
+                WriteFinalIndex(context.Store.Root, finalIndex, pairUnits);
+            }
+
             fileOperations.AtomicJson(Path.Combine(directory, "selection.json"), new
             {
                 selectionVersion = 2,
@@ -121,6 +130,15 @@ public sealed class MatchingStage : IPipelineStage
                 pairs = wanted
             });
         }));
+    }
+
+    private void WriteFinalIndex(string root, string path, IReadOnlyList<string> units)
+    {
+        using var journal = indexes.Open(path);
+        for (var index = 0; index < units.Count; index++)
+        {
+            journal.Append(indexes.Describe(root, units[index], index), publish: false);
+        }
     }
 
     private Dictionary<string, string> BuildFilteredFeatures(RunContext context, IReadOnlyDictionary<string, string> originalUnits)

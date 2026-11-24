@@ -50,8 +50,7 @@ public sealed class AlignmentPreviewWriter : IAlignmentPreviewWriter
 
         var metadata = Encoding.UTF8.GetBytes(json.Encode(header));
         var codec = new CloudPointRecordCodec(header.Images);
-        // A single atomic file keeps camera metadata and point records from the
-        // same iteration, even when a viewer is reading a recycled preview slot.
+        // Publish camera metadata and point records from the same iteration atomically.
         files.AtomicWrite(path, stream =>
         {
             using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);

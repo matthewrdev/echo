@@ -10,7 +10,12 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private let logReader: RunLogReader
     private let eventFormatter: RunEventFormatter
     private let commandLog: CLICommandLog?
+    private var applyingProgress = false
     private var refreshing = false
+    private var lastPollFiles: WorkspacePollFiles?
+    private var lastPollRoot = ""
+    private var lastPollSelection = ""
+    private var lastRecoveryCheck: Date?
     private var logIDs: Set<Int> = []
     private var savedRunKey = ""
     private var savedRuns: [RunData] = []
@@ -36,6 +41,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
                 texturePriorityEditor.load(
                     project.settings.texturePriority, alignment: displayedRun?.artifacts["alignment"] ?? "")
             }
+            guard !applyingProgress else { return }
             if let project = inspection?.project, let saved = inspection?.run?.snapshot {
                 firstOutdatedStage = ProcessingImpact().firstChangedStage(from: saved, to: project)
             } else {
@@ -290,34 +296,99 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
 
     func poll() async {
         while !Task.isCancelled {
-            await reload()
+            await pollWorkspace()
             let discoveringImages = isWorking && ["features", "depth"].contains(workingRun?.progress?.stage ?? "")
             try? await Task.sleep(for: .seconds(discoveringImages ? 1 : 3))
         }
     }
 
-    func reload() async {
+    private func pollWorkspace() async {
         guard !root.isEmpty, !refreshing else { return }
+        let requestedRoot = root
+        let requestedRun = selectedRun
+        let inspectedID = inspection?.run?.id
+        let workingID = activeRun?.id
+        let files = await client.pollFiles(root: requestedRoot, selectedRun: inspectedID, activeRun: workingID)
+        guard requestedRoot == root, requestedRun == selectedRun, !refreshing else { return }
+
+        let previous = lastPollRoot == root && lastPollSelection == selectedRun ? lastPollFiles : nil
+        let runFilesChanged = previous?.runs != files?.runs
+        let needsRecoveryCheck =
+            workingID.map { id in
+                previous?.progress[id] == files?.progress[id]
+                    && (lastRecoveryCheck.map { Date().timeIntervalSince($0) >= 15 } ?? true)
+            } ?? false
+        guard let files, let previous, inspection != nil,
+            previous.project == files.project, previous.imports == files.imports, !runFilesChanged, !needsRecoveryCheck
+        else {
+            if await loadWorkspace(refreshRuns: runFilesChanged || needsRecoveryCheck || previous == nil) {
+                lastPollRoot = requestedRoot
+                lastPollSelection = requestedRun
+                lastPollFiles = files
+                lastRecoveryCheck = Date()
+            }
+            return
+        }
+
+        lastPollFiles = files
+        if files.previews != previous.previews { objectWillChange.send() }
+        if files.progress != previous.progress {
+            lastRecoveryCheck = Date()
+            if let id = inspectedID, inspection?.run?.status == "running",
+                previous.progress[id] != files.progress[id],
+                let progress = WorkspacePollFiles.readProgress(root: root, run: id)
+            {
+                applyingProgress = true
+                inspection?.run?.progress = progress
+                applyingProgress = false
+                displayedRun?.progress = progress
+            }
+            if let id = workingID, previous.progress[id] != files.progress[id],
+                let progress = WorkspacePollFiles.readProgress(root: root, run: id)
+            {
+                workingRun?.progress = progress
+                telemetry.record(root: root, runID: id, resources: progress.resources)
+            }
+        }
+        if files.events != previous.events, let id = inspectedID,
+            let entries = try? await logReader.read(root: requestedRoot, runID: id),
+            requestedRoot == root, requestedRun == selectedRun
+        {
+            replaceLogs(entries)
+        }
+    }
+
+    func reload() async {
+        lastPollFiles = nil
+        _ = await loadWorkspace(refreshRuns: true)
+    }
+
+    private func loadWorkspace(refreshRuns: Bool) async -> Bool {
+        guard !root.isEmpty, !refreshing else { return false }
         refreshing = true
         defer { refreshing = false }
         let requestedRoot = root
         let requestedRun = selectedRun
         do {
-            async let summaries = client.runs(root: requestedRoot)
-            async let snapshot = client.inspect(root: requestedRoot, run: requestedRun)
+            let cachedRuns = runs
+            async let summaries = refreshRuns ? client.runs(root: requestedRoot) : cachedRuns
+            let cachedInspection = lastPollRoot == requestedRoot ? inspection : nil
+            async let snapshot = client.inspect(root: requestedRoot, run: requestedRun, cached: cachedInspection)
             let result = try await (summaries, snapshot)
-            guard requestedRoot == root, requestedRun == selectedRun else { return }
+            guard requestedRoot == root, requestedRun == selectedRun else { return false }
             if let run = result.1.run, requestedRun == "latest" {
                 let key = requestedRoot + "/" + run.id
-                if key != savedRunKey {
+                let history = result.0.filter { $0.id != run.id && $0.status != "running" }
+                let previousHistory = runs.filter { $0.id != run.id && $0.status != "running" }
+                if key != savedRunKey || history != previousHistory {
                     var previous: [RunData] = []
                     // Latest may be an older run being resumed. Explicit history views stay unchanged.
-                    for summary in result.0 where summary.id != run.id && summary.status != "running" {
+                    for summary in history {
                         if let saved = try? await client.run(root: requestedRoot, id: summary.id) {
                             previous.append(saved)
                         }
                     }
-                    guard requestedRoot == root, requestedRun == selectedRun else { return }
+                    guard requestedRoot == root, requestedRun == selectedRun else { return false }
                     savedRuns = previous
                     savedRunKey = key
                 }
@@ -374,11 +445,13 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             if !busy {
                 status = result.1.run.map { "\($0.target.capitalized) · \($0.status)" } ?? "Ready to import photos."
             }
+            return true
         } catch {
-            guard requestedRoot == root, requestedRun == selectedRun else { return }
+            guard requestedRoot == root, requestedRun == selectedRun else { return false }
             status = error.localizedDescription
             openingProject = false
             if inspection == nil { openingError = error.localizedDescription }
+            return false
         }
     }
 
@@ -445,7 +518,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
             removeRecent(project)
             return nil
         }
-        guard FileManager.default.fileExists(atPath: folder.appendingPathComponent("project.json").path) else {
+        guard FileManager.default.fileExists(atPath: folder.appendingPathComponent("project.bin").path) else {
             throw CLIError(
                 message:
                     "This folder no longer contains an Echo project. Remove it from recents, or use Finder to manage its remaining files."
@@ -555,12 +628,12 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         selectedRun = "latest"
         execute(
             "Processing saved inputs…",
-            ["run", "start", "--target", (stage ?? selectedStage).rawValue, "--events", "ndjson"])
+            ["run", "start", "--target", (stage ?? selectedStage).rawValue, "--events", "none"])
     }
 
     func resume() {
         guard canEdit, let run = inspection?.run else { return }
-        execute("Resuming saved run…", ["run", "resume", run.id, "--events", "ndjson"])
+        execute("Resuming saved run…", ["run", "resume", run.id, "--events", "none"])
     }
 
     func cancel() {

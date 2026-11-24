@@ -47,10 +47,10 @@ public sealed class AlignmentStage : IPipelineStage
         var progress = new AlignmentProgress(context.Run.Snapshot.Settings.GuidedAlignmentPass,
             update => context.ReportOperation(Name, update));
         progress.Begin(AlignmentPhase.LoadMatches, "Loading verified image correspondences…");
-        var previewPublisher = new RunPreviewPublisher(context, fileOperations, RunPreviewStage.Alignment);
+        var previewPublisher = context.Headless ? null : new RunPreviewPublisher(context, fileOperations, RunPreviewStage.Alignment);
         void Preview(ReconstructionScene scene)
         {
-            if (previewPublisher.IsDue && scene.Points.Count > 0)
+            if (previewPublisher?.IsDue == true && scene.Points.Count > 0)
             {
                 previewPublisher.PublishAlignment(AlignmentPreviewSampler.Sample(scene), previewWriter);
             }
@@ -75,7 +75,7 @@ public sealed class AlignmentStage : IPipelineStage
         }, directory =>
         {
             progress.Begin(AlignmentPhase.InitialSolve, "Initial alignment: verifying image geometry and refining camera poses.");
-            var scene = reconstructor.Align(project, pairs, context.Cancellation, Preview, progress.Report);
+            var scene = reconstructor.Align(project, pairs, context.Cancellation, context.Headless ? null : Preview, progress.Report);
             progress.Begin(AlignmentPhase.SaveInitial, "Saving initial cameras and sparse points…");
             fileOperations.AtomicData(Path.Combine(directory, "scene.json"), scene);
         });
@@ -112,7 +112,7 @@ public sealed class AlignmentStage : IPipelineStage
                 try
                 {
                     progress.Begin(AlignmentPhase.RefineRecovery, "Refining cameras and points with validated recovered matches…");
-                    bundleAdjuster.Refine(project, scene, validated, context.Cancellation, Preview, progress.Report);
+                    bundleAdjuster.Refine(project, scene, validated, context.Cancellation, context.Headless ? null : Preview, progress.Report);
                     progress.Begin(AlignmentPhase.AssessRecovery, "Comparing the recovered solution with the initial alignment…");
                     assessment = AlignmentRecoveryEvaluator.Evaluate(established, scene);
                 }

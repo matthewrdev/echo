@@ -10,7 +10,7 @@ public interface ICheckpointStore
         object inputs,
         Action<string> action,
         CancellationToken cancellation,
-        Action<string, object> progress,
+        Action<string, Dictionary<string, object?>> progress,
         Func<ProcessingMetadata>? processing = null,
         string? algorithmVersion = null,
         IReadOnlyList<object>? compatibleInputs = null);

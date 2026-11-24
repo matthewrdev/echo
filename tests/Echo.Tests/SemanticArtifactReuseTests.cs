@@ -42,7 +42,7 @@ public sealed class SemanticArtifactReuseTests
                 classifier.AllowProcessing = false;
                 var reused = Run(store, artifacts);
                 Check(classifier.Classifications == 2 && classifier.ModelRequests == 1, "Second run skips model processing entirely");
-                var log = File.ReadAllText(store.PathFor($"runs/{reused.Id}/events.ndjson"));
+                var log = string.Join("\n", PackedTestFiles.ReadEvents(store.PathFor($"runs/{reused.Id}/events.bin")).Select(record => record.GetRawText()));
                 Check(log.Contains("Reused saved sky") && !log.Contains("Detecting sky"), "Reuse must not masquerade as fresh inference");
                 classifier.AllowProcessing = true;
                 store.Edit(project => project.Images[0].SourceHash = "changed");

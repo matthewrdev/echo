@@ -1,3 +1,4 @@
+using Echo.Storage.Artifacts;
 using Echo.Compute;
 using Echo.Infrastructure;
 using Echo.Meshing.Photographs;
@@ -206,7 +207,7 @@ public sealed class MeshStage : IPipelineStage
                         using var vegetationWork = context.Work?.CreateScope();
                         var labels = SurfaceVegetationClassifier.Classify(mesh, project, scene, maps, semantics, cancellation, vegetationWork, progress.Report, compute, depthContext);
                         var faces = SurfaceVegetationClassifier.FaceLabels(mesh, labels, cancellation);
-                        fileOperations.AtomicJson(Path.Combine(dir, "vegetation.json"), faces);
+                        fileOperations.AtomicWrite(Path.Combine(dir, "vegetation.bin"), stream => new FaceFlagsCodec().Write(stream, faces));
                     }
 
                     progress.Begin(MeshPhase.SaveMesh);

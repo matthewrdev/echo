@@ -53,8 +53,7 @@ final class SparsePointPreviewTests: XCTestCase {
             throw XCTSkip("Set a saved project and run to inspect sparse display filters")
         }
         let root = URL(fileURLWithPath: path)
-        let run = try JSONDecoder().decode(
-            RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(runID)/run.json")))
+        let run = try await SavedRunFixture.read(root, id: runID)
         let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),

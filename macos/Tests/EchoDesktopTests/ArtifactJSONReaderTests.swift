@@ -96,14 +96,14 @@ final class ArtifactJSONReaderTests: XCTestCase {
         XCTAssertEqual(metadata.cameras.count, 0)
     }
 
-    func testSavedProjectBulkDecoderParityAndTimings() throws {
+    func testSavedProjectBulkDecoderParityAndTimings() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["ECHO_TEST_PROJECT"], let id = environment["ECHO_TEST_RUN"] else {
             throw XCTSkip("Saved reconstruction fixture unavailable")
         }
         let root = URL(fileURLWithPath: path)
         let json = ArtifactJSONReader()
-        let run: RunData = try json.read(root.appendingPathComponent("runs/\(id)/run.json"))
+        let run = try await SavedRunFixture.read(root, id: id)
         let sceneFile = root.appendingPathComponent(try XCTUnwrap(run.artifacts["alignment"])).appendingPathComponent(
             "scene.json")
         let fastStart = Date()

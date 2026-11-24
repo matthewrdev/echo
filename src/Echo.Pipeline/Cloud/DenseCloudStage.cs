@@ -1,3 +1,5 @@
+using System.Text;
+using Echo.Storage.Artifacts;
 using Echo.Compute;
 using Echo.DenseCloud;
 using Echo.Infrastructure;
@@ -31,6 +33,7 @@ public sealed class DenseCloudStage : IPipelineStage
         var settings = context.Run.Snapshot.Settings;
         var implementation = context.ComputeImplementation(ComputeOperation.Cloud);
         var inputs = new DenseCloudInputs(depthUnits, alignment, settings, implementation);
+        var previews = context.Headless ? null : new RunPreviewPublisher(context, fileOperations, RunPreviewStage.Cloud);
         var cloudPath = context.Build(Name, inputs, directory =>
         {
             var maps = LoadDepthMaps(context, depthUnits);
@@ -41,11 +44,15 @@ public sealed class DenseCloudStage : IPipelineStage
                     $"Dense cloud validation · {names[progress.ImageId]}",
                     $"Image {progress.ImageNumber:N0} of {progress.TotalImages:N0} · {progress.RetainedPoints:N0} points accepted",
                     progress.CompletedRows, progress.TotalRows, "rows")),
-                preview => PublishPreview(context, inputs, preview), context.Work?.List(new DenseRecordCodec()));
+                previews == null ? null : previews.PublishCloud, context.Work?.List(new DenseRecordCodec()));
 
             context.ReportProgress(Name, $"Saving {cloud.Samples.Count:N0} coloured points to the complete point cloud…");
             cloudBuilder.Write(Path.Combine(directory, "cloud.ply"), cloud);
-            fileOperations.AtomicJson(Path.Combine(directory, "cloud.json"), cloudBuilder.Report(cloud));
+            fileOperations.AtomicWrite(Path.Combine(directory, "cloud.bin"), stream =>
+            {
+                using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+                new DenseCloudReportCodec().Write(writer, cloudBuilder.Report(cloud));
+            });
             context.ReportProgress(Name, $"Saved {cloud.Samples.Count:N0} points from {maps.Count:N0} images.", maps.Count, maps.Count);
         });
         context.Publish(Name, cloudPath);
@@ -62,22 +69,5 @@ public sealed class DenseCloudStage : IPipelineStage
         }
 
         return maps;
-    }
-
-    private void PublishPreview(RunContext context, object inputs, DenseCloudReport preview)
-    {
-        // A preview is immutable and inspectable, but is not a resumable partial cloud.
-        // The final PLY remains the complete output of this stage.
-        var artifact = context.Build("cloud-preview", new
-        {
-            previewVersion = 2,
-            inputs,
-            preview.InputSamples,
-            preview.RetainedSamples
-        }, directory =>
-        {
-            fileOperations.AtomicJson(Path.Combine(directory, "cloud.json"), preview);
-        });
-        context.Publish("cloudPreview", artifact);
     }
 }

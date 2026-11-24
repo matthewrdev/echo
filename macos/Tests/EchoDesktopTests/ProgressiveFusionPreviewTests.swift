@@ -14,11 +14,7 @@ final class ProgressiveFusionPreviewTests: XCTestCase {
         for count in [20, 40] {
             let folder = root.appendingPathComponent(String(count))
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let samples = (0..<count).map { index in
-                ["x": index % 8, "y": index / 8, "z": 0, "distance": 0, "views": 3]
-            }
-            let object: [String: Any] = ["totalSamples": count, "volume": ["voxelSize": 0.5, "samples": samples]]
-            try JSONSerialization.data(withJSONObject: object).write(to: folder.appendingPathComponent("preview.json"))
+            try PackedFixture.fusion(folder.appendingPathComponent("preview.bin"), count: count, voxel: 0.5)
             let presentation = try await reader.load(
                 folder: folder, mode: "Surface", slice: 0.5,
                 metricScale: true, sceneIdentity: "run-fusion", running: true)

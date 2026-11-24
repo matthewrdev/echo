@@ -1,3 +1,4 @@
+using Echo.Storage.Artifacts;
 using Echo.Compute;
 using Echo.Infrastructure;
 using Echo.Models;
@@ -102,7 +103,7 @@ public sealed class TextureStage : IPipelineStage
                     }, directory =>
                     {
                         var vegetation = project.Settings.OptimiseVegetation
-                            ? jsonCodec.Read<bool[]>(store.PathFor(meshPath + "/vegetation.json")) : null;
+                            ? new FaceFlagsCodec().Read(store.PathFor(meshPath + "/vegetation.bin")) : null;
                         layout = layoutPlanner.Plan(project, scene, surface, cancellation,
                             message => context.ReportProgress(Name, message), vegetation, context.Work, progress.Report);
                         layouts.Write(Path.Combine(directory, "layout.bin"), layout, cancellation);

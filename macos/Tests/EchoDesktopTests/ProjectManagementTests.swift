@@ -10,7 +10,7 @@ final class ProjectManagementTests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let cli = TestProjectManagementCLIClient()
-        try cli.response.write(to: folder.appendingPathComponent("project.json"))
+        try cli.response.write(to: folder.appendingPathComponent("project.bin"))
         let suite = "EchoTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -22,7 +22,7 @@ final class ProjectManagementTests: XCTestCase {
 
         XCTAssertEqual(project?.id, "saved-project")
         XCTAssertEqual(cli.requests, [["--project", recent.path, "project", "info"]])
-        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent("project.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent("project.bin").path))
         XCTAssertEqual(workspace.recentProjects.count, 1, "Preparing confirmation must not delete the project")
     }
 

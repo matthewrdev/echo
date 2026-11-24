@@ -80,7 +80,7 @@ public sealed class GeographicFormatTests
                         ["export"] = "artifacts/export/test"
                     }
                 };
-                files.AtomicJson(store.PathFor($"runs/{runId}/run.json"), run);
+                store.SaveRun(run);
                 var output = Path.Combine(root, "geographic");
                 var result = exporter.Export(store, runId, output);
                 Check(result.Warnings.Count == 0, string.Join("; ", result.Warnings));
@@ -96,9 +96,9 @@ public sealed class GeographicFormatTests
                 };
                 Directory.CreateDirectory(store.PathFor("artifacts/cloud/test"));
                 clouds.Write(store.PathFor("artifacts/cloud/test/cloud.ply"), cloud);
-                files.AtomicJson(store.PathFor("artifacts/cloud/test/cloud.json"), clouds.Report(cloud));
+                PackedTestFiles.WriteCloud(store.PathFor("artifacts/cloud/test/cloud.bin"), clouds.Report(cloud));
                 run.Artifacts["cloud"] = "artifacts/cloud/test";
-                files.AtomicJson(store.PathFor($"runs/{runId}/run.json"), run);
+                store.SaveRun(run);
                 var denseOutput = Path.Combine(root, "dense-geographic");
                 exporter.Export(store, runId, denseOutput);
                 Check(BitConverter.ToUInt64(File.ReadAllBytes(Path.Combine(denseOutput, "cloud.las")), 247) == 3, "Saved dense points take precedence over the sparse reconstruction");

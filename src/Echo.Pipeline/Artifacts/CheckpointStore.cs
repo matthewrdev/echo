@@ -26,7 +26,7 @@ public sealed class CheckpointStore : ICheckpointStore
         object inputs,
         Action<string> action,
         CancellationToken cancellation,
-        Action<string, object> progress,
+        Action<string, Dictionary<string, object?>> progress,
         Func<ProcessingMetadata>? processing = null,
         string? algorithmVersion = null,
         IReadOnlyList<object>? compatibleInputs = null)
@@ -79,9 +79,9 @@ public sealed class CheckpointStore : ICheckpointStore
 
         var temp = store.PathFor($"work/{Guid.NewGuid():N}");
         Directory.CreateDirectory(temp);
-        progress("stageStarted", new
+        progress("stageStarted", new Dictionary<string, object?>
         {
-            stage
+            ["stage"] = stage
         });
         try
         {
@@ -109,10 +109,10 @@ public sealed class CheckpointStore : ICheckpointStore
             });
             Directory.CreateDirectory(Path.GetDirectoryName(final)!);
             Directory.Move(temp, final);
-            progress("artifactCommitted", new
+            progress("artifactCommitted", new Dictionary<string, object?>
             {
-                stage,
-                artifact = relative
+                ["stage"] = stage,
+                ["artifact"] = relative
             });
             return relative;
         }
@@ -125,7 +125,7 @@ public sealed class CheckpointStore : ICheckpointStore
         }
     }
 
-    private string? TryReuse(IProjectStore store, string stage, string key, Action<string, object> progress)
+    private string? TryReuse(IProjectStore store, string stage, string key, Action<string, Dictionary<string, object?>> progress)
     {
         var relative = $"artifacts/{stage}/{key}";
         var final = store.PathFor(relative);
@@ -139,10 +139,10 @@ public sealed class CheckpointStore : ICheckpointStore
                 throw new EchoException($"Corrupt checkpoint: {relative}. Preserve it for diagnosis and remove this artifact directory before retrying.");
             }
 
-            progress("artifactReused", new
+            progress("artifactReused", new Dictionary<string, object?>
             {
-                stage,
-                artifact = relative
+                ["stage"] = stage,
+                ["artifact"] = relative
             });
             return relative;
         }

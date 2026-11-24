@@ -1,5 +1,4 @@
-using System.Text;
-using System.Text.Json;
+using Echo.Storage.Journals;
 using Echo.Models;
 
 namespace Echo.Storage.Matching;
@@ -13,36 +12,26 @@ public sealed class MatchingIndexStore : IMatchingIndexStore
         this.matches = matches;
     }
 
-    public MatchingIndexJournal Open(string path) => new(path);
+    public MatchingIndexJournal Open(string path) => new(path, ReadRecords(path));
 
-    public IReadOnlyList<MatchingIndexEntry> Read(string path)
+    public IReadOnlyList<MatchingIndexEntry> Read(string path) => ReadRecords(path);
+
+    private List<MatchingIndexEntry> ReadRecords(string path)
     {
+        var reader = new BinaryJournalReader<MatchingIndexEntry>(new MatchingIndexRecordCodec());
+        using var stream = reader.OpenRead(path);
         var result = new List<MatchingIndexEntry>();
-        if (!File.Exists(path))
+        if (stream != null)
         {
-            return result;
-        }
-
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        var length = stream.Length;
-        long committed = 0;
-        using var reader = new StreamReader(stream, Encoding.UTF8, false);
-        while (reader.ReadLine() is { } line)
-        {
-            committed += Encoding.UTF8.GetByteCount(line) + 1L;
-            if (committed > length)
+            foreach (var entry in reader.Read(stream))
             {
-                break;
-            }
+                if (entry.Sequence != result.Count)
+                {
+                    throw new InvalidDataException("Invalid matching index sequence.");
+                }
 
-            var entry = JsonSerializer.Deserialize(line, MatchingStorageJsonContext.Default.MatchingIndexEntry)
-                ?? throw new InvalidDataException("Missing matching index entry.");
-            if (entry.Sequence != result.Count)
-            {
-                throw new InvalidDataException("Invalid matching index sequence.");
+                result.Add(entry);
             }
-
-            result.Add(entry);
         }
 
         return result;

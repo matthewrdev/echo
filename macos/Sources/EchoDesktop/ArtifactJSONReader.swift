@@ -25,6 +25,16 @@ final class ArtifactJSONReader {
                 throw CLIError(message: "Invalid sparse preview type")
             }
             value = preview
+        } else if T.self == DenseCloudReport.self, file.pathExtension == "bin" {
+            guard let report = try PackedPreviewReader().cloud(data) as? T else {
+                throw CLIError(message: "Invalid dense cloud report type")
+            }
+            value = report
+        } else if T.self == FusionPreview.self, file.pathExtension == "bin" {
+            guard let preview = try PackedPreviewReader().fusion(data) as? T else {
+                throw CLIError(message: "Invalid fusion preview type")
+            }
+            value = preview
         } else if T.self == FeatureSet.self || T.self == ImagePair.self || T.self == ImagePairSummary.self {
             value = try MatchingArtifactReader().read(file, metadata: data)
         } else if T.self == Surface.self || T.self == FusedVolume.self || T.self == DepthMap.self

@@ -81,7 +81,7 @@ public sealed class ProgressivePreviewTests
                     Check(header.TotalPoints == scene.Points.Count && header.Scene.Points.Count == 0, "Header contains inline points or loses the total");
                     Check(input.ReadInt32() == 0x31504345 && input.ReadInt32() == 1 && input.ReadInt32() == 76,
                         "Sparse preview must use the existing lossless point records");
-                    Check(input.ReadInt32() == scene.Points.Count, "Snapshot lost points");
+                    Check(input.ReadInt32() == preview.Scene.Points.Count && preview.Scene.Points.Count == 1000000, "Snapshot did not use the bounded sample");
                     var codec = new CloudPointRecordCodec(header.Images);
                     var point = codec.Decode(input.ReadBytes(codec.Size));
                     Check(point.Position.SequenceEqual(scene.Points[0].Position) && point.PixelA.SequenceEqual(new double[] { 12, 34 })
@@ -115,7 +115,7 @@ public sealed class ProgressivePreviewTests
                     publisher.PublishAlignment(AlignmentPreviewSampler.Sample(scene, 100), alignmentPreviews);
                 }
 
-                Check(Directory.GetFiles(store.PathFor($"runs/{run.Id}/previews"), "*", SearchOption.AllDirectories).Length == 2,
+                Check(Directory.GetFiles(store.PathFor($"runs/{run.Id}/previews"), "*", SearchOption.AllDirectories).Length == 1,
                     "Binary preview updates accumulated files");
                 Check(!publisher.IsDue && Directory.GetFileSystemEntries(store.PathFor("artifacts")).Length == 0,
                     "Preview updates bypass throttling or create reconstruction checkpoints");
@@ -167,7 +167,7 @@ public sealed class ProgressivePreviewTests
                 }
             }
         });
-        tests.Run("Progressive snapshots alternate atomically without adding artifact checkpoints", () =>
+        tests.Run("Progressive snapshots replace atomically without adding artifact checkpoints", () =>
         {
             var path = Path.Combine(Path.GetTempPath(), "echo-preview-" + Guid.NewGuid().ToString("N"));
             try
@@ -180,13 +180,13 @@ public sealed class ProgressivePreviewTests
                 Check(publisher.IsDue, "First preview should appear immediately");
                 for (var index = 0; index < 5; index++)
                 {
-                    publisher.Publish(new AlignmentPreview { TotalPoints = index });
-                    var preview = json.Read<AlignmentPreview>(store.PathFor(run.Artifacts["alignmentPreview"] + "/preview.json"));
+                    publisher.PublishAlignment(new AlignmentPreview { TotalPoints = index }, alignmentPreviews);
+                    var preview = new AlignmentPreviewReader().Read(store.PathFor(run.Artifacts["alignmentPreview"] + "/preview.bin"), summary: false);
                     Check(preview.TotalPoints == index, "Published reference does not match saved snapshot");
                 }
 
                 Check(!publisher.IsDue, "Preview writes should be throttled");
-                Check(Directory.GetFiles(store.PathFor($"runs/{run.Id}/previews"), "*", SearchOption.AllDirectories).Length == 2,
+                Check(Directory.GetFiles(store.PathFor($"runs/{run.Id}/previews"), "*", SearchOption.AllDirectories).Length == 1,
                     "Preview files accumulated across updates");
                 Check(Directory.GetFileSystemEntries(store.PathFor("artifacts")).Length == 0, "Live previews polluted completed checkpoints");
             }

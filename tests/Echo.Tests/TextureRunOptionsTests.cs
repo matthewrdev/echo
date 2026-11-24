@@ -86,13 +86,13 @@ public sealed class TextureRunOptionsTests
                 project.Settings.DetectLines = false;
                 project.Settings.ComputeBackend = ComputeBackend.Cpu;
             });
-            var before = File.ReadAllBytes(store.PathFor("project.json"));
+            var before = File.ReadAllBytes(store.PathFor("project.bin"));
             Check(application.Run(["--project", directory, "run", "start", "--target", "features", "--colour-tuning", "off", "--edge-softening", "off"]) == 0,
                 "CLI starts a run with both operations disabled");
             var disabled = store.GetRun();
             Check(disabled.Snapshot.Settings.TextureColourEnhancement == 0 && disabled.Snapshot.Settings.TextureSeamBlendPixels == 0,
                 "The saved run records both overrides");
-            Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.json"))), "Per-run options do not edit the project");
+            Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.bin"))), "Per-run options do not edit the project");
             var saved = File.ReadAllBytes(store.PathFor($"runs/{disabled.Id}/run.json"));
             Check(application.Run(["--project", directory, "run", "resume", disabled.Id, "--colour-tuning", "on"]) == 2,
                 "Resume refuses to change frozen inputs");

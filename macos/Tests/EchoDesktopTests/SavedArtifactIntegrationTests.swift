@@ -15,8 +15,7 @@ final class SavedArtifactIntegrationTests: XCTestCase {
         }
 
         let root = URL(fileURLWithPath: projectPath)
-        let runFile = root.appendingPathComponent("runs/\(runID)/run.json")
-        let run = try JSONDecoder().decode(RunData.self, from: Data(contentsOf: runFile))
+        let run = try await SavedRunFixture.read(root, id: runID)
         let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
@@ -90,7 +89,7 @@ final class SavedArtifactIntegrationTests: XCTestCase {
             let folder = previewFolder.appendingPathComponent("\(count)")
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let index = featureIndex.filter { imageIDs.prefix(count).contains($0.key) }
-            try JSONEncoder().encode(index).write(to: folder.appendingPathComponent("units.json"))
+            try PackedFixture.imageIndex(folder.appendingPathComponent("units.bin"), units: index)
         }
         previewArtifacts["featuresPreview"] = previewPath + "/1"
         previewArtifacts.removeValue(forKey: "matching")

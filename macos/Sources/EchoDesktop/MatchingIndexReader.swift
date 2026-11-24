@@ -16,21 +16,29 @@ final class MatchingIndexReader {
             snapshot = MatchingIndexSnapshot()
         }
         try handle.seek(toOffset: snapshot.offset)
-        let bytes = try handle.readToEnd() ?? Data()
-        var start = bytes.startIndex
-        while let end = bytes[start...].firstIndex(of: 10) {
+        let bytes = try handle.read(upToCount: Int(size - snapshot.offset)) ?? Data()
+        var cursor = BinaryJournalCursor(bytes)
+        let originalOffset = snapshot.offset
+        if originalOffset == 0 {
+            guard bytes.count >= 4, try cursor.integer() == 0x314D_4945 else {
+                throw CLIError(message: "Invalid matching index.")
+            }
+            snapshot.offset = 4
+        }
+        while let frame = try cursor.frame() {
             try Task.checkCancellation()
-            let entry = try JSONDecoder().decode(MatchingIndexEntry.self, from: bytes[start..<end])
-            guard entry.sequence == snapshot.entries.count,
-                entry.artifact.hasPrefix("artifacts/"), !entry.artifact.split(separator: "/").contains("..")
-            else {
+            var record = BinaryJournalCursor(frame)
+            let entry = try MatchingIndexEntry(
+                sequence: Int(record.integer()), artifact: record.string(), a: record.string(), b: record.string(),
+                pointCount: Int(record.integer()), lineCount: Int(record.integer()))
+            let validPath =
+                entry.artifact.hasPrefix("artifacts/") && !entry.artifact.split(separator: "/").contains("..")
+            guard record.offset == frame.count, entry.sequence == snapshot.entries.count, validPath else {
                 throw CLIError(message: "Invalid matching index entry")
             }
             snapshot.entries.append(entry)
-            snapshot.offset += UInt64(end - start + 1)
-            start = bytes.index(after: end)
+            snapshot.offset = originalOffset + UInt64(cursor.offset)
         }
-        // A live writer may be between writes. Keep the trailing fragment for the next read.
         return snapshot.entries
     }
 }

@@ -47,10 +47,12 @@ public sealed class ExportStage : IPipelineStage
                     var surface = context.ReadData<Surface>(store.PathFor(tex.MeshFile == null
                         ? meshPath + "/mesh.json" : texture + "/" + tex.MeshFile));
                     var uvs = context.ReadData<TextureCoordinates>(store.PathFor(texture + "/" + tex.UvsFile)).Values;
-                    using var meshReport = System.Text.Json.JsonDocument.Parse(File.ReadAllText(store.PathFor(meshPath + "/mesh.report.json")));
+                    using var meshReportStream = File.OpenRead(store.PathFor(meshPath + "/mesh.report.json"));
+                    using var meshReport = System.Text.Json.JsonDocument.Parse(meshReportStream);
                     var hasTopology = meshReport.RootElement.TryGetProperty("topology", out var topology);
 
-                    glbWriter.Write(Path.Combine(dir, "cliff.glb"), surface, uvs, File.ReadAllBytes(store.PathFor(texture + "/atlas.jpg")));
+                    using var atlas = File.OpenRead(store.PathFor(texture + "/atlas.jpg"));
+                    glbWriter.Write(Path.Combine(dir, "cliff.glb"), surface, uvs, atlas);
                     fileOperations.AtomicJson(Path.Combine(dir, "cliff.geo.json"), new
                     {
                         schemaVersion = 1,

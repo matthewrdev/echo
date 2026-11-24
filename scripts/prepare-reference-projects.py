@@ -28,7 +28,7 @@ def prepare(arguments):
         if not project.exists():
             subprocess.run([str(cli), "project", "init", str(project), "--name", dataset["name"]], check=True)
             subprocess.run([str(cli), "--project", str(project), "images", "import", str(directory / "photos"), "--set", dataset["folder"]], check=True)
-        data = json.loads((project / "project.json").read_text())
+        data = json.loads(subprocess.check_output([str(cli), "--project", str(project), "project", "info"]))
         if {photo["hash"] for photo in data["images"]} != expected:
             raise ValueError(dataset["name"] + ": project does not contain exactly the distinct source photos; refusing to reuse it")
         if arguments.settings:

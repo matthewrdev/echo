@@ -12,8 +12,7 @@ final class LiveDepthPreviewTests: XCTestCase {
             throw XCTSkip("Saved reconstruction fixture unavailable")
         }
         let root = URL(fileURLWithPath: path)
-        let run = try JSONDecoder().decode(
-            RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(id)/run.json")))
+        let run = try await SavedRunFixture.read(root, id: id)
         let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
@@ -52,7 +51,7 @@ final class LiveDepthPreviewTests: XCTestCase {
         let folder = root.appendingPathComponent(path)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let index = Dictionary(uniqueKeysWithValues: units.map { ($0.imageIDs[0], $0.id) })
-        try JSONEncoder().encode(index).write(to: folder.appendingPathComponent("units.json"))
+        try PackedFixture.imageIndex(folder.appendingPathComponent("units.bin"), units: index)
         var artifacts = run.artifacts
         artifacts.removeValue(forKey: "depth")
         artifacts["depthPreview"] = path

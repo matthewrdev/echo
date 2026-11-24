@@ -56,7 +56,7 @@ public sealed class FusionPlanningBenchmark
         var views = units.Select(unit => session.Read<DepthMap>(store.PathFor(unit + "/depth.json")))
             .Select(map => new DepthView(photos[map.ImageId], cameras[map.ImageId], map)).ToArray();
         var path = run.Artifacts["cloud"];
-        var cloud = clouds.Read(store.PathFor(path + "/cloud.ply"), json.Read<DenseCloudReport>(store.PathFor(path + "/cloud.json")), session);
+        var cloud = clouds.Read(store.PathFor(path + "/cloud.ply"), new DenseCloudReportCodec().Read(store.PathFor(path + "/cloud.bin")), session);
         var footprint = FusionFootprint.Measure(views, cloud, default);
         if (pointLimit > 0 && pointLimit < cloud.Samples.Count)
         {

@@ -7,6 +7,12 @@ final class CLIProjectClient: ProjectClient {
         self.cli = cli
     }
 
+    func pollFiles(root: String, selectedRun: String?, activeRun: String?) async -> WorkspacePollFiles? {
+        await Task.detached(priority: .utility) {
+            WorkspacePollFiles.read(root: root, selectedRun: selectedRun, activeRun: activeRun)
+        }.value
+    }
+
     func project(root: String) async throws -> ProjectData {
         let bytes = try await cli.execute(["--project", root, "project", "info"], progress: { _ in })
         return try JSONDecoder().decode(ProjectData.self, from: bytes)
@@ -24,13 +30,28 @@ final class CLIProjectClient: ProjectClient {
     }
 
     func inspect(root: String, run: String) async throws -> Inspection {
-        let bytes = try await cli.execute(
-            ["--project", root, "inspect", "--run", run, "--summary"], progress: { _ in })
-        return try JSONDecoder().decode(Inspection.self, from: bytes)
+        try await inspect(root: root, run: run, cached: nil)
+    }
+
+    func inspect(root: String, run: String, cached: Inspection?) async throws -> Inspection {
+        let summary = ["--project", root, "inspect", "--run", run, "--summary"]
+        var arguments = summary
+        let token = cached.map { "\($0.project.id):\($0.project.revision)" } ?? "none"
+        arguments += ["--known-project", token]
+        if let snapshotToken = cached?.run?.snapshotToken {
+            arguments += ["--known-snapshot", snapshotToken]
+        }
+        let bytes: Data
+        do {
+            bytes = try await cli.executeUnlogged(arguments)
+        } catch let error as CLIError where error.message.hasPrefix("Unknown option: --known-") {
+            bytes = try await cli.executeUnlogged(summary)
+        }
+        return try JSONDecoder().decode(WorkspaceInspectionResponse.self, from: bytes).inspection(cached: cached)
     }
 
     func run(root: String, id: String) async throws -> RunData {
-        let bytes = try await cli.execute(["--project", root, "run", "status", id], progress: { _ in })
+        let bytes = try await cli.executeUnlogged(["--project", root, "run", "status", id])
         return try JSONDecoder().decode(RunData.self, from: bytes)
     }
 
@@ -56,7 +77,7 @@ final class CLIProjectClient: ProjectClient {
     }
 
     func runs(root: String) async throws -> [RunSummary] {
-        let bytes = try await cli.execute(["--project", root, "run", "list"], progress: { _ in })
+        let bytes = try await cli.executeUnlogged(["--project", root, "run", "list"])
         return try JSONDecoder().decode([RunSummary].self, from: bytes)
     }
 

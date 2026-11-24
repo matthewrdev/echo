@@ -3,16 +3,23 @@ using Echo.Models;
 using Echo.Imaging;
 using Echo.Infrastructure;
 using Echo.Metadata;
+using Echo.Storage.Journals;
 using SkiaSharp;
 
 namespace Echo.Projects;
 
 public sealed class ProjectStore : IProjectStore
 {
+    private const string ImportJournalFile = "project.import.bin";
+
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
     private readonly IMetadataReader metadataReader;
     private readonly IRasterImageService rasterImageService;
+    private readonly ProjectSnapshotCodec snapshots = new();
+    private readonly ProjectImportRecordCodec imports = new();
+    private readonly BinaryJournalReader<ProjectImportRecord> importReader;
+    private readonly RunProgressCodec progressSnapshots = new();
 
     public ProjectStore(string root,
         IFileOperations fileOperations,
@@ -21,6 +28,7 @@ public sealed class ProjectStore : IProjectStore
         IRasterImageService rasterImageService)
     {
         Root = Path.GetFullPath(root);
+        importReader = new BinaryJournalReader<ProjectImportRecord>(imports);
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
         this.metadataReader = metadataReader;
@@ -36,25 +44,69 @@ public sealed class ProjectStore : IProjectStore
 
     public ProjectData Load()
     {
-        if (!File.Exists(PathFor("project.json")))
+        if (!File.Exists(PathFor("project.bin")))
         {
+            if (File.Exists(PathFor("project.json")))
+            {
+                throw new EchoException("This project needs the packed storage migration. Run Echo.Migrate on the project folder.", 2);
+            }
+
             throw new EchoException("Not an Echo project. Run project init first.");
         }
 
-        var data = jsonCodec.Read<ProjectData>(PathFor("project.json"));
+        using var journal = importReader.OpenRead(PathFor(ImportJournalFile));
+        var data = snapshots.Read(PathFor("project.bin"));
         if (data.SchemaVersion != 1)
         {
             throw new EchoException("Unsupported project schema.");
         }
 
+        if (journal != null)
+        {
+            ReplayImport(data, journal);
+        }
+
         return data;
+    }
+
+    private void ReplayImport(ProjectData data, FileStream journal)
+    {
+        var photos = data.Images.ToDictionary(photo => photo.Id);
+        foreach (var record in importReader.Read(journal))
+        {
+            if (record.Revision <= data.Revision)
+            {
+                continue;
+            }
+
+            if (record.Revision != data.Revision + 1)
+            {
+                throw new InvalidDataException("Project import journal revisions are out of order.");
+            }
+
+            if (record.Photo is { } photo)
+            {
+                photos.Add(photo.Id, photo);
+                data.Images.Add(photo);
+            }
+            else if (record.PhotoId is { } id && record.Set is { } set && photos.TryGetValue(id, out var existing))
+            {
+                existing.Sets.Add(set);
+            }
+            else
+            {
+                throw new InvalidDataException("Invalid project import journal record.");
+            }
+
+            data.Revision = record.Revision;
+        }
     }
 
     public void Init(string? name = null)
     {
         Directory.CreateDirectory(Root);
         using var gate = Lock("edit");
-        if (File.Exists(PathFor("project.json")))
+        if (File.Exists(PathFor("project.bin")) || File.Exists(PathFor("project.json")))
         {
             throw new EchoException("Project already exists.");
         }
@@ -72,7 +124,8 @@ public sealed class ProjectStore : IProjectStore
             Directory.CreateDirectory(PathFor(folder));
         }
 
-        fileOperations.AtomicJson(PathFor("project.json"), new ProjectData { Name = name ?? Path.GetFileName(Root) });
+        var project = new ProjectData { Name = name ?? Path.GetFileName(Root) };
+        fileOperations.AtomicWrite(PathFor("project.bin"), stream => snapshots.Write(stream, project));
     }
 
     public FileStream Lock(string name)
@@ -93,8 +146,7 @@ public sealed class ProjectStore : IProjectStore
         var data = Load();
         action(data);
         data.Revision++;
-        SaveRevision(data);
-        fileOperations.AtomicJson(PathFor("project.json"), data);
+        SaveProject(data);
         return data;
     }
 
@@ -106,93 +158,122 @@ public sealed class ProjectStore : IProjectStore
             throw new EchoException("Image directory does not exist.");
         }
 
-        var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        var entries = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Where(IsSupportedPhoto)
+            .Order(StringComparer.Ordinal)
+            .Take(limit)
+            .Select(path => new PhotoImportEntry(path, set))
+            .ToArray();
+        return ImportEntries(entries, progress);
+    }
+
+    public List<Photo> Import(IReadOnlyList<PhotoImportEntry> entries, Action<object>? progress = null)
+    {
+        using var importLease = Lock("import");
+        foreach (var entry in entries)
         {
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".tif",
-            ".tiff",
-            ".heic",
-            ".heif"
-        };
-        var paths = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Where(p => extensions.Contains(Path.GetExtension(p))).Order(StringComparer.Ordinal).Take(limit).ToArray();
-        if (paths.Length == 0)
+            var valid = entry != null && !string.IsNullOrWhiteSpace(entry.Set)
+                && entry.Path != null && Path.IsPathFullyQualified(entry.Path) && IsSupportedPhoto(entry.Path);
+            if (!valid || !File.Exists(entry?.Path))
+            {
+                throw new EchoException($"Invalid or missing photo in import manifest: {entry?.Path}", 2);
+            }
+        }
+
+        return ImportEntries(entries, progress);
+    }
+
+    private bool IsSupportedPhoto(string path)
+    {
+        return Path.GetExtension(path).ToLowerInvariant() is ".jpg" or ".jpeg" or ".png" or ".tif" or ".tiff" or ".heic" or ".heif";
+    }
+
+    private List<Photo> ImportEntries(IReadOnlyList<PhotoImportEntry> entries, Action<object>? progress)
+    {
+        if (entries.Count == 0)
         {
             throw new EchoException("No supported photos found.");
         }
 
+        using var gate = Lock("edit");
+        var project = Load();
+        var journalPath = PathFor(ImportJournalFile);
+        var needsSnapshot = File.Exists(journalPath);
         var added = new List<Photo>();
-        var knownPhotos = Load().Images.DistinctBy(photo => photo.Hash).ToDictionary(photo => photo.Hash, photo => photo.Id);
-        ProjectData? lastCheckpoint = null;
+        var knownPhotos = project.Images.DistinctBy(photo => photo.Hash).ToDictionary(photo => photo.Hash);
+        var journal = new BinaryJournal<ProjectImportRecord>(journalPath, imports);
         var skipped = 0;
+        var appendFailed = false;
         try
         {
-            progress?.Invoke(new PhotoImportProgress("imageImportStarted", 0, 0, paths.Length, 0));
-            for (var index = 0; index < paths.Length; index++)
+            progress?.Invoke(new PhotoImportProgress("imageImportStarted", 0, 0, entries.Count, 0));
+            for (var index = 0; index < entries.Count; index++)
             {
-                var path = paths[index];
+                var entry = entries[index];
+                var path = entry.Path;
+                var set = entry.Set;
                 var hash = fileOperations.HashFile(path);
-                if (knownPhotos.TryGetValue(hash, out var duplicateId))
+                if (knownPhotos.TryGetValue(hash, out var existing))
                 {
-                    lastCheckpoint = CheckpointImport(project =>
+                    if (!existing.Sets.Contains(set))
                     {
-                        var photo = project.Images.Single(photo => photo.Id == duplicateId);
-                        if (photo.Sets.Contains(set))
-                        {
-                            return false;
-                        }
+                        Append(new ProjectImportRecord { Revision = project.Revision + 1, PhotoId = existing.Id, Set = set });
+                        project.Revision++;
+                        existing.Sets.Add(set);
+                        needsSnapshot = true;
+                    }
 
-                        photo.Sets.Add(set);
-                        return true;
-                    }) ?? lastCheckpoint;
                     skipped++;
-                    progress?.Invoke(new PhotoImportProgress("imageImportSkipped", added.Count, index + 1, paths.Length,
-                        skipped, duplicateId, Path.GetFileName(path)));
+                    progress?.Invoke(new PhotoImportProgress("imageImportSkipped", added.Count, index + 1, entries.Count,
+                        skipped, existing.Id, Path.GetFileName(path)));
                     continue;
                 }
 
                 var image = ImportPhoto(path, hash, set);
-                lastCheckpoint = CheckpointImport(project =>
-                {
-                    project.Images.Add(image);
-                    return true;
-                });
-                knownPhotos.Add(hash, image.Id);
+                Append(new ProjectImportRecord { Revision = project.Revision + 1, Photo = image });
+                project.Revision++;
+                project.Images.Add(image);
+                knownPhotos.Add(hash, image);
+                needsSnapshot = true;
                 added.Add(image);
-                progress?.Invoke(new PhotoImportProgress("imageImported", added.Count, index + 1, paths.Length,
+                progress?.Invoke(new PhotoImportProgress("imageImported", added.Count, index + 1, entries.Count,
                     skipped, image.Id, image.Name));
             }
         }
         finally
         {
-            if (lastCheckpoint != null)
+            journal.Dispose();
+            if (needsSnapshot && !appendFailed)
             {
-                SaveRevision(lastCheckpoint);
+                SaveProject(project);
+            }
+            else if (!appendFailed && new FileInfo(journalPath).Length == sizeof(uint))
+            {
+                File.Delete(journalPath);
             }
         }
 
         return added;
-    }
 
-    private ProjectData? CheckpointImport(Func<ProjectData, bool> apply)
-    {
-        using var gate = Lock("edit");
-        var data = Load();
-        if (!apply(data))
+        void Append(ProjectImportRecord record)
         {
-            return null;
+            try
+            {
+                journal.Append(record);
+            }
+            catch
+            {
+                appendFailed = true;
+                throw;
+            }
         }
-
-        // Keep committed photos restartable without archiving a copy of the full project for each one.
-        data.Revision++;
-        fileOperations.AtomicJson(PathFor("project.json"), data);
-        return data;
     }
 
-    private void SaveRevision(ProjectData data)
+    private void SaveProject(ProjectData data)
     {
-        fileOperations.AtomicJson(PathFor($"revisions/{data.Revision:D6}.json"), data);
+        fileOperations.AtomicWrite(PathFor($"revisions/{data.Revision:D6}.bin"), stream => snapshots.Write(stream, data));
+        fileOperations.AtomicWrite(PathFor("project.bin"), stream => snapshots.Write(stream, data));
+        File.Delete(PathFor(ImportJournalFile));
     }
 
     private Photo ImportPhoto(string path, string hash, string set)
@@ -361,6 +442,33 @@ public sealed class ProjectStore : IProjectStore
         return parsed && double.IsFinite(number) ? number : null;
     }
 
+    public IReadOnlyList<RunSummary> ListRuns()
+    {
+        var directory = PathFor("runs");
+        if (!Directory.Exists(directory))
+        {
+            return [];
+        }
+
+        return Directory.EnumerateFiles(directory, "run.json", SearchOption.AllDirectories)
+            .Select(jsonCodec.Read<StoredRunState>)
+            .OrderByDescending(run => run.Created)
+            .Select(run => new RunSummary { Id = run.Id, Status = run.Status, Target = run.Target, Created = run.Created })
+            .ToArray();
+    }
+
+    public void SaveRun(RunData run)
+    {
+        var directory = PathFor($"runs/{run.Id}");
+        var snapshotPath = Path.Combine(directory, "snapshot.bin");
+        if (!File.Exists(snapshotPath))
+        {
+            fileOperations.AtomicWrite(snapshotPath, stream => snapshots.Write(stream, run.Snapshot));
+        }
+
+        fileOperations.AtomicJson(Path.Combine(directory, "run.json"), new StoredRunState(run));
+    }
+
     public RunData GetRun(string id = "latest")
     {
         if (id == "latest")
@@ -379,12 +487,14 @@ public sealed class ProjectStore : IProjectStore
 
     private RunData ReadRun(string path)
     {
-        var run = jsonCodec.Read<RunData>(path);
+        var state = jsonCodec.Read<StoredRunState>(path);
+        var directory = Path.GetDirectoryName(path)!;
+        var run = state.WithSnapshot(snapshots.Read(Path.Combine(directory, "snapshot.bin")));
         if (run.Status == "running")
         {
             try
             {
-                var progress = jsonCodec.Read<RunProgress>(Path.Combine(Path.GetDirectoryName(path)!, "progress.json"));
+                var progress = progressSnapshots.Read(Path.Combine(directory, "progress.bin"));
                 if (run.Progress == null || progress.Updated >= run.Progress.Updated)
                 {
                     run.Progress = progress;
@@ -392,8 +502,7 @@ public sealed class ProjectStore : IProjectStore
             }
             catch (FileNotFoundException)
             {
-                // Older workers use run.json alone. A checkpoint may also
-                // atomically publish the full state and remove this sidecar.
+                // A run checkpoint includes progress and supersedes the sidecar.
             }
         }
 

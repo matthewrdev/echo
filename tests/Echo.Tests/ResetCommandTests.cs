@@ -41,18 +41,18 @@ public sealed class ResetCommandTests
             });
             tests.Run("Invalid reset arguments leave the project unchanged", () =>
             {
-                var before = File.ReadAllBytes(store.PathFor("project.json"));
+                var before = File.ReadAllBytes(store.PathFor("project.bin"));
                 Check(application.Run(["--project", root, "pipeline", "reset"]) == 2, "Missing --from is rejected");
                 Check(application.Run(["--project", root, "pipeline", "reset", "--from"]) == 2, "Missing stage value is rejected");
                 Check(application.Run(["--project", root, "pipeline", "reset", "--from", "unknown"]) == 2, "Unknown stage is rejected");
-                Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.json"))), "Invalid commands must not edit the project");
+                Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.bin"))), "Invalid commands must not edit the project");
             });
             tests.Run("Reset command cannot invalidate stages while a run holds the project lock", () =>
             {
-                var before = File.ReadAllBytes(store.PathFor("project.json"));
+                var before = File.ReadAllBytes(store.PathFor("project.bin"));
                 using var lease = store.Lock("run");
                 Check(application.Run(["--project", root, "pipeline", "reset", "--from", "features"]) == 6, "Active processing must reject reset");
-                Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.json"))), "A busy project must remain unchanged");
+                Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.bin"))), "A busy project must remain unchanged");
             });
         }
         finally

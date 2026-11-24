@@ -26,7 +26,7 @@ final class LiveMatchingPreviewTests: XCTestCase {
         var entries: [MatchingIndexEntry] = []
         let preview = root.appendingPathComponent("preview")
         try FileManager.default.createDirectory(at: preview, withIntermediateDirectories: true)
-        let journal = preview.appendingPathComponent("pairs.ndjson")
+        let journal = preview.appendingPathComponent("pairs.bin")
         for index in 1...2 {
             let artifact = "artifacts/match-pair/pair-\(index)"
             try fixture.writePair(root: root, artifact: artifact, a: "0", b: "\(index)")
@@ -34,8 +34,8 @@ final class LiveMatchingPreviewTests: XCTestCase {
                 MatchingIndexEntry(
                     sequence: index - 1, artifact: artifact, a: "0", b: "\(index)", pointCount: 1, lineCount: 0))
         }
-        var firstEntry = try JSONEncoder().encode(entries[0])
-        firstEntry.append(10)
+        var firstEntry = Data([0x45, 0x49, 0x4D, 0x31])
+        firstEntry.append(frame(entries[0]))
         try firstEntry.write(to: journal)
         let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
@@ -63,13 +63,12 @@ final class LiveMatchingPreviewTests: XCTestCase {
         let writer = try FileHandle(forWritingTo: journal)
         defer { try? writer.close() }
         try writer.seekToEnd()
-        let secondEntry = try JSONEncoder().encode(entries[1])
+        let secondEntry = frame(entries[1])
         try writer.write(contentsOf: secondEntry.prefix(secondEntry.count / 2))
         await model.configure(root: root.path, run: expanded, stage: .matching)
         XCTAssertNil(model.error)
         XCTAssertEqual(model.units.count, 1)
         try writer.write(contentsOf: secondEntry.suffix(secondEntry.count - secondEntry.count / 2))
-        try writer.write(contentsOf: Data([10]))
         await model.configure(root: root.path, run: expanded, stage: .matching)
         XCTAssertEqual(model.units.count, 2)
         XCTAssertEqual(model.presentation?.id, first)
@@ -88,5 +87,24 @@ final class LiveMatchingPreviewTests: XCTestCase {
         XCTAssertEqual(model.presentation?.id, second)
         XCTAssertEqual(model.selectedMatchIndex, 0)
         XCTAssertNil(model.error)
+    }
+
+    private func frame(_ entry: MatchingIndexEntry) -> Data {
+        func append(_ value: Int, to data: inout Data) {
+            var bytes = UInt32(value).littleEndian
+            withUnsafeBytes(of: &bytes) { data.append(contentsOf: $0) }
+        }
+        var payload = Data()
+        append(entry.sequence, to: &payload)
+        for value in [entry.artifact, entry.a, entry.b] {
+            payload.append(UInt8(value.utf8.count))
+            payload.append(contentsOf: value.utf8)
+        }
+        append(entry.pointCount, to: &payload)
+        append(entry.lineCount, to: &payload)
+        var frame = Data()
+        append(payload.count, to: &frame)
+        frame.append(payload)
+        return frame
     }
 }

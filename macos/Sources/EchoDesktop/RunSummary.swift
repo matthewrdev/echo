@@ -1,6 +1,6 @@
 import Foundation
 
-struct RunSummary: Decodable, Identifiable {
+struct RunSummary: Decodable, Equatable, Identifiable {
     let id: String
     let status: String
     let target: String

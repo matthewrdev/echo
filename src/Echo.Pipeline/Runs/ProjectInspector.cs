@@ -1,3 +1,4 @@
+using Echo.Storage.Artifacts;
 using System.Text.Json;
 using Echo.Infrastructure;
 using Echo.Models;
@@ -38,11 +39,10 @@ public sealed class ProjectInspector : IProjectInspector
             var key = run.Artifacts.ContainsKey("alignment") ? "alignment" : "alignmentPreview";
             if (run.Artifacts.TryGetValue(key, out var alignment))
             {
-                var preview = store.PathFor(alignment + "/preview.json");
                 var binaryPreview = store.PathFor(alignment + "/preview.bin");
                 var file = store.PathFor(alignment + "/scene.json");
-                scene = ReadArtifact(() => File.Exists(binaryPreview) ? previewReader.Read(binaryPreview, summary).Scene
-                    : File.Exists(preview) ? ReadPreview(preview, summary) : summary
+                scene = ReadArtifact(() => key == "alignmentPreview" ? previewReader.Read(binaryPreview, summary).Scene
+                    : summary
                         ? jsonCodec.Read<ReconstructionOverview>(file).ToScene()
                         : jsonCodec.Read<ReconstructionScene>(file),
                     "alignment", summary, warnings);
@@ -70,10 +70,8 @@ public sealed class ProjectInspector : IProjectInspector
 
             if (run.Artifacts.TryGetValue("cloud", out var dense))
             {
-                var file = store.PathFor(dense + "/cloud.json");
-                cloud = ReadArtifact(() => summary
-                        ? jsonCodec.Read<DenseCloudOverview>(file).ToReport()
-                        : jsonCodec.Read<DenseCloudReport>(file),
+                var file = store.PathFor(dense + "/cloud.bin");
+                cloud = ReadArtifact(() => new DenseCloudReportCodec().Read(file, includePreview: !summary),
                     "cloud", summary, warnings);
             }
         }
@@ -89,17 +87,6 @@ public sealed class ProjectInspector : IProjectInspector
             Cloud = cloud,
             Warnings = warnings
         };
-    }
-
-    private ReconstructionScene ReadPreview(string file, bool summary)
-    {
-        var scene = jsonCodec.Read<AlignmentPreview>(file).Scene;
-        if (summary)
-        {
-            scene.Points = [];
-        }
-
-        return scene;
     }
 
     private T? ReadArtifact<T>(Func<T> read, string stage, bool summary, List<string> warnings) where T : class

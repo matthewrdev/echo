@@ -34,13 +34,13 @@ public sealed class RenderCommandTests
             var model = store.PathFor("artifacts/export/saved/cliff.glb");
             Directory.CreateDirectory(Path.GetDirectoryName(model)!);
             File.WriteAllText(model, "saved model");
-            files.AtomicJson(store.PathFor($"runs/{run}/run.json"), new RunData
+            store.SaveRun(new RunData
             {
                 Id = run,
                 Status = "completed",
                 Artifacts = new Dictionary<string, string> { ["export"] = "artifacts/export/saved" }
             });
-            var projectBefore = File.ReadAllBytes(store.PathFor("project.json"));
+            var projectBefore = File.ReadAllBytes(store.PathFor("project.bin"));
             var recording = new RecordingModelRenderer();
             var command = new RenderCommand(stores, recording, output);
             var destination = store.PathFor("previews/rendered model.png");
@@ -48,7 +48,7 @@ public sealed class RenderCommandTests
                 "--view", "oblique", "--mode", "normals", "--width", "1920", "--height", "1080"]);
             Check(command.Execute(arguments) == 0, "Render command succeeds");
             Check(recording.Request == new ModelRenderRequest(model, destination, 1920, 1080, "oblique", "normals"), "Selected model and camera forwarded");
-            Check(File.ReadAllBytes(store.PathFor("project.json")).SequenceEqual(projectBefore), "Project unchanged");
+            Check(File.ReadAllBytes(store.PathFor("project.bin")).SequenceEqual(projectBefore), "Project unchanged");
             Check(File.ReadAllText(model) == "saved model", "Model unchanged");
         }));
 
@@ -69,7 +69,7 @@ public sealed class RenderCommandTests
             Reject(command, ["render", model, "--output", destination, "--yaw", "45"]);
             Reject(command, ["render", model, "--output", store.PathFor("preview.jpg")]);
             var run = Guid.NewGuid().ToString("N");
-            files.AtomicJson(store.PathFor($"runs/{run}/run.json"), new RunData { Id = run, Status = "completed" });
+            store.SaveRun(new RunData { Id = run, Status = "completed" });
             Reject(command, ["--project", store.Root, "render", "--output", destination]);
             File.WriteAllText(destination, "keep this image");
             Reject(command, ["render", model, "--output", destination]);

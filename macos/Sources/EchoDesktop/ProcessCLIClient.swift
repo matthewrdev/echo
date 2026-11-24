@@ -12,7 +12,18 @@ final class ProcessCLIClient: CLIClient {
     func execute(_ arguments: [String], progress: @escaping @Sendable (String) -> Void) async throws -> Data {
         let invocation = CLICommandInvocation(executable: executable, arguments: arguments)
         await commandLog?.record(invocation)
-        return try await withCheckedThrowingContinuation { continuation in
+        return try await execute(invocation, progress: progress)
+    }
+
+    func executeUnlogged(_ arguments: [String]) async throws -> Data {
+        try await execute(CLICommandInvocation(executable: executable, arguments: arguments), progress: nil)
+    }
+
+    private func execute(_ invocation: CLICommandInvocation, progress: (@Sendable (String) -> Void)?)
+        async throws
+        -> Data
+    {
+        try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let process = Process()

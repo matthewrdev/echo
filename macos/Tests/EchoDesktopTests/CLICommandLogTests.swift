@@ -7,7 +7,7 @@ final class CLICommandLogTests: XCTestCase {
     func testCleanupPrunesOldHistoryWithoutResurrectingItOnNextCommand() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        try Data("{}".utf8).write(to: root.appendingPathComponent("project.json"))
+        try Data("{}".utf8).write(to: root.appendingPathComponent("project.bin"))
         defer { try? FileManager.default.removeItem(at: root) }
         let log = CLICommandLog()
         let old = CLICommandInvocation(
@@ -58,7 +58,7 @@ final class CLICommandLogTests: XCTestCase {
     func testProcessBoundaryRecordsActualCommandsIncludingFailedLaunches() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        try Data("{}".utf8).write(to: root.appendingPathComponent("project.json"))
+        try Data("{}".utf8).write(to: root.appendingPathComponent("project.bin"))
         defer { try? FileManager.default.removeItem(at: root) }
         let log = CLICommandLog()
         let client = ProcessCLIClient(executable: URL(fileURLWithPath: "/bin/echo"), commandLog: log)
@@ -81,7 +81,7 @@ final class CLICommandLogTests: XCTestCase {
     func testCommandHistoryHasNoRecentEntryLimitAndSeparatesBackgroundQueries() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        try Data("{}".utf8).write(to: root.appendingPathComponent("project.json"))
+        try Data("{}".utf8).write(to: root.appendingPathComponent("project.bin"))
         defer { try? FileManager.default.removeItem(at: root) }
         let log = CLICommandLog()
         for index in 0..<300 {

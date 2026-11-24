@@ -11,6 +11,8 @@ final class SavedArtifactReader: ArtifactReader {
     private let depths: SavedDepthArtifactReader
     private let fusion: SavedFusionArtifactReader
     private let matchingIndex = MatchingIndexReader()
+    private let featurePreview = ImagePreviewIndex()
+    private let depthPreview = ImagePreviewIndex()
 
     init(
         scenes: NativeSceneFactory, images: ArtifactImageRenderer, glb: GlbAssetReader,
@@ -45,14 +47,19 @@ final class SavedArtifactReader: ArtifactReader {
                 imageIDs: imageIDs, thumbnails: images.map { root.appendingPathComponent($0.preview) }, detail: detail)
         }
         if stage == .features {
-            let units: [String: String] = try read(folder.appendingPathComponent("units.json"))
+            let units: [String: String] =
+                if run.artifacts["features"] == nil {
+                    try featurePreview.read(folder.appendingPathComponent("units.bin"))
+                } else {
+                    try read(folder.appendingPathComponent("units.json"))
+                }
             return units.map { id, path in
                 unit(
                     id, file: root.appendingPathComponent(path).appendingPathComponent("features.json"), imageIDs: [id])
             }.sorted { $0.title < $1.title }
         }
         if stage == .matching {
-            let entries = try matchingIndex.read(folder.appendingPathComponent("pairs.ndjson"))
+            let entries = try matchingIndex.read(folder.appendingPathComponent("pairs.bin"))
             return entries.map { entry in
                 let file = root.appendingPathComponent(entry.artifact).appendingPathComponent("pair.json")
                 return unit(
@@ -61,7 +68,7 @@ final class SavedArtifactReader: ArtifactReader {
         }
         if stage == .depth, let alignment = run.artifacts["alignment"] {
             if run.artifacts["depth"] == nil {
-                let units: [String: String] = try read(folder.appendingPathComponent("units.json"))
+                let units = try depthPreview.read(folder.appendingPathComponent("units.bin"))
                 return units.map { id, path in
                     unit(
                         path, file: root.appendingPathComponent(path).appendingPathComponent("depth.json"),
@@ -203,10 +210,7 @@ final class SavedArtifactReader: ArtifactReader {
             var totalSparsePoints: Int?
             let reconstruction: ReconstructionScene? = try alignmentPath.map {
                 let directory = root.appendingPathComponent($0)
-                let binaryPreview = directory.appendingPathComponent("preview.bin")
-                let previewFile =
-                    FileManager.default.fileExists(atPath: binaryPreview.path)
-                    ? binaryPreview : directory.appendingPathComponent("preview.json")
+                let previewFile = directory.appendingPathComponent("preview.bin")
                 if FileManager.default.fileExists(atPath: previewFile.path) {
                     let preview: AlignmentPreview = try read(previewFile)
                     totalSparsePoints = preview.totalPoints
@@ -245,9 +249,16 @@ final class SavedArtifactReader: ArtifactReader {
             var uvs: [[Double]] = []
             var texture: NSImage?
             if stage == .cloud {
-                let report: DenseCloudReport = try read(folder.appendingPathComponent("cloud.json"))
-                points = report.preview.filter { Float(1 - $0.error) >= Float(cloudMinimumSupport) }
                 let partial = run.artifacts["cloud"] == nil
+                let reportFile = folder.appendingPathComponent("cloud.bin")
+                let report: DenseCloudReport =
+                    if partial {
+                        try read(reportFile)
+                    } else {
+                        try PackedPreviewReader().cloud(
+                            Data(contentsOf: reportFile, options: .mappedIfSafe), includePreview: false)
+                    }
+                points = report.preview.filter { Float(1 - $0.error) >= Float(cloudMinimumSupport) }
                 var displayedCount = points.count
                 if !partial {
                     let preview = try DenseCloudPreviewReader().read(
@@ -259,7 +270,7 @@ final class SavedArtifactReader: ArtifactReader {
                 }
                 let label = partial ? (run.status == "running" ? "LIVE PREVIEW" : "PARTIAL PREVIEW") : "Completed cloud"
                 let attributes = try FileManager.default.attributesOfItem(
-                    atPath: folder.appendingPathComponent("cloud.json").path)
+                    atPath: folder.appendingPathComponent("cloud.bin").path)
                 let updated =
                     (attributes[.modificationDate] as? Date)?.formatted(date: .omitted, time: .standard) ?? "unknown"
                 let density =

@@ -133,7 +133,7 @@ public sealed class CropPipelineTests
             var legacy = SaveLegacy(store, 7, cropped: true);
             var run = Process(store);
             Check(run.Artifacts["cloud"] != legacy, "A cropped legacy checkpoint was reused as the complete cloud");
-            var report = json.Read<DenseCloudReport>(store.PathFor(run.Artifacts["cloud"] + "/cloud.json"));
+            var report = PackedTestFiles.ReadCloud(store.PathFor(run.Artifacts["cloud"] + "/cloud.bin"));
             Check(report.RetainedSamples > 1000, "The complete cloud was not regenerated from original depth maps");
         }));
         tests.Run("Current cloud reuse honours reset revisions and checkpoint integrity", () => WithProject(store =>
@@ -305,7 +305,7 @@ public sealed class CropPipelineTests
         {
             var cloud = new FusionFixture().Cloud;
             clouds.Write(Path.Combine(directory, "cloud.ply"), cloud);
-            files.AtomicJson(Path.Combine(directory, "cloud.json"), clouds.Report(cloud));
+            PackedTestFiles.WriteCloud(Path.Combine(directory, "cloud.bin"), clouds.Report(cloud));
         });
         context.Complete();
         return artifact;

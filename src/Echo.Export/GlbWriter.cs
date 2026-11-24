@@ -18,16 +18,28 @@ public sealed class GlbWriter : IGlbWriter
 
     public void Write(string output, Surface mesh, IList<double[]> uvs, byte[] texture)
     {
+        using var input = new MemoryStream(texture, writable: false);
+        Write(output, mesh, uvs, input);
+    }
+
+    public void Write(string output, Surface mesh, IList<double[]> uvs, Stream texture)
+    {
         if (mesh.Vertices.Count == 0 || mesh.Faces.Count == 0 || uvs.Count != mesh.Vertices.Count)
         {
             throw new EchoException("Invalid mesh/UV data.");
         }
 
+        if (!texture.CanSeek)
+        {
+            throw new ArgumentException("GLB textures require a sized stream.", nameof(texture));
+        }
+
+        var textureLength = checked((int)(texture.Length - texture.Position));
         var positionsOffset = 0;
         var uvOffset = checked(mesh.Vertices.Count * 12);
         var indexOffset = checked(uvOffset + uvs.Count * 8);
         var imageOffset = checked(indexOffset + mesh.Faces.Count * 12);
-        var binaryLength = checked((imageOffset + texture.Length + 3L) / 4 * 4);
+        var binaryLength = checked((imageOffset + textureLength + 3L) / 4 * 4);
         var first = mesh.Vertices[0];
         var minimum = new float[] { (float)first[0], (float)first[1], (float)first[2] };
         var maximum = (float[])minimum.Clone();
@@ -162,7 +174,7 @@ public sealed class GlbWriter : IGlbWriter
                 {
                     buffer = 0,
                     byteOffset = imageOffset,
-                    byteLength = texture.Length
+                    byteLength = textureLength
 }
             },
             accessors = new object[]
@@ -236,8 +248,8 @@ public sealed class GlbWriter : IGlbWriter
                 glb.Write((uint)face[2]);
             }
 
-            glb.Write(texture);
-            for (var i = imageOffset + (long)texture.Length; i < binaryLength; i++)
+            texture.CopyTo(stream);
+            for (var i = imageOffset + (long)textureLength; i < binaryLength; i++)
             {
                 glb.Write((byte)0);
             }

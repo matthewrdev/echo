@@ -47,12 +47,12 @@ public sealed class ProjectManagementTests
             });
             tests.Run("Invalid names and unconfirmed deletion leave the project unchanged", () =>
             {
-                var before = File.ReadAllBytes(store.PathFor("project.json"));
+                var before = File.ReadAllBytes(store.PathFor("project.bin"));
                 Check(application.Run(["--project", root, "project", "rename", "--name", " "]) == 2, "Blank name is rejected");
                 Check(application.Run(["--project", root, "project", "rename", "--name", "Bad\nname"]) == 2, "Control characters are rejected");
                 Check(application.Run(["--project", root, "project", "delete"]) == 2, "Missing confirmation is rejected");
                 Check(application.Run(["--project", root, "project", "delete", "--confirm", "wrong-id"]) == 2, "Stale confirmation is rejected");
-                Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.json"))), "Manifest is unchanged");
+                Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.bin"))), "Manifest is unchanged");
             });
             tests.Run("Project operations reject active processing and deletion rejects active editing or import", () =>
             {
@@ -107,8 +107,7 @@ public sealed class ProjectManagementTests
             var runId = Guid.NewGuid().ToString("N");
             var runFolder = store.PathFor($"runs/{runId}");
             Directory.CreateDirectory(runFolder);
-            fileOperations.AtomicJson(Path.Combine(runFolder, "run.json"),
-                new RunData { Id = runId, Status = "completed", Snapshot = store.Load() });
+            store.SaveRun(new RunData { Id = runId, Status = "completed", Snapshot = store.Load() });
             store.Edit(project =>
             {
                 project.Images.Add(spare);

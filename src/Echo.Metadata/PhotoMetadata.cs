@@ -13,11 +13,11 @@ public sealed class PhotoMetadata
         if (value is byte[] bytes)
         {
             Payloads[key] = bytes;
-            Fields[key] = JsonSerializer.SerializeToElement($"(Binary data {bytes.Length} bytes)");
+            Fields[key] = JsonSerializer.SerializeToElement($"(Binary data {bytes.Length} bytes)", MetadataJsonContext.Default.String);
         }
         else
         {
-            Fields[key] = JsonSerializer.SerializeToElement(value);
+            Fields[key] = JsonSerializer.SerializeToElement(value, MetadataJsonContext.Default.Object);
         }
     }
 }

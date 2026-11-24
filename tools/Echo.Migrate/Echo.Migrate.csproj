@@ -7,5 +7,7 @@
     <ProjectReference Include="../../src/Echo.Metadata/Echo.Metadata.csproj" />
     <ProjectReference Include="../../src/Echo.Projects/Echo.Projects.csproj" />
     <ProjectReference Include="../../src/Echo.Storage/Echo.Storage.csproj" />
+    <ProjectReference Include="../../src/Echo.Telemetry/Echo.Telemetry.csproj" />
+    <ProjectReference Include="../../src/Echo.Pipeline/Echo.Pipeline.csproj" />
   </ItemGroup>
 </Project>

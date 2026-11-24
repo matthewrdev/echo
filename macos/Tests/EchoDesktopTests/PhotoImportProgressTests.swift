@@ -34,7 +34,7 @@ final class PhotoImportProgressTests: XCTestCase {
         XCTAssertTrue(workspace.progressMessage.contains("photo.jpg"))
         XCTAssertEqual(try XCTUnwrap(workspace.photoImportProgress).fractionCompleted, 290.0 / 540)
         XCTAssertFalse(workspace.canEdit)
-        if let output = ProcessInfo.processInfo.environment["ECHO_TEST_IMPORT_RENDER"] {
+        if WindowedTests.isEnabled, let output = ProcessInfo.processInfo.environment["ECHO_TEST_IMPORT_RENDER"] {
             let host = NSHostingView(
                 rootView: VStack(alignment: .leading) {
                     ArtifactTreeView(workspace: workspace).frame(width: 300, height: 430)

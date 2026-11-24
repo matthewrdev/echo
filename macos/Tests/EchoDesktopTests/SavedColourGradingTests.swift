@@ -67,8 +67,7 @@ final class SavedColourGradingTests: XCTestCase {
         let originalCount = workspace.colourGrading.histogram?.count ?? 0
         let cloud = URL(fileURLWithPath: path).appendingPathComponent(
             try XCTUnwrap(workspace.displayedRun?.artifacts["cloud"]))
-        let report = try JSONDecoder().decode(
-            DenseCloudReport.self, from: Data(contentsOf: cloud.appendingPathComponent("cloud.json")))
+        let report = try PackedPreviewReader().cloud(Data(contentsOf: cloud.appendingPathComponent("cloud.bin")))
         let point = try XCTUnwrap(report.preview.first).position
         var selection = ExclusionRegion()
         selection.centreX = point[0]
@@ -106,11 +105,9 @@ final class SavedColourGradingTests: XCTestCase {
             let output = environment["ECHO_TEST_RENDER_DIR"]
         else { throw XCTSkip("Saved cloud not configured") }
         let root = URL(fileURLWithPath: path)
-        let run = try JSONDecoder().decode(
-            RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(id)/run.json")))
+        let run = try await SavedRunFixture.read(root, id: id)
         let cloud = root.appendingPathComponent(try XCTUnwrap(run.artifacts["cloud"]))
-        let report = try JSONDecoder().decode(
-            DenseCloudReport.self, from: Data(contentsOf: cloud.appendingPathComponent("cloud.json")))
+        let report = try PackedPreviewReader().cloud(Data(contentsOf: cloud.appendingPathComponent("cloud.bin")))
         let start = Date()
         let frequencies = try await Task.detached(priority: .utility) {
             try CloudColourHistogramReader().read(

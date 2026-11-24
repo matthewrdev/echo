@@ -13,7 +13,7 @@ final class SavedCloudOrbitTests: XCTestCase {
         else { throw XCTSkip("Set ECHO_TEST_ORBIT_PROJECT and ECHO_TEST_ORBIT_RUN to inspect saved cloud orbit.") }
         let root = URL(fileURLWithPath: project)
         let json = ArtifactJSONReader()
-        let run: RunData = try json.read(root.appendingPathComponent("runs/\(runID)/run.json"))
+        let run = try await SavedRunFixture.read(root, id: runID)
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
             featureMatches: FeatureMatchIndexer(json: json),

@@ -15,23 +15,19 @@ struct ArtifactViewer: View {
         let stage = workspace.selectedStage.rawValue
         let matching = stage == "features" ? workspace.displayedRun?.artifacts["matching"] ?? "" : ""
         var previewVersion = ""
-        if workspace.selectedStage == .matching, let run = workspace.displayedRun,
+        if [.features, .matching, .depth].contains(workspace.selectedStage), let run = workspace.displayedRun,
             run.artifacts[stage] == nil, let path = run.artifacts[stage + "Preview"]
         {
             let file = URL(fileURLWithPath: workspace.root).appendingPathComponent(path).appendingPathComponent(
-                "pairs.ndjson")
+                workspace.selectedStage == .matching ? "pairs.bin" : "units.bin")
             let version = ArtifactFileVersion(file: file)
             previewVersion = "\(version.modified?.timeIntervalSince1970 ?? 0)/\(version.size ?? 0)/\(run.status)"
         }
-        if [.alignment, .fusion].contains(workspace.selectedStage), let run = workspace.displayedRun,
+        if [.alignment, .cloud, .fusion].contains(workspace.selectedStage), let run = workspace.displayedRun,
             run.artifacts[stage] == nil, let path = run.artifacts[stage + "Preview"]
         {
-            // Preview slots are reused. Include their version even if polling missed a slot change.
             let folder = URL(fileURLWithPath: workspace.root).appendingPathComponent(path)
-            let binary = folder.appendingPathComponent("preview.bin")
-            let file =
-                workspace.selectedStage == .alignment && FileManager.default.fileExists(atPath: binary.path)
-                ? binary : folder.appendingPathComponent("preview.json")
+            let file = folder.appendingPathComponent(workspace.selectedStage == .cloud ? "cloud.bin" : "preview.bin")
             let version = ArtifactFileVersion(file: file)
             previewVersion = "\(version.modified?.timeIntervalSince1970 ?? 0)/\(version.size ?? 0)/\(run.status)"
         }

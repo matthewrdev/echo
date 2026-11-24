@@ -8,13 +8,6 @@ namespace Echo.Pipeline.Alignment;
 
 public sealed class AlignmentPreviewReader : IAlignmentPreviewReader
 {
-    private readonly IJsonCodec json;
-
-    public AlignmentPreviewReader(IJsonCodec json)
-    {
-        this.json = json;
-    }
-
     public AlignmentPreview Read(string path, bool summary)
     {
         using var input = new BinaryReader(File.OpenRead(path));
@@ -29,7 +22,7 @@ public sealed class AlignmentPreviewReader : IAlignmentPreviewReader
             throw new InvalidDataException("Invalid sparse preview metadata length.");
         }
 
-        var header = JsonSerializer.Deserialize<AlignmentPreviewHeader>(input.ReadBytes(length), json.Options)
+        var header = JsonSerializer.Deserialize(input.ReadBytes(length), CoreJsonReadContext.Default.AlignmentPreviewHeader)
             ?? throw new InvalidDataException("Missing sparse preview metadata.");
         var validRecords = input.ReadInt32() == 0x31504345 && input.ReadInt32() == 1 && input.ReadInt32() == 76;
         if (!validRecords)

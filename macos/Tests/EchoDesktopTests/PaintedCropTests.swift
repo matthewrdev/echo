@@ -131,16 +131,16 @@ final class PaintedCropTests: XCTestCase {
     }
 
     @MainActor
-    func testPaintedHullOnSavedDenseCloud() throws {
+    func testPaintedHullOnSavedDenseCloud() async throws {
         let env = ProcessInfo.processInfo.environment
         guard let project = env["ECHO_TEST_CLOUD_PROJECT"], let runID = env["ECHO_TEST_CLOUD_RUN"],
             let output = env["ECHO_TEST_PAINT_OUTPUT"]
         else { throw XCTSkip("Set a saved dense cloud and paint output folder") }
         let root = URL(fileURLWithPath: project)
         let reader = ArtifactJSONReader()
-        let run: RunData = try reader.read(root.appendingPathComponent("runs/\(runID)/run.json"))
+        let run = try await SavedRunFixture.read(root, id: runID)
         let folder = root.appendingPathComponent(try XCTUnwrap(run.artifacts["cloud"]))
-        let report: DenseCloudReport = try reader.read(folder.appendingPathComponent("cloud.json"))
+        let report: DenseCloudReport = try reader.read(folder.appendingPathComponent("cloud.bin"))
         let cloud = try DenseCloudPreviewReader().read(
             file: folder.appendingPathComponent("cloud.ply"), expectedCount: report.retainedSamples,
             limit: 1_000_000, minimumSupport: 0)
@@ -172,13 +172,13 @@ final class PaintedCropTests: XCTestCase {
     }
 
     @MainActor
-    func testPaintedHullOnSavedModel() throws {
+    func testPaintedHullOnSavedModel() async throws {
         let env = ProcessInfo.processInfo.environment
         guard let project = env["ECHO_TEST_PROJECT"], let runID = env["ECHO_TEST_RUN"],
             let output = env["ECHO_TEST_PAINT_OUTPUT"]
         else { throw XCTSkip("Set a saved model and paint output folder") }
         let root = URL(fileURLWithPath: project)
-        let run: RunData = try ArtifactJSONReader().read(root.appendingPathComponent("runs/\(runID)/run.json"))
+        let run = try await SavedRunFixture.read(root, id: runID)
         let artifact = try GeoreferenceArtifactReader().load(root: root, run: run)
         let view = ArtifactSceneView(frame: CGRect(x: 0, y: 0, width: 1440, height: 1000))
         view.scene = artifact.presentation.scene

@@ -3,6 +3,10 @@ import Foundation
 struct RunEventFormatter {
     func entry(from data: Data) -> RunLogEntry? {
         guard let record = try? JSONDecoder().decode(RunEventRecord.self, from: data) else { return nil }
+        return entry(from: record)
+    }
+
+    func entry(from record: RunEventRecord) -> RunLogEntry? {
         let payload = record.payload
         let rawStage = payload["stage"]?.description ?? payload["target"]?.description ?? "run"
         let stage = rawStage == "cloudPreview" ? "cloud" : rawStage

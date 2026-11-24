@@ -16,6 +16,9 @@ public sealed class ArgumentParser : IArgumentParser
             "help",
             "json",
             "summary",
+            "headless",
+            "known-project",
+            "known-snapshot",
             "all",
             "copy",
             "apply",
@@ -23,6 +26,7 @@ public sealed class ArgumentParser : IArgumentParser
             "project",
             "set",
             "limit",
+            "manifest",
             "events",
             "query",
             "value",
@@ -80,7 +84,7 @@ public sealed class ArgumentParser : IArgumentParser
                 throw new EchoException("Unknown option: " + arg, 2);
             }
 
-            var flag = key is "help" or "json" or "copy" or "summary" or "apply" or "all" or "unused";
+            var flag = key is "help" or "json" or "copy" or "summary" or "headless" or "apply" or "all" or "unused";
             var value = flag ? "true" : ++i < args.Length ? args[i] : throw new EchoException("Missing value for " + arg, 2);
             if (!result.Options.TryAdd(key, value))
             {

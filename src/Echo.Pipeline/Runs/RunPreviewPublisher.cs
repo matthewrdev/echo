@@ -1,10 +1,12 @@
+using System.Text;
 using Echo.Infrastructure;
 using Echo.Models;
 using Echo.Pipeline.Alignment;
+using Echo.Storage.Artifacts;
 
 namespace Echo.Pipeline.Runs;
 
-// Two atomic snapshots per stage bound disk growth and do not create checkpoints.
+// Atomic replacement keeps each published preview self-contained.
 public sealed class RunPreviewPublisher
 {
     private readonly RunContext context;
@@ -12,22 +14,32 @@ public sealed class RunPreviewPublisher
     private readonly string stage;
     private long lastPublished;
     private long publishInterval = 3000;
-    private int revision;
 
     public RunPreviewPublisher(RunContext context, IFileOperations files, RunPreviewStage stage)
     {
         this.context = context;
         this.files = files;
         this.stage = stage.ToString().ToLowerInvariant();
-        var current = context.Run.Artifacts.GetValueOrDefault(this.stage + "Preview");
-        revision = current?.EndsWith("/0", StringComparison.Ordinal) == true ? 0 : 1;
     }
 
     public bool IsDue => lastPublished == 0 || Environment.TickCount64 - lastPublished >= publishInterval;
 
-    public void Publish<T>(T preview)
+    public void PublishFusion(FusionPreview preview)
     {
-        PublishCore(path => files.AtomicJson(path + "/preview.json", preview));
+        PublishCore(path => files.AtomicWrite(path + "/preview.bin", stream =>
+        {
+            using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+            new FusionPreviewCodec().Write(writer, preview);
+        }));
+    }
+
+    public void PublishCloud(DenseCloudReport preview)
+    {
+        PublishCore(path => files.AtomicWrite(path + "/cloud.bin", stream =>
+        {
+            using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+            new DenseCloudReportCodec().Write(writer, preview);
+        }));
     }
 
     public void PublishAlignment(AlignmentPreview preview, IAlignmentPreviewWriter writer)
@@ -39,10 +51,9 @@ public sealed class RunPreviewPublisher
     {
         context.Cancellation.ThrowIfCancellationRequested();
         var started = Environment.TickCount64;
-        revision = 1 - revision;
-        var path = $"runs/{context.Run.Id}/previews/{stage}/{revision}";
+        var path = $"runs/{context.Run.Id}/previews/{stage}";
         write(context.Store.PathFor(path));
-        context.Publish(stage + "Preview", path);
+        context.PublishPreview(stage + "Preview", path);
         lastPublished = Environment.TickCount64;
         // Keep publication below roughly 10% of elapsed processing time on slow disks.
         publishInterval = Math.Max(3000, (lastPublished - started) * 9);

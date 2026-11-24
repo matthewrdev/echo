@@ -7,6 +7,7 @@ struct RunData: Decodable, Identifiable {
     let snapshot: ProjectData
     let artifacts: [String: String]
     let error: String?
-    let progress: RunProgress?
+    var progress: RunProgress?
     var storageVersion: Int? = nil
+    var snapshotToken: String? = nil
 }

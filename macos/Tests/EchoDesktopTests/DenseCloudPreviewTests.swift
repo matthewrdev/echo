@@ -79,8 +79,7 @@ final class DenseCloudPreviewTests: XCTestCase {
             throw XCTSkip("Saved dense cloud not configured")
         }
         let root = URL(fileURLWithPath: path)
-        let run = try JSONDecoder().decode(
-            RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(id)/run.json")))
+        let run = try await SavedRunFixture.read(root, id: id)
         let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),

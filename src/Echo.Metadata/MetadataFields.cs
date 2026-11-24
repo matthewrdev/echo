@@ -161,8 +161,11 @@ public static class MetadataFields
             case double number when !double.IsFinite(number):
             case float single when !float.IsFinite(single):
                 return value.ToString();
-            case IConvertible:
+            case char or bool or byte or sbyte or short or ushort or int or uint or long or ulong
+                or float or double or decimal or DateTime:
                 return value;
+            case Enum enumeration:
+                return Convert.ChangeType(enumeration, Enum.GetUnderlyingType(enumeration.GetType()), CultureInfo.InvariantCulture);
             default:
                 return value.ToString();
         }

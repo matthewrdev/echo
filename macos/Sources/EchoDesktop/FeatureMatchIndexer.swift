@@ -8,7 +8,7 @@ final class FeatureMatchIndexer {
 
     func read(root: URL, run: RunData, features: FeatureSet) throws -> [FeatureMatchLink] {
         guard let matching = run.artifacts["matching"] else { return [] }
-        let file = root.appendingPathComponent(matching).appendingPathComponent("pairs.ndjson")
+        let file = root.appendingPathComponent(matching).appendingPathComponent("pairs.bin")
         let units = try index.read(file)
         var lookup: [PixelCoordinate: Int] = [:]
         for (index, feature) in features.features.enumerated() {

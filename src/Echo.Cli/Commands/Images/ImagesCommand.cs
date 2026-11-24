@@ -1,3 +1,4 @@
+using Echo.Infrastructure;
 using Echo.Models;
 using Echo.Metadata;
 using Echo.Projects;
@@ -12,9 +13,11 @@ public sealed class ImagesCommand : ICliCommand
     private readonly IMetadataPayloadReader payloadReader;
     private readonly IPhotoDeduplicator deduplicator;
     private readonly IPhotoDeletionService deletion;
+    private readonly IJsonCodec jsonCodec;
 
     public ImagesCommand(IProjectStoreFactory storeFactory, ICommandOutput output, IMetadataReader metadataReader,
-        IMetadataPayloadReader payloadReader, IPhotoDeduplicator deduplicator, IPhotoDeletionService deletion)
+        IMetadataPayloadReader payloadReader, IPhotoDeduplicator deduplicator, IPhotoDeletionService deletion,
+        IJsonCodec jsonCodec)
     {
         this.storeFactory = storeFactory;
         this.output = output;
@@ -22,6 +25,7 @@ public sealed class ImagesCommand : ICliCommand
         this.payloadReader = payloadReader;
         this.deduplicator = deduplicator;
         this.deletion = deletion;
+        this.jsonCodec = jsonCodec;
     }
 
     public IReadOnlyCollection<string> Names => ["images"];
@@ -31,6 +35,9 @@ public sealed class ImagesCommand : ICliCommand
         new("images import",
             "--project PATH images import DIRECTORY [--set NAME] [--limit N]",
             "Import supported photos and retain their original metadata."),
+        new("images import",
+            "--project PATH images import --manifest FILE",
+            "Import an explicit JSON list of photo paths and set names."),
         new("images derive-iphone-poses",
             "--project PATH images derive-iphone-poses",
             "Derive camera pose hints from supported iPhone photos."),
@@ -66,10 +73,7 @@ public sealed class ImagesCommand : ICliCommand
         switch (action)
         {
             case "import":
-                output.Write(new
-                {
-                    imported = store.Import(args.RequiredWord(2), args.Get("set", "default")!, args.Int("limit", int.MaxValue), value => output.Progress(value, ndjson))
-                });
+                Import(store, args, ndjson);
                 return 0;
             case "deduplicate":
                 var plan = deduplicator.Plan(store);
@@ -146,6 +150,26 @@ public sealed class ImagesCommand : ICliCommand
             default:
                 throw new EchoException("Unknown images action. Use --help.", 2);
         }
+    }
+
+    private void Import(IProjectStore store, Arguments args, bool ndjson)
+    {
+        void Report(object value) => output.Progress(value, ndjson);
+
+        var manifest = args.Get("manifest", null);
+        var hasDirectoryOptions = args.Words.Count != 2 || args.Options.ContainsKey("set") || args.Options.ContainsKey("limit");
+        if (manifest != null && hasDirectoryOptions)
+        {
+            throw new EchoException("Use --manifest without a directory, --set or --limit.", 2);
+        }
+
+        var imported = manifest == null
+            ? store.Import(args.RequiredWord(2), args.Get("set", "default")!, args.Int("limit", int.MaxValue), Report)
+            : store.Import(jsonCodec.Read<PhotoImportEntry[]>(manifest), Report);
+        output.Write(new
+        {
+            imported
+        });
     }
 
     private void SetMultipleEnabled(IProjectStore store, IEnumerable<string> ids, bool enabled)

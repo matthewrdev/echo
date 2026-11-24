@@ -40,8 +40,8 @@ public sealed class PerformanceTraceExportTests
             var run = document.Summary.RunId;
             var attempt = document.Summary.Id;
             var directory = store.PathFor($"runs/{run}");
-            var journal = Path.Combine(directory, "traces", attempt + ".spans.ndjson");
-            var header = Path.Combine(directory, "traces", attempt + ".json");
+            var journal = Path.Combine(directory, "traces", attempt + ".trace.spans.bin");
+            var header = Path.Combine(directory, "traces", attempt + ".trace.bin");
             var original = File.ReadAllBytes(journal);
             var originalHeader = File.ReadAllBytes(header);
             var destination = store.PathFor("exports/full trace.json");
@@ -77,7 +77,7 @@ public sealed class PerformanceTraceExportTests
         tests.Run("Trace summary reads aggregates without opening the span journal", () => WithTrace((store, document) =>
         {
             var directory = store.PathFor($"runs/{document.Summary.RunId}");
-            var journal = Path.Combine(directory, "traces", document.Summary.Id + ".spans.ndjson");
+            var journal = Path.Combine(directory, "traces", document.Summary.Id + ".trace.spans.bin");
             File.Move(journal, journal + ".saved");
             var summary = traces.Read(directory, document.Summary.Id, includeSpans: false);
             Check(summary.Spans.Count == 0 && summary.Statistics.Count > 0 && summary.Measurements.Count == 1, "Summary is independently readable");
@@ -101,7 +101,7 @@ public sealed class PerformanceTraceExportTests
             var store = stores.Open(path);
             store.Init();
             var run = new RunData { Id = Guid.NewGuid().ToString("N"), Status = "running", Target = "matching" };
-            files.AtomicJson(store.PathFor($"runs/{run.Id}/run.json"), run);
+            store.SaveRun(run);
             using var session = trace.BeginRun(run.Id, "matching");
             using var stage = trace.Begin("matching", PerformanceSpanKind.Stage, stage: "matching");
             using (var pair = trace.Begin("pair </script><script>alert('unsafe')</script> Ω", PerformanceSpanKind.Operation))

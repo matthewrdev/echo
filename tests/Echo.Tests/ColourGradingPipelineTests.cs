@@ -120,10 +120,8 @@ public sealed class ColourGradingPipelineTests
     private void CheckProgress(IProjectStore store, RunData run, bool reusedLayout)
     {
         var updates = new List<JsonElement>();
-        foreach (var line in File.ReadLines(store.PathFor($"runs/{run.Id}/events.ndjson")))
+        foreach (var record in PackedTestFiles.ReadEvents(store.PathFor($"runs/{run.Id}/events.bin")))
         {
-            using var document = JsonDocument.Parse(line);
-            var record = document.RootElement;
             var payload = record.GetProperty("payload");
             if (record.GetProperty("type").GetString() == "stageProgress" && payload.TryGetProperty("operation", out _))
             {

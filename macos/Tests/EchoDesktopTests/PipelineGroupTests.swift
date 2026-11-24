@@ -36,7 +36,7 @@ final class PipelineGroupTests: XCTestCase {
             XCTAssertFalse(workspace.busy)
             XCTAssertNil(workspace.errorMessage)
             XCTAssertEqual(cli.starts.count, previousCount + 1)
-            XCTAssertEqual(cli.starts.last, ["run", "start", "--target", group.target.rawValue, "--events", "ndjson"])
+            XCTAssertEqual(cli.starts.last, ["run", "start", "--target", group.target.rawValue, "--events", "none"])
         }
         workspace.runs = [RunSummary(id: "active", status: "running", target: "export", created: "")]
         XCTAssertFalse(workspace.canRunGroups)

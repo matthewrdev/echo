@@ -96,9 +96,9 @@ public sealed class PerformanceTraceTests
             var directory = store.PathFor($"runs/{first.Document.Summary.RunId}");
             traces.Save(directory, first.Document);
             session.Acknowledge(first);
-            var path = Path.Combine(directory, "traces", first.Document.Summary.Id + ".spans.ndjson");
+            var path = Path.Combine(directory, "traces", first.Document.Summary.Id + ".trace.spans.bin");
             var original = File.ReadAllBytes(path);
-            File.AppendAllText(path, "unfinished record");
+            PackedTestFiles.WriteTornFrame(path);
             using (trace.Begin("matching", PerformanceSpanKind.Stage, stage: "matching"))
             {
                 using var operation = trace.Begin("verify pair", PerformanceSpanKind.Operation);

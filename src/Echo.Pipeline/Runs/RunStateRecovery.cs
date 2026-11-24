@@ -1,5 +1,4 @@
 using Echo.Models;
-using Echo.Infrastructure;
 using Echo.Projects;
 using Echo.Telemetry;
 using System.Text.Json;
@@ -9,13 +8,11 @@ namespace Echo.Pipeline.Runs;
 public sealed class RunStateRecovery : IRunStateRecovery
 {
     private readonly IRunContextFactory contextFactory;
-    private readonly IJsonCodec jsonCodec;
     private readonly IPerformanceTraceStore traces;
 
-    public RunStateRecovery(IRunContextFactory contextFactory, IJsonCodec jsonCodec, IPerformanceTraceStore traces)
+    public RunStateRecovery(IRunContextFactory contextFactory, IPerformanceTraceStore traces)
     {
         this.contextFactory = contextFactory;
-        this.jsonCodec = jsonCodec;
         this.traces = traces;
     }
 
@@ -34,31 +31,21 @@ public sealed class RunStateRecovery : IRunStateRecovery
 
         using (lease)
         {
-            var directory = store.PathFor("runs");
-            if (!Directory.Exists(directory))
+            foreach (var summary in store.ListRuns().Where(run => run.Status == "running"))
             {
-                return;
-            }
-
-            foreach (var path in Directory.EnumerateFiles(directory, "run.json", SearchOption.AllDirectories))
-            {
-                var run = store.GetRun(Path.GetFileName(Path.GetDirectoryName(path))!);
-                if (run.Status != "running")
-                {
-                    continue;
-                }
-
+                var run = store.GetRun(summary.Id);
+                var directory = store.PathFor($"runs/{run.Id}");
                 var cancelled = File.Exists(store.PathFor($"runs/{run.Id}/cancel"));
                 using var context = contextFactory.Create(store, run, CancellationToken.None, null);
                 try
                 {
-                    traces.RecoverInterrupted(Path.GetDirectoryName(path)!, cancelled);
+                    traces.RecoverInterrupted(directory, cancelled);
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
                 {
-                    context.Report("warning", new
+                    context.Report("warning", new Dictionary<string, object?>
                     {
-                        message = "Interrupted performance trace could not be recovered: " + error.Message
+                        ["message"] = "Interrupted performance trace could not be recovered: " + error.Message
                     });
                 }
 

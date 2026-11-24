@@ -6,6 +6,7 @@ struct DepthStageQualityRequest: Equatable {
     let folder: URL
     let semanticsIndex: URL?
     let isPreview: Bool
+    let previewVersion: ArtifactFileVersion?
 
     init?(root: String, run: RunData?) {
         guard let run, let path = run.artifacts["depth"] ?? run.artifacts["depthPreview"] else { return nil }
@@ -17,5 +18,6 @@ struct DepthStageQualityRequest: Equatable {
             root.appendingPathComponent($0).appendingPathComponent("units.json")
         }
         isPreview = run.artifacts["depth"] == nil
+        previewVersion = isPreview ? ArtifactFileVersion(file: folder.appendingPathComponent("units.bin")) : nil
     }
 }

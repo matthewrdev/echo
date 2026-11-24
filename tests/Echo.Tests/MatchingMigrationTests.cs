@@ -3,6 +3,8 @@ using Echo.Migrate;
 using Echo.Models;
 using Echo.Projects;
 using Echo.Storage.Matching;
+using Echo.Storage.Journals;
+using Echo.Telemetry;
 using Echo.Storage;
 
 namespace Echo.Tests;
@@ -14,15 +16,17 @@ public sealed class MatchingMigrationTests
     private readonly IJsonCodec json;
     private readonly MatchingProjectMigrator migrator;
     private readonly IMatchingIndexStore indexes;
+    private readonly IPerformanceTraceStore traces;
 
     public MatchingMigrationTests(IProjectStoreFactory stores, IFileOperations files, IJsonCodec json,
-        MatchingProjectMigrator migrator, IMatchingIndexStore indexes)
+        MatchingProjectMigrator migrator, IMatchingIndexStore indexes, IPerformanceTraceStore traces)
     {
         this.stores = stores;
         this.files = files;
         this.json = json;
         this.migrator = migrator;
         this.indexes = indexes;
+        this.traces = traces;
     }
 
     internal void Run(TestSuite tests)
@@ -44,14 +48,37 @@ public sealed class MatchingMigrationTests
                 run.Artifacts["matching"] = "artifacts/matching/m";
                 run.Artifacts["matchingPreview"] = "artifacts/matching-preview/old";
                 files.AtomicJson(store.PathFor($"runs/{run.Id}/run.json"), run);
+                var project = store.Load();
+                files.AtomicJson(store.PathFor("project.json"), project);
+                File.Delete(store.PathFor("project.bin"));
+                var events = store.PathFor($"runs/{run.Id}/events.ndjson");
+                File.WriteAllText(events, $$$"""
+                    {"sequence":1,"timestamp":"2026-11-24T01:02:03+00:00","runId":"{{{run.Id}}}","type":"stageProgress","payload":{"stage":"matching","completed":1}}
+                    """);
+                var attempt = Guid.NewGuid().ToString("N");
+                files.AtomicJson(store.PathFor($"runs/{run.Id}/traces/{attempt}.json"), new PerformanceTraceDocument
+                {
+                    Summary = new PerformanceTraceSummary { Id = attempt, RunId = run.Id, Status = PerformanceStatus.Completed },
+                    Spans = [new PerformanceSpan { Id = 1, Stage = "matching", Status = PerformanceStatus.Completed }]
+                });
                 var originalFeatures = files.Hash(feature);
                 var originalMatches = files.Hash(pair);
                 migrator.Migrate(root);
+                Check(project.Id == store.Load().Id && !File.Exists(store.PathFor("project.json")), "Packed project preserves identity");
+                var eventReader = new BinaryJournalReader<RunEvent>(new RunEventRecordCodec());
+                using (var journal = eventReader.OpenRead(store.PathFor($"runs/{run.Id}/events.bin"))!)
+                {
+                    var entry = eventReader.Read(journal).Single();
+                    Check(entry.Sequence == 1 && Equals(entry.Payload["completed"], 1L), "Run history values survive packing");
+                }
+
+                Check(!File.Exists(events) && traces.Read(store.PathFor($"runs/{run.Id}"), attempt).Spans.Single().Id == 1,
+                    "Legacy event and trace files were migrated");
                 Check(originalFeatures == files.Hash(json.Read<FeatureSet>(store.PathFor("artifacts/feature-image/f/features.json"))), "Migration changed features");
                 Check(originalMatches == files.Hash(json.Read<ImagePair>(store.PathFor("artifacts/match-pair/p/pair.json"))), "Migration changed matches");
-                var changed = json.Read<RunData>(store.PathFor($"runs/{run.Id}/run.json"));
+                var changed = store.GetRun(run.Id);
                 Check(changed.Artifacts["matching"] == run.Artifacts["matching"], "Migration invalidated final artifact identity");
-                Check(indexes.Read(store.PathFor(changed.Artifacts["matchingPreview"] + "/pairs.ndjson")).Count == 1, "Migrated partial results are not discoverable");
+                Check(indexes.Read(store.PathFor(changed.Artifacts["matchingPreview"] + "/pairs.bin")).Count == 1, "Migrated partial results are not discoverable");
                 Check(!Directory.Exists(store.PathFor("artifacts/matching-preview")), "Redundant snapshots remain");
                 var hashes = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).ToDictionary(path => path, files.HashFile);
                 migrator.Migrate(root);

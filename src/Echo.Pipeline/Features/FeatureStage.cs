@@ -32,34 +32,26 @@ public sealed class FeatureStage : IPipelineStage
         var images = context.Images;
         var cancellation = context.Cancellation;
         var featureUnits = new Dictionary<string, string>();
-        var previewCount = context.Run.Artifacts.ContainsKey("featuresPreview")
-            ? context.ReadArtifact<Dictionary<string, string>>("featuresPreview", "units.json").Count
-            : 0;
-        var resumingPartialPreview = previewCount > 0 && !context.Run.Artifacts.ContainsKey("features");
+        using var previews = context.Headless ? null : new ImagePreviewJournal(context, Name);
         var plan = workPlanner.Features(project.Settings, images);
         workExecutor.Run(images.Count, plan.Workers, index => BuildImage(context, images[index]), (index, checkpoint) =>
         {
             var image = images[index];
             featureUnits[image.Id] = checkpoint.Artifact;
-            var extendsPreview = (!checkpoint.Reused || resumingPartialPreview) && featureUnits.Count > previewCount;
-            if (extendsPreview)
-            {
-                PublishPreview(context, featureUnits);
-                previewCount = featureUnits.Count;
-            }
+            previews?.Publish(image.Id, checkpoint.Artifact, checkpoint.Reused);
 
             var action = checkpoint.Reused ? "Reused" : "Found";
-            context.Report("imageCheckpoint", new
+            context.Report("imageCheckpoint", new Dictionary<string, object?>
             {
-                stage = "features",
-                imageId = image.Id,
-                imageName = image.Name,
-                pointCount = checkpoint.PointCount,
-                lineCount = checkpoint.LineCount,
-                reused = checkpoint.Reused,
-                message = $"{image.Name} · {action} {checkpoint.PointCount:N0} points and {checkpoint.LineCount:N0} line segments · {featureUnits.Count:N0}/{images.Count:N0} images ready",
-                completed = featureUnits.Count,
-                total = images.Count
+                ["stage"] = "features",
+                ["imageId"] = image.Id,
+                ["imageName"] = image.Name,
+                ["pointCount"] = checkpoint.PointCount,
+                ["lineCount"] = checkpoint.LineCount,
+                ["reused"] = checkpoint.Reused,
+                ["message"] = $"{image.Name} · {action} {checkpoint.PointCount:N0} points and {checkpoint.LineCount:N0} line segments · {featureUnits.Count:N0}/{images.Count:N0} images ready",
+                ["completed"] = featureUnits.Count,
+                ["total"] = images.Count
             });
         }, cancellation);
 
@@ -99,16 +91,5 @@ public sealed class FeatureStage : IPipelineStage
         });
         var features = detected ?? jsonCodec.Read<FeatureSet>(context.Store.PathFor(unit + "/features.json"));
         return new FeatureImageCheckpoint(unit, features.Features.Count, features.Lines.Count, detected == null);
-    }
-
-    private void PublishPreview(RunContext context, Dictionary<string, string> featureUnits)
-    {
-        // Publish only committed image checkpoints. Each index is immutable, so
-        // an open viewer remains safe while the next image is being processed.
-        var artifact = context.Build("features-preview", featureUnits, directory =>
-        {
-            fileOperations.AtomicJson(Path.Combine(directory, "units.json"), featureUnits);
-        });
-        context.Publish("featuresPreview", artifact);
     }
 }

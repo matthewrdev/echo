@@ -16,7 +16,7 @@ actor SavedFusionArtifactReader {
         sceneIdentity: String? = nil, running: Bool = false
     ) throws -> ArtifactPresentation {
         try Task.checkCancellation()
-        let previewFile = folder.appendingPathComponent("preview.json")
+        let previewFile = folder.appendingPathComponent("preview.bin")
         if FileManager.default.fileExists(atPath: previewFile.path) {
             let preview: FusionPreview = try json.read(previewFile)
             let volume = preview.volume

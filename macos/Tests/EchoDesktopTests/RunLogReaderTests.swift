@@ -9,11 +9,14 @@ final class RunLogReaderTests: XCTestCase {
         let folder = root.appendingPathComponent("runs/test")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let file = folder.appendingPathComponent("events.ndjson")
-        let lines = (1...1200).map { index in
-            "{\"sequence\":\(index),\"timestamp\":\"2026-11-15T01:00:00.000Z\",\"type\":\"stageProgress\",\"payload\":{\"stage\":\"mesh\",\"message\":\"Message \(index)\"}}"
+        let file = folder.appendingPathComponent("events.bin")
+        let frames = (1...1200).map { index in
+            PackedFixture.event(index, type: "stageProgress", fields: ["stage": "mesh", "message": "Message \(index)"])
         }
-        try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
+        let header = PackedFixture.header(0x3156_4545)
+        var fileBytes = header
+        for frame in frames { fileBytes.append(frame) }
+        try fileBytes.write(to: file)
         let reader = RunLogReader(formatter: RunEventFormatter())
         for _ in 0..<2 {
             let entries = try await reader.read(root: root.path, runID: "test")
@@ -23,7 +26,7 @@ final class RunLogReaderTests: XCTestCase {
         }
         let reopened = try await RunLogReader(formatter: RunEventFormatter()).read(root: root.path, runID: "test")
         XCTAssertEqual(reopened.count, 1200)
-        try Data((lines[0] + "\n").utf8).write(to: file)
+        try (header + frames[0]).write(to: file)
         let truncated = try await reader.read(root: root.path, runID: "test")
         XCTAssertEqual(truncated.count, 1)
         XCTAssertEqual(truncated[0].message, "Message 1")
@@ -48,24 +51,24 @@ final class RunLogReaderTests: XCTestCase {
         let folder = root.appendingPathComponent("runs/test")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let file = folder.appendingPathComponent("events.ndjson")
-        let first =
-            #"{"sequence":1,"timestamp":"2026-11-13T01:00:00.000Z","type":"stageProgress","payload":{"stage":"cloud","message":"Checking image 2 of 48 · 100 points accepted"}}"#
-        try Data((first + "\n").utf8).write(to: file)
+        let file = folder.appendingPathComponent("events.bin")
+        let first = PackedFixture.event(
+            1, type: "stageProgress",
+            fields: ["stage": "cloud", "message": "Checking image 2 of 48 · 100 points accepted"])
+        try (PackedFixture.header(0x3156_4545) + first).write(to: file)
         let reader = RunLogReader(formatter: RunEventFormatter())
         let initial = try await reader.read(root: root.path, runID: "test")
         XCTAssertEqual(initial.count, 1)
         XCTAssertTrue(initial[0].message.contains("100 points accepted"))
         let repeated = try await reader.read(root: root.path, runID: "test")
         XCTAssertEqual(repeated.count, 1)
-        let second =
-            #"{"sequence":2,"timestamp":"2026-11-13T01:00:03.000Z","type":"checkpoint","payload":{"stage":"cloudPreview"}}"#
+        let second = PackedFixture.event(2, type: "checkpoint", fields: ["stage": "cloudPreview"])
         let handle = try FileHandle(forWritingTo: file)
         try handle.seekToEnd()
-        try handle.write(contentsOf: Data(second.utf8))
+        try handle.write(contentsOf: second.dropLast())
         let incomplete = try await reader.read(root: root.path, runID: "test")
         XCTAssertEqual(incomplete.count, 1)
-        try handle.write(contentsOf: Data("\n".utf8))
+        try handle.write(contentsOf: second.suffix(1))
         try handle.close()
         let appended = try await reader.read(root: root.path, runID: "test")
         XCTAssertEqual(appended.count, 2)

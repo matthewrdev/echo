@@ -282,7 +282,7 @@ public sealed class RasterImageService : IRasterImageService
     {
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(format, quality);
-        fileOperations.AtomicBytes(path, data.ToArray());
+        fileOperations.AtomicWrite(path, data.SaveTo);
     }
 
     public float[] Gray(SKBitmap bitmap)

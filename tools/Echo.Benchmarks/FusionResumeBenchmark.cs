@@ -51,7 +51,7 @@ public sealed class FusionResumeBenchmark
         var units = json.Read<List<string>>(store.PathFor(run.Artifacts["depth"] + "/units.json"));
         var maps = units.Select(unit => data.Read<DepthMap>(store.PathFor(unit + "/depth.json"))).ToArray();
         var path = run.Artifacts["cloud"];
-        var cloud = clouds.Read(store.PathFor(path + "/cloud.ply"), json.Read<DenseCloudReport>(store.PathFor(path + "/cloud.json")), data);
+        var cloud = clouds.Read(store.PathFor(path + "/cloud.ply"), new DenseCloudReportCodec().Read(store.PathFor(path + "/cloud.bin")), data);
         var samples = new DenseSample[Math.Min(limit, cloud.Samples.Count)];
         RecordListOperations.Read(cloud.Samples, 0, samples.AsSpan());
         cloud.Samples = samples;

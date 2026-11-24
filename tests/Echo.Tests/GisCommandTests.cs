@@ -37,7 +37,7 @@ public sealed class GisCommandTests
                 {
                     Origin = new GeoPosition { Latitude = -33, Longitude = 150, Altitude = 87.202 }
                 });
-                files.AtomicJson(store.PathFor($"runs/{id}/run.json"), new RunData
+                store.SaveRun(new RunData
                 {
                     Id = id,
                     Snapshot = store.Load(),

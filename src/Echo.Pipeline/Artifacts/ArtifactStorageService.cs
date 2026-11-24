@@ -1,3 +1,4 @@
+using Echo.Storage.Journals;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text;
@@ -68,7 +69,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
                 run.Status = "cancelled";
                 run.Progress = null;
                 run.Error = "Generated results removed from " + affected.Value + ". Process again to rebuild missing stages.";
-                files.AtomicJson(store.PathFor($"runs/{run.Id}/run.json"), run);
+                store.SaveRun(run);
             }
         }
 
@@ -316,7 +317,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
             }
             else if (run.Id != latest?.Id)
             {
-                AddCleanupPath(store, plan, $"runs/{run.Id}/events.ndjson");
+                AddCleanupPath(store, plan, $"runs/{run.Id}/events.bin");
                 AddCleanupPath(store, plan, $"runs/{run.Id}/traces");
             }
         }
@@ -359,8 +360,20 @@ public sealed class ArtifactStorageService : IArtifactStorageService
             yield return path;
         }
 
+        foreach (var stage in new[] { "features", "depth" })
+        {
+            var folder = $"runs/{run.Id}/previews/{stage}";
+            if (run.Artifacts.GetValueOrDefault(stage + "Preview") == folder)
+            {
+                foreach (var path in new ImagePreviewRecordCodec().ReadUnits(store.PathFor(folder + "/units.bin")).Values)
+                {
+                    yield return path;
+                }
+            }
+        }
+
         var preview = $"runs/{run.Id}/previews/matching";
-        var matchingJournal = store.PathFor(preview + "/pairs.ndjson");
+        var matchingJournal = store.PathFor(preview + "/pairs.bin");
         if (run.Artifacts.GetValueOrDefault("matchingPreview") == preview && File.Exists(matchingJournal))
         {
             foreach (var entry in matchingIndexes.Read(matchingJournal))
@@ -406,7 +419,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
 
         foreach (var path in Directory.GetFiles(directory, "run.json", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
         {
-            var run = json.Read<RunData>(path);
+            var run = store.GetRun(Path.GetFileName(Path.GetDirectoryName(path)!));
             if (!Guid.TryParseExact(run.Id, "N", out _) || store.PathFor($"runs/{run.Id}/run.json") != path)
             {
                 throw new EchoException("Invalid saved run path: " + path, 2);

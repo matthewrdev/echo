@@ -4,7 +4,7 @@ namespace Echo.Pipeline.Alignment;
 
 public static class AlignmentPreviewSampler
 {
-    public static AlignmentPreview Sample(ReconstructionScene scene, int limit = 4000000)
+    public static AlignmentPreview Sample(ReconstructionScene scene, int limit = 1000000)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
         var count = Math.Min(limit, scene.Points.Count);

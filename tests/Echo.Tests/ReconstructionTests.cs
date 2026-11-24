@@ -1,3 +1,4 @@
+using Echo.Storage.Journals;
 using System.Globalization;
 using System.Text.Json;
 using Echo.Geometry;
@@ -397,8 +398,8 @@ public sealed class ReconstructionTests
                 }
                 Check(store.Import(source, "drone", 100, Observe).Count == 3, "Import three photographs");
                 var revisions = store.PathFor("revisions");
-                Check(Directory.GetFiles(revisions, "*.json").Length == 1
-                    && File.Exists(store.PathFor($"revisions/{store.Load().Revision:D6}.json")),
+                Check(Directory.GetFiles(revisions, "*.bin").Length == 1
+                    && File.Exists(store.PathFor($"revisions/{store.Load().Revision:D6}.bin")),
                     "Archive only the final import checkpoint");
                 Check(updates.Select(update => update.Completed).SequenceEqual([0, 1, 2, 3]), "Import reports progress before and after each photograph");
                 Check(updates.All(update => update.Total == 3 && update.Skipped == 0), "Only supported input photographs enter the total");
@@ -411,7 +412,7 @@ public sealed class ReconstructionTests
                 Check(updates[^1].Skipped == 3 && updates[^1].Count == 0, "Existing photos are counted separately from new imports");
                 var revision = store.Load().Revision;
                 Check(store.Import(source, "repeat", 100).Count == 0
-                    && store.Load().Revision == revision && Directory.GetFiles(revisions, "*.json").Length == 2,
+                    && store.Load().Revision == revision && Directory.GetFiles(revisions, "*.bin").Length == 2,
                     "Reimporting the same set creates no revision");
                 updates.Clear();
                 store.Import(source, "limited", 2, Observe);
@@ -436,7 +437,7 @@ public sealed class ReconstructionTests
 
                 var checkpoint = interrupted.Load();
                 Check(checkpoint.Images.Count == 1
-                    && File.Exists(interrupted.PathFor($"revisions/{checkpoint.Revision:D6}.json")),
+                    && File.Exists(interrupted.PathFor($"revisions/{checkpoint.Revision:D6}.bin")),
                     "A partial import has one photo and its archived revision");
                 Check(interrupted.Import(source, "drone", 100).Count == 2 && interrupted.Load().Images.Count == 3,
                     "Retry imports only the remaining photos");
@@ -465,7 +466,7 @@ public sealed class ReconstructionTests
                 var paused = store.GetRun();
                 Check(paused.Status == "cancelled", "Cancelled run status");
                 Check(!paused.Artifacts.ContainsKey("features"), "A partial index must not complete the feature stage");
-                var partialFeatures = jsonCodec.Read<Dictionary<string, string>>(store.PathFor(paused.Artifacts["featuresPreview"] + "/units.json"));
+                var partialFeatures = new ImagePreviewRecordCodec().ReadUnits(store.PathFor(paused.Artifacts["featuresPreview"] + "/units.bin"));
                 Check(partialFeatures.Count == 1, "Cancelled feature extraction retains its viewable image index");
                 // Concurrent workers can commit more images than the coordinator has
                 // published when cancellation arrives. Every such image must be reused.
@@ -526,7 +527,7 @@ public sealed class ReconstructionTests
                     {
                         featureReports++;
                         var current = store.GetRun(paused.Id);
-                        var index = jsonCodec.Read<Dictionary<string, string>>(store.PathFor(current.Artifacts["featuresPreview"] + "/units.json"));
+                        var index = new ImagePreviewRecordCodec().ReadUnits(store.PathFor(current.Artifacts["featuresPreview"] + "/units.bin"));
                         Check(index.Count >= previewImages, "Resuming features must not shrink the preview");
                         previewImages = index.Count;
                         var imageId = payload.GetProperty("imageId").GetString()!;
@@ -545,7 +546,7 @@ public sealed class ReconstructionTests
                     {
                         depthReports++;
                         var current = store.GetRun(paused.Id);
-                        var index = jsonCodec.Read<Dictionary<string, string>>(store.PathFor(current.Artifacts["depthPreview"] + "/units.json"));
+                        var index = new ImagePreviewRecordCodec().ReadUnits(store.PathFor(current.Artifacts["depthPreview"] + "/units.bin"));
                         var imageId = payload.GetProperty("imageId").GetString()!;
                         var map = jsonCodec.Read<DepthMap>(store.PathFor(index[imageId] + "/depth.json"));
                         Check(map.ImageId == imageId, "Concurrent depth previews retain their photo identity");
@@ -568,8 +569,8 @@ public sealed class ReconstructionTests
                     {
                         var current = store.GetRun(paused.Id);
                         sawLiveCloudBeforeCompletion = !current.Artifacts.ContainsKey("cloud");
-                        var previewFile = store.PathFor(current.Artifacts["cloudPreview"] + "/cloud.json");
-                        Check(jsonCodec.Read<DenseCloudReport>(previewFile).Preview.Count > 0, "Live cloud preview contains points");
+                        var previewFile = store.PathFor(current.Artifacts["cloudPreview"] + "/cloud.bin");
+                        Check(PackedTestFiles.ReadCloud(previewFile).Preview.Count > 0, "Live cloud preview contains points");
                     }
 
                     if (jsonCodec.Encode(value).Contains("artifactReused", StringComparison.Ordinal))

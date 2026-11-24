@@ -33,7 +33,8 @@ public sealed class Processor : IProcessor
         string? resumeId = null,
         Action<object>? output = null,
         TextureRunOptions? textureOptions = null,
-        SubjectDistanceRunOptions? subjectDistanceOptions = null)
+        SubjectDistanceRunOptions? subjectDistanceOptions = null,
+        bool headless = false)
     {
         if (resumeId != null && textureOptions != null)
         {
@@ -77,7 +78,7 @@ public sealed class Processor : IProcessor
                 cancellation.Cancel();
             }
         }, null, 0, 200);
-        using var context = contextFactory.Create(store, run, cancellation.Token, output);
+        using var context = contextFactory.Create(store, run, cancellation.Token, output, headless);
         context.Start();
         using var resourceMonitor = new RunResourceMonitor(context, cancellation);
         try

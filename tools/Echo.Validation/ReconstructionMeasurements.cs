@@ -46,7 +46,7 @@ public sealed class ReconstructionMeasurements : IReconstructionMeasurements
             [QualityMetric.SparsePoints] = scene.Points.Count
         };
         ReadDepth(store, run, scene, result, cancellation);
-        var cloud = json.Read<DenseCloudReport>(Artifact("cloud", "cloud.json"));
+        var cloud = new DenseCloudReportCodec().Read(Artifact("cloud", "cloud.bin"));
         result[QualityMetric.DenseSamples] = cloud.RetainedSamples;
         var mesh = session.Read<Surface>(Artifact("mesh", "mesh.json"));
         ReadMesh(mesh, result, cancellation);

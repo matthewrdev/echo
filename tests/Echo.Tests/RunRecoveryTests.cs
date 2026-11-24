@@ -43,7 +43,7 @@ public sealed class RunRecoveryTests
             var path = store.PathFor($"runs/{context.Run.Id}/run.json");
             var original = File.ReadAllBytes(path);
             context.ReportOperation("mesh", new OperationProgress("Collapse edges", "First", 0, 100));
-            var progressPath = store.PathFor($"runs/{context.Run.Id}/progress.json");
+            var progressPath = store.PathFor($"runs/{context.Run.Id}/progress.bin");
             var firstProgress = File.ReadAllBytes(progressPath);
             for (var index = 0; index < 100; index++)
             {
@@ -52,7 +52,7 @@ public sealed class RunRecoveryTests
 
             Check(File.ReadAllBytes(path).SequenceEqual(original), "A progress event rewrote the full run snapshot");
             Check(File.ReadAllBytes(progressPath).SequenceEqual(firstProgress), "Polling snapshots were rewritten for every event");
-            Check(File.ReadLines(store.PathFor($"runs/{context.Run.Id}/events.ndjson")).Count() == 102, "Incremental progress history was lost or buffered from readers");
+            Check(PackedTestFiles.ReadEvents(store.PathFor($"runs/{context.Run.Id}/events.bin")).Count() == 102, "Incremental progress history was lost or buffered from readers");
             context.ReportOperation("mesh", new OperationProgress("Collapse edges", "Finished", 100, 100));
             Check(store.GetRun(context.Run.Id).Progress?.Completed == 100, "Polling missed operation completion");
             context.Complete();
@@ -116,11 +116,11 @@ public sealed class RunRecoveryTests
                 {
                     sample = 1
                 }, directory => File.WriteAllText(Path.Combine(directory, "data"), "saved"));
-                first.Report("imageCheckpoint", new
+                first.Report("imageCheckpoint", new Dictionary<string, object?>
                 {
-                    stage = "features",
-                    completed = 1,
-                    total = 2
+                    ["stage"] = "features",
+                    ["completed"] = 1,
+                    ["total"] = 2
                 });
                 Check(first.Run.Progress?.Phase == "processing", "An actual build must report processing");
                 var second = contexts.Create(store, SaveRun(store), default, null);
@@ -129,11 +129,11 @@ public sealed class RunRecoveryTests
                 {
                     sample = 1
                 }, _ => throw new InvalidOperationException("A cached stage must not execute again"));
-                second.Report("imageCheckpoint", new
+                second.Report("imageCheckpoint", new Dictionary<string, object?>
                 {
-                    stage = "features",
-                    completed = 1,
-                    total = 2
+                    ["stage"] = "features",
+                    ["completed"] = 1,
+                    ["total"] = 2
                 });
                 Check(reused == artifact && second.Run.Progress?.Phase == "checking", "Saved work must report a reuse check");
                 Check(second.Run.Progress?.Message.StartsWith("Reusing saved features", StringComparison.Ordinal) == true, "Explain the completed prerequisite check");
@@ -141,11 +141,11 @@ public sealed class RunRecoveryTests
                 {
                     sample = 2
                 }, directory => File.WriteAllText(Path.Combine(directory, "data"), "new"));
-                second.Report("imageCheckpoint", new
+                second.Report("imageCheckpoint", new Dictionary<string, object?>
                 {
-                    stage = "features",
-                    completed = 2,
-                    total = 2
+                    ["stage"] = "features",
+                    ["completed"] = 2,
+                    ["total"] = 2
                 });
                 Check(second.Run.Progress?.Phase == "processing", "A changed input must switch back to actual processing");
             });
@@ -153,15 +153,15 @@ public sealed class RunRecoveryTests
         tests.Run("Child checkpoint starts preserve algorithm progress and completed work", () => WithProject(store =>
         {
             using var context = contexts.Create(store, SaveRun(store), default, null);
-            context.Report("stageStarted", new
+            context.Report("stageStarted", new Dictionary<string, object?>
             {
-                stage = "alignment"
+                ["stage"] = "alignment"
             });
             context.ReportOperation("alignment", new OperationProgress("Guided matching", "Validating overlap", 532, 1682, "image pairs"));
             var advanced = context.Run.Progress!.Updated;
-            context.Report("stageStarted", new
+            context.Report("stageStarted", new Dictionary<string, object?>
             {
-                stage = "alignment-guided-pair"
+                ["stage"] = "alignment-guided-pair"
             });
             Check(context.Run.Progress.Completed == 532 && context.Run.Progress.Total == 1682, "Child checkpoint erased parent work counters");
             Check(context.Run.Progress.Message == "Validating overlap" && context.Run.Progress.Operation == "Guided matching", "Child checkpoint hid the active algorithm");
@@ -366,9 +366,9 @@ public sealed class RunRecoveryTests
                 var recovered = store.GetRun(run.Id);
                 Check(recovered.Status == "failed", "An orphaned run must become resumable");
                 Check(recovered.Error?.Contains("exited unexpectedly") == true, "Explain why processing stopped");
-                var events = File.ReadAllText(store.PathFor($"runs/{run.Id}/events.ndjson"));
+                var events = File.ReadAllBytes(store.PathFor($"runs/{run.Id}/events.bin"));
                 recovery.Recover(store);
-                Check(events == File.ReadAllText(store.PathFor($"runs/{run.Id}/events.ndjson")), "Polling must not duplicate recovery events");
+                Check(events.SequenceEqual(File.ReadAllBytes(store.PathFor($"runs/{run.Id}/events.bin"))), "Polling must not duplicate recovery events");
             });
         });
     }
@@ -380,7 +380,7 @@ public sealed class RunRecoveryTests
         Directory.CreateDirectory(store.PathFor(artifact));
         File.WriteAllText(store.PathFor(artifact + "/saved.txt"), "retained");
         run.Artifacts["depth"] = artifact;
-        files.AtomicJson(store.PathFor($"runs/{run.Id}/run.json"), run);
+        store.SaveRun(run);
         return run;
     }
 

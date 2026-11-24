@@ -77,8 +77,7 @@ final class GeoreferenceTests: XCTestCase {
             throw XCTSkip("Set ECHO_TEST_PROJECT and ECHO_TEST_RUN to inspect a saved model")
         }
         let root = URL(fileURLWithPath: project)
-        let run = try JSONDecoder().decode(
-            RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(runID)/run.json")))
+        let run = try await SavedRunFixture.read(root, id: runID)
         let artifact = try GeoreferenceArtifactReader().load(root: root, run: run)
         XCTAssertNotNil(artifact.overlay)
         XCTAssertNotNil(artifact.presentation.scene)

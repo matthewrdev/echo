@@ -34,7 +34,7 @@ struct GettingStartedView: View {
                 } label: {
                     Label("Open Project…", systemImage: "folder").frame(maxWidth: .infinity)
                 }.controlSize(.large).keyboardShortcut("o")
-                Text("Open the project folder containing project.json.")
+                Text("Open the project folder containing project.bin.")
                     .font(.caption).foregroundStyle(.secondary)
                 if workspace.openingProject {
                     ProgressView("Opening project…").controlSize(.small)

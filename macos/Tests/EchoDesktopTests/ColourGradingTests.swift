@@ -162,8 +162,7 @@ final class ColourGradingTests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.moveItem(at: fixture(count: 1001), to: folder.appendingPathComponent("cloud.ply"))
-        try Data(#"{"inputSamples":1001,"retainedSamples":1001,"preview":[]}"#.utf8).write(
-            to: folder.appendingPathComponent("cloud.json"))
+        try PackedFixture.emptyCloud(folder.appendingPathComponent("cloud.bin"), count: 1001)
         let model = ColourGradingModel()
         model.scan(folder: folder, regions: [], minimumSupport: 0)
         model.cancel()

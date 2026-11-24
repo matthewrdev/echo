@@ -37,11 +37,12 @@ final class DepthStageQualityTests: XCTestCase {
     func testIncrementalIndexesFinalResultAndChangedMapsAreRecomputed() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        try writeMap(root, path: "a", values: [10, 0])
-        try writeMap(root, path: "b", values: [10, 10])
-        try writeJSON(root.appendingPathComponent("preview-1/units.json"), value: ["a": "a"])
-        try writeJSON(root.appendingPathComponent("preview-2/units.json"), value: ["a": "a", "b": "b"])
-        try writeJSON(root.appendingPathComponent("final/units.json"), value: ["a", "b"])
+        try writeMap(root, path: "artifacts/a", values: [10, 0])
+        try writeMap(root, path: "artifacts/b", values: [10, 10])
+        try PackedFixture.imageIndex(root.appendingPathComponent("preview-1/units.bin"), units: ["a": "artifacts/a"])
+        try PackedFixture.imageIndex(
+            root.appendingPathComponent("preview-2/units.bin"), units: ["a": "artifacts/a", "b": "artifacts/b"])
+        try writeJSON(root.appendingPathComponent("final/units.json"), value: ["artifacts/a", "artifacts/b"])
         let reader = DepthStageQualityReader()
         let first = try await reader.load(request(root, artifacts: ["depthPreview": "preview-1"]))
         XCTAssertEqual(first.mapCount, 1)
@@ -53,10 +54,10 @@ final class DepthStageQualityTests: XCTestCase {
         let final = try await reader.load(finalRequest)
         XCTAssertFalse(final.isPreview)
         XCTAssertEqual(final.coverage, 0.75)
-        try writeMap(root, path: "b", values: [0, 0, 0, 0])
+        try writeMap(root, path: "artifacts/b", values: [0, 0, 0, 0])
         let changed = try await reader.load(finalRequest)
         XCTAssertEqual(try XCTUnwrap(changed.coverage), 1.0 / 6.0, accuracy: 0.0001)
-        try FileManager.default.removeItem(at: root.appendingPathComponent("a/depth.json"))
+        try FileManager.default.removeItem(at: root.appendingPathComponent("artifacts/a/depth.json"))
         do {
             _ = try await reader.load(finalRequest)
             XCTFail("A missing map must not silently inflate the overall grade")

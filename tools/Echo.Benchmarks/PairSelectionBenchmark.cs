@@ -35,7 +35,7 @@ public sealed class PairSelectionBenchmark
         }
 
         var store = stores.Open(args[0]);
-        var run = json.Read<RunData>(store.PathFor($"runs/{args[1]}/run.json"));
+        var run = store.GetRun(args[1]);
         var project = run.Snapshot;
         var images = project.Images.Where(photo => photo.Enabled).OrderBy(photo => photo.CapturedAt).ThenBy(photo => photo.Name).ToArray();
         var featureUnits = json.Read<Dictionary<string, string>>(store.PathFor(run.Artifacts["features"] + "/units.json"));

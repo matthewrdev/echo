@@ -3,6 +3,7 @@ using Echo.Models;
 using Echo.Pipeline.Runs;
 using Echo.Pipeline;
 using Echo.Projects;
+using Echo.Storage.Journals;
 
 namespace Echo.Cli.Commands.Processing;
 
@@ -10,21 +11,18 @@ public sealed class RunCommand : ICliCommand
 {
     private readonly IProjectStoreFactory storeFactory;
     private readonly ICommandOutput output;
-    private readonly IJsonCodec jsonCodec;
     private readonly IFileOperations fileOperations;
     private readonly IProcessor processor;
     private readonly IRunStateRecovery runStateRecovery;
 
     public RunCommand(IProjectStoreFactory storeFactory,
         ICommandOutput output,
-        IJsonCodec jsonCodec,
         IFileOperations fileOperations,
         IProcessor processor,
         IRunStateRecovery runStateRecovery)
     {
         this.storeFactory = storeFactory;
         this.output = output;
-        this.jsonCodec = jsonCodec;
         this.fileOperations = fileOperations;
         this.processor = processor;
         this.runStateRecovery = runStateRecovery;
@@ -35,10 +33,10 @@ public sealed class RunCommand : ICliCommand
     public IReadOnlyList<CommandUsage> Usage =>
     [
         new("run start",
-            "--project PATH run start [--target STAGE] [--events ndjson]\n    [--colour-tuning on|off|0..1] [--edge-softening on|off|0..16]\n    [--subject-distance auto|off|METRES]",
-            "Start a run without changing the saved project settings. The default target is alignment.\nStages are features, matching, alignment, depth, cloud, fusion, mesh, texture and export.\nTexture defaults are 0.5 colour tuning and 4 pixels of edge softening."),
+            "--project PATH run start [--target STAGE] [--events ndjson|none] [--headless]\n    [--colour-tuning on|off|0..1] [--edge-softening on|off|0..16]\n    [--subject-distance auto|off|METRES]",
+            "Start a run without changing the saved project settings. The default target is alignment.\nStages are features, matching, alignment, depth, cloud, fusion, mesh, texture and export.\n--headless skips live preview files. Saved checkpoints and final outputs are still produced.\nTexture defaults are 0.5 colour tuning and 4 pixels of edge softening."),
         new("run resume",
-            "--project PATH run resume RUN_ID [--events ndjson]",
+            "--project PATH run resume RUN_ID [--events ndjson|none] [--headless]",
             "Resume from saved checkpoints using the original inputs."),
         new("run list",
             "--project PATH run list",
@@ -75,7 +73,7 @@ public sealed class RunCommand : ICliCommand
                 break;
             case "list":
                 runStateRecovery.Recover(store);
-                output.Write(ListRuns(store));
+                output.Write(store.ListRuns());
                 break;
             case "cancel":
                 CancelRun(store, args.Word(2, "latest"));
@@ -103,15 +101,18 @@ public sealed class RunCommand : ICliCommand
         Console.CancelKeyPress += cancel;
         try
         {
+            var silent = args.Get("events", null) == "none";
+            Action<object>? report = silent ? null : value => output.Progress(value, args.IsNdjson);
             var run = processor.Execute(
                 store,
                 args.Get("target", "alignment")!,
                 cancellation.Token,
                 resumeId,
-                value => output.Progress(value, args.IsNdjson),
+                report,
                 textureOptions,
-                subjectDistanceOptions);
-            if (!args.IsNdjson)
+                subjectDistanceOptions,
+                headless: args.Options.ContainsKey("headless"));
+            if (!args.IsNdjson && !silent)
             {
                 output.Write(run);
             }
@@ -120,27 +121,6 @@ public sealed class RunCommand : ICliCommand
         {
             Console.CancelKeyPress -= cancel;
         }
-    }
-
-    private IReadOnlyList<RunSummary> ListRuns(IProjectStore store)
-    {
-        var directory = store.PathFor("runs");
-        if (!Directory.Exists(directory))
-        {
-            return [];
-        }
-
-        return Directory.GetFiles(directory, "run.json", SearchOption.AllDirectories)
-            .Select(jsonCodec.Read<RunData>)
-            .OrderByDescending(run => run.Created)
-            .Select(run => new RunSummary
-            {
-                Id = run.Id,
-                Status = run.Status,
-                Target = run.Target,
-                Created = run.Created
-            })
-            .ToArray();
     }
 
     private void CancelRun(IProjectStore store, string id)
@@ -163,12 +143,16 @@ public sealed class RunCommand : ICliCommand
     private void WriteEvents(IProjectStore store, string id)
     {
         var run = store.GetRun(id);
-        using var log = File.OpenText(store.PathFor($"runs/{run.Id}/events.ndjson"));
-        var buffer = new char[16384];
-        int count;
-        while ((count = log.Read(buffer)) != 0)
+        var reader = new BinaryJournalReader<RunEvent>(new RunEventRecordCodec());
+        using var log = reader.OpenRead(store.PathFor($"runs/{run.Id}/events.bin"));
+        if (log == null)
         {
-            Console.Out.Write(buffer, 0, count);
+            return;
+        }
+
+        foreach (var entry in reader.Read(log))
+        {
+            output.Progress(entry, ndjson: true);
         }
     }
 }

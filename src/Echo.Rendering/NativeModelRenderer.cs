@@ -62,8 +62,7 @@ public sealed class NativeModelRenderer : IModelRenderer
         var stderr = process.StandardError.ReadToEndAsync();
         try
         {
-            var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-            process.StandardInput.Write(JsonSerializer.Serialize(request, json));
+            JsonSerializer.Serialize(process.StandardInput.BaseStream, request, RenderJsonContext.Default.ModelRenderRequest);
             process.StandardInput.Close();
             process.WaitForExitAsync(cancellation).GetAwaiter().GetResult();
             cancellation.ThrowIfCancellationRequested();
@@ -73,7 +72,7 @@ public sealed class NativeModelRenderer : IModelRenderer
                 throw new EchoException("Native render failed: " + diagnostic, 5);
             }
 
-            var result = JsonSerializer.Deserialize<ModelRenderResult>(stdout.GetAwaiter().GetResult(), json)
+            var result = JsonSerializer.Deserialize(stdout.GetAwaiter().GetResult(), RenderJsonContext.Default.ModelRenderResult)
                 ?? throw new EchoException("The native renderer returned no result.", 5);
             var invalidResult = result.Input != request.Input || result.Output != request.Output
                 || result.Width != request.Width || result.Height != request.Height

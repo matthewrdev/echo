@@ -50,7 +50,7 @@ public sealed class CloudPublicationBenchmark
         var source = Path.Combine(folder, "cloud.ply");
         var expected = files.HashFile(source);
         var bytes = new FileInfo(source).Length;
-        var report = json.Read<DenseCloudReport>(Path.Combine(folder, "cloud.json"));
+        var report = new DenseCloudReportCodec().Read(Path.Combine(folder, "cloud.bin"));
         Directory.CreateDirectory(output);
         var measurements = new List<CloudPublicationMeasurement>();
         for (var trial = 0; trial < 3; trial++)

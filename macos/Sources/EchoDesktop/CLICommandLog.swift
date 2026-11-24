@@ -12,7 +12,7 @@ actor CLICommandLog {
         pending[root, default: []].append(invocation)
         guard
             FileManager.default.fileExists(
-                atPath: URL(fileURLWithPath: root).appendingPathComponent("project.json").path)
+                atPath: URL(fileURLWithPath: root).appendingPathComponent("project.bin").path)
         else { return }
         do {
             let file = path(root)

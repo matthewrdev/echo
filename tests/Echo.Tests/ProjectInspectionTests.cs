@@ -30,13 +30,13 @@ public sealed class ProjectInspectionTests
 
     internal void Run(TestSuite tests)
     {
-        tests.Run("Live alignment inspection supports binary and legacy previews without decoding points in summaries", () => InProject(store =>
+        tests.Run("Live alignment inspection skips packed points in summaries", () => InProject(store =>
         {
             var run = store.GetRun();
             var path = run.Artifacts["alignment"];
             run.Artifacts.Remove("alignment");
             run.Artifacts["alignmentPreview"] = path;
-            File.WriteAllText(store.PathFor($"runs/{run.Id}/run.json"), json.Encode(run));
+            store.SaveRun(run);
             var preview = new AlignmentPreview
             {
                 TotalPoints = 1,
@@ -61,9 +61,6 @@ public sealed class ProjectInspectionTests
 
             Check(inspector.Inspect(store, summary: true).Warnings.Count == 0, "Summary read point records unnecessarily");
             Reject(() => inspector.Inspect(store));
-            File.Delete(binary);
-            File.WriteAllText(store.PathFor(path + "/preview.json"), json.Encode(preview));
-            Check(inspector.Inspect(store).Reconstruction!.Points.Count == 1, "Legacy preview compatibility was lost");
         }));
         tests.Run("Project summaries retain project and run data when saved alignment cannot be read", () => InProject(store =>
         {
@@ -76,13 +73,13 @@ public sealed class ProjectInspectionTests
                     File.WriteAllText(scene, contents);
                 }
 
-                var projectBefore = File.ReadAllBytes(store.PathFor("project.json"));
+                var projectBefore = File.ReadAllBytes(store.PathFor("project.bin"));
                 var runBefore = File.ReadAllBytes(store.PathFor($"runs/{store.GetRun().Id}/run.json"));
                 var result = inspector.Inspect(store, summary: true);
                 Check(result.Project.Id == store.Load().Id && result.Run?.Id == store.GetRun().Id, "Project and run remain available");
                 Check(result.Reconstruction == null && result.Cloud?.RetainedSamples == 17, "Only the unreadable artifact is omitted");
                 Check(result.Warnings.Count == 1 && result.Warnings[0].Contains("alignment", StringComparison.Ordinal), "Artifact failure is visible");
-                Check(projectBefore.SequenceEqual(File.ReadAllBytes(store.PathFor("project.json"))), "Project is not rewritten");
+                Check(projectBefore.SequenceEqual(File.ReadAllBytes(store.PathFor("project.bin"))), "Project is not rewritten");
                 Check(runBefore.SequenceEqual(File.ReadAllBytes(store.PathFor($"runs/{store.GetRun().Id}/run.json"))), "Saved run is not rewritten");
                 Reject(() => inspector.Inspect(store));
             }
@@ -95,7 +92,7 @@ public sealed class ProjectInspectionTests
             });
             var healthy = inspector.Inspect(store, summary: true);
             Check(healthy.Warnings.Count == 0 && healthy.Reconstruction?.Cameras.Count == 1, "Supported artifacts remain readable");
-            File.WriteAllText(store.PathFor("artifacts/cloud/saved/cloud.json"), "{");
+            File.WriteAllText(store.PathFor("artifacts/cloud/saved/cloud.bin"), "{");
             var result = inspector.Inspect(store, summary: true);
             Check(result.Reconstruction?.Cameras.Single().ImageId == "saved-photo" && result.Cloud == null, "Independent artifacts are preserved");
             Check(result.Warnings.Count == 1 && result.Warnings[0].Contains("cloud", StringComparison.Ordinal), "Cloud failure is visible");
@@ -112,6 +109,7 @@ public sealed class ProjectInspectionTests
         {
             var run = new RunData
             {
+                Id = Guid.NewGuid().ToString("N"),
                 Status = "completed",
                 Snapshot = store.Load(),
                 Artifacts = new Dictionary<string, string>
@@ -123,8 +121,8 @@ public sealed class ProjectInspectionTests
             Directory.CreateDirectory(store.PathFor($"runs/{run.Id}"));
             Directory.CreateDirectory(store.PathFor(run.Artifacts["alignment"]));
             Directory.CreateDirectory(store.PathFor(run.Artifacts["cloud"]));
-            File.WriteAllText(store.PathFor($"runs/{run.Id}/run.json"), json.Encode(run));
-            File.WriteAllText(store.PathFor("artifacts/cloud/saved/cloud.json"), json.Encode(new DenseCloudReport { RetainedSamples = 17 }));
+            store.SaveRun(run);
+            PackedTestFiles.WriteCloud(store.PathFor("artifacts/cloud/saved/cloud.bin"), new DenseCloudReport { RetainedSamples = 17 });
             action(store);
         }
         finally

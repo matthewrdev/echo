@@ -106,7 +106,7 @@ final class GeographicProbeTests: XCTestCase {
         }
         let root = URL(fileURLWithPath: project)
         let json = ArtifactJSONReader()
-        let run: RunData = try json.read(root.appendingPathComponent("runs/\(runID)/run.json"))
+        let run = try await SavedRunFixture.read(root, id: runID)
         let artifact = try GeoreferenceArtifactReader().load(root: root, run: run)
         let meshPath = try XCTUnwrap(run.artifacts["mesh"])
         let surface: Surface = try json.read(root.appendingPathComponent(meshPath).appendingPathComponent("mesh.json"))

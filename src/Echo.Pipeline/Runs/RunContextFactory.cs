@@ -36,9 +36,9 @@ public sealed class RunContextFactory : IRunContextFactory
         this.traces = traces;
     }
 
-    public RunContext Create(IProjectStore store, RunData run, CancellationToken cancellation, Action<object>? output)
+    public RunContext Create(IProjectStore store, RunData run, CancellationToken cancellation, Action<object>? output, bool headless = false)
     {
         return new RunContext(store, run, cancellation, output, checkpointStore, jsonCodec, fileOperations, bulk, resources,
-            resources.Plan(store.Load().Settings), resources.CreateTracker(), new ProcessingTelemetryTracker(telemetry), trace, traces, compute);
+            resources.Plan(store.Load().Settings), resources.CreateTracker(), new ProcessingTelemetryTracker(telemetry), trace, traces, compute, headless);
     }
 }

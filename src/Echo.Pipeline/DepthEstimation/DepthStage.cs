@@ -68,10 +68,7 @@ public sealed class DepthStage : IPipelineStage
             ? semanticArtifacts.Build(context) : new Dictionary<string, SemanticMap>();
         context.BeginStep(Name, stepNames, stepIndex++, scene.Cameras.Count);
         var depthUnits = new string[scene.Cameras.Count];
-        var previewUnits = context.Run.Artifacts.ContainsKey("depthPreview")
-            ? context.ReadArtifact<Dictionary<string, string>>("depthPreview", "units.json")
-            : new Dictionary<string, string>();
-        var resumingPartialPreview = previewUnits.Count > 0 && !context.Run.Artifacts.ContainsKey("depth");
+        using var previews = context.Headless ? null : new ImagePreviewJournal(context, Name);
         var completed = 0;
         var progressGate = new object();
         // Version adaptive overlap selection, fine-image prefiltering and sky filtering. Direct Metal
@@ -149,27 +146,20 @@ public sealed class DepthStage : IPipelineStage
             lock (progressGate)
             {
                 completed++;
-                if (!previewUnits.TryGetValue(camera.ImageId, out var previous) || previous != depth)
-                {
-                    previewUnits[camera.ImageId] = depth;
-                    if (!reused || resumingPartialPreview)
-                    {
-                        PublishPreview(context, previewUnits);
-                    }
-                }
+                previews?.Publish(camera.ImageId, depth, reused);
 
                 var action = reused ? "Reused" : "Found";
-                context.Report("imageCheckpoint", new
+                context.Report("imageCheckpoint", new Dictionary<string, object?>
                 {
-                    stage = "depth",
-                    imageId = camera.ImageId,
-                    imageName = photo.Name,
-                    validSamples,
-                    sampleCount,
-                    reused,
-                    message = $"{photo.Name} · {action} {validSamples:N0}/{sampleCount:N0} valid depth samples ({100.0 * validSamples / sampleCount:F2}%) · {completed:N0}/{scene.Cameras.Count:N0} images ready",
-                    completed,
-                    total = scene.Cameras.Count
+                    ["stage"] = "depth",
+                    ["imageId"] = camera.ImageId,
+                    ["imageName"] = photo.Name,
+                    ["validSamples"] = validSamples,
+                    ["sampleCount"] = sampleCount,
+                    ["reused"] = reused,
+                    ["message"] = $"{photo.Name} · {action} {validSamples:N0}/{sampleCount:N0} valid depth samples ({100.0 * validSamples / sampleCount:F2}%) · {completed:N0}/{scene.Cameras.Count:N0} images ready",
+                    ["completed"] = completed,
+                    ["total"] = scene.Cameras.Count
                 });
             }
         });
@@ -193,16 +183,5 @@ public sealed class DepthStage : IPipelineStage
         }, () => new ProcessingMetadata { SourceArtifacts = depthUnits.ToList() });
         context.Publish("depth", artifact);
         context.ReportOperation(Name, new OperationProgress("Save depth result", "Depth result saved. All depth steps are complete.", 1, 1, "results"));
-    }
-
-    private void PublishPreview(RunContext context, Dictionary<string, string> units)
-    {
-        // Concurrent images may finish in any order. Keep explicit image IDs in
-        // the preview while preserving camera order in the final depth index.
-        var artifact = context.Build("depth-preview", units, directory =>
-        {
-            fileOperations.AtomicJson(Path.Combine(directory, "units.json"), units);
-        }, () => new ProcessingMetadata { SourceArtifacts = units.Values.ToList() });
-        context.Publish("depthPreview", artifact);
     }
 }

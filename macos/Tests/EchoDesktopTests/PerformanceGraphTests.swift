@@ -37,7 +37,9 @@ final class PerformanceGraphTests: XCTestCase {
         XCTAssertEqual(nodes[1].status, .reused)
         XCTAssertEqual(nodes[2].detail, "8 built · 2 reused")
         XCTAssertEqual(nodes.last?.title, "Requested output ready")
-        guard let output = ProcessInfo.processInfo.environment["ECHO_TEST_RENDER_DIR"] else { return }
+        guard WindowedTests.isEnabled, let output = ProcessInfo.processInfo.environment["ECHO_TEST_RENDER_DIR"] else {
+            return
+        }
         let view = NSHostingView(
             rootView: PerformanceRunGraph(document: document, select: { _ in })
                 .padding(20).frame(width: 1100, height: 900).background(Color.white).environment(\.colorScheme, .light))

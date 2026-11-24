@@ -80,14 +80,18 @@ public sealed class MatchingStorageTests
         }));
         tests.Run("Matching journals recover incomplete tails and reject changed run membership", () => Temporary(root =>
         {
-            var path = Path.Combine(root, "pairs.ndjson");
+            var path = Path.Combine(root, "pairs.bin");
             var first = new MatchingIndexEntry(0, "artifacts/match-pair/a", "a", "b", 5, 0);
             using (var journal = indexes.Open(path))
             {
                 journal.Append(first);
             }
 
-            File.AppendAllText(path, "{\"sequence\":1");
+            using (var tail = new BinaryWriter(File.Open(path, FileMode.Append)))
+            {
+                tail.Write(100);
+                tail.Write((byte)1);
+            }
             Check(indexes.Read(path).Count == 1, "Live readers must ignore uncommitted journal tails");
             using (var journal = indexes.Open(path))
             {

@@ -40,8 +40,9 @@ final class ColourGradingModel: ObservableObject {
         progress = 0
         error = nil
         let worker = Task.detached(priority: .utility) {
-            let report = try JSONDecoder().decode(
-                DenseCloudReport.self, from: Data(contentsOf: folder.appendingPathComponent("cloud.json")))
+            let report = try PackedPreviewReader().cloud(
+                Data(contentsOf: folder.appendingPathComponent("cloud.bin"), options: .mappedIfSafe),
+                includePreview: false)
             try Task.checkCancellation()
             return try CloudColourHistogramReader().read(
                 file: folder.appendingPathComponent("cloud.ply"), expectedCount: report.retainedSamples,

@@ -123,8 +123,7 @@ final class SceneInspectionTests: XCTestCase {
             let runID = ProcessInfo.processInfo.environment["ECHO_TEST_RUN"]
         else { throw XCTSkip("Saved artifact not configured") }
         let root = URL(fileURLWithPath: path)
-        let run = try JSONDecoder().decode(
-            RunData.self, from: Data(contentsOf: root.appendingPathComponent("runs/\(runID)/run.json")))
+        let run = try await SavedRunFixture.read(root, id: runID)
         let json = ArtifactJSONReader()
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),

@@ -151,7 +151,7 @@ public sealed class GisExportService : IGisExportService
 
         if (run.Artifacts.TryGetValue("cloud", out var cloudPath))
         {
-            var report = json.Read<DenseCloudOverview>(store.PathFor(cloudPath + "/cloud.json")).ToReport();
+            var report = new DenseCloudReportCodec().Read(store.PathFor(cloudPath + "/cloud.bin"), includePreview: false);
             var cloud = clouds.Read(store.PathFor(cloudPath + "/cloud.ply"), report, session);
             if (cloud.Samples.Count > 0)
             {

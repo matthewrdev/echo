@@ -1,14 +1,17 @@
 using Echo.Imaging;
 using Echo.Infrastructure;
 using Echo.Metadata;
+using Echo.Migrate;
 using Echo.Projects;
 using Echo.Storage;
-using Echo.Migrate;
+using Echo.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 
-if (args.Length == 0)
+var alignmentOnly = args.FirstOrDefault() == "--alignment-previews-only";
+var projects = alignmentOnly ? args.Skip(1).ToArray() : args;
+if (projects.Length == 0)
 {
-    Console.Error.WriteLine("Usage: Echo.Migrate PROJECT [PROJECT ...]");
+    Console.Error.WriteLine("Usage: Echo.Migrate [--alignment-previews-only] PROJECT [PROJECT ...]");
     return 2;
 }
 var services = new ServiceCollection();
@@ -18,12 +21,32 @@ services
     .AddMetadata()
     .AddProjects()
     .AddStorage()
+    .AddTelemetry()
     .AddMigrate();
+
 using var provider = services.BuildServiceProvider();
 
 var migrator = provider.GetRequiredService<MatchingProjectMigrator>();
-foreach (var path in args)
+var exitCode = 0;
+foreach (var path in projects)
 {
-    migrator.Migrate(Path.GetFullPath(path));
+    try
+    {
+        var root = Path.GetFullPath(path);
+        if (alignmentOnly)
+        {
+            migrator.MigrateAlignmentPreviews(root);
+        }
+        else
+        {
+            migrator.Migrate(root);
+        }
+    }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine($"{path}: {error.Message}");
+        exitCode = 1;
+    }
 }
-return 0;
+
+return exitCode;

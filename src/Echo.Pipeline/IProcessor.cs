@@ -16,5 +16,6 @@ public interface IProcessor
         string? resumeId = null,
         Action<object>? output = null,
         TextureRunOptions? textureOptions = null,
-        SubjectDistanceRunOptions? subjectDistanceOptions = null);
+        SubjectDistanceRunOptions? subjectDistanceOptions = null,
+        bool headless = false);
 }

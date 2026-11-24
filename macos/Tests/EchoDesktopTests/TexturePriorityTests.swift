@@ -179,7 +179,7 @@ final class TexturePriorityTests: XCTestCase {
         }
         let root = URL(fileURLWithPath: project)
         let json = ArtifactJSONReader()
-        let run: RunData = try json.read(root.appendingPathComponent("runs/\(runID)/run.json"))
+        let run = try await SavedRunFixture.read(root, id: runID)
         let reader = SavedArtifactReader(
             scenes: NativeSceneFactory(), images: ArtifactImageRenderer(), glb: GlbAssetReader(),
             featureMatches: FeatureMatchIndexer(json: json),

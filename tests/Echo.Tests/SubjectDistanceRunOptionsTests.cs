@@ -93,13 +93,13 @@ public sealed class SubjectDistanceRunOptionsTests
                 project.Settings.DetectLines = false;
                 project.Settings.ComputeBackend = ComputeBackend.Cpu;
             });
-            var before = File.ReadAllBytes(store.PathFor("project.json"));
+            var before = File.ReadAllBytes(store.PathFor("project.bin"));
             Check(application.Run(["--project", directory, "run", "start", "--target", "features", "--subject-distance", "125"]) == 0,
                 "A custom limit can start a run");
             var limited = store.GetRun();
             Check(limited.Snapshot.Settings.SubjectDistanceMode == SubjectDistanceMode.Manual
                 && limited.Snapshot.Settings.SubjectDistanceLimit == 125, "The run snapshot records the override");
-            Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.json"))), "The project is unchanged");
+            Check(before.SequenceEqual(File.ReadAllBytes(store.PathFor("project.bin"))), "The project is unchanged");
             var saved = File.ReadAllBytes(store.PathFor($"runs/{limited.Id}/run.json"));
             Check(application.Run(["--project", directory, "run", "resume", limited.Id, "--subject-distance", "off"]) == 2,
                 "Resume cannot change the frozen subject limit");

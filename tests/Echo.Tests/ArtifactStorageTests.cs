@@ -57,7 +57,7 @@ public sealed class ArtifactStorageTests
             var cloud = SaveArtifact(store, "cloud", "output");
             var run = SaveRun(store, alignment, depth, cloud);
             run.Artifacts["semantics"] = semantics;
-            files.AtomicJson(store.PathFor($"runs/{run.Id}/run.json"), run);
+            store.SaveRun(run);
             var inventory = storage.Inspect(store);
             Check(inventory.Artifacts.Single(item => item.Path == original).Runs.Contains(run.Id), "Original maps are part of recovery provenance");
             var plan = storage.Plan(store, Selection(unit));
@@ -79,11 +79,11 @@ public sealed class ArtifactStorageTests
 
             File.WriteAllText(store.PathFor("sources/photo.jpg"), "source bytes");
             File.WriteAllText(store.PathFor("previews/photo.jpg"), "preview bytes");
-            var originalProject = File.ReadAllText(store.PathFor("project.json"));
+            var originalProject = File.ReadAllBytes(store.PathFor("project.bin"));
             storage.Delete(store, Selection(null), plan.Token);
             Check(!Directory.EnumerateFileSystemEntries(store.PathFor("artifacts")).Any(), "All artifacts removed");
             Check(File.ReadAllText(store.PathFor("sources/photo.jpg")) == "source bytes", "Source preserved");
-            Check(File.ReadAllText(store.PathFor("project.json")) == originalProject, "Settings and hints unchanged");
+            Check(File.ReadAllBytes(store.PathFor("project.bin")).SequenceEqual(originalProject), "Settings and hints unchanged");
             Check(File.Exists(store.PathFor("previews/photo.jpg")), "Photo thumbnails preserved");
         }));
         tests.Run("Storage deletion rejects path traversal and symbolic links", () => WithProject(store =>
@@ -110,7 +110,7 @@ public sealed class ArtifactStorageTests
             var old = SaveRun(store, alignment, depth, obsolete, 3);
             var latest = SaveRun(store, alignment, depth, cloud);
             latest.Artifacts.Remove("cloud");
-            files.AtomicJson(store.PathFor($"runs/{latest.Id}/run.json"), latest);
+            store.SaveRun(latest);
             var partial = SaveArtifact(store, "fusion-chunk", "resumable");
             files.AtomicJson(store.PathFor($"runs/{latest.Id}/processing.json"), new
             {
@@ -119,7 +119,7 @@ public sealed class ArtifactStorageTests
             var orphan = SaveArtifact(store, "depth-image", "orphan");
             foreach (var run in new[] { support, old, latest })
             {
-                File.WriteAllText(store.PathFor($"runs/{run.Id}/events.ndjson"), "history\n");
+                File.WriteAllText(store.PathFor($"runs/{run.Id}/events.bin"), "history\n");
                 files.AtomicJson(store.PathFor($"runs/{run.Id}/traces/index.json"), new
                 {
                     saved = true
@@ -131,7 +131,7 @@ public sealed class ArtifactStorageTests
                 temporary = true
             });
             File.WriteAllText(store.PathFor("sources/photo.jpg"), "source");
-            var project = File.ReadAllText(store.PathFor("project.json"));
+            var project = File.ReadAllBytes(store.PathFor("project.bin"));
             var request = new ArtifactDeletionRequest { Kind = ArtifactDeletionKind.Unused, RetainedRuns = [support.Id] };
             var plan = storage.Plan(store, request);
             Check(plan.RetainedRuns.ToHashSet().SetEquals([latest.Id, support.Id]), "Latest must be retained even when omitted by the client");
@@ -148,12 +148,12 @@ public sealed class ArtifactStorageTests
                 Check(!Directory.Exists(store.PathFor(path)), "Unused data survived cleanup: " + path);
             }
 
-            Check(!File.Exists(store.PathFor($"runs/{support.Id}/events.ndjson")), "Older supporting logs should be cleared");
-            Check(File.Exists(store.PathFor($"runs/{latest.Id}/events.ndjson")), "Latest logs must survive");
+            Check(!File.Exists(store.PathFor($"runs/{support.Id}/events.bin")), "Older supporting logs should be cleared");
+            Check(File.Exists(store.PathFor($"runs/{latest.Id}/events.bin")), "Latest logs must survive");
             Check(File.Exists(store.PathFor($"runs/{latest.Id}/traces/index.json")), "Latest trace must survive");
             Check(store.GetRun(support.Id).Artifacts["cloud"] == cloud, "Display fallback run changed");
             Check(store.GetRun(latest.Id).Artifacts.Count == 2, "Cleanup rewrote latest processing state");
-            Check(File.ReadAllText(store.PathFor("project.json")) == project && File.Exists(store.PathFor("sources/photo.jpg")), "Inputs changed");
+            Check(File.ReadAllBytes(store.PathFor("project.bin")).SequenceEqual(project) && File.Exists(store.PathFor("sources/photo.jpg")), "Inputs changed");
             Check(storage.Plan(store, request).Paths.Count == 0, "Cleanup should be idempotent");
         }));
         tests.Run("Unused cleanup rejects stale plans, unknown retention and active jobs", () => WithProject(store =>
@@ -215,7 +215,7 @@ public sealed class ArtifactStorageTests
             Snapshot = store.Load(),
             Artifacts = new Dictionary<string, string> { ["alignment"] = alignment, ["depth"] = depth, ["cloud"] = cloud }
         };
-        files.AtomicJson(store.PathFor($"runs/{run.Id}/run.json"), run);
+        store.SaveRun(run);
         return run;
     }
 

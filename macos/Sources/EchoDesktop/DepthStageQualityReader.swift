@@ -3,6 +3,7 @@ import Foundation
 actor DepthStageQualityReader {
     private let maps: DepthMapReader
     private let json: ArtifactJSONReader
+    private let preview = ImagePreviewIndex()
     private var root: URL?
     private var cache: [URL: CachedDepthQuality] = [:]
 
@@ -20,7 +21,7 @@ actor DepthStageQualityReader {
         let index = request.folder.appendingPathComponent("units.json")
         let paths: [String]
         if request.isPreview {
-            let units: [String: String] = try json.read(index)
+            let units = try preview.read(request.folder.appendingPathComponent("units.bin"))
             paths = Array(Set(units.values)).sorted()
         } else {
             let units: [String] = try json.read(index)
