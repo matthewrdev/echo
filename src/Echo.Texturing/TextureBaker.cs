@@ -28,9 +28,9 @@ public sealed class TextureBaker : ITextureBaker
     }
 
     public TextureResult Bake(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
-        string output, CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null)
+        string output, CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null, TextureLayout? preparedLayout = null)
     {
-        var layout = layoutPlanner.Plan(project, scene, mesh, cancellation, progress, vegetationFaces, work, operationProgress);
+        var layout = preparedLayout ?? layoutPlanner.Plan(project, scene, mesh, cancellation, progress, vegetationFaces, work, operationProgress);
         var patches = layout.Patches;
         var vegetationCharts = layout.VegetationChartCount;
         var size = project.Settings.TextureSize;

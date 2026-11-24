@@ -9,7 +9,7 @@ internal static class TextureConformalMap
     // Minimise the area-weighted Cauchy-Riemann residual, fixing two boundary
     // vertices to remove translation/rotation/scale. Validate the resulting map
     // separately: a least-squares solve alone is not an overlap guarantee.
-    public static double[]? Solve(TextureChartMesh chart, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
+    public static double[]? Solve(TextureChartMesh chart, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto, TextureLinearSystem? scratch = null)
     {
         if (chart.Boundary.Length < 3)
         {
@@ -25,7 +25,8 @@ internal static class TextureConformalMap
             return null;
         }
 
-        var system = new TextureLinearSystem(points.Length * 2);
+        var system = scratch ?? new TextureLinearSystem(0);
+        system.Reset(points.Length * 2);
         Span<int> indices = stackalloc int[6];
         Span<double> real = stackalloc double[6];
         Span<double> imaginary = stackalloc double[6];

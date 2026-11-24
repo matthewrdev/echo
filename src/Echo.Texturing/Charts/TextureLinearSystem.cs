@@ -8,11 +8,47 @@ namespace Echo.Texturing.Charts;
 // least squares and positive-weight harmonic maps; no dense per-chart matrices.
 internal sealed class TextureLinearSystem
 {
-    private readonly Dictionary<int, double>[] rows;
+    private Dictionary<int, double>[] rows = [];
+    private int[] columnIndices = [];
+    private double[] coefficientValues = [];
+    private int[] rowOffsets = new int[1];
+    private double[] diagonalValues = [];
+    private bool[] fixedRowFlags = [];
+    private double[] residualValues = [];
+    private double[] directionValues = [];
+    private double[] productValues = [];
+    private int count;
 
     public TextureLinearSystem(int size)
     {
-        rows = Enumerable.Range(0, size).Select(_ => new Dictionary<int, double>()).ToArray();
+        Reset(size);
+    }
+
+    public void Reset(int size)
+    {
+        for (var row = 0; row < count; row++)
+        {
+            rows[row].Clear();
+        }
+
+        if (size > rows.Length)
+        {
+            var previous = rows.Length;
+            Array.Resize(ref rows, size);
+            for (var row = previous; row < size; row++)
+            {
+                rows[row] = new Dictionary<int, double>();
+            }
+
+            rowOffsets = new int[size + 1];
+            diagonalValues = new double[size];
+            fixedRowFlags = new bool[size];
+            residualValues = new double[size];
+            directionValues = new double[size];
+            productValues = new double[size];
+        }
+
+        count = size;
     }
 
     public void Add(int row, int column, double value)
@@ -23,12 +59,9 @@ internal sealed class TextureLinearSystem
 
     public double[]? Solve(IReadOnlyDictionary<int, double> constraints, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
-        var count = rows.Length;
-        var offsets = new int[count + 1];
-        var columns = new List<int>();
-        var coefficients = new List<double>();
-        var diagonal = new double[count];
-        var fixedRows = new bool[count];
+        var diagonal = diagonalValues;
+        var fixedRows = fixedRowFlags;
+        fixedRows.AsSpan(0, count).Clear();
         var solution = new double[count];
         foreach (var entry in constraints)
         {
@@ -36,28 +69,38 @@ internal sealed class TextureLinearSystem
             solution[entry.Key] = entry.Value;
         }
 
+        var entries = 0;
         for (var row = 0; row < count; row++)
         {
-            foreach (var entry in rows[row])
+            var required = entries + rows[row].Count;
+            if (required > columnIndices.Length)
             {
-                columns.Add(entry.Key);
-                coefficients.Add(entry.Value);
+                var capacity = Math.Max(required, columnIndices.Length * 2);
+                Array.Resize(ref columnIndices, capacity);
+                Array.Resize(ref coefficientValues, capacity);
             }
 
-            offsets[row + 1] = columns.Count;
+            foreach (var entry in rows[row])
+            {
+                columnIndices[entries] = entry.Key;
+                coefficientValues[entries++] = entry.Value;
+            }
+
             diagonal[row] = rows[row].GetValueOrDefault(row);
             if (!fixedRows[row] && (!(diagonal[row] > 0) || !double.IsFinite(diagonal[row])))
             {
                 return null;
             }
+
+            rowOffsets[row + 1] = entries;
         }
 
-        var indices = columns.ToArray();
-        var values = coefficients.ToArray();
-        var residual = new double[count];
-        var direction = new double[count];
-        var product = new double[count];
-        Multiply(offsets, indices, values, solution, product, fixedRows);
+        var residual = residualValues;
+        var direction = directionValues;
+        var product = productValues;
+        residual.AsSpan(0, count).Clear();
+        direction.AsSpan(0, count).Clear();
+        Multiply(solution, product);
         var energy = 0.0;
         for (var row = 0; row < count; row++)
         {
@@ -77,10 +120,12 @@ internal sealed class TextureLinearSystem
         }
 
         var tolerance = Math.Max(1e-28, energy * 1e-20);
-        var warm = TextureSolveCompute.TryWarmStart(compute, backend, offsets, indices, values, diagonal, fixedRows, solution, cancellation);
+        var warm = TextureSolveCompute.TryWarmStart(compute, backend, rowOffsets.AsSpan(0, count + 1),
+            columnIndices.AsSpan(0, entries), coefficientValues.AsSpan(0, entries), diagonal.AsSpan(0, count),
+            fixedRows.AsSpan(0, count), solution, cancellation);
         if (warm != null)
         {
-            Multiply(offsets, indices, values, warm, product, fixedRows);
+            Multiply(warm, product);
             var warmEnergy = 0.0;
             for (var row = 0; row < count; row++)
             {
@@ -113,7 +158,7 @@ internal sealed class TextureLinearSystem
                 return solution;
             }
 
-            Multiply(offsets, indices, values, direction, product, fixedRows);
+            Multiply(direction, product);
             var denominator = 0.0;
             for (var row = 0; row < count; row++)
             {
@@ -154,15 +199,18 @@ internal sealed class TextureLinearSystem
         return null;
     }
 
-    private void Multiply(int[] offsets, int[] indices, double[] values, double[] vector,
-        double[] result, bool[] fixedRows)
+    private void Multiply(double[] vector, double[] result)
     {
-        for (var row = 0; row < result.Length; row++)
+        var offsets = rowOffsets;
+        var indices = columnIndices;
+        var values = coefficientValues;
+        for (var row = 0; row < count; row++)
         {
             var sum = 0.0;
-            if (!fixedRows[row])
+            if (!fixedRowFlags[row])
             {
-                for (var entry = offsets[row]; entry < offsets[row + 1]; entry++)
+                var end = offsets[row + 1];
+                for (var entry = offsets[row]; entry < end; entry++)
                 {
                     sum += values[entry] * vector[indices[entry]];
                 }

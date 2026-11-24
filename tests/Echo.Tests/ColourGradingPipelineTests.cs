@@ -71,11 +71,12 @@ public sealed class ColourGradingPipelineTests
                     SourceImages = ["a", "b"]
                 });
                 var original = Bake(store);
+                CheckProgress(store, original, reusedLayout: false);
                 store.Edit(project => project.Settings.ColourGrade = new ColourGrade());
                 Check(Bake(store).Artifacts["texture"] == original.Artifacts["texture"], "Identity grade must reuse the original checkpoint.");
                 store.Edit(project => project.Settings.ColourGrade = new ColourGrade { Exposure = 1 });
                 var graded = Bake(store);
-                CheckProgress(store, graded);
+                CheckProgress(store, graded, reusedLayout: true);
                 Check(graded.Artifacts["texture"] != original.Artifacts["texture"], "Changed grade must invalidate texture.");
                 Check(Bake(store).Artifacts["texture"] == graded.Artifacts["texture"], "Unchanged grade must reuse the baked texture.");
                 Check(original.Artifacts["mesh"] == graded.Artifacts["mesh"], "Grading must preserve upstream geometry.");
@@ -116,7 +117,7 @@ public sealed class ColourGradingPipelineTests
         return run;
     }
 
-    private void CheckProgress(IProjectStore store, RunData run)
+    private void CheckProgress(IProjectStore store, RunData run, bool reusedLayout)
     {
         var updates = new List<JsonElement>();
         foreach (var line in File.ReadLines(store.PathFor($"runs/{run.Id}/events.ndjson")))
@@ -130,9 +131,13 @@ public sealed class ColourGradingPipelineTests
             }
         }
 
-        string[] required = ["Load inputs", "UV charts", "Atlas packing", "UV mesh", "Seam indexing", "Seam sampling",
+        var required = new List<string> { "Load inputs", "UV charts", "Atlas packing", "UV mesh", "Seam indexing", "Seam sampling",
             "Exposure correction", "Local seam correction", "Texture projection", "Atlas gutters", "Atlas background",
-            "Atlas pixels", "Colour grading", "Atlas encoding", "Save texture"];
+            "Atlas pixels", "Atlas encoding", "Save texture" };
+        if (run.Snapshot.Settings.ColourGrade is { IsIdentity: false })
+        {
+            required.Add("Colour grading");
+        }
         foreach (var name in required)
         {
             Check(updates.Any(update => update.GetProperty("operation").GetString() == name), $"Texture must report {name}.");
@@ -148,10 +153,19 @@ public sealed class ColourGradingPipelineTests
 
         var charts = updates.Where(update => update.GetProperty("operation").GetString() == "UV charts"
             && update.GetProperty("stepIndex").ValueKind == JsonValueKind.Number).ToArray();
-        Check(charts.Select(update => update.GetProperty("stepIndex").GetInt32()).Distinct().Count() == 5,
-            "All chart preparation stages must be exposed as substeps.");
-        var merging = charts.First(update => update.GetProperty("stepIndex").GetInt32() == 3);
-        Check(merging.GetProperty("completed").ValueKind == JsonValueKind.Null, "Uncounted chart merging must not inherit parameterization's completed counter.");
+        if (reusedLayout)
+        {
+            Check(charts.Length == 0, "Reusing a layout must skip chart construction substeps.");
+            Check(updates.Any(update => update.GetProperty("message").GetString()!.StartsWith("Loading saved UV charts", StringComparison.Ordinal)),
+                "The progress stream must identify layout reuse.");
+        }
+        else
+        {
+            Check(charts.Select(update => update.GetProperty("stepIndex").GetInt32()).Distinct().Count() == 5,
+                "All chart preparation stages must be exposed as substeps.");
+            var merging = charts.First(update => update.GetProperty("stepIndex").GetInt32() == 3);
+            Check(merging.GetProperty("completed").ValueKind == JsonValueKind.Null, "Uncounted chart merging must not inherit parameterization's completed counter.");
+        }
         var saved = updates.Last();
         Check(saved.GetProperty("operation").GetString() == "Save texture" && saved.GetProperty("completed").GetInt32() == 3,
             "Texture progress must finish after every artifact is saved.");

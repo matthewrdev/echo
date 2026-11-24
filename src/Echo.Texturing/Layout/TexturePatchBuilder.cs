@@ -60,6 +60,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         }
 
         var patches = new List<TexturePatch>();
+        var scratch = new TextureLinearSystem(0);
         progress?.Invoke($"Parameterizing {regions.Count:N0} connected surface regions…");
         var completed = 0;
         operationProgress?.Invoke(new OperationProgress("UV charts", "Parameterizing connected surface regions…", 0, regions.Count, "regions") { Steps = steps, StepIndex = 2 });
@@ -67,7 +68,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         {
             foreach (var region in regions)
             {
-                Unwrap(geometry, region, patches, cancellation, project.Settings.ComputeBackend);
+                Unwrap(geometry, region, patches, cancellation, project.Settings.ComputeBackend, scratch);
                 completed++;
                 if (completed % 1000 == 0 || completed == regions.Count)
                 {
@@ -82,7 +83,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         operationProgress?.Invoke(new OperationProgress("UV charts", "Merging compatible UV charts…") { Steps = steps, StepIndex = 3 });
         using (trace?.Begin("Merge texture charts", PerformanceSpanKind.Operation, PerformanceBackend.Mixed))
         {
-            patches = TextureChartMerger.Merge(geometry, patches, project.Settings.TextureChartFaces, groups, cancellation, progress, compute, project.Settings.ComputeBackend);
+            patches = TextureChartMerger.Merge(geometry, patches, project.Settings.TextureChartFaces, groups, cancellation, progress, compute, project.Settings.ComputeBackend, trace);
         }
 
         operationProgress?.Invoke(new OperationProgress("UV charts", "Orienting UV charts…") { Steps = steps, StepIndex = 4 });
@@ -99,11 +100,11 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
     }
 
     private void Unwrap(TextureChartGeometry geometry, List<int> faces, List<TexturePatch> patches,
-        CancellationToken cancellation, ComputeBackend backend)
+        CancellationToken cancellation, ComputeBackend backend, TextureLinearSystem scratch)
     {
         cancellation.ThrowIfCancellationRequested();
         var chart = new TextureChartMesh(geometry, faces);
-        var coordinates = TextureConformalMap.Solve(chart, cancellation, compute, backend);
+        var coordinates = TextureConformalMap.Solve(chart, cancellation, compute, backend, scratch);
         if (coordinates == null || !TextureChartValidation.Accept(chart, coordinates, cancellation))
         {
             coordinates = TextureHarmonicMap.Solve(chart, cancellation, compute, backend);
@@ -116,7 +117,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
 
                 foreach (var part in TextureChartRegions.Split(geometry, faces, cancellation))
                 {
-                    Unwrap(geometry, part, patches, cancellation, backend);
+                    Unwrap(geometry, part, patches, cancellation, backend, scratch);
                 }
 
                 return;

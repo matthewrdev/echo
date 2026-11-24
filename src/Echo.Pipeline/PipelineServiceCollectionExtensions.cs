@@ -37,6 +37,7 @@ public static class PipelineServiceCollectionExtensions
         services.AddSingleton<IRunStateRecovery, RunStateRecovery>();
         services.AddSingleton<ISceneSemanticArtifacts, SceneSemanticArtifacts>();
         services.AddSingleton<IStageResetService, StageResetService>();
+        services.AddSingleton<ITextureLayoutStore, TextureLayoutStore>();
 
         services.AddSingleton<IPipelineStage, FeatureStage>();
         services.AddSingleton<IPipelineStage, MatchingStage>();

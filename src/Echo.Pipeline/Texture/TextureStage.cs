@@ -12,13 +12,18 @@ public sealed class TextureStage : IPipelineStage
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
     private readonly ITextureBaker textureBaker;
+    private readonly ITextureLayoutPlanner layoutPlanner;
+    private readonly ITextureLayoutStore layouts;
     private readonly ITexturePlacementAccelerator[] packingAccelerators;
 
-    public TextureStage(IFileOperations fileOperations, IJsonCodec jsonCodec, ITextureBaker textureBaker, IEnumerable<ITexturePlacementAccelerator> packingAccelerators)
+    public TextureStage(IFileOperations fileOperations, IJsonCodec jsonCodec, ITextureBaker textureBaker,
+        ITextureLayoutPlanner layoutPlanner, ITextureLayoutStore layouts, IEnumerable<ITexturePlacementAccelerator> packingAccelerators)
     {
         this.fileOperations = fileOperations;
         this.jsonCodec = jsonCodec;
         this.textureBaker = textureBaker;
+        this.layoutPlanner = layoutPlanner;
+        this.layouts = layouts;
         this.packingAccelerators = packingAccelerators.ToArray();
     }
 
@@ -75,12 +80,45 @@ public sealed class TextureStage : IPipelineStage
             };
         }
 
+        string? layoutArtifact = null;
         var texture = context.Build("texture", fingerprint, dir =>
                 {
                     var surface = context.ReadData<Surface>(store.PathFor(meshPath + "/mesh.json"));
-                    var vegetation = project.Settings.OptimiseVegetation
-                        ? jsonCodec.Read<bool[]>(store.PathFor(meshPath + "/vegetation.json")) : null;
-                    var result = textureBaker.Bake(store, project, scene, surface, Path.Combine(dir, "atlas.jpg"), cancellation, message => context.ReportProgress(Name, message), vegetation, progress.Report, context.Work);
+                    TextureLayout? layout = null;
+                    layoutArtifact = context.Build("texture-layout", new
+                    {
+                        meshPath,
+                        alignment,
+                        project.Settings.TextureSize,
+                        project.Settings.TexturePriority,
+                        project.Settings.ComputeBackend,
+                        inputs.computeImplementation,
+                        inputs.packingImplementation,
+                        project.Settings.OptimiseVegetation,
+                        project.Settings.VegetationTextureScale,
+                        project.Settings.TextureChartFaces,
+                        project.Settings.TextureChartAngle,
+                        project.Settings.TextureGutter
+                    }, directory =>
+                    {
+                        var vegetation = project.Settings.OptimiseVegetation
+                            ? jsonCodec.Read<bool[]>(store.PathFor(meshPath + "/vegetation.json")) : null;
+                        layout = layoutPlanner.Plan(project, scene, surface, cancellation,
+                            message => context.ReportProgress(Name, message), vegetation, context.Work, progress.Report);
+                        layouts.Write(Path.Combine(directory, "layout.bin"), layout, cancellation);
+                    }, algorithmVersion: "echo-texture-layout-v1");
+                    if (layout == null)
+                    {
+                        progress.Report(new OperationProgress("UV charts", "Loading saved UV charts…") { Steps = [] });
+                        layout = layouts.Read(store.PathFor(layoutArtifact + "/layout.bin"), surface, cancellation);
+                        progress.Report(new OperationProgress("Atlas packing", $"Reused {layout.Patches.Count:N0} packed UV charts.")
+                        {
+                            Steps = []
+                        });
+                    }
+                    var result = textureBaker.Bake(store, project, scene, surface, Path.Combine(dir, "atlas.jpg"), cancellation,
+                        message => context.ReportProgress(Name, message), operationProgress: progress.Report,
+                        work: context.Work, preparedLayout: layout);
                     progress.Report(new OperationProgress("Save texture", "Saving textured geometry…", 0, 3, "files") { Steps = [] });
                     fileOperations.AtomicData(Path.Combine(dir, "mesh.json"), result.Surface!, cancellation);
                     progress.Report(new OperationProgress("Save texture", "Saving UV coordinates…", 1, 3, "files"));
@@ -89,6 +127,9 @@ public sealed class TextureStage : IPipelineStage
                     progress.Report(new OperationProgress("Save texture", "Saving texture metadata…", 2, 3, "files"));
                     fileOperations.AtomicJson(Path.Combine(dir, "texture.json"), result);
                     progress.Report(new OperationProgress("Save texture", "Texture outputs saved.", 3, 3, "files"));
+                }, () => new ProcessingMetadata
+                {
+                    SourceArtifacts = [meshPath, alignment, layoutArtifact!]
                 });
         context.Publish("texture", texture);
     }

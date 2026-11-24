@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Echo.Geometry;
 
 namespace Echo.Texturing.Charts;
@@ -51,7 +52,6 @@ internal sealed class TextureChartMesh
     private int[] FindBoundary()
     {
         var edges = new Dictionary<TextureEdge, int>();
-        var counts = new Dictionary<TextureEdge, int>();
         foreach (var triangle in Triangles)
         {
             for (var corner = 0; corner < 3; corner++)
@@ -59,28 +59,36 @@ internal sealed class TextureChartMesh
                 var a = triangle[corner];
                 var b = triangle[(corner + 1) % 3];
                 var edge = new TextureEdge(Math.Min(a, b), Math.Max(a, b));
-                if (edges.TryGetValue(edge, out var start) && start == a)
+                // Single edges retain their direction. A pair must use opposite
+                // directions, and no edge may occur a third time.
+                var direction = a == edge.A ? 1 : -1;
+                ref var state = ref CollectionsMarshal.GetValueRefOrAddDefault(edges, edge, out var exists);
+                if (exists && state != -direction)
                 {
                     return [];
                 }
 
-                counts[edge] = counts.GetValueOrDefault(edge) + 1;
-                edges[edge] = a;
+                state = exists ? 2 : direction;
             }
         }
 
         // A single consistently oriented boundary and Euler characteristic one
         // are required by the convex-boundary harmonic fallback.
-        if (Points.Length - edges.Count + Triangles.Count != 1 || counts.Values.Any(count => count > 2))
+        if (Points.Length - edges.Count + Triangles.Count != 1)
         {
             return [];
         }
 
         var next = new Dictionary<int, int>();
-        foreach (var edge in counts.Where(entry => entry.Value == 1).Select(entry => entry.Key))
+        foreach (var edge in edges)
         {
-            var a = edges[edge];
-            var b = a == edge.A ? edge.B : edge.A;
+            if (edge.Value == 2)
+            {
+                continue;
+            }
+
+            var a = edge.Value == 1 ? edge.Key.A : edge.Key.B;
+            var b = edge.Value == 1 ? edge.Key.B : edge.Key.A;
             if (!next.TryAdd(a, b))
             {
                 return [];

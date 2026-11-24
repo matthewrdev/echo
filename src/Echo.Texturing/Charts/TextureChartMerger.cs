@@ -1,13 +1,15 @@
+using System.Diagnostics;
 using Echo.Compute;
 using Echo.Models;
 using Echo.Texturing.Layout;
+using Echo.Telemetry;
 
 namespace Echo.Texturing.Charts;
 
 internal static class TextureChartMerger
 {
     public static List<TexturePatch> Merge(TextureChartGeometry geometry, List<TexturePatch> patches, int maximumFaces,
-        IReadOnlyList<int>? materials, CancellationToken cancellation, Action<string>? progress, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
+        IReadOnlyList<int>? materials, CancellationToken cancellation, Action<string>? progress, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto, IPerformanceTrace? trace = null)
     {
         var owner = new int[geometry.Surface.Faces.Count];
         for (var index = 0; index < patches.Count; index++)
@@ -22,6 +24,11 @@ internal static class TextureChartMerger
         var rejected = new HashSet<TextureChartMergeKey>();
         var active = patches.Select(patch => (TexturePatch?)patch).ToArray();
         var merged = 0;
+        var attempts = 0;
+        var solveTicks = 0L;
+        var validationTicks = 0L;
+        var neighbours = new Dictionary<int, double>();
+        var scratch = new TextureLinearSystem(0);
         for (var pass = 0; pass < 4; pass++)
         {
             var previous = merged;
@@ -36,7 +43,7 @@ internal static class TextureChartMerger
                     continue;
                 }
 
-                var neighbours = new Dictionary<int, double>();
+                neighbours.Clear();
                 foreach (var face in patch.Faces)
                 {
                     for (var edge = 0; edge < 3; edge++)
@@ -70,13 +77,19 @@ internal static class TextureChartMerger
 
                     var faces = patch.Faces.Concat(active[other]!.Faces).ToList();
                     var chart = new TextureChartMesh(geometry, faces);
-                    var coordinates = TextureConformalMap.Solve(chart, cancellation, compute, backend);
-                    if (coordinates == null || !TextureChartValidation.Accept(chart, coordinates, cancellation))
+                    attempts++;
+                    var started = Stopwatch.GetTimestamp();
+                    var coordinates = TextureConformalMap.Solve(chart, cancellation, compute, backend, scratch);
+                    var solved = Stopwatch.GetTimestamp();
+                    var accepted = coordinates != null && TextureChartValidation.Accept(chart, coordinates, cancellation);
+                    solveTicks += solved - started;
+                    validationTicks += Stopwatch.GetTimestamp() - solved;
+                    if (!accepted)
                     {
                         continue;
                     }
 
-                    var union = TextureChartPatch.Create(geometry, chart, faces, coordinates);
+                    var union = TextureChartPatch.Create(geometry, chart, faces, coordinates!);
                     active[index] = union;
                     active[other] = null;
                     versions[index]++;
@@ -97,6 +110,9 @@ internal static class TextureChartMerger
             }
         }
 
+        trace?.Measurement("Rejected texture chart merges", attempts - merged, "charts");
+        trace?.Measurement("Texture chart merge solve time", Stopwatch.GetElapsedTime(0, solveTicks).TotalMilliseconds, "ms");
+        trace?.Measurement("Texture chart merge validation time", Stopwatch.GetElapsedTime(0, validationTicks).TotalMilliseconds, "ms");
         return active.Where(patch => patch != null).Select(patch => patch!).ToList();
     }
 }

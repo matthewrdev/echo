@@ -307,6 +307,7 @@ public sealed class RunContext : IDisposable
             "cloud-preview" => "cloud",
             "fusion-chunk" => "fusion",
             "fusion-grid" => "fusion",
+            "texture-layout" => "texture",
             _ => stage
         };
         if (Run.Snapshot.StageRevisions.TryGetValue(owner, out var resetRevision))

@@ -6,8 +6,8 @@ namespace Echo.Texturing.Charts;
 
 internal static class TextureSolveCompute
 {
-    public static double[]? TryWarmStart(IComputeService? compute, ComputeBackend backend, int[] offsets, int[] indices,
-        double[] coefficients, double[] diagonal, bool[] fixedRows, double[] initial, CancellationToken cancellation)
+    public static double[]? TryWarmStart(IComputeService? compute, ComputeBackend backend, ReadOnlySpan<int> offsets, ReadOnlySpan<int> indices,
+        ReadOnlySpan<double> coefficients, ReadOnlySpan<double> diagonal, ReadOnlySpan<bool> fixedRows, ReadOnlySpan<double> initial, CancellationToken cancellation)
     {
         // Float warm starts did not beat the double solve in measured charts.
         // Keep them opt-in for explicit Metal comparisons, never enable in Auto.
