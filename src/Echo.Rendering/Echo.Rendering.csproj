@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup><ProjectReference Include="../Echo.Models/Echo.Models.csproj" /></ItemGroup>
   <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="3.119.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
   </ItemGroup>
 </Project>
