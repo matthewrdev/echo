@@ -1,7 +1,7 @@
 import Foundation
 
 enum WorkspaceSheet: String, Identifiable {
-    case photo, settings, georeference, hints, history, storage, performance
+    case photo, settings, georeference, hints, history, storage, performance, surveyExport, printExport
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -12,6 +12,8 @@ enum WorkspaceSheet: String, Identifiable {
         case .storage: return "Generated files & storage"
         case .history: return "Saved runs"
         case .performance: return "Performance trace"
+        case .surveyExport: return "Survey point cloud"
+        case .printExport: return "3MF print export"
         }
     }
 }

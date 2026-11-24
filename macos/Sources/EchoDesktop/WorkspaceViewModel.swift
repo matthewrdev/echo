@@ -6,6 +6,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     private let client: ProjectClient
     private let clipboard: TextClipboard
     private let recentProjectStore: RecentProjectStore
+    let fileDialogLocations: FileDialogLocations
     private var recordedRoot = ""
     private let logReader: RunLogReader
     private let eventFormatter: RunEventFormatter
@@ -78,10 +79,12 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     init(
         client: ProjectClient, project: String, logReader: RunLogReader, eventFormatter: RunEventFormatter,
         recentProjectStore: RecentProjectStore, clipboard: TextClipboard, commandLog: CLICommandLog? = nil,
-        projectThumbnails: ProjectThumbnailLoader? = nil
+        projectThumbnails: ProjectThumbnailLoader? = nil,
+        fileDialogLocations: FileDialogLocations = FileDialogLocations(defaults: .standard)
     ) {
         self.clipboard = clipboard
         self.recentProjectStore = recentProjectStore
+        self.fileDialogLocations = fileDialogLocations
         recentProjects = recentProjectStore.load()
         self.logReader = logReader
         self.eventFormatter = eventFormatter
@@ -251,6 +254,34 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
     func exportGeoreference(root: String, runID: String, destination: URL) async throws {
         try await client.command(
             root: root, arguments: ["export-gis", "--run", runID, "--output", destination.path], progress: { _ in })
+    }
+
+    func exportArtifact(group: String, format: String? = nil, stage: PipelineStage? = nil, options: [String] = []) {
+        guard canEdit, let runID = (stage.flatMap { savedArtifactSources[$0] } ?? displayedRun)?.id else { return }
+        let name = [group, format, String(runID.prefix(8))].compactMap { $0 }.joined(separator: "-")
+        let formatOptions = format.map { ["--format", $0] } ?? []
+        let panel = NSSavePanel()
+        panel.title = "Export saved run"
+        panel.prompt = "Export"
+        panel.nameFieldStringValue = "Echo-\(name)"
+        panel.message = "Choose a name and location for the new export folder."
+        panel.canCreateDirectories = true
+        let feature: FileDialogFeature =
+            switch group {
+            case "cloud": .pointCloudExport
+            case "images": .imageExport
+            default: .meshExport
+            }
+        let fallback = URL(fileURLWithPath: root).deletingLastPathComponent()
+        guard let destination = fileDialogLocations.choose(panel, for: feature, fallback: fallback) else { return }
+        let projectRoot = root
+        perform("Exporting \(format?.uppercased() ?? group)…") {
+            try await self.client.command(
+                root: projectRoot,
+                arguments: ["export", group, "--run", runID, "--output", destination.path] + formatOptions + options,
+                progress: { _ in })
+            NSWorkspace.shared.open(destination)
+        }
     }
 
     func openMap(for photo: Photo? = nil) {

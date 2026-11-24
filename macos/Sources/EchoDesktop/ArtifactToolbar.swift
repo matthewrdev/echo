@@ -10,6 +10,7 @@ struct ArtifactToolbar: ToolbarContent {
                     .disabled(workspace.displayedRun?.artifacts["alignment"] == nil)
                     .help("View geographic placement and export for QGIS")
             }
+            ArtifactExportMenu(workspace: workspace)
             Button("Process to \(workspace.selectedStage.shortTitle)", systemImage: "play.fill") {
                 workspace.start(through: workspace.selectedStage)
             }

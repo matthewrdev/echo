@@ -36,6 +36,12 @@ struct GeoreferenceView: View {
                 Button("Export geographic data…", systemImage: "square.and.arrow.up") { export() }
                     .labelStyle(.iconOnly).help("Export geographic data for GIS and Redpoint")
                     .disabled(model.artifact == nil || model.loading || model.exporting)
+                Button("Survey point cloud…", systemImage: "point.3.connected.trianglepath.dotted") {
+                    workspace.sheet = .surveyExport
+                }
+                .labelStyle(.iconOnly)
+                .help("Export LAS, LAZ, or COPC in a survey coordinate system")
+                .disabled(workspace.displayedRun?.artifacts["cloud"] == nil || model.exporting)
                 Button(
                     expanded ? "Restore viewer size" : "Fill window",
                     systemImage: expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
