@@ -34,7 +34,8 @@ public sealed class DepthEstimator : IDepthEstimator
         Action<string>? progress = null,
         Action<DepthLevelMetrics>? metrics = null,
         Action<ProcessingExecution>? execution = null,
-        SubjectDistancePlan? subjectDistance = null)
+        SubjectDistancePlan? subjectDistance = null,
+        DepthDecodedImageCache? decodedImages = null)
     {
         trace?.Operation(new OperationProgress("Depth range and neighbours", "Planning depth search"));
         var photo = FindPhoto(project.Images, camera.ImageId);
@@ -68,7 +69,7 @@ public sealed class DepthEstimator : IDepthEstimator
 
         CameraPose[] selected = [];
         var maximumNeighbours = DepthNeighbourSelector.MaximumNeighbours(project.Settings.DepthNeighbours, scene.Cameras.Count);
-        using var sources = new DepthSourceImages(rasterImageService, store, maximumNeighbours + 1);
+        using var sources = new DepthSourceImages(rasterImageService, store, maximumNeighbours + 1, decodedImages);
         DepthMap? prior = null;
         var width = Math.Min(160, project.Settings.DepthWidth);
         var levelCount = 1;

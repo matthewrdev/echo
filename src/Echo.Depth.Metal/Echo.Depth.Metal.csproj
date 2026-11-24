@@ -4,7 +4,7 @@
     <Content Include="Native/StereoCost.metal" Link="StereoCost.metal" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="obj/$(Configuration)/native/libEchoDepthMetal.dylib" Link="libEchoDepthMetal.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
   </ItemGroup>
-  <Target Name="BuildMetalBridge" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="Native/MetalDepthBridge.swift;Native/MetalDepthSession.swift;../../scripts/build-metal.sh" Outputs="obj/$(Configuration)/native/libEchoDepthMetal.dylib">
+  <Target Name="BuildMetalBridge" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="Native/MetalDepthBridge.swift;Native/MetalDepthSession.swift;Native/MetalDepthPipeline.swift;../../scripts/build-metal.sh" Outputs="obj/$(Configuration)/native/libEchoDepthMetal.dylib">
     <Exec Command="bash ../../scripts/build-metal.sh &quot;obj/$(Configuration)/native&quot;" />
   </Target>
   <ItemGroup>

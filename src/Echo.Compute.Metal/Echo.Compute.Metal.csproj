@@ -6,7 +6,7 @@
     <EmbeddedResource Include="Native/*.metal" />
     <Content Include="obj/$(Configuration)/native/libEchoComputeMetal.dylib" Link="libEchoComputeMetal.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
   </ItemGroup>
-  <Target Name="BuildComputeMetalBridge" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="Native/ComputeBridge.swift;Native/ComputeDevice.swift;Native/ComputeSession.swift;../../scripts/build-compute-metal.sh" Outputs="obj/$(Configuration)/native/libEchoComputeMetal.dylib">
+  <Target Name="BuildComputeMetalBridge" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="Native/ComputeBridge.swift;Native/ComputeDevice.swift;Native/ComputeSession.swift;Native/ComputeDescriptorBinding.swift;../../scripts/build-compute-metal.sh" Outputs="obj/$(Configuration)/native/libEchoComputeMetal.dylib">
     <Exec Command="bash ../../scripts/build-compute-metal.sh &quot;obj/$(Configuration)/native&quot;" />
   </Target>
   <ItemGroup>

@@ -149,7 +149,6 @@ public sealed class BundleAdjuster : IBundleAdjuster
         Span<double> jv = stackalloc double[7];
         Span<double> pu = stackalloc double[3];
         Span<double> pv = stackalloc double[3];
-        Span<double> transformed = stackalloc double[3];
         reporting.Report(new OperationProgress("Evaluate bundle cost", "Measuring initial reprojection error"));
         var cost = Cost();
         var oldPoints = new V3[tracks.Count];
@@ -158,6 +157,10 @@ public sealed class BundleAdjuster : IBundleAdjuster
         Span<double> pointStep = stackalloc double[3];
         var h = new double[checked(parameter * parameter)];
         var b = new double[parameter];
+        var matrix = new DenseMatrix(parameter, parameter, h);
+        var rightHandSide = new DenseVector(b);
+        var delta = new DenseVector(parameter);
+        var transformedRows = new double[checked(parameter * 3)];
         var blocks = new PointBlock[tracks.Count];
         trace?.Measurement("Bundle cameras per solve", cameras.Count, "cameras");
         trace?.Measurement("Bundle tracks per solve", tracks.Count, "tracks");
@@ -240,7 +243,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
                         {
                             if (indices[k] >= 0)
                             {
-                                h[row * parameter + indices[k]] += weight * (ju[j] * ju[k] + jv[j] * jv[k]);
+                                h[indices[k] * parameter + row] += weight * (ju[j] * ju[k] + jv[j] * jv[k]);
                             }
                         }
                     }
@@ -284,25 +287,26 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 }
 
                 Inverse3(block.H, block.Inverse);
-                foreach (var row in block.Cross)
+                var cross = block.Cross;
+                for (var row = 0; row < cross.Length; row++)
                 {
-                    Multiply(block.Inverse, row.Value, transformed);
-                    b[row.Key] -= Dot(transformed, block.B);
-                    foreach (var column in block.Cross)
+                    var term = cross[row];
+                    var transformed = transformedRows.AsSpan(row * 3, 3);
+                    Multiply(block.Inverse, term.Value, transformed);
+                    b[term.Key] -= Dot(transformed, block.B);
+                }
+
+                foreach (var column in cross)
+                {
+                    var offset = column.Key * parameter;
+                    for (var row = 0; row < cross.Length; row++)
                     {
-                        h[row.Key * parameter + column.Key] -= Dot(transformed, column.Value);
+                        h[offset + cross[row].Key] -= Dot(transformedRows.AsSpan(row * 3, 3), column.Value);
                     }
                 }
             }
 
             reporting.Report(new OperationProgress("Solve bundle camera system", "Solving camera increments"), iteration);
-            DenseMatrix matrix;
-            using (trace?.Begin("Copy bundle camera matrix", PerformanceSpanKind.Operation))
-            {
-                matrix = DenseMatrix.Create(parameter, parameter, (r, c) => h[r * parameter + c]);
-            }
-
-            Vector<double> delta;
             try
             {
                 MathNet.Numerics.LinearAlgebra.Factorization.Cholesky<double> factor;
@@ -313,7 +317,7 @@ public sealed class BundleAdjuster : IBundleAdjuster
 
                 using (trace?.Begin("Back-substitute bundle update", PerformanceSpanKind.Operation))
                 {
-                    delta = factor.Solve(DenseVector.OfArray(b));
+                    factor.Solve(rightHandSide, delta);
                 }
             }
             catch (ArgumentException)

@@ -9,6 +9,13 @@ public interface IComputeSession : IDisposable
         get;
     }
     void Upload<T>(int slot, ReadOnlySpan<T> values) where T : unmanaged;
+    // Descriptor inputs are read-only in the session. True means the device reused a resident copy.
+    bool UploadDescriptor(int slot, ReadOnlyMemory<float> values)
+    {
+        Upload(slot, values.Span);
+        return false;
+    }
+
     void UploadRange<T>(int slot, int elementOffset, ReadOnlySpan<T> values) where T : unmanaged;
     void Allocate(int slot, int byteCount);
     void Dispatch(ComputeKernel kernel, int count, ReadOnlySpan<int> parameters);

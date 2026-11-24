@@ -1,37 +1,44 @@
+using System.Runtime.InteropServices;
+
 namespace Echo.Optimization;
 
 internal sealed class PointBlock
 {
-    private readonly List<double[]> crossBuffers = [];
+    private readonly Dictionary<int, int> crossIndices = [];
+    private readonly List<BundleCrossTerm> crossBuffers = [];
     public double[] H { get; } = new double[9];
     public double[] B { get; } = new double[3];
-    public Dictionary<int, double[]> Cross { get; } = [];
+    public ReadOnlySpan<BundleCrossTerm> Cross => CollectionsMarshal.AsSpan(crossBuffers)[..crossIndices.Count];
     public double[] Inverse { get; } = new double[9];
 
     public void Reset()
     {
         H.AsSpan().Clear();
         B.AsSpan().Clear();
-        Cross.Clear();
+        crossIndices.Clear();
     }
 
     public double[] GetCross(int row)
     {
-        if (Cross.TryGetValue(row, out var buffer))
+        if (crossIndices.TryGetValue(row, out var existing))
         {
-            return buffer;
+            return crossBuffers[existing].Value;
         }
 
-        var slot = Cross.Count;
+        var slot = crossIndices.Count;
         if (slot == crossBuffers.Count)
         {
-            crossBuffers.Add(new double[3]);
+            crossBuffers.Add(new BundleCrossTerm(row, new double[3]));
+        }
+        else
+        {
+            var buffer = crossBuffers[slot].Value;
+            buffer.AsSpan().Clear();
+            crossBuffers[slot] = new BundleCrossTerm(row, buffer);
         }
 
-        buffer = crossBuffers[slot];
-        buffer.AsSpan().Clear();
-        // Reinsert in the current observation order, including after visibility changes.
-        Cross.Add(row, buffer);
-        return buffer;
+        // The contiguous view follows the current observation order.
+        crossIndices.Add(row, slot);
+        return crossBuffers[slot].Value;
     }
 }

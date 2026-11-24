@@ -1,10 +1,16 @@
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Echo.Compute.Metal;
 
 public sealed class MetalComputeDevice : IComputeDevice, IDisposable
 {
-    private readonly SemaphoreSlim gate = new(1, 1);
+    private const int SessionSlots = 2;
+    private readonly SemaphoreSlim slots = new(SessionSlots, SessionSlots);
+    private readonly SemaphoreSlim admission = new(1, 1);
+    private readonly object initialization = new();
+    private readonly ConditionalWeakTable<float[], DescriptorBufferIdentity> descriptorIdentities = new();
+    private int nextDescriptorIdentity;
     private readonly MetalComputeLibrary library;
     private MetalComputeHandle? handle;
     private string device = "";
@@ -25,52 +31,35 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
 
     public string GetImplementation(ComputeOperation operation) => library.Implementation(operation);
 
-    public IComputeSession? Open(CancellationToken cancellation, long memoryBudgetBytes)
+    public IComputeSession? Open(CancellationToken cancellation, long memoryBudgetBytes) =>
+        OpenSession(cancellation, memoryBudgetBytes, SessionSlots);
+
+    public IComputeSession? OpenForMatching(CancellationToken cancellation, long memoryBudgetBytes, long requiredBytes)
+    {
+        var dividedBudget = memoryBudgetBytes / SessionSlots;
+        return requiredBytes <= dividedBudget
+            ? OpenSession(cancellation, dividedBudget, 1)
+            : OpenSession(cancellation, memoryBudgetBytes, SessionSlots);
+    }
+
+    private IComputeSession? OpenSession(CancellationToken cancellation, long memoryBudgetBytes, int permits)
     {
         if (!OperatingSystem.IsMacOS())
         {
             return null;
         }
 
-        gate.Wait(cancellation);
+        Reserve(permits, cancellation);
         var transferred = false;
         try
         {
-            if (unavailable)
+            if (!EnsureDevice())
             {
                 return null;
             }
 
-            if (handle == null)
-            {
-                var details = new StringBuilder(4096);
-                IntPtr pointer;
-                try
-                {
-                    pointer = MetalComputeNative.Create(library.Source, details, details.Capacity);
-                }
-                catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
-                {
-                    unavailable = true;
-                    return null;
-                }
-
-                if (pointer == IntPtr.Zero)
-                {
-                    if (!details.ToString().Contains("No Metal compute device", StringComparison.Ordinal))
-                    {
-                        throw new ComputeException(details.ToString());
-                    }
-
-                    unavailable = true;
-                    return null;
-                }
-
-                handle = new MetalComputeHandle(pointer);
-                device = details.ToString();
-            }
-
-            var session = new MetalComputeSession(MetalComputeNative.Open(handle, memoryBudgetBytes), device, gate, cancellation);
+            var session = new MetalComputeSession(MetalComputeNative.Open(handle!, memoryBudgetBytes), device,
+                () => slots.Release(permits), DescriptorIdentity, cancellation);
             transferred = true;
             return session;
         }
@@ -78,14 +67,87 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
         {
             if (!transferred)
             {
-                gate.Release();
+                slots.Release(permits);
             }
+        }
+    }
+
+    private uint DescriptorIdentity(float[] array) =>
+        descriptorIdentities.GetValue(array, _ => new DescriptorBufferIdentity(unchecked((uint)Interlocked.Increment(ref nextDescriptorIdentity)))).Value;
+
+    private bool EnsureDevice()
+    {
+        lock (initialization)
+        {
+            if (unavailable)
+            {
+                return false;
+            }
+
+            if (handle != null)
+            {
+                return true;
+            }
+
+            var details = new StringBuilder(4096);
+            IntPtr pointer;
+            try
+            {
+                pointer = MetalComputeNative.Create(library.Source, details, details.Capacity);
+            }
+            catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+            {
+                unavailable = true;
+                return false;
+            }
+
+            if (pointer == IntPtr.Zero)
+            {
+                if (!details.ToString().Contains("No Metal compute device", StringComparison.Ordinal))
+                {
+                    throw new ComputeException(details.ToString());
+                }
+
+                unavailable = true;
+                return false;
+            }
+
+            handle = new MetalComputeHandle(pointer);
+            device = details.ToString();
+            return true;
+        }
+    }
+
+    private void Reserve(int permits, CancellationToken cancellation)
+    {
+        admission.Wait(cancellation);
+        var acquired = 0;
+        try
+        {
+            while (acquired < permits)
+            {
+                slots.Wait(cancellation);
+                acquired++;
+            }
+        }
+        catch
+        {
+            if (acquired > 0)
+            {
+                slots.Release(acquired);
+            }
+
+            throw;
+        }
+        finally
+        {
+            admission.Release();
         }
     }
 
     public void Dispose()
     {
-        gate.Wait();
+        Reserve(SessionSlots, CancellationToken.None);
         try
         {
             unavailable = true;
@@ -93,7 +155,7 @@ public sealed class MetalComputeDevice : IComputeDevice, IDisposable
         }
         finally
         {
-            gate.Release();
+            slots.Release(SessionSlots);
         }
     }
 }

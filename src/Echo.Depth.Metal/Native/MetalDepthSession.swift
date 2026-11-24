@@ -13,27 +13,20 @@ final class MetalDepthSession {
     private var depths: MTLBuffer?
     private var costs: MTLBuffer?
 
-    init(source: String, views: UnsafePointer<Float>, viewCount: Int, gray: UnsafePointer<Float>, grayCount: Int)
+    init(
+        program: MetalDepthPipeline, views: UnsafePointer<Float>, viewCount: Int, gray: UnsafePointer<Float>,
+        grayCount: Int
+    )
         throws
     {
-        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else {
-            throw Self.failure("No Metal compute device is available")
+        let device = program.device
+        guard let queue = device.makeCommandQueue() else {
+            throw Self.failure("Could not create Metal depth command queue")
         }
         self.device = device
         self.queue = queue
         self.viewCount = viewCount
-        let options = MTLCompileOptions()
-        if #available(macOS 15.0, *) {
-            options.mathMode = .safe
-            options.mathFloatingPointFunctions = .precise
-        } else {
-            options.fastMathEnabled = false
-        }
-        let library = try device.makeLibrary(source: source, options: options)
-        guard let function = library.makeFunction(name: "stereo_cost") else {
-            throw Self.failure("Missing stereo_cost kernel")
-        }
-        pipeline = try device.makeComputePipelineState(function: function)
+        pipeline = program.pipeline
         guard
             let viewBuffer = device.makeBuffer(bytes: views, length: viewCount * 24 * 4, options: .storageModeShared),
             let grayBuffer = device.makeBuffer(bytes: gray, length: grayCount * 4, options: .storageModeShared)

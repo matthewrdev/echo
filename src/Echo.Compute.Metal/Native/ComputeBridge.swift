@@ -64,6 +64,17 @@ public func computeBuffer(
     }
 }
 
+@_cdecl("echo_compute_descriptor")
+public func computeDescriptor(
+    _ handle: UnsafeMutableRawPointer, _ slot: Int32, _ key: UInt64, _ input: UnsafeRawPointer, _ bytes: Int32,
+    _ reused: UnsafeMutablePointer<Int32>, _ output: UnsafeMutablePointer<CChar>?, _ capacity: Int32
+) -> Int32 {
+    perform(output, capacity) {
+        let session = Unmanaged<ComputeSession>.fromOpaque(handle).takeUnretainedValue()
+        reused.pointee = try session.descriptor(slot: Int(slot), key: key, input: input, bytes: Int(bytes)) ? 1 : 0
+    }
+}
+
 @_cdecl("echo_compute_write")
 public func computeWrite(
     _ handle: UnsafeMutableRawPointer, _ slot: Int32, _ offset: Int32, _ input: UnsafeRawPointer?, _ bytes: Int32,

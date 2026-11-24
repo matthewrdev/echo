@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using Echo.Compute;
 using Echo.Telemetry;
@@ -5,13 +6,15 @@ using System.Security.Cryptography;
 
 namespace Echo.Depth.Metal;
 
-public sealed class MetalDepthCostAccelerator : IDepthCostAccelerator
+public sealed class MetalDepthCostAccelerator : IDepthCostAccelerator, IDisposable
 {
     private readonly IPerformanceTrace trace;
+    private readonly Lazy<MetalDepthPipelineHandle> pipeline;
 
     public MetalDepthCostAccelerator(IPerformanceTrace trace)
     {
         this.trace = trace;
+        pipeline = new Lazy<MetalDepthPipelineHandle>(Compile);
     }
 
     public string Backend => "metal";
@@ -26,55 +29,84 @@ public sealed class MetalDepthCostAccelerator : IDepthCostAccelerator
 
         try
         {
-            var path = Path.Combine(AppContext.BaseDirectory, "StereoCost.metal");
-            var source = MetalShaderSource.WithoutDocumentation(File.ReadAllText(path));
+            var program = pipeline.Value;
             var packedViews = new float[checked(views.Length * 24)];
             // Remove large world-coordinate offsets before reducing precision.
             // Stereo geometry depends on relative positions, not the world origin.
             var origin = views[0].Centre;
-            var gray = new float[views.Sum(view => checked(view.Width * view.Height))];
-            var offset = 0;
-            for (var index = 0; index < views.Length; index++)
+            var grayCount = views.Sum(view => checked(view.Width * view.Height));
+            var gray = ArrayPool<float>.Shared.Rent(grayCount);
+            try
             {
-                cancellation.ThrowIfCancellationRequested();
-                var view = views[index];
-                var packed = packedViews.AsSpan(index * 24, 24);
-                packed[0] = (float)(view.Centre.X - origin.X);
-                packed[1] = (float)(view.Centre.Y - origin.Y);
-                packed[2] = (float)(view.Centre.Z - origin.Z);
-                for (var element = 0; element < 9; element++)
+                var offset = 0;
+                for (var index = 0; index < views.Length; index++)
                 {
-                    packed[3 + element] = (float)view.WorldToCamera[element];
+                    cancellation.ThrowIfCancellationRequested();
+                    var view = views[index];
+                    var packed = packedViews.AsSpan(index * 24, 24);
+                    packed[0] = (float)(view.Centre.X - origin.X);
+                    packed[1] = (float)(view.Centre.Y - origin.Y);
+                    packed[2] = (float)(view.Centre.Z - origin.Z);
+                    for (var element = 0; element < 9; element++)
+                    {
+                        packed[3 + element] = (float)view.WorldToCamera[element];
+                    }
+
+                    packed[12] = (float)view.PatchRight.X;
+                    packed[13] = (float)view.PatchRight.Y;
+                    packed[14] = (float)view.PatchRight.Z;
+                    packed[15] = (float)view.PatchDown.X;
+                    packed[16] = (float)view.PatchDown.Y;
+                    packed[17] = (float)view.PatchDown.Z;
+                    packed[18] = (float)view.Focal;
+                    packed[19] = view.Width;
+                    packed[20] = view.Height;
+                    packed[21] = BitConverter.Int32BitsToSingle(offset);
+                    var count = checked(view.Width * view.Height);
+                    view.Gray.AsSpan(0, count).CopyTo(gray.AsSpan(offset));
+                    offset += count;
                 }
 
-                packed[12] = (float)view.PatchRight.X;
-                packed[13] = (float)view.PatchRight.Y;
-                packed[14] = (float)view.PatchRight.Z;
-                packed[15] = (float)view.PatchDown.X;
-                packed[16] = (float)view.PatchDown.Y;
-                packed[17] = (float)view.PatchDown.Z;
-                packed[18] = (float)view.Focal;
-                packed[19] = view.Width;
-                packed[20] = view.Height;
-                packed[21] = BitConverter.Int32BitsToSingle(offset);
-                var count = checked(view.Width * view.Height);
-                view.Gray.AsSpan(0, count).CopyTo(gray.AsSpan(offset));
-                offset += count;
-            }
+                var details = new StringBuilder(2048);
+                var pointer = MetalDepthNative.Create(program, packedViews, views.Length, gray, grayCount, details, details.Capacity);
+                if (pointer == IntPtr.Zero)
+                {
+                    throw new DepthAccelerationException(details.ToString());
+                }
 
-            var details = new StringBuilder(2048);
-            var pointer = MetalDepthNative.Create(source, packedViews, views.Length, gray, gray.Length, details, details.Capacity);
-            if (pointer == IntPtr.Zero)
+                return new MetalDepthCostSession(new MetalDepthHandle(pointer), details.ToString(), program.Fingerprint, origin, trace);
+            }
+            finally
             {
-                throw new DepthAccelerationException(details.ToString());
+                ArrayPool<float>.Shared.Return(gray);
             }
-
-            var shaderHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
-            return new MetalDepthCostSession(new MetalDepthHandle(pointer), details.ToString(), shaderHash, origin, trace);
         }
         catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException or IOException)
         {
             throw new DepthAccelerationException("Metal module unavailable: " + error.Message);
+        }
+    }
+
+    private MetalDepthPipelineHandle Compile()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "StereoCost.metal");
+        var source = MetalShaderSource.WithoutDocumentation(File.ReadAllText(path));
+        var fingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
+        var details = new StringBuilder(2048);
+        var pointer = MetalDepthNative.Compile(source, details, details.Capacity);
+        if (pointer == IntPtr.Zero)
+        {
+            throw new DepthAccelerationException(details.ToString());
+        }
+
+        return new MetalDepthPipelineHandle(pointer, fingerprint);
+    }
+
+    public void Dispose()
+    {
+        if (pipeline.IsValueCreated)
+        {
+            pipeline.Value.Dispose();
         }
     }
 }

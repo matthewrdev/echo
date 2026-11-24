@@ -53,7 +53,12 @@ public sealed class ComputeService : IComputeService
         return current;
     }
 
-    public IComputeSession? Open(ComputeBackend backend, CancellationToken cancellation)
+    public IComputeSession? Open(ComputeBackend backend, CancellationToken cancellation) => OpenSession(backend, cancellation, null);
+
+    public IComputeSession? OpenForMatching(ComputeBackend backend, long requiredBytes, CancellationToken cancellation) =>
+        OpenSession(backend, cancellation, requiredBytes);
+
+    private IComputeSession? OpenSession(ComputeBackend backend, CancellationToken cancellation, long? matchingBytes)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!Enum.IsDefined(backend))
@@ -71,7 +76,9 @@ public sealed class ComputeService : IComputeService
             try
             {
                 using var opening = trace.Begin("Acquire Metal session", PerformanceSpanKind.Wait, PerformanceBackend.Metal);
-                var session = device.Open(cancellation, MemoryBudgetBytes);
+                var session = matchingBytes is long requiredBytes
+                    ? device.OpenForMatching(cancellation, MemoryBudgetBytes, requiredBytes)
+                    : device.Open(cancellation, MemoryBudgetBytes);
                 opening?.Complete();
                 if (session != null)
                 {

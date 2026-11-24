@@ -12,20 +12,23 @@ internal sealed class DepthSourceImages : IDisposable
     private readonly IProjectStore store;
     private readonly Dictionary<string, SKBitmap> sources = new(StringComparer.Ordinal);
     private readonly List<float[]> levelBuffers;
+    private readonly DepthDecodedImageCache? decodedImages;
 
-    public DepthSourceImages(IRasterImageService images, IProjectStore store, int imageCount)
+    public DepthSourceImages(IRasterImageService images, IProjectStore store, int imageCount, DepthDecodedImageCache? decodedImages = null)
     {
         this.images = images;
         this.store = store;
+        this.decodedImages = decodedImages;
         levelBuffers = new List<float[]>(imageCount);
     }
 
     public GrayscaleImage ReadLevel(Photo photo, int width, bool filter = false, CancellationToken cancellation = default)
     {
-        if (!sources.TryGetValue(photo.Id, out var source))
+        if (!sources.TryGetValue(photo.Source, out var source))
         {
-            source = images.Decode(store.PathFor(photo.Source));
-            sources.Add(photo.Id, source);
+            var path = store.PathFor(photo.Source);
+            source = decodedImages?.Rent(path, () => images.Decode(path)) ?? images.Decode(path);
+            sources.Add(photo.Source, source);
         }
 
         // Resize through a borrowed native pixel span. Retain the bitmap until all
@@ -55,9 +58,16 @@ internal sealed class DepthSourceImages : IDisposable
     public void Dispose()
     {
         ReleaseLevel();
-        foreach (var source in sources.Values)
+        foreach (var source in sources)
         {
-            source.Dispose();
+            if (decodedImages == null)
+            {
+                source.Value.Dispose();
+            }
+            else
+            {
+                decodedImages.Return(store.PathFor(source.Key));
+            }
         }
 
         sources.Clear();

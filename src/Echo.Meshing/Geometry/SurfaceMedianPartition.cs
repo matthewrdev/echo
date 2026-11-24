@@ -19,38 +19,31 @@ internal static class SurfaceMedianPartition
             cancellation.ThrowIfCancellationRequested();
             if (remaining-- == 0)
             {
-                if (order is int[] array)
-                {
-                    Array.Sort(array, low, high - low + 1, Comparer<int>.Create((a, b) => Compare(a, b, centres)));
-                }
-                else
-                {
-                    HeapSort(order, low, high - low + 1, centres, cancellation);
-                }
+                HeapSort(order, low, high - low + 1, centres, cancellation);
 
                 return;
             }
 
-            var pivot = order[low + (high - low) / 2];
+            var pivot = low + (high - low) / 2;
+            var pivotFace = order[pivot];
+            var pivotCentre = centres[pivot];
             var left = low;
             var right = high;
             while (left <= right)
             {
-                while (Compare(order[left], pivot, centres) < 0)
+                while (Compare(centres[left], order[left], pivotCentre, pivotFace) < 0)
                 {
                     left++;
                 }
 
-                while (Compare(order[right], pivot, centres) > 0)
+                while (Compare(centres[right], order[right], pivotCentre, pivotFace) > 0)
                 {
                     right--;
                 }
 
                 if (left <= right)
                 {
-                    var previous = order[left];
-                    order[left++] = order[right];
-                    order[right--] = previous;
+                    Swap(order, centres, left++, right--);
                 }
             }
 
@@ -78,9 +71,7 @@ internal static class SurfaceMedianPartition
 
         for (var end = count - 1; end > 0; end--)
         {
-            var value = order[start];
-            order[start] = order[start + end];
-            order[start + end] = value;
+            Swap(order, centres, start, start + end);
             Sift(order, start, end, 0, centres, cancellation);
         }
     }
@@ -91,27 +82,40 @@ internal static class SurfaceMedianPartition
         {
             cancellation.ThrowIfCancellationRequested();
             var child = root * 2 + 1;
-            if (child + 1 < count && Compare(order[start + child], order[start + child + 1], centres) < 0)
+            if (child + 1 < count && Compare(centres[start + child], order[start + child], centres[start + child + 1], order[start + child + 1]) < 0)
             {
                 child++;
             }
 
-            if (Compare(order[start + root], order[start + child], centres) >= 0)
+            if (Compare(centres[start + root], order[start + root], centres[start + child], order[start + child]) >= 0)
             {
                 return;
             }
 
-            var value = order[start + root];
-            order[start + root] = order[start + child];
-            order[start + child] = value;
+            Swap(order, centres, start + root, start + child);
             root = child;
         }
     }
 
-    private static int Compare(int first, int second, IList<double> centres)
+    private static void Swap(IList<int> order, IList<double> centres, int first, int second)
     {
-        var order = centres[first].CompareTo(centres[second]);
-        return order == 0 ? first.CompareTo(second) : order;
+        if (first == second)
+        {
+            return;
+        }
+
+        var face = order[first];
+        var centre = centres[first];
+        order[first] = order[second];
+        centres[first] = centres[second];
+        order[second] = face;
+        centres[second] = centre;
+    }
+
+    private static int Compare(double firstCentre, int firstFace, double secondCentre, int secondFace)
+    {
+        var order = firstCentre.CompareTo(secondCentre);
+        return order == 0 ? firstFace.CompareTo(secondFace) : order;
     }
 
     private static void SelectResident(int[] order, int start, int count, double[] centres, CancellationToken cancellation)

@@ -79,6 +79,7 @@ public sealed class DepthStage : IPipelineStage
         var algorithmVersion = project.Settings.DepthBackend is "auto" or "metal" ? "echo-depth-pyramid12-metal-overlap1-sky1-subject2" : "echo-depth-pyramid12-cpu-overlap1-sky1-subject2";
         var budgetMode = context.Resources.DepthMemoryBudgetMb == 0 ? "automatic" : "manual";
         context.ReportProgress(Name, $"Depth: {plan.ConcurrentImages} images concurrently, {plan.WorkersPerImage} CPU workers per image; estimated {plan.EstimatedBytesPerImage / 1024 / 1024:N0} MB per job; {budgetMode} memory budget {plan.MemoryBudgetBytes / 1024 / 1024:N0} MB.", 0, scene.Cameras.Count);
+        using var decodedImages = new DepthDecodedImageCache(plan.DecodedImageCacheBytes);
         var options = new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = plan.ConcurrentImages };
         Parallel.For(0, scene.Cameras.Count, options, index =>
         {
@@ -121,7 +122,7 @@ public sealed class DepthStage : IPipelineStage
                     {
                         context.ReportProgress(Name, $"Image {index + 1}/{scene.Cameras.Count} · {photo.Name} · {message}", completed, scene.Cameras.Count);
                     }
-                }, execution: processing.Executions.Add, subjectDistance: subjectDistance);
+                }, execution: processing.Executions.Add, subjectDistance: subjectDistance, decodedImages: decodedImages);
                 if (project.Settings.DepthSuppressSky)
                 {
                     var removed = DepthSkyFilter.Apply(map, semantics[camera.ImageId], cancellation);

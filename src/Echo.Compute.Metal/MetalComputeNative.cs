@@ -20,6 +20,10 @@ internal static unsafe class MetalComputeNative
     [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_buffer")]
     internal static extern int Buffer(IntPtr session, int slot, void* input, int bytes, StringBuilder error, int capacity);
 
+    [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_descriptor")]
+    internal static extern int Descriptor(IntPtr session, int slot, ulong key, void* input, int bytes,
+        out int reused, StringBuilder error, int capacity);
+
     [DllImport("EchoComputeMetal", EntryPoint = "echo_compute_write")]
     internal static extern int Write(IntPtr session, int slot, int offset, void* input, int bytes, StringBuilder error, int capacity);
 

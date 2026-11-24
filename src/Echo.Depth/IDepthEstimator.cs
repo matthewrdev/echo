@@ -14,5 +14,6 @@ public interface IDepthEstimator
         Action<string>? progress = null,
         Action<DepthLevelMetrics>? metrics = null,
         Action<ProcessingExecution>? execution = null,
-        SubjectDistancePlan? subjectDistance = null);
+        SubjectDistancePlan? subjectDistance = null,
+        DepthDecodedImageCache? decodedImages = null);
 }

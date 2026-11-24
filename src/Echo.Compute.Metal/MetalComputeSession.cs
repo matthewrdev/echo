@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using Echo.Telemetry;
 
@@ -5,17 +6,19 @@ namespace Echo.Compute.Metal;
 
 internal sealed unsafe class MetalComputeSession : IComputeStreamingSession, IGpuTimingSource
 {
-    private readonly SemaphoreSlim gate;
+    private readonly Action release;
+    private readonly Func<float[], uint> descriptorIdentity;
     private readonly CancellationToken cancellation;
     private readonly StringBuilder error = new(4096);
     private IntPtr handle;
     private double completedGpu;
     public double CompletedGpuMilliseconds => handle == IntPtr.Zero ? completedGpu : MetalComputeNative.GpuTime(handle);
 
-    public MetalComputeSession(IntPtr handle, string device, SemaphoreSlim gate, CancellationToken cancellation)
+    public MetalComputeSession(IntPtr handle, string device, Action release, Func<float[], uint> descriptorIdentity, CancellationToken cancellation)
     {
         this.handle = handle;
-        this.gate = gate;
+        this.release = release;
+        this.descriptorIdentity = descriptorIdentity;
         this.cancellation = cancellation;
         Device = device;
     }
@@ -31,6 +34,24 @@ internal sealed unsafe class MetalComputeSession : IComputeStreamingSession, IGp
         fixed (T* pointer = values)
         {
             Verify(MetalComputeNative.Buffer(handle, slot, pointer, checked(values.Length * sizeof(T)), error, error.Capacity));
+        }
+    }
+
+    public bool UploadDescriptor(int slot, ReadOnlyMemory<float> values)
+    {
+        if (!MemoryMarshal.TryGetArray(values, out var segment) || segment.Array == null)
+        {
+            Upload(slot, values.Span);
+            return false;
+        }
+
+        Check();
+        var key = ((ulong)descriptorIdentity(segment.Array) << 32) | (uint)segment.Offset;
+        fixed (float* pointer = values.Span)
+        {
+            Verify(MetalComputeNative.Descriptor(handle, slot, key, pointer, checked(values.Length * sizeof(float)),
+                out var reused, error, error.Capacity));
+            return reused != 0;
         }
     }
 
@@ -111,6 +132,6 @@ internal sealed unsafe class MetalComputeSession : IComputeStreamingSession, IGp
         // Closing drains commands even when the cancellation token is set.
         completedGpu = MetalComputeNative.CloseTimed(handle);
         handle = IntPtr.Zero;
-        gate.Release();
+        release();
     }
 }

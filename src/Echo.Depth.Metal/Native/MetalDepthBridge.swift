@@ -9,9 +9,29 @@ private func writeDetails(_ text: String, to output: UnsafeMutablePointer<CChar>
     output[bytes.count] = 0
 }
 
-@_cdecl("echo_metal_create")
+@_cdecl("echo_metal_compile")
+public func echoMetalCompile(
+    _ source: UnsafePointer<CChar>, _ details: UnsafeMutablePointer<CChar>?, _ capacity: Int32
+) -> UnsafeMutableRawPointer? {
+    autoreleasepool {
+        do {
+            let program = try MetalDepthPipeline(source: String(cString: source))
+            return Unmanaged.passRetained(program).toOpaque()
+        } catch {
+            writeDetails(error.localizedDescription, to: details, capacity: capacity)
+            return nil
+        }
+    }
+}
+
+@_cdecl("echo_metal_destroy_pipeline")
+public func echoMetalDestroyPipeline(_ handle: UnsafeMutableRawPointer) {
+    Unmanaged<MetalDepthPipeline>.fromOpaque(handle).release()
+}
+
+@_cdecl("echo_metal_create_session")
 public func echoMetalCreate(
-    _ source: UnsafePointer<CChar>, _ views: UnsafePointer<Float>, _ viewCount: Int32,
+    _ program: UnsafeMutableRawPointer, _ views: UnsafePointer<Float>, _ viewCount: Int32,
     _ gray: UnsafePointer<Float>, _ grayCount: Int32, _ details: UnsafeMutablePointer<CChar>?, _ capacity: Int32
 ) -> UnsafeMutableRawPointer? {
     autoreleasepool {
@@ -20,7 +40,8 @@ public func echoMetalCreate(
                 throw MetalDepthSession.failure("Empty Metal view inputs")
             }
             let session = try MetalDepthSession(
-                source: String(cString: source), views: views, viewCount: Int(viewCount), gray: gray,
+                program: Unmanaged<MetalDepthPipeline>.fromOpaque(program).takeUnretainedValue(),
+                views: views, viewCount: Int(viewCount), gray: gray,
                 grayCount: Int(grayCount))
             writeDetails(session.device.name, to: details, capacity: capacity)
             return Unmanaged.passRetained(session).toOpaque()

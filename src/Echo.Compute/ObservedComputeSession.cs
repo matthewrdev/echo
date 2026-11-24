@@ -43,6 +43,31 @@ internal sealed class ObservedComputeSession : IComputeStreamingSession
         }
     }
 
+    public bool UploadDescriptor(int slot, ReadOnlyMemory<float> values)
+    {
+        using var span = trace.Begin("Bind descriptor input", PerformanceSpanKind.Transfer, PerformanceBackend.Metal);
+        var reused = false;
+        try
+        {
+            reused = session.UploadDescriptor(slot, values);
+            return reused;
+        }
+        catch (OperationCanceledException)
+        {
+            span?.Complete(PerformanceStatus.Cancelled);
+            throw;
+        }
+        catch
+        {
+            span?.Complete(PerformanceStatus.Failed);
+            throw;
+        }
+        finally
+        {
+            Measure(span, values.Length, reused ? 0 : (long)values.Length * sizeof(float));
+        }
+    }
+
     public void UploadRange<T>(int slot, int elementOffset, ReadOnlySpan<T> values) where T : unmanaged
     {
         using var span = trace.Begin("Upload range", PerformanceSpanKind.Transfer, PerformanceBackend.Metal);

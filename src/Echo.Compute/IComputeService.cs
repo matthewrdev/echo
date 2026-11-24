@@ -13,4 +13,5 @@ public interface IComputeService
     void RecordExecution(ComputeExecution execution);
     ComputeScope BeginScope(long memoryBudgetBytes);
     IComputeSession? Open(ComputeBackend backend, CancellationToken cancellation);
+    IComputeSession? OpenForMatching(ComputeBackend backend, long requiredBytes, CancellationToken cancellation) => Open(backend, cancellation);
 }

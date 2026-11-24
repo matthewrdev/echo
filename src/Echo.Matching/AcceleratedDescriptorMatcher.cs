@@ -53,12 +53,13 @@ internal static class AcceleratedDescriptorMatcher
             rows = Math.Max(1, rows / 2);
         }
 
-        if (!compute.CanAllocate(fixedBytes + TileBytes(rows), settings.ComputeBackend))
+        var workingBytes = fixedBytes + TileBytes(rows);
+        if (!compute.CanAllocate(workingBytes, settings.ComputeBackend))
         {
             return null;
         }
 
-        using var session = compute.Open(settings.ComputeBackend, cancellation);
+        using var session = compute.OpenForMatching(settings.ComputeBackend, workingBytes, cancellation);
         if (session == null)
         {
             return null;
@@ -175,7 +176,7 @@ internal static class AcceleratedDescriptorMatcher
     {
         if (!contiguous.IsEmpty)
         {
-            session.Upload<float>(slot, contiguous.Span);
+            session.UploadDescriptor(slot, contiguous);
             return;
         }
 

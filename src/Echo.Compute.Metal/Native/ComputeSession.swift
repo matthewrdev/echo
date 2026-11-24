@@ -6,6 +6,7 @@ final class ComputeSession {
     let owner: ComputeDevice
     let budget: Int
     var buffers: [MTLBuffer?] = Array(repeating: nil, count: 8)
+    private var readOnlySlots = Set<Int>()
     var lengths = Array(repeating: 0, count: 8)
     var command: MTLCommandBuffer?
     var dispatches = 0
@@ -70,21 +71,46 @@ final class ComputeSession {
             throw ComputeDevice.failure("Invalid buffer slot or length")
         }
         try waitForSlot(slot)
-        if buffers[slot] == nil || buffers[slot]!.length < max(4, bytes) {
-            let allocated = buffers.enumerated().reduce(0) { $0 + ($1.offset == slot ? 0 : ($1.element?.length ?? 0)) }
-            guard max(4, bytes) <= budget - allocated else {
+        let wasReadOnly = readOnlySlots.contains(slot)
+        if wasReadOnly || buffers[slot] == nil || buffers[slot]!.length < max(4, bytes) {
+            let available = availableBytes(excluding: slot)
+            guard max(4, bytes) <= available else {
                 throw ComputeDevice.failure("Metal session memory budget exceeded")
             }
-            if let previous = buffers[slot] { owner.recycle(previous) }
-            buffers[slot] = nil
-            buffers[slot] = try owner.acquire(bytes, limit: budget - allocated)
+            discard(slot)
+            buffers[slot] = try owner.acquire(bytes, limit: available)
         }
         lengths[slot] = bytes
         if let input, bytes > 0 { memcpy(buffers[slot]!.contents(), input, bytes) }
     }
 
+    func descriptor(slot: Int, key: UInt64, input: UnsafeRawPointer, bytes: Int) throws -> Bool {
+        guard buffers.indices.contains(slot), bytes > 0, bytes <= availableBytes(excluding: slot) else {
+            throw ComputeDevice.failure("Invalid compute descriptor binding")
+        }
+
+        try waitForSlot(slot)
+        let binding = try owner.descriptor(key: key, input: input, bytes: bytes, limit: budget)
+        discard(slot)
+        buffers[slot] = binding.buffer
+        lengths[slot] = bytes
+        readOnlySlots.insert(slot)
+        return binding.reused
+    }
+
+    private func availableBytes(excluding slot: Int) -> Int {
+        budget - buffers.enumerated().reduce(0) { $0 + ($1.offset == slot ? 0 : ($1.element?.length ?? 0)) }
+    }
+
+    private func discard(_ slot: Int) {
+        let previous = buffers[slot]
+        buffers[slot] = nil
+        let wasReadOnly = readOnlySlots.remove(slot) != nil
+        if let previous, !wasReadOnly { owner.recycle(previous) }
+    }
+
     func write(slot: Int, offset: Int, input: UnsafeRawPointer?, bytes: Int) throws {
-        guard buffers.indices.contains(slot), offset >= 0, bytes >= 0,
+        guard buffers.indices.contains(slot), !readOnlySlots.contains(slot), offset >= 0, bytes >= 0,
             let buffer = buffers[slot], offset <= lengths[slot], bytes <= lengths[slot] - offset
         else {
             throw ComputeDevice.failure("Invalid compute upload range")
@@ -148,6 +174,6 @@ final class ComputeSession {
 
     deinit {
         try? finish()
-        for buffer in buffers.compactMap({ $0 }) { owner.recycle(buffer) }
+        for slot in buffers.indices { discard(slot) }
     }
 }

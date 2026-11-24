@@ -79,6 +79,7 @@ public sealed class DepthBenchmark
             var maps = new DepthMap[cameraCount];
             var phases = new List<DepthLevelMetrics>[cameraCount];
             var executions = new List<ProcessingExecution>[cameraCount];
+            using var decodedImages = new DepthDecodedImageCache(plan.DecodedImageCacheBytes);
             Parallel.For(0, cameraCount, new ParallelOptions { MaxDegreeOfParallelism = plan.ConcurrentImages }, index =>
             {
                 var profile = new List<DepthLevelMetrics>();
@@ -87,7 +88,7 @@ public sealed class DepthBenchmark
                 executions[index] = execution;
                 maps[index] = estimator.Estimate(store, run.Snapshot, scene, scene.Cameras[firstCamera + index], default, plan.WorkersPerImage,
                     progress: message => Console.Error.WriteLine($"{scene.Cameras[firstCamera + index].ImageId}: {message}"),
-                    metrics: profile.Add, execution: execution.Add);
+                    metrics: profile.Add, execution: execution.Add, decodedImages: decodedImages);
             });
             watch.Stop();
             allocated = GC.GetTotalAllocatedBytes(true) - allocated;

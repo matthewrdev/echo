@@ -251,6 +251,7 @@ internal sealed class SurfaceTriangleIndex : IDisposable
             // Resolve each key once. The comparator used to decode two faces
             // and six paged vertex arrays on every comparison at every level.
             var residentCentres = centres as double[];
+            var keyedByFace = residentOrder != null && residentCentres != null;
             for (var index = start; index < start + count; index++)
             {
                 if ((index & 4095) == 0)
@@ -258,16 +259,17 @@ internal sealed class SurfaceTriangleIndex : IDisposable
                     cancellation.ThrowIfCancellationRequested();
                 }
 
-                var value = Triangle(Face(index));
+                var face = Face(index);
+                var value = Triangle(face);
                 var centre = value.A + value.B + value.C;
                 var coordinate = axis == 0 ? centre.X : axis == 1 ? centre.Y : centre.Z;
-                if (residentCentres != null)
+                if (keyedByFace)
                 {
-                    residentCentres[Face(index)] = coordinate;
+                    residentCentres![face] = coordinate;
                 }
                 else
                 {
-                    centres[Face(index)] = coordinate;
+                    centres[index] = coordinate;
                 }
             }
 

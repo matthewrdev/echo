@@ -26,6 +26,23 @@ public sealed class ComputeTests
             Console.WriteLine("  Compute device: " + probe.Device);
         }
 
+        tests.Run("Overlapping Metal descriptor sessions reuse immutable bytes and isolate mutations", () =>
+        {
+            using var scope = compute.BeginScope(16 * 1024 * 1024);
+            using var first = compute.OpenForMatching(ComputeBackend.Metal, 1024, default)!;
+            using var second = compute.OpenForMatching(ComputeBackend.Metal, 1024, default)!;
+            float[] descriptors = [1, 2, 3];
+            Check(!first.UploadDescriptor(0, descriptors), "An unseen buffer was reported as resident");
+            Check(second.UploadDescriptor(0, descriptors), "The second session did not reuse the resident buffer");
+
+            descriptors[1] = 12;
+            Check(!second.UploadDescriptor(0, descriptors), "Changed descriptor bytes reused stale storage");
+            Span<float> values = stackalloc float[3];
+            first.Read<float>(0, values);
+            Check(values.SequenceEqual([1f, 2f, 3f]), "An in-flight session lost its original input");
+            second.Read<float>(0, values);
+            Check(values.SequenceEqual(descriptors), "The updated descriptor buffer did not contain the new bytes");
+        });
         tests.Run("Metal descriptor blocks preserve mutual, ratio, reversed and tied matches", () =>
         {
             var random = new Random(271);
