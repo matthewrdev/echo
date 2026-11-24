@@ -8,6 +8,13 @@
     <None Update="Fixtures/reconstruction/*.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../src/Echo.Cli/Echo.Cli.csproj" />
     <ProjectReference Include="../../src/Echo.Pipeline/Echo.Pipeline.csproj" />
-    <ProjectReference Include="../../src/Echo.Composition/Echo.Composition.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.15" />
+    <ProjectReference Include="../../src/Echo.Compute.Metal/Echo.Compute.Metal.csproj" />
+    <ProjectReference Include="../../src/Echo.Depth.Metal/Echo.Depth.Metal.csproj" />
+    <ProjectReference Include="../../src/Echo.Logging/Echo.Logging.csproj" />
+    <ProjectReference Include="../../src/Echo.Rendering/Echo.Rendering.csproj" />
+    <ProjectReference Include="../../src/Echo.Texturing.Metal/Echo.Texturing.Metal.csproj" />
   </ItemGroup>
 </Project>

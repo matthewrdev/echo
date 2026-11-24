@@ -2,9 +2,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Echo.Tests;
 
-public sealed class TestServices
+public static class TestServiceCollectionExtensions
 {
-    public void Register(IServiceCollection services)
+    public static IServiceCollection AddTests(this IServiceCollection services)
     {
         services.AddSingleton<AlignmentVerificationTests>();
         services.AddSingleton<ArtifactStorageTests>();
@@ -90,5 +90,7 @@ public sealed class TestServices
         services.AddSingleton<TextureRunOptionsTests>();
         services.AddSingleton<TextureTests>();
         services.AddSingleton<VisualReconstructionTests>();
+
+        return services;
     }
 }

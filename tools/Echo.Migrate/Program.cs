@@ -1,4 +1,8 @@
-using Echo.Composition;
+using Echo.Imaging;
+using Echo.Infrastructure;
+using Echo.Metadata;
+using Echo.Projects;
+using Echo.Storage;
 using Echo.Migrate;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,8 +12,13 @@ if (args.Length == 0)
     return 2;
 }
 var services = new ServiceCollection();
-new ProcessingServices().Register(services);
-new MigrationServices().Register(services);
+services
+    .AddImaging()
+    .AddInfrastructure()
+    .AddMetadata()
+    .AddProjects()
+    .AddStorage()
+    .AddMigrate();
 using var provider = services.BuildServiceProvider();
 
 var migrator = provider.GetRequiredService<MatchingProjectMigrator>();

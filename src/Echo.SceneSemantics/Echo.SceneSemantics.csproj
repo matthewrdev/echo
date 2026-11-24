@@ -5,4 +5,7 @@
     <ProjectReference Include="../Echo.Projects/Echo.Projects.csproj" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+  </ItemGroup>
 </Project>

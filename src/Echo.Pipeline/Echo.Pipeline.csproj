@@ -12,16 +12,16 @@
     <ProjectReference Include="../Echo.Geometry/Echo.Geometry.csproj" />
     <ProjectReference Include="../Echo.Reconstruction/Echo.Reconstruction.csproj" />
     <ProjectReference Include="../Echo.Depth/Echo.Depth.csproj" />
-    <ProjectReference Include="../Echo.Depth.Metal/Echo.Depth.Metal.csproj" />
     <ProjectReference Include="../Echo.DenseCloud/Echo.DenseCloud.csproj" />
     <ProjectReference Include="../Echo.Fusion/Echo.Fusion.csproj" />
     <ProjectReference Include="../Echo.Meshing/Echo.Meshing.csproj" />
     <ProjectReference Include="../Echo.Simplification/Echo.Simplification.csproj" />
     <ProjectReference Include="../Echo.Texturing/Echo.Texturing.csproj" />
-    <ProjectReference Include="../Echo.Texturing.Metal/Echo.Texturing.Metal.csproj" />
     <ProjectReference Include="../Echo.Export/Echo.Export.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../Echo.Storage/Echo.Storage.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../Echo.Compute.Metal/Echo.Compute.Metal.csproj" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+  </ItemGroup>
 </Project>

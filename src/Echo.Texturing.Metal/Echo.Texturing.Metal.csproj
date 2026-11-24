@@ -9,4 +9,7 @@
   <Target Name="BuildTextureMetalBridge" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="Native/MetalTextureBridge.swift;Native/MetalTextureSession.swift;../../scripts/build-texture-metal.sh" Outputs="obj/$(Configuration)/native/libEchoTextureMetal.dylib">
     <Exec Command="bash ../../scripts/build-texture-metal.sh &quot;obj/$(Configuration)/native&quot;" />
   </Target>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+  </ItemGroup>
 </Project>

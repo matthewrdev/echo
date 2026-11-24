@@ -1,16 +1,69 @@
 using Echo.Cli;
-using Echo.Composition;
+using Echo.Compute;
+using Echo.Compute.Metal;
+using Echo.DenseCloud;
+using Echo.Depth;
+using Echo.Depth.Metal;
+using Echo.Export;
+using Echo.Features;
+using Echo.Fusion;
+using Echo.Imaging;
+using Echo.Infrastructure;
+using Echo.Lines;
+using Echo.Matching;
+using Echo.Meshing;
+using Echo.Metadata;
 using Echo.Migrate;
+using Echo.Optimization;
+using Echo.Pipeline;
+using Echo.Projects;
+using Echo.Reconstruction;
+using Echo.Rendering;
+using Echo.SceneSemantics;
+using Echo.Simplification;
+using Echo.Storage;
+using Echo.SurfaceCompletion;
+using Echo.Telemetry;
 using Echo.Tests;
+using Echo.Texturing;
+using Echo.Texturing.Metal;
 using Echo.Validation;
 using Microsoft.Extensions.DependencyInjection;
 
 var services = new ServiceCollection();
-new ProcessingServices().Register(services);
-new CliServices().Register(services);
-new MigrationServices().Register(services);
-new ValidationServices().Register(services);
-new TestServices().Register(services);
+Echo.Logging.LoggingServiceCollectionExtensions.AddLogging(services);
+services
+    .AddCompute()
+    .AddMetalCompute()
+    .AddDenseCloud()
+    .AddDepth()
+    .AddMetalDepth()
+    .AddExport()
+    .AddFeatures()
+    .AddFusion()
+    .AddImaging()
+    .AddInfrastructure()
+    .AddLines()
+    .AddMatching()
+    .AddMeshing()
+    .AddMetadata()
+    .AddOptimization()
+    .AddPipeline()
+    .AddProjects()
+    .AddReconstruction()
+    .AddSceneSemantics()
+    .AddSimplification()
+    .AddStorage()
+    .AddSurfaceCompletion()
+    .AddTelemetry()
+    .AddTexturing()
+    .AddMetalTexturing()
+    .AddRendering()
+    .AddCli()
+    .AddMigrate()
+    .AddValidation()
+    .AddTests();
+
 using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
 
 var referenceAssetsIndex = Array.IndexOf(args, "--reference-assets");

@@ -8,4 +8,7 @@
   <Target Name="BuildPoissonHelper" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="@(NativeSource);../../scripts/build-poisson.sh" Outputs="obj/$(Configuration)/native/echo-poisson">
     <Exec Command="bash ../../scripts/build-poisson.sh &quot;obj/$(Configuration)/native&quot;" />
   </Target>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+  </ItemGroup>
 </Project>

@@ -6,7 +6,6 @@
     <Project Path="src/Echo.Storage/Echo.Storage.csproj" />
     <Project Path="src/Echo.SceneSemantics/Echo.SceneSemantics.csproj" />
     <Project Path="src/Echo.Infrastructure/Echo.Infrastructure.csproj" />
-    <Project Path="src/Echo.Composition/Echo.Composition.csproj" />
     <Project Path="src/Echo.Cli/Echo.Cli.csproj" />
     <Project Path="src/Echo.Rendering/Echo.Rendering.csproj" />
     <Project Path="src/Echo.Models/Echo.Models.csproj" />

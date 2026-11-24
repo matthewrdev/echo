@@ -2,9 +2,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Echo.Benchmarks;
 
-public sealed class BenchmarkServices
+public static class BenchmarkServiceCollectionExtensions
 {
-    public void Register(IServiceCollection services)
+    public static IServiceCollection AddBenchmarks(this IServiceCollection services)
     {
         services.AddSingleton<AlignmentBenchmark>();
         services.AddSingleton<BundleBenchmark>();
@@ -27,5 +27,7 @@ public sealed class BenchmarkServices
         services.AddSingleton<PairVerificationBenchmark>();
         services.AddSingleton<SceneStorageBenchmark>();
         services.AddSingleton<SimplificationBenchmark>();
+
+        return services;
     }
 }

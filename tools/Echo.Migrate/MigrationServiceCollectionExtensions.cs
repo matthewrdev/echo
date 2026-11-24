@@ -2,11 +2,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Echo.Migrate;
 
-public sealed class MigrationServices
+public static class MigrationServiceCollectionExtensions
 {
-    public void Register(IServiceCollection services)
+    public static IServiceCollection AddMigrate(this IServiceCollection services)
     {
         services.AddSingleton<MatchingArtifactMigration>();
         services.AddSingleton<MatchingProjectMigrator>();
+
+        return services;
     }
 }

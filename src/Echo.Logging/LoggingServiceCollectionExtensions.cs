@@ -4,9 +4,9 @@ using Microsoft.Extensions.Logging.Console;
 
 namespace Echo.Logging;
 
-public sealed class LoggingServices
+public static class LoggingServiceCollectionExtensions
 {
-    public void Register(IServiceCollection services)
+    public static IServiceCollection AddLogging(this IServiceCollection services)
     {
         var configured = Environment.GetEnvironmentVariable("ECHO_LOG_LEVEL");
         var level = Enum.TryParse<LogLevel>(configured, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
@@ -26,5 +26,7 @@ public sealed class LoggingServices
                 options.LogToStandardErrorThreshold = LogLevel.Trace;
             });
         });
+
+        return services;
     }
 }

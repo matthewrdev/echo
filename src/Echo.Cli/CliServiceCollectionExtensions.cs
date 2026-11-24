@@ -7,16 +7,14 @@ using Echo.Cli.Commands.Projects;
 using Echo.Cli.Commands.Runtime;
 using Echo.Cli.Commands.Storage;
 using Echo.Cli.Commands.Tracing;
-using Echo.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Echo.Cli;
 
-public sealed class CliServices
+public static class CliServiceCollectionExtensions
 {
-    public void Register(IServiceCollection services)
+    public static IServiceCollection AddCli(this IServiceCollection services)
     {
-        services.AddSingleton<IModelRenderer, NativeModelRenderer>();
         services.AddSingleton<IArgumentParser, ArgumentParser>();
         services.AddSingleton<ICommandApplication, CommandApplication>();
         services.AddSingleton<ICommandOutput, CommandOutput>();
@@ -37,5 +35,7 @@ public sealed class CliServices
         services.AddSingleton<ICliCommand, SetsCommand>();
         services.AddSingleton<ICliCommand, StorageCommand>();
         services.AddSingleton<ICliCommand, TraceCommand>();
+
+        return services;
     }
 }

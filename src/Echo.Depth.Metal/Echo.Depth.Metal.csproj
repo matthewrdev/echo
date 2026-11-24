@@ -7,4 +7,7 @@
   <Target Name="BuildMetalBridge" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="Native/MetalDepthBridge.swift;Native/MetalDepthSession.swift;../../scripts/build-metal.sh" Outputs="obj/$(Configuration)/native/libEchoDepthMetal.dylib">
     <Exec Command="bash ../../scripts/build-metal.sh &quot;obj/$(Configuration)/native&quot;" />
   </Target>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+  </ItemGroup>
 </Project>

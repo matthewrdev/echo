@@ -1,7 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Echo.Pipeline/Echo.Pipeline.csproj" />
-    <ProjectReference Include="../../src/Echo.Composition/Echo.Composition.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.15" />
+    <ProjectReference Include="../../src/Echo.Imaging/Echo.Imaging.csproj" />
+    <ProjectReference Include="../../src/Echo.Infrastructure/Echo.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Echo.Metadata/Echo.Metadata.csproj" />
+    <ProjectReference Include="../../src/Echo.Projects/Echo.Projects.csproj" />
+    <ProjectReference Include="../../src/Echo.Storage/Echo.Storage.csproj" />
   </ItemGroup>
 </Project>
