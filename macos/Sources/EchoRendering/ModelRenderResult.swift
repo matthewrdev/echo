@@ -7,4 +7,5 @@ package struct ModelRenderResult: Codable {
     package let mode: String
     package let vertices: Int
     package let triangles: Int
+    package let cameraImageId: String?
 }

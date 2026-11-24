@@ -77,6 +77,7 @@ public sealed class NativeModelRenderer : IModelRenderer
             var invalidResult = result.Input != request.Input || result.Output != request.Output
                 || result.Width != request.Width || result.Height != request.Height
                 || result.View != request.View || result.Mode != request.Mode
+                || result.CameraImageId != request.Camera?.ImageId
                 || result.Vertices <= 0 || result.Triangles <= 0 || !File.Exists(request.Output);
             if (invalidResult)
             {

@@ -5,6 +5,16 @@ namespace Echo.Rendering;
 public sealed record ModelRenderRequest(string Input, string Output, int Width = 1600, int Height = 1000,
     string View = "front", string Mode = "textured")
 {
+    public bool RawMesh
+    {
+        get; init;
+    }
+
+    public ModelCamera? Camera
+    {
+        get; init;
+    }
+
     public void Validate()
     {
         var invalidDimensions = Width < 1 || Height < 1 || Width > 8192 || Height > 8192
@@ -24,9 +34,17 @@ public sealed record ModelRenderRequest(string Input, string Output, int Width =
             throw new EchoException("--mode must be textured, solid, wireframe or normals.", 2);
         }
 
-        if (!string.Equals(Path.GetExtension(Input), ".glb", StringComparison.OrdinalIgnoreCase) || !File.Exists(Input))
+        if (RawMesh && Mode == "textured")
         {
-            throw new EchoException("Render input must be an existing Echo-exported GLB file.", 2);
+            throw new EchoException("Mesh preview mode must be solid, wireframe or normals.", 2);
+        }
+
+        Camera?.Validate();
+
+        var extension = RawMesh ? ".ply" : ".glb";
+        if (!string.Equals(Path.GetExtension(Input), extension, StringComparison.OrdinalIgnoreCase) || !File.Exists(Input))
+        {
+            throw new EchoException(RawMesh ? "The saved mesh PLY is missing." : "Render input must be an existing Echo-exported GLB file.", 2);
         }
 
         if (!string.Equals(Path.GetExtension(Output), ".png", StringComparison.OrdinalIgnoreCase))
