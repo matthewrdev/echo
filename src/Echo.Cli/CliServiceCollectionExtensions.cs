@@ -2,6 +2,7 @@ using Echo.Cli.Commands.Configuration;
 using Echo.Cli.Commands.Export;
 using Echo.Cli.Commands.Hints;
 using Echo.Cli.Commands.Images;
+using Echo.Cli.Commands.Previews;
 using Echo.Cli.Commands.Processing;
 using Echo.Cli.Commands.Projects;
 using Echo.Cli.Commands.Runtime;
@@ -29,6 +30,7 @@ public static class CliServiceCollectionExtensions
         services.AddSingleton<ICliCommand, ImagesCommand>();
         services.AddSingleton<ICliCommand, InspectCommand>();
         services.AddSingleton<ICliCommand, PipelineCommand>();
+        services.AddSingleton<ICliCommand, PreviewCommand>();
         services.AddSingleton<ICliCommand, ProjectCommand>();
         services.AddSingleton<ICliCommand, RenderCommand>();
         services.AddSingleton<ICliCommand, RunCommand>();

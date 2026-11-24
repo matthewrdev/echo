@@ -207,6 +207,7 @@ provider.GetRequiredService<RunExchangeTests>().Run(scaleTests);
 provider.GetRequiredService<RunExchangeTests>().RunHandoffTests(scaleTests);
 provider.GetRequiredService<GisCommandTests>().Run(scaleTests);
 provider.GetRequiredService<RenderCommandTests>().Run(scaleTests);
+provider.GetRequiredService<StagePreviewTests>().Run(scaleTests);
 provider.GetRequiredService<PagingTests>().Run(scaleTests);
 provider.GetRequiredService<PagingSerializationTests>().Run(scaleTests);
 if (args.Contains("--paging", StringComparer.Ordinal))

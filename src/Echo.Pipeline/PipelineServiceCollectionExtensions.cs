@@ -8,6 +8,7 @@ using Echo.Pipeline.Features;
 using Echo.Pipeline.Fusion;
 using Echo.Pipeline.Matching;
 using Echo.Pipeline.Meshes;
+using Echo.Pipeline.Previews;
 using Echo.Pipeline.Runs;
 using Echo.Pipeline.Semantics;
 using Echo.Pipeline.Texture;
@@ -37,6 +38,7 @@ public static class PipelineServiceCollectionExtensions
         services.AddSingleton<IRunExchangeService, RunExchangeService>();
         services.AddSingleton<IRunStateRecovery, RunStateRecovery>();
         services.AddSingleton<ISceneSemanticArtifacts, SceneSemanticArtifacts>();
+        services.AddSingleton<IStagePreviewArtifacts, StagePreviewArtifacts>();
         services.AddSingleton<IStageResetService, StageResetService>();
         services.AddSingleton<ITextureLayoutStore, TextureLayoutStore>();
 

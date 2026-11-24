@@ -78,6 +78,7 @@ public static class TestServiceCollectionExtensions
         services.AddSingleton<SemanticArtifactReuseTests>();
         services.AddSingleton<SemanticQualityTests>();
         services.AddSingleton<SkyGuardTests>();
+        services.AddSingleton<StagePreviewTests>();
         services.AddSingleton<StereoCostBatchTests>();
         services.AddSingleton<StereoImageFilterTests>();
         services.AddSingleton<SubjectDistanceRunOptionsTests>();
