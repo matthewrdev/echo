@@ -7,6 +7,7 @@ struct EchoApplication: App {
     @StateObject private var workspace: WorkspaceViewModel
     @StateObject private var artifacts: ArtifactViewModel
     @StateObject private var runtimeInfo: RuntimeInfoViewModel
+    @StateObject private var droneImport: DroneImportViewModel
     @State private var showsRuntimeInfo = false
     @State private var showsAttribution = false
 
@@ -15,6 +16,9 @@ struct EchoApplication: App {
         let commandLog = CLICommandLog()
         let cli = ProcessCLIClient(executable: options.cli, commandLog: commandLog)
         let projects = CLIProjectClient(cli: cli)
+        let droneImport = DroneImportViewModel(
+            service: DroneImportService(cli: cli, reader: DroneSourceReader(), grouping: DroneImportGrouping()))
+        _droneImport = StateObject(wrappedValue: droneImport)
         _runtimeInfo = StateObject(
             wrappedValue: RuntimeInfoViewModel(
                 cli: cli,
@@ -33,16 +37,20 @@ struct EchoApplication: App {
             projectThumbnails: ProjectThumbnailLoader(scenes: NativeSceneFactory(), json: json, glb: GlbAssetReader()))
         _workspace = StateObject(wrappedValue: workspace)
         _artifacts = StateObject(wrappedValue: ArtifactViewModel(reader: reader))
+        appDelegate.isImportingDrone = { [weak droneImport] in droneImport?.busy == true }
         appDelegate.termination = ApplicationTerminationCoordinator(
             work: workspace, confirmation: NativeQuitConfirmation())
     }
 
     var body: some Scene {
         Window("Projects", id: "echo") {
-            WorkspaceView(workspace: workspace, artifacts: artifacts, showRuntimeInfo: { showsRuntimeInfo = true })
-                .disclosureGroupStyle(ClickableDisclosureStyle())
-                .sheet(isPresented: $showsRuntimeInfo) { RuntimeInfoView(model: runtimeInfo) }
-                .sheet(isPresented: $showsAttribution) { AttributionView() }
+            WorkspaceView(
+                workspace: workspace, artifacts: artifacts, droneImport: droneImport,
+                showRuntimeInfo: { showsRuntimeInfo = true }
+            )
+            .disclosureGroupStyle(ClickableDisclosureStyle())
+            .sheet(isPresented: $showsRuntimeInfo) { RuntimeInfoView(model: runtimeInfo) }
+            .sheet(isPresented: $showsAttribution) { AttributionView() }
         }
         .defaultSize(width: 1500, height: 960)
         .commands {

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GettingStartedView: View {
     @ObservedObject var workspace: WorkspaceViewModel
+    let droneImport: DroneImportViewModel
     @State private var renamingProject: RecentProject?
     @State private var search = ""
 
@@ -36,6 +37,7 @@ struct GettingStartedView: View {
                 }.controlSize(.large).keyboardShortcut("o")
                 Text("Open the project folder containing project.bin.")
                     .font(.caption).foregroundStyle(.secondary)
+                DroneImportEntryPoint(model: droneImport, workspace: workspace)
                 if workspace.openingProject {
                     ProgressView("Opening project…").controlSize(.small)
                 }

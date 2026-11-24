@@ -3,13 +3,14 @@ import SwiftUI
 struct WorkspaceView: View {
     @ObservedObject var workspace: WorkspaceViewModel
     @ObservedObject var artifacts: ArtifactViewModel
+    let droneImport: DroneImportViewModel
     var showRuntimeInfo: () -> Void
     @AppStorage("workspace.sidebarWidth") private var sidebarWidth = 280.0
 
     var body: some View {
         Group {
             if workspace.inspection == nil {
-                GettingStartedView(workspace: workspace)
+                GettingStartedView(workspace: workspace, droneImport: droneImport)
             } else {
                 projectWorkspace
             }

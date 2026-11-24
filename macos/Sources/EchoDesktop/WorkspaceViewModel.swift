@@ -470,6 +470,15 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         open(path: project.path)
     }
 
+    func recordDroneProject(_ project: DroneImportProject) {
+        recentProjects = recentProjectStore.record(path: project.url.path, name: project.name)
+    }
+
+    func openDroneProject(_ project: DroneImportProject) {
+        guard canEdit else { return }
+        open(path: project.url.path)
+    }
+
     func removeRecent(_ project: RecentProject) {
         if root == project.path, inspection == nil { clearProject() }
         recentProjects = recentProjectStore.remove(path: project.path)

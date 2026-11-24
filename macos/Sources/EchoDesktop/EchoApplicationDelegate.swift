@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class EchoApplicationDelegate: NSObject, NSApplicationDelegate {
     var termination: ApplicationTerminationCoordinator?
+    var isImportingDrone: (() -> Bool)?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // scripts/desktop runs the executable outside an app bundle. Such processes
@@ -17,7 +18,14 @@ final class EchoApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        termination?.requestTermination { allowed in
+        if isImportingDrone?() == true {
+            let alert = NSAlert()
+            alert.messageText = "Drone Import is working"
+            alert.informativeText = "Wait for the current operation to finish before quitting Echo."
+            alert.runModal()
+            return .terminateCancel
+        }
+        return termination?.requestTermination { allowed in
             sender.reply(toApplicationShouldTerminate: allowed)
         } ?? .terminateNow
     }
