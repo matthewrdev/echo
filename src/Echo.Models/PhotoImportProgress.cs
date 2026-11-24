@@ -7,4 +7,7 @@ public sealed record PhotoImportProgress(
     int Total,
     int Skipped,
     string? Id = null,
-    string? Name = null);
+    string? Name = null)
+{
+    public int SchemaVersion => 1;
+}

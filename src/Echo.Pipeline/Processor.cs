@@ -12,16 +12,19 @@ public sealed class Processor : IProcessor
     private readonly IReadOnlyList<IPipelineStage> stages;
     private readonly IRunContextFactory contextFactory;
     private readonly IFileOperations fileOperations;
+    private readonly IJsonCodec json;
     private readonly ILogger<Processor> logger;
 
     public Processor(IEnumerable<IPipelineStage> stages,
         IRunContextFactory contextFactory,
         IFileOperations fileOperations,
+        IJsonCodec json,
         ILogger<Processor>? logger = null)
     {
         this.stages = stages.OrderBy(stage => stage.Order).ToArray();
         this.contextFactory = contextFactory;
         this.fileOperations = fileOperations;
+        this.json = json;
         this.logger = logger ?? NullLogger<Processor>.Instance;
     }
 
@@ -34,7 +37,8 @@ public sealed class Processor : IProcessor
         Action<object>? output = null,
         TextureRunOptions? textureOptions = null,
         SubjectDistanceRunOptions? subjectDistanceOptions = null,
-        bool headless = false)
+        bool headless = false,
+        Settings? settings = null)
     {
         if (resumeId != null && textureOptions != null)
         {
@@ -44,6 +48,11 @@ public sealed class Processor : IProcessor
         if (resumeId != null && subjectDistanceOptions != null)
         {
             throw new EchoException("Resume preserves its saved subject distance settings. Use run start to change --subject-distance.", 2);
+        }
+
+        if (resumeId != null && settings != null)
+        {
+            throw new EchoException("Resume preserves its saved settings. Use run start to apply a settings file.", 2);
         }
 
         using var lease = store.Lock("run");
@@ -59,6 +68,11 @@ public sealed class Processor : IProcessor
         if (run.StorageVersion != 3)
         {
             throw new EchoException("This run uses obsolete artifact storage. Start a new run to reprocess the source photographs.", 2);
+        }
+
+        if (settings != null)
+        {
+            run.Snapshot.Settings = json.Clone(settings);
         }
 
         textureOptions?.Apply(run.Snapshot.Settings);

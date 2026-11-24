@@ -86,6 +86,7 @@ if (args.Contains("--reconstruction", StringComparer.Ordinal))
 }
 var scaleTests = new TestSuite();
 provider.GetRequiredService<CommandHelpTests>().Run(scaleTests);
+provider.GetRequiredService<RunScriptingTests>().Run(scaleTests);
 provider.GetRequiredService<ColourGradingTests>().Run(scaleTests);
 provider.GetRequiredService<ColourGradingPipelineTests>().Run(scaleTests);
 provider.GetRequiredService<ReconstructionValidationTests>().Run(scaleTests);

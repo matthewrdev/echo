@@ -7,6 +7,7 @@ public static class RenderingServiceCollectionExtensions
 {
     public static IServiceCollection AddRendering(this IServiceCollection services)
     {
+        services.AddSingleton<INativeToolProcess, NativeToolProcess>();
         services.AddSingleton<IModelRenderer, NativeModelRenderer>();
         services.AddSingleton<IPreviewPngWriter, PreviewPngWriter>();
 

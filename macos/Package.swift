@@ -9,9 +9,10 @@ let package = Package(
         .executable(name: "EchoRender", targets: ["EchoRender"]),
     ],
     targets: [
+        .target(name: "EchoDrone"),
         .target(name: "EchoRendering", exclude: ["README.md"]),
-        .executableTarget(name: "EchoDesktop", dependencies: ["EchoRendering"]),
-        .executableTarget(name: "EchoRender", dependencies: ["EchoRendering"]),
-        .testTarget(name: "EchoDesktopTests", dependencies: ["EchoDesktop", "EchoRendering"])
+        .executableTarget(name: "EchoDesktop", dependencies: ["EchoDrone", "EchoRendering"]),
+        .executableTarget(name: "EchoRender", dependencies: ["EchoDrone", "EchoRendering"]),
+        .testTarget(name: "EchoDesktopTests", dependencies: ["EchoDesktop", "EchoDrone", "EchoRendering"])
     ]
 )

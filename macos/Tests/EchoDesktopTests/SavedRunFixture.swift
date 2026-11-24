@@ -10,7 +10,7 @@ enum SavedRunFixture {
             .deletingLastPathComponent().deletingLastPathComponent()
         let cli =
             ProcessInfo.processInfo.environment["ECHO_TEST_CLI"].map { URL(fileURLWithPath: $0) }
-            ?? repo.appendingPathComponent("src/Echo.Cli/bin/Release/net10.0/echo-photo")
+            ?? repo.appendingPathComponent("src/Echo.Cli/bin/Release/net10.0/echo")
         try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: cli.path), "Build the Echo Release CLI first.")
         return try await CLIProjectClient(cli: ProcessCLIClient(executable: cli)).run(root: root.path, id: id)
     }

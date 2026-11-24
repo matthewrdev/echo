@@ -1,5 +1,6 @@
 using Echo.Cli.Commands.Configuration;
 using Echo.Cli.Commands.Export;
+using Echo.Cli.Commands.Geography;
 using Echo.Cli.Commands.Hints;
 using Echo.Cli.Commands.Images;
 using Echo.Cli.Commands.Previews;
@@ -21,8 +22,11 @@ public static class CliServiceCollectionExtensions
         services.AddSingleton<ICommandOutput, CommandOutput>();
         services.AddSingleton<ICliCommand, ConfigurationCommand>();
         services.AddSingleton<ICliCommand, DoctorCommand>();
+        services.AddSingleton<ICliCommand, DroneScanCommand>();
         services.AddSingleton<ICliCommand, ExchangeCommand>();
         services.AddSingleton<ICliCommand, GisCommand>();
+        services.AddSingleton<ICliCommand, GeographicProbeCommand>();
+        services.AddSingleton<IGeographicRunModelSource, GeographicRunModelSource>();
         services.AddSingleton<ICliCommand, GlbCommand>();
         services.AddSingleton<ICliCommand, GpsPolygonsCommand>();
         services.AddSingleton<IHintFactory, HintFactory>();

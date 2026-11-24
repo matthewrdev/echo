@@ -1,3 +1,4 @@
+import EchoRendering
 import SwiftUI
 
 struct GeoreferenceView: View {
@@ -143,7 +144,7 @@ struct GeoreferenceView: View {
     }
 
     private func export() {
-        guard let run = workspace.geographicRun, let artifact = model.artifact else { return }
+        guard let run = workspace.geographicRun, model.artifact != nil else { return }
         let panel = NSSavePanel()
         panel.title = "Export geographic data for GIS and Redpoint"
         panel.prompt = "Export"
@@ -158,18 +159,14 @@ struct GeoreferenceView: View {
             defer { model.exporting = false }
             do {
                 try await workspace.exportGeoreference(root: root, runID: run.id, destination: destination)
-                if let overlay = artifact.overlay {
-                    do {
-                        try GeographicRasterWriter().write(overlay, directory: destination)
-                    } catch {
-                        model.exportMessage =
-                            "GIS geometry exported, but the model image failed: \(error.localizedDescription). Folder: \(destination.path)"
-                        NSWorkspace.shared.open(destination)
-                        return
-                    }
+                let raster = destination.appendingPathComponent("model-map.tif")
+                if model.artifact?.overlay != nil && !FileManager.default.fileExists(atPath: raster.path) {
+                    model.exportMessage =
+                        "GIS geometry exported to \(destination.path). See export-manifest.json for the missing model image."
+                } else {
+                    model.exportMessage =
+                        "Exported to \(destination.path). Open QGIS.txt for instructions and export-manifest.json for available formats."
                 }
-                model.exportMessage =
-                    "Exported to \(destination.path). Open QGIS.txt for instructions and export-manifest.json for available formats."
                 NSWorkspace.shared.open(destination)
             } catch {
                 model.exportMessage = "Export failed: \(error.localizedDescription)"

@@ -1,3 +1,4 @@
+import EchoRendering
 import MapKit
 
 final class ModelMapOverlayRenderer: MKOverlayRenderer {

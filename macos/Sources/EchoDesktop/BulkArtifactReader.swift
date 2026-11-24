@@ -50,21 +50,7 @@ struct BulkArtifactReader {
             let vertices = try buffer("vertices", 24)
             let faces = try buffer("faces", 12)
             let sources = try buffer("sources", 4)
-            var points: [[Double]] = []
-            var triangles: [[Int]] = []
             var images: [String] = []
-            for index in 0..<vertices.count {
-                if index % 4096 == 0 { try Task.checkCancellation() }
-                points.append([vertices.double(index), vertices.double(index, 8), vertices.double(index, 16)])
-            }
-            for index in 0..<faces.count {
-                if index % 4096 == 0 { try Task.checkCancellation() }
-                let face = [faces.integer(index), faces.integer(index, 4), faces.integer(index, 8)]
-                guard face.allSatisfy({ $0 >= 0 && $0 < vertices.count }) else {
-                    throw CLIError(message: "Invalid binary triangle index")
-                }
-                triangles.append(face)
-            }
             for index in 0..<sources.count {
                 let source = sources.integer(index)
                 guard header.images.indices.contains(source) else {
@@ -72,15 +58,9 @@ struct BulkArtifactReader {
                 }
                 images.append(header.images[source])
             }
-            result = Surface(vertices: points, faces: triangles, sourceImages: images)
+            result = try PackedGeometryReader().surface(vertices: vertices, faces: faces, images: images)
         case "uvs":
-            let records = try buffer("uvs", 16)
-            var values: [[Double]] = []
-            for index in 0..<records.count {
-                if index % 4096 == 0 { try Task.checkCancellation() }
-                values.append([records.double(index), records.double(index, 8)])
-            }
-            result = values
+            result = try PackedGeometryReader().coordinates(buffer("uvs", 16))
         case "volume":
             let samples = try buffer("samples", 20)
             var values: [VolumeSample] = []

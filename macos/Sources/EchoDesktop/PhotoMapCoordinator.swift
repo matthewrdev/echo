@@ -1,3 +1,4 @@
+import EchoRendering
 import MapKit
 
 final class PhotoMapCoordinator: NSObject, MKMapViewDelegate {

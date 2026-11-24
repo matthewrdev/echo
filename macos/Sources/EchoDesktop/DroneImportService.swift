@@ -1,4 +1,5 @@
 import CryptoKit
+import EchoDrone
 import Foundation
 
 struct DroneImportService {

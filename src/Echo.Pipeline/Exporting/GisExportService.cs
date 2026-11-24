@@ -39,7 +39,8 @@ public sealed class GisExportService : IGisExportService
         this.files = files;
     }
 
-    public GisExportResult Export(IProjectStore store, string runId, string destination)
+    public GisExportResult Export(IProjectStore store, string runId, string destination,
+        Action<RunData, GeoPosition, string>? writeRaster = null)
     {
         var run = store.GetRun(runId);
         if (!run.Artifacts.TryGetValue("alignment", out var alignment))
@@ -84,6 +85,11 @@ public sealed class GisExportService : IGisExportService
 
             ExportModel(staging, scene, surface, manifest);
             ExportCloud(store, run, staging, scene.Origin!, manifest);
+            if (surface != null && writeRaster != null)
+            {
+                ExportRaster(staging, run, scene.Origin!, manifest, writeRaster);
+            }
+
             manifest.Files = Directory.GetFiles(staging).Select(path => Path.GetFileName(path)).Append("export-manifest.json").Order(StringComparer.Ordinal).ToList();
             files.AtomicJson(Path.Combine(staging, "export-manifest.json"), manifest);
             Directory.Move(staging, destination);
@@ -105,6 +111,29 @@ public sealed class GisExportService : IGisExportService
             Files = manifest.Files,
             Warnings = manifest.Warnings
         };
+    }
+
+    private void ExportRaster(string directory, RunData run, GeoPosition origin, GeographicExportManifest manifest,
+        Action<RunData, GeoPosition, string> writeRaster)
+    {
+        var staging = Path.Combine(directory, ".raster");
+        Directory.CreateDirectory(staging);
+        try
+        {
+            writeRaster(run, origin, staging);
+            foreach (var file in Directory.EnumerateFiles(staging))
+            {
+                File.Move(file, Path.Combine(directory, Path.GetFileName(file)));
+            }
+        }
+        catch (EchoException error)
+        {
+            manifest.Warnings.Add("Geographic raster omitted: " + error.Message);
+        }
+        finally
+        {
+            Directory.Delete(staging, recursive: true);
+        }
     }
 
     private void ExportModel(string directory, ReconstructionScene scene, Surface? surface, GeographicExportManifest manifest)

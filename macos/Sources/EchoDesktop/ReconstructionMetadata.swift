@@ -1,3 +1,4 @@
+import EchoRendering
 import Foundation
 
 // Image viewers need camera order and scale, not the reconstructed point cloud.

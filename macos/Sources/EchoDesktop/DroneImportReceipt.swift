@@ -1,3 +1,4 @@
+import EchoDrone
 import Foundation
 
 struct DroneImportReceipt: Sendable {

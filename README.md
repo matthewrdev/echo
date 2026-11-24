@@ -40,23 +40,25 @@ Use the signing certificate's team when creating the profile. Notarisation stapl
 
 ## Command line
 
-```bash
-./scripts/echo-photo project init /path/to/project.echo --name "Cliff"
-./scripts/echo-photo --project /path/to/project.echo images import /path/to/photos
-./scripts/echo-photo --project /path/to/project.echo run start --target export --events ndjson
-```
-
-Use `--help` for commands and `doctor` to check dependencies. Commands return JSON; `--events ndjson` streams progress. Resume keeps the run's reconstruction settings; start a new run to apply reconstruction changes.
-
-Use **Export saved run** in the desktop toolbar or `./scripts/echo-photo export --help` for mesh and point-cloud exports. **Survey export** supports local coordinates, Earth-centred WGS84, or a projected EPSG code. LAZ, COPC, E57, and projected CRS exports require a local PDAL installation. Echo checks the standard Homebrew locations and `PATH`, and `ECHO_PDAL` can specify an executable. Run `./scripts/echo-photo doctor` to check available PDAL writers. **3MF print export** scales a closed mesh to the requested longest side in millimetres.
+Use `./scripts/echo` from a source checkout or `/Applications/Echo.app/Contents/MacOS/echo` from the installed app. Use the executable path in scripts because shells usually provide a built-in `echo`.
 
 ```bash
-./scripts/echo-photo --project cliff.echo export cloud --format laz --crs EPSG:7856 --output survey
-./scripts/echo-photo --project cliff.echo export mesh --format 3mf --size-mm 150 --output print
-./scripts/echo-photo --project cliff.echo export images --output source-photos
+./scripts/echo project init /path/to/project.echo --name "Cliff"
+./scripts/echo --project /path/to/project.echo images import /path/to/photos
+./scripts/echo --project /path/to/project.echo run start --target export --events ndjson
 ```
 
-Export a geographically aligned run with `./scripts/echo-photo --project /path/to/project.echo export-gis --run latest --output /path/to/new-folder`, or use **Georeference → Export geographic data** in the desktop. The bundle includes GeoJSON, GeoPackage and CSV, plus a Redpoint calibration when a saved GLB is available. Known WGS84 ellipsoidal heights also enable 3D Tiles and LAS point clouds. Desktop exports include a GeoTIFF model projection. The export manifest explains unavailable outputs; `QGIS.txt` contains import instructions. In Redpoint's contributor portal, load the matching GLB and use **Location → Import Echo georeference**, then save the scene.
+Use `--help` for commands and `doctor` to check dependencies. Start a run with `--settings FILE` to use a JSON settings file without editing the project defaults. Resume keeps the run's saved inputs and settings. See the [CLI scripting reference](src/Echo.Cli/README.md) for JSON and progress formats.
+
+Use **Export saved run** in the desktop toolbar or `./scripts/echo export --help` for mesh and point-cloud exports. **Survey export** supports local coordinates, Earth-centred WGS84, or a projected EPSG code. LAZ, COPC, E57, and projected CRS exports require a local PDAL installation. Echo checks the standard Homebrew locations and `PATH`, and `ECHO_PDAL` can specify an executable. Run `./scripts/echo doctor` to check available PDAL writers. **3MF print export** scales a closed mesh to the requested longest side in millimetres.
+
+```bash
+./scripts/echo --project cliff.echo export cloud --format laz --crs EPSG:7856 --output survey
+./scripts/echo --project cliff.echo export mesh --format 3mf --size-mm 150 --output print
+./scripts/echo --project cliff.echo export images --output source-photos
+```
+
+Export a geographically aligned run with `./scripts/echo --project /path/to/project.echo export-gis --run latest --output /path/to/new-folder`, or use **Georeference → Export geographic data** in the desktop. The bundle includes GeoJSON, GeoPackage and CSV, plus a Redpoint calibration when a saved GLB is available. Known WGS84 ellipsoidal heights also enable 3D Tiles and LAS point clouds. On macOS, exports include a GeoTIFF model projection when a saved mesh is available. The export manifest explains unavailable outputs; `QGIS.txt` contains import instructions. In Redpoint's contributor portal, load the matching GLB and use **Location → Import Echo georeference**, then save the scene.
 
 Use **Georeference → Test GPS** to enter decimal latitude/longitude or pick a location on the map, then inspect its marker and horizontal accuracy radius on the model. Clicking the model reads back coordinates for copying. With altitude blank, Echo uses the topmost intersecting surface and reports multiple intersections; an entered altitude must use the model’s known altitude reference. The probe checks coordinate placement without changing calibration or independently establishing GPS accuracy.
 

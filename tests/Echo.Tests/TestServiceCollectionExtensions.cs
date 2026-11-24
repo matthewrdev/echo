@@ -73,6 +73,7 @@ public static class TestServiceCollectionExtensions
         services.AddSingleton<RenderCommandTests>();
         services.AddSingleton<ResetCommandTests>();
         services.AddSingleton<RunRecoveryTests>();
+        services.AddSingleton<RunScriptingTests>();
         services.AddSingleton<ScaleSpaceFeatureTests>();
         services.AddSingleton<SceneStorageTests>();
         services.AddSingleton<SemanticArtifactReuseTests>();

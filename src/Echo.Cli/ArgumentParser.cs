@@ -31,6 +31,9 @@ public sealed class ArgumentParser : IArgumentParser
             "query",
             "value",
             "target",
+            "settings",
+            "source",
+            "accuracy",
             "colour-tuning",
             "edge-softening",
             "subject-distance",
@@ -91,6 +94,11 @@ public sealed class ArgumentParser : IArgumentParser
 
             var flag = key is "help" or "json" or "copy" or "summary" or "headless" or "apply" or "all" or "unused";
             var value = flag ? "true" : ++i < args.Length ? args[i] : throw new EchoException("Missing value for " + arg, 2);
+            if (key == "events" && value is not ("ndjson" or "none"))
+            {
+                throw new EchoException("Use --events ndjson or --events none.", 2);
+            }
+
             if (!result.Options.TryAdd(key, value))
             {
                 throw new EchoException("Duplicate option: " + arg, 2);

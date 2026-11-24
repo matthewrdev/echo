@@ -15,7 +15,7 @@ def prepare(arguments):
     repository = pathlib.Path(__file__).resolve().parent.parent
     catalogue = repository / "tests/Echo.Tests/Fixtures/reference-datasets.json"
     datasets = json.loads(catalogue.read_text())
-    cli = repository / "scripts/echo-photo"
+    cli = repository / "scripts/echo"
     output = arguments.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     plan = []

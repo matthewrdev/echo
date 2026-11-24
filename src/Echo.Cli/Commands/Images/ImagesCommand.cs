@@ -33,10 +33,10 @@ public sealed class ImagesCommand : ICliCommand
     public IReadOnlyList<CommandUsage> Usage =>
     [
         new("images import",
-            "--project PATH images import DIRECTORY [--set NAME] [--limit N]",
+            "--project PATH images import DIRECTORY [--set NAME] [--limit N] [--events ndjson|none]",
             "Import supported photos and retain their original metadata."),
         new("images import",
-            "--project PATH images import --manifest FILE",
+            "--project PATH images import --manifest FILE [--events ndjson|none]",
             "Import an explicit JSON list of photo paths and set names."),
         new("images derive-iphone-poses",
             "--project PATH images derive-iphone-poses",
@@ -154,8 +154,7 @@ public sealed class ImagesCommand : ICliCommand
 
     private void Import(IProjectStore store, Arguments args, bool ndjson)
     {
-        void Report(object value) => output.Progress(value, ndjson);
-
+        Action<object>? report = args.Get("events", null) == "none" ? null : value => output.Progress(value, ndjson);
         var manifest = args.Get("manifest", null);
         var hasDirectoryOptions = args.Words.Count != 2 || args.Options.ContainsKey("set") || args.Options.ContainsKey("limit");
         if (manifest != null && hasDirectoryOptions)
@@ -164,12 +163,24 @@ public sealed class ImagesCommand : ICliCommand
         }
 
         var imported = manifest == null
-            ? store.Import(args.RequiredWord(2), args.Get("set", "default")!, args.Int("limit", int.MaxValue), Report)
-            : store.Import(jsonCodec.Read<PhotoImportEntry[]>(manifest), Report);
-        output.Write(new
+            ? store.Import(args.RequiredWord(2), args.Get("set", "default")!, args.Int("limit", int.MaxValue), report)
+            : store.Import(jsonCodec.Read<PhotoImportEntry[]>(manifest), report);
+        if (ndjson)
         {
-            imported
-        });
+            output.Progress(new
+            {
+                schemaVersion = 1,
+                type = "imageImportCompleted",
+                imported
+            }, ndjson: true);
+        }
+        else
+        {
+            output.Write(new
+            {
+                imported
+            });
+        }
     }
 
     private void SetMultipleEnabled(IProjectStore store, IEnumerable<string> ids, bool enabled)

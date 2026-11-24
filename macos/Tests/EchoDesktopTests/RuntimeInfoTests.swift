@@ -5,12 +5,12 @@ import XCTest
 
 final class RuntimeInfoTests: XCTestCase {
     func testNativeReportContainsActualProcessAndHardwareWithoutRequiringBuildMetadata() {
-        let info = NativeRuntimeInfo(bundle: .main, processorURL: URL(fileURLWithPath: "/tmp/echo-photo"))
+        let info = NativeRuntimeInfo(bundle: .main, processorURL: URL(fileURLWithPath: "/tmp/echo"))
         let sections = info.read()
         let fields = sections.flatMap(\.fields)
         XCTAssertEqual(
             fields.first { $0.name == "Process ID" }?.value, String(ProcessInfo.processInfo.processIdentifier))
-        XCTAssertEqual(fields.first { $0.name == "Processor path" }?.value, "/tmp/echo-photo")
+        XCTAssertEqual(fields.first { $0.name == "Processor path" }?.value, "/tmp/echo")
         XCTAssertNotNil(fields.first { $0.name == "System memory" })
         XCTAssertNotNil(fields.first { $0.name == "Native build" })
         XCTAssertEqual(fields.count, Set(fields.map(\.id)).count)
@@ -27,7 +27,7 @@ final class RuntimeInfoTests: XCTestCase {
         XCTAssertFalse(info.framework.isEmpty)
         XCTAssertGreaterThan(info.processorCount, 0)
         XCTAssertGreaterThan(info.gcAvailableMemoryBytes, 0)
-        XCTAssertNotNil(info.assemblies["echo-photo"])
+        XCTAssertNotNil(info.assemblies["echo"])
         XCTAssertEqual(info.sections[0].fields.first { $0.name == "Build" }?.value, info.buildConfiguration)
         XCTAssertEqual(
             info.sections[0].fields.first { $0.name == "Code generation" }?.value,

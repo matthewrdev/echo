@@ -10,7 +10,7 @@ struct LaunchOptions {
             return arguments[index + 1]
         }
 
-        let bundled = bundle.bundleURL.appendingPathComponent("Contents/MacOS/echo-photo")
+        let bundled = bundle.bundleURL.appendingPathComponent("Contents/MacOS/echo")
         cli = option("--cli").map { URL(fileURLWithPath: $0) } ?? bundled
         project = option("--project") ?? ""
     }

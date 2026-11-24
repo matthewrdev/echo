@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>echo-photo</AssemblyName></PropertyGroup>
+  <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>echo</AssemblyName></PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Echo.Pipeline/Echo.Pipeline.csproj" />
     <ProjectReference Include="../Echo.Rendering/Echo.Rendering.csproj" />

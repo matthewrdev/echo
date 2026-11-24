@@ -17,5 +17,6 @@ public interface IProcessor
         Action<object>? output = null,
         TextureRunOptions? textureOptions = null,
         SubjectDistanceRunOptions? subjectDistanceOptions = null,
-        bool headless = false);
+        bool headless = false,
+        Settings? settings = null);
 }

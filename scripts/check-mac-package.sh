@@ -10,7 +10,7 @@ trap 'rm -rf "$scratch"' EXIT
 
 # Relocation, spaces in the app path, and an empty tool search path must all work.
 ditto "$app" "$scratch/Echo relocated.app"
-cli="$scratch/Echo relocated.app/Contents/MacOS/echo-photo"
+cli="$scratch/Echo relocated.app/Contents/MacOS/echo"
 python3 - "$cli" <<'PY'
 import json
 import pathlib
@@ -51,14 +51,31 @@ open(sys.argv[1], 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', header) + ch
 PY
 fi
 run_cli project init "$scratch/test.echo" --name 'Bundled metadata check' > /dev/null
-run_cli --project "$scratch/test.echo" images import "$scratch/photos" > "$scratch/import.json"
-image_id="$(python3 - "$scratch/import.json" <<'PY'
+run_cli --project "$scratch/test.echo" images import "$scratch/photos" --events ndjson > "$scratch/import.ndjson"
+image_id="$(python3 - "$scratch/import.ndjson" <<'PY'
 import json, sys
-photos = json.load(open(sys.argv[1]))['imported']
+with open(sys.argv[1]) as events:
+    records = [json.loads(line) for line in events]
+assert len(records) >= 2 and all(record['schemaVersion'] == 1 for record in records), records
+assert records[0]['type'] == 'imageImportStarted' and records[-1]['type'] == 'imageImportCompleted', records
+photos = records[-1]['imported']
 assert len(photos) == 1 and photos[0]['width'] > 0 and photos[0]['height'] > 0
 print(photos[0]['id'])
 PY
 )"
+mkdir -p "$scratch/card/DCIM/100MEDIA"
+cp "$scratch/photos/"* "$scratch/card/DCIM/100MEDIA/"
+run_cli drone scan --source "$scratch/card" > "$scratch/drone.json"
+python3 - "$scratch/drone.json" "$scratch/card/DCIM/100MEDIA" <<'PYTHON'
+import json, pathlib, sys
+with open(sys.argv[1]) as result:
+    scan = json.load(result)
+entries = [photo for group in scan['groups'] for photo in group['photos']]
+assert scan['schemaVersion'] == 1 and len(entries) == 1, scan
+assert pathlib.Path(entries[0]['path']).parent.resolve() == pathlib.Path(sys.argv[2]).resolve(), entries
+assert entries[0]['set'], entries
+PYTHON
+
 run_cli --project "$scratch/test.echo" images metadata "$image_id" > "$scratch/metadata.json"
 python3 - "$scratch/metadata.json" <<'PY'
 import json, sys

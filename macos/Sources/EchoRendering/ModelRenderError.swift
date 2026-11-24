@@ -1,6 +1,8 @@
 import Foundation
 
-struct ModelRenderError: LocalizedError {
+package struct ModelRenderError: LocalizedError {
     let message: String
-    var errorDescription: String? { message }
+    package init(message: String) { self.message = message }
+
+    package var errorDescription: String? { message }
 }

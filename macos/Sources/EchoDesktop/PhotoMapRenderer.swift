@@ -1,4 +1,5 @@
 import AppKit
+import EchoRendering
 
 final class PhotoMapRenderer: CanvasRenderer {
     let identity: String

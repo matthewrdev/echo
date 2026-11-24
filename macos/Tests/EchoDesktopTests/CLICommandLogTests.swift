@@ -11,16 +11,16 @@ final class CLICommandLogTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let log = CLICommandLog()
         let old = CLICommandInvocation(
-            executable: URL(fileURLWithPath: "/tmp/echo-photo"), arguments: ["--project", root.path, "run", "start"])
+            executable: URL(fileURLWithPath: "/tmp/echo"), arguments: ["--project", root.path, "run", "start"])
         await log.record(old)
         let cutoff = Date()
         let latest = CLICommandInvocation(
-            executable: URL(fileURLWithPath: "/tmp/echo-photo"),
+            executable: URL(fileURLWithPath: "/tmp/echo"),
             arguments: ["--project", root.path, "storage", "delete"])
         await log.record(latest)
         try await log.prune(root: root.path, before: cutoff)
         let after = CLICommandInvocation(
-            executable: URL(fileURLWithPath: "/tmp/echo-photo"), arguments: ["--project", root.path, "inspect"])
+            executable: URL(fileURLWithPath: "/tmp/echo"), arguments: ["--project", root.path, "inspect"])
         await log.record(after)
         let restored = await CLICommandLog().entries(root: root.path)
         XCTAssertEqual(restored.map(\.id), [latest.id, after.id])
@@ -49,10 +49,10 @@ final class CLICommandLogTests: XCTestCase {
         let output = try await shell.execute(["-c", invocation.command], progress: { _ in })
         XCTAssertEqual(String(decoding: output, as: UTF8.self), values.joined(separator: "\n") + "\n")
         let cli = CLICommandInvocation(
-            executable: URL(fileURLWithPath: "/tmp/Echo App/echo-photo"), arguments: ["run", "start"])
-        XCTAssertEqual(cli.executable, "/tmp/Echo App/echo-photo")
+            executable: URL(fileURLWithPath: "/tmp/Echo App/echo"), arguments: ["run", "start"])
+        XCTAssertEqual(cli.executable, "/tmp/Echo App/echo")
         XCTAssertEqual(cli.arguments, ["run", "start"])
-        XCTAssertEqual(cli.command, "'/tmp/Echo App/echo-photo' run start")
+        XCTAssertEqual(cli.command, "'/tmp/Echo App/echo' run start")
     }
 
     func testProcessBoundaryRecordsActualCommandsIncludingFailedLaunches() async throws {
@@ -87,12 +87,12 @@ final class CLICommandLogTests: XCTestCase {
         for index in 0..<300 {
             await log.record(
                 CLICommandInvocation(
-                    executable: URL(fileURLWithPath: "/tmp/echo-photo"),
+                    executable: URL(fileURLWithPath: "/tmp/echo"),
                     arguments: ["--project", root.path, "run", "resume", "run-\(index)"]))
         }
         await log.record(
             CLICommandInvocation(
-                executable: URL(fileURLWithPath: "/tmp/echo-photo"),
+                executable: URL(fileURLWithPath: "/tmp/echo"),
                 arguments: ["--project", root.path, "inspect", "--summary"]))
         let entries = await CLICommandLog().entries(root: root.path)
         XCTAssertEqual(entries.count, 301)
@@ -108,7 +108,7 @@ final class CLICommandLogTests: XCTestCase {
         let log = CLICommandLog()
         await log.record(
             CLICommandInvocation(
-                executable: URL(fileURLWithPath: "/tmp/echo-photo"), arguments: ["--project", root.path, "inspect"]))
+                executable: URL(fileURLWithPath: "/tmp/echo"), arguments: ["--project", root.path, "inspect"]))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
         let entries = await log.entries(root: root.path)
         XCTAssertEqual(entries.count, 1)

@@ -14,18 +14,21 @@ public sealed class RunCommand : ICliCommand
     private readonly IFileOperations fileOperations;
     private readonly IProcessor processor;
     private readonly IRunStateRecovery runStateRecovery;
+    private readonly IJsonCodec json;
 
     public RunCommand(IProjectStoreFactory storeFactory,
         ICommandOutput output,
         IFileOperations fileOperations,
         IProcessor processor,
-        IRunStateRecovery runStateRecovery)
+        IRunStateRecovery runStateRecovery,
+        IJsonCodec json)
     {
         this.storeFactory = storeFactory;
         this.output = output;
         this.fileOperations = fileOperations;
         this.processor = processor;
         this.runStateRecovery = runStateRecovery;
+        this.json = json;
     }
 
     public IReadOnlyCollection<string> Names => ["run"];
@@ -33,10 +36,10 @@ public sealed class RunCommand : ICliCommand
     public IReadOnlyList<CommandUsage> Usage =>
     [
         new("run start",
-            "--project PATH run start [--target STAGE] [--events ndjson|none] [--headless]\n    [--colour-tuning on|off|0..1] [--edge-softening on|off|0..16]\n    [--subject-distance auto|off|METRES]",
-            "Start a run without changing the saved project settings. The default target is alignment.\nStages are features, matching, alignment, depth, cloud, fusion, mesh, texture and export.\n--headless skips live preview files. Saved checkpoints and final outputs are still produced.\nTexture defaults are 0.5 colour tuning and 4 pixels of edge softening."),
+            "--project PATH run start [--target STAGE] [--settings FILE] [--events ndjson|none] [--json] [--headless]\n    [--colour-tuning on|off|0..1] [--edge-softening on|off|0..16]\n    [--subject-distance auto|off|METRES]",
+            "Start a run without changing the saved project settings. --settings FILE replaces the settings for this run only. Explicit run options apply on top of the file. The default target is alignment.\nStages are features, matching, alignment, depth, cloud, fusion, mesh, texture and export.\n--headless skips live preview files. Saved checkpoints and final outputs are still produced.\nTexture defaults are 0.5 colour tuning and 4 pixels of edge softening."),
         new("run resume",
-            "--project PATH run resume RUN_ID [--events ndjson|none] [--headless]",
+            "--project PATH run resume RUN_ID [--events ndjson|none] [--json] [--headless]",
             "Resume from saved checkpoints using the original inputs."),
         new("run list",
             "--project PATH run list",
@@ -54,12 +57,14 @@ public sealed class RunCommand : ICliCommand
 
     public int Execute(Arguments args)
     {
+        var action = args.Word(1, "");
+        ValidateArguments(args, action);
         var projectPath = args.Get("project", null)
             ?? throw new EchoException("--project PATH is required.", 2);
         var store = storeFactory.Open(projectPath);
         store.Load();
 
-        switch (args.Word(1, ""))
+        switch (action)
         {
             case "start":
                 ExecuteRun(store, args, resumeId: null);
@@ -88,8 +93,27 @@ public sealed class RunCommand : ICliCommand
         return 0;
     }
 
+    private void ValidateArguments(Arguments args, string action)
+    {
+        var valid = action switch
+        {
+            "start" => args.Words.Count == 2 && args.Options.Keys.All(key => key is "project" or "target"
+                or "settings" or "events" or "headless" or "colour-tuning" or "edge-softening" or "subject-distance" or "json"),
+            "resume" => args.Words.Count == 3 && args.Options.Keys.All(key => key is "project" or "events" or "headless" or "json"),
+            "list" => args.Words.Count == 2 && args.Options.Keys.All(key => key is "project" or "json"),
+            "status" or "cancel" or "events" => args.Words.Count <= 3 && args.Options.Keys.All(key => key is "project" or "json"),
+            _ => false
+        };
+        if (!valid)
+        {
+            throw new EchoException("Invalid run arguments. Use run --help.", 2);
+        }
+    }
+
     private void ExecuteRun(IProjectStore store, Arguments args, string? resumeId)
     {
+        var settingsFile = args.Get("settings", null);
+        var settings = settingsFile == null ? null : json.Read<Settings>(settingsFile);
         var textureOptions = TextureRunOptionParser.Parse(args);
         var subjectDistanceOptions = SubjectDistanceRunOptionParser.Parse(args);
         using var cancellation = new CancellationTokenSource();
@@ -111,8 +135,10 @@ public sealed class RunCommand : ICliCommand
                 report,
                 textureOptions,
                 subjectDistanceOptions,
-                headless: args.Options.ContainsKey("headless"));
-            if (!args.IsNdjson && !silent)
+                headless: args.Options.ContainsKey("headless"),
+                settings: settings);
+            var writeResult = !silent || args.Options.ContainsKey("json");
+            if (!args.IsNdjson && writeResult)
             {
                 output.Write(run);
             }

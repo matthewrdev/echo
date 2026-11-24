@@ -47,7 +47,7 @@ public sealed class CommandApplication : ICommandApplication
         }
         catch (OperationCanceledException)
         {
-            Console.Error.WriteLine("Processing stopped. Saved results are still available. Resume reuses saved work and repeats unfinished steps.");
+            output.Error("Processing stopped. Saved results are still available. Resume reuses saved work and repeats unfinished steps.", 130);
             return 130;
         }
         catch (Exception error)
@@ -75,7 +75,7 @@ public sealed class CommandApplication : ICommandApplication
 
         var group = arguments.Words[2];
         var isProjectCommand = group is "images" or "sets" or "storage" or "config" or "hints" or "gps-polygons"
-            or "pipeline" or "run" or "trace" or "inspect" or "geo" or "export" or "export-gis" or "render" or "preview";
+            or "pipeline" or "run" or "trace" or "inspect" or "geo" or "geo-probe" or "export" or "export-gis" or "render" or "preview";
         if (!isProjectCommand)
         {
             return;
@@ -93,8 +93,8 @@ public sealed class CommandApplication : ICommandApplication
     {
         Console.WriteLine("Echo photogrammetry workbench");
         Console.WriteLine();
-        Console.WriteLine("Usage: echo-photo [--project PATH] COMMAND [ACTION] [OPTIONS]");
-        Console.WriteLine("Project commands also accept echo-photo project PATH COMMAND [ACTION].");
+        Console.WriteLine("Usage: echo [--project PATH] COMMAND [ACTION] [OPTIONS]");
+        Console.WriteLine("Project commands also accept echo project PATH COMMAND [ACTION].");
         Console.WriteLine();
         Console.WriteLine("Commands:");
         foreach (var name in commands.SelectMany(command => command.Names).Order(StringComparer.Ordinal))
@@ -122,7 +122,7 @@ public sealed class CommandApplication : ICommandApplication
 
         foreach (var entry in usage)
         {
-            Console.WriteLine("  echo-photo " + entry.Syntax);
+            Console.WriteLine("  echo " + entry.Syntax);
             Console.WriteLine(entry.Description);
             Console.WriteLine();
         }

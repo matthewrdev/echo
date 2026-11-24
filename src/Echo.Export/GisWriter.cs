@@ -74,8 +74,8 @@ public sealed class GisWriter : IGisWriter
             altitude_source, vertical_datum and altitude_reference_evidence explain the
             reference inference. These observations are distinct from reconstructed cameras.
 
-            When exported from Echo's geographic viewer, model-map.tif is a self-contained
-            GeoTIFF in EPSG:3857 with transparency. Alternatively model-map.png, model-map.pgw,
+            When available, model-map.tif is a self-contained GeoTIFF in EPSG:3857 with
+            transparency. Alternatively model-map.png, model-map.pgw,
             model-map.prj and model-map.png.aux.xml provide a transparent, top-down textured model rendering. Keep
             these files together, add the PNG as a raster and assign EPSG:3857 if prompted.
             This is a model projection, not a surveyed orthophoto. Apple imagery is not exported.

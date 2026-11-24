@@ -156,7 +156,7 @@ sign_app() {
         if codesign -d "$target" >/dev/null 2>&1; then
             codesign --remove-signature "$target"
         fi
-        if [[ "$target" == "$staged_app/Contents/MacOS/echo-photo" ]]; then
+        if [[ "$target" == "$staged_app/Contents/MacOS/echo" ]]; then
             codesign "${signing_arguments[@]}" --identifier "$bundle_identifier.cli" \
                 --entitlements scripts/echo-cli.entitlements.plist "$target"
         else

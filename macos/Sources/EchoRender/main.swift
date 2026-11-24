@@ -1,4 +1,4 @@
 import EchoRendering
 import Foundation
 
-exit(ModelRenderApplication().run())
+exit(ModelRenderApplication().run(arguments: Array(CommandLine.arguments.dropFirst())))
