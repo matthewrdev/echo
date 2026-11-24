@@ -98,6 +98,8 @@ if (args.Contains("--gis", StringComparer.Ordinal))
     provider.GetRequiredService<GisExportTests>().Run(scaleTests);
     provider.GetRequiredService<GisCommandTests>().Run(scaleTests);
     provider.GetRequiredService<GeographicFormatTests>().Run(scaleTests);
+    provider.GetRequiredService<RunExchangeTests>().Run(scaleTests);
+    provider.GetRequiredService<RunExchangeTests>().RunHandoffTests(scaleTests);
     return scaleTests.Finish();
 }
 provider.GetRequiredService<MatchingStorageTests>().Run(scaleTests);
@@ -201,6 +203,8 @@ if (args.Contains("--disk-io", StringComparer.Ordinal))
 }
 provider.GetRequiredService<GisExportTests>().Run(scaleTests);
 provider.GetRequiredService<GeographicFormatTests>().Run(scaleTests);
+provider.GetRequiredService<RunExchangeTests>().Run(scaleTests);
+provider.GetRequiredService<RunExchangeTests>().RunHandoffTests(scaleTests);
 provider.GetRequiredService<GisCommandTests>().Run(scaleTests);
 provider.GetRequiredService<RenderCommandTests>().Run(scaleTests);
 provider.GetRequiredService<PagingTests>().Run(scaleTests);

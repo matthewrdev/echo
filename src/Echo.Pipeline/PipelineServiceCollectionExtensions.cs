@@ -34,6 +34,7 @@ public static class PipelineServiceCollectionExtensions
         services.AddSingleton<IProcessor, Processor>();
         services.AddSingleton<IProjectInspector, ProjectInspector>();
         services.AddSingleton<IRunContextFactory, RunContextFactory>();
+        services.AddSingleton<IRunExchangeService, RunExchangeService>();
         services.AddSingleton<IRunStateRecovery, RunStateRecovery>();
         services.AddSingleton<ISceneSemanticArtifacts, SceneSemanticArtifacts>();
         services.AddSingleton<IStageResetService, StageResetService>();

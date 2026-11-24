@@ -1,3 +1,4 @@
+using Echo.Export;
 using Echo.Metadata;
 
 namespace Echo.Cli.Commands.Runtime;
@@ -6,11 +7,13 @@ public sealed class DoctorCommand : ICliCommand
 {
     private readonly IMetadataReader metadataReader;
     private readonly ICommandOutput output;
+    private readonly ISurveyCloudWriter survey;
 
-    public DoctorCommand(IMetadataReader metadataReader, ICommandOutput output)
+    public DoctorCommand(IMetadataReader metadataReader, ICommandOutput output, ISurveyCloudWriter survey)
     {
         this.metadataReader = metadataReader;
         this.output = output;
+        this.survey = survey;
     }
 
     public IReadOnlyCollection<string> Names => ["doctor"];
@@ -33,6 +36,7 @@ public sealed class DoctorCommand : ICliCommand
             processors = Environment.ProcessorCount,
             metadataEngine,
             metadataReady = true,
+            surveyExports = survey.Inspect(),
             backend = "C# CPU; no external photogrammetry engine",
             limitations = new[] { "No lens calibration", "No 500-photo performance validation yet" }
         });

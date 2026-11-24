@@ -75,7 +75,7 @@ public sealed class CommandApplication : ICommandApplication
 
         var group = arguments.Words[2];
         var isProjectCommand = group is "images" or "sets" or "storage" or "config" or "hints" or "gps-polygons"
-            or "pipeline" or "run" or "trace" or "inspect" or "geo" or "export-gis" or "render";
+            or "pipeline" or "run" or "trace" or "inspect" or "geo" or "export" or "export-gis" or "render";
         if (!isProjectCommand)
         {
             return;

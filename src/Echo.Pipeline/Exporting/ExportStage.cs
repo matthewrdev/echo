@@ -1,5 +1,4 @@
 using Echo.Export;
-using Echo.Geometry;
 using Echo.Infrastructure;
 using Echo.Models;
 using Echo.Pipeline.Runs;
@@ -53,20 +52,8 @@ public sealed class ExportStage : IPipelineStage
 
                     using var atlas = File.OpenRead(store.PathFor(texture + "/atlas.jpg"));
                     glbWriter.Write(Path.Combine(dir, "cliff.glb"), surface, uvs, atlas);
-                    fileOperations.AtomicJson(Path.Combine(dir, "cliff.geo.json"), new
-                    {
-                        schemaVersion = 1,
-                        scene.Frame,
-                        scene.Origin,
-                        referenced = scene.Origin != null,
-                        localToEcefRowMajor = scene.Origin == null ? null : CameraGeometry.LocalToEcefMatrix(scene.Origin),
-                        axisConvention = "X east, Y up, Z south",
-                        geographicDatum = "WGS84 horizontal",
-                        verticalDatum = scene.Origin?.AltitudeDatum ?? "unreferenced",
-                        formula = "Local tangent ECEF rotation around origin; stored model coordinates are East/Up/South. Unknown altitude datum precludes verified absolute elevation.",
-                        cameras = scene.Cameras,
-                        warnings = scene.Warnings
-                    });
+                    fileOperations.AtomicJson(Path.Combine(dir, "cliff.geo.json"),
+                        GeoreferenceSidecar.Create(scene.Frame, scene.Origin, scene.Cameras, scene.Warnings));
                     fileOperations.AtomicJson(Path.Combine(dir, "cliff.report.json"), new
                     {
                         schemaVersion = 2,

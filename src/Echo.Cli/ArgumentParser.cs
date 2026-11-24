@@ -42,6 +42,8 @@ public sealed class ArgumentParser : IArgumentParser
             "run",
             "output",
             "format",
+            "crs",
+            "size-mm",
             "width",
             "height",
             "view",

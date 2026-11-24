@@ -10,6 +10,10 @@ public static class ExportServiceCollectionExtensions
         services.AddSingleton<IGisWriter, GisWriter>();
         services.AddSingleton<IGlbWriter, GlbWriter>();
         services.AddSingleton<ILasWriter, LasWriter>();
+        services.AddSingleton<IMeshExchangeWriter, MeshExchangeWriter>();
+        services.AddSingleton<IPointCloudExchangeWriter, PointCloudExchangeWriter>();
+        services.AddSingleton<IPrintMeshWriter, ThreeMfWriter>();
+        services.AddSingleton<ISurveyCloudWriter, PdalSurveyCloudWriter>();
         services.AddSingleton<IRedpointGeoreferenceWriter, RedpointGeoreferenceWriter>();
         services.AddSingleton<ITilesetWriter, TilesetWriter>();
 

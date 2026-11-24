@@ -20,6 +20,7 @@ public static class CliServiceCollectionExtensions
         services.AddSingleton<ICommandOutput, CommandOutput>();
         services.AddSingleton<ICliCommand, ConfigurationCommand>();
         services.AddSingleton<ICliCommand, DoctorCommand>();
+        services.AddSingleton<ICliCommand, ExchangeCommand>();
         services.AddSingleton<ICliCommand, GisCommand>();
         services.AddSingleton<ICliCommand, GlbCommand>();
         services.AddSingleton<ICliCommand, GpsPolygonsCommand>();

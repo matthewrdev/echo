@@ -37,6 +37,7 @@ public static class TestServiceCollectionExtensions
         services.AddSingleton<GaussianBlurTests>();
         services.AddSingleton<GeographicFormatTests>();
         services.AddSingleton<GisCommandTests>();
+        services.AddSingleton<RunExchangeTests>();
         services.AddSingleton<GisExportTests>();
         services.AddSingleton<GrayscaleSamplerTests>();
         services.AddSingleton<GuidedMatchingTests>();
