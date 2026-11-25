@@ -16,7 +16,7 @@ struct EchoApplication: App {
         let options = LaunchOptions(arguments: CommandLine.arguments, bundle: .main)
         let commandLog = CLICommandLog()
         let cli = ProcessCLIClient(executable: options.cli, commandLog: commandLog)
-        let projects = CLIProjectClient(cli: cli)
+        let projects = CLIProjectClient(cli: cli, traces: PackedTraceReader())
         let droneImport = DroneImportViewModel(
             service: DroneImportService(cli: cli, reader: DroneSourceReader(), grouping: DroneImportGrouping()))
         _droneImport = StateObject(wrappedValue: droneImport)

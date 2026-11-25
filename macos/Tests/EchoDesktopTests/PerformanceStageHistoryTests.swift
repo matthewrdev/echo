@@ -17,7 +17,7 @@ final class PerformanceStageHistoryTests: XCTestCase {
             "source": ["features": "artifacts/features/saved"], "current": ["features": "artifacts/features/saved"],
             "other": ["features": "artifacts/features/different"],
         ]
-        let timings = await PerformanceStageHistory(client: CLIProjectClient(cli: cli)).timings(
+        let timings = await PerformanceStageHistory(client: CLIProjectClient(cli: cli, traces: cli)).timings(
             for: current, attempts: cli.documents.map(\.summary), root: "/project")
         let timing = try XCTUnwrap(timings["features"])
         XCTAssertEqual(timing.milliseconds, 84_000)
@@ -42,7 +42,7 @@ final class PerformanceStageHistoryTests: XCTestCase {
         let cli = TestPerformanceCLIClient()
         cli.documents = [current, interrupted, original]
         cli.artifacts = ["run": ["features": "artifacts/features/saved"]]
-        let timings = await PerformanceStageHistory(client: CLIProjectClient(cli: cli)).timings(
+        let timings = await PerformanceStageHistory(client: CLIProjectClient(cli: cli, traces: cli)).timings(
             for: current, attempts: cli.documents.map(\.summary), root: "/project")
         XCTAssertEqual(timings["features"]?.milliseconds, 84_000)
     }
@@ -55,7 +55,7 @@ final class PerformanceStageHistoryTests: XCTestCase {
         cli.documents = [current, original]
         cli.artifacts = ["run": ["features": "artifacts/features/saved"]]
         cli.missingAttempts = ["original"]
-        let timings = await PerformanceStageHistory(client: CLIProjectClient(cli: cli)).timings(
+        let timings = await PerformanceStageHistory(client: CLIProjectClient(cli: cli, traces: cli)).timings(
             for: current, attempts: cli.documents.map(\.summary), root: "/project")
         XCTAssertTrue(timings.isEmpty)
         let node = PerformanceGraphNode.make(current, originalTimings: timings)[1]
@@ -69,7 +69,7 @@ final class PerformanceStageHistoryTests: XCTestCase {
             let current = try PerformanceTraceFixture.document(
                 id: "current", run: "run", second: 1, duration: 2500, reused: reused)
             let cli = TestPerformanceCLIClient()
-            let timings = await PerformanceStageHistory(client: CLIProjectClient(cli: cli)).timings(
+            let timings = await PerformanceStageHistory(client: CLIProjectClient(cli: cli, traces: cli)).timings(
                 for: current, attempts: [], root: "/project")
             XCTAssertTrue(cli.requests.isEmpty)
             XCTAssertTrue(timings.isEmpty)
@@ -85,7 +85,7 @@ final class PerformanceStageHistoryTests: XCTestCase {
         let cli = TestPerformanceCLIClient()
         cli.documents = [current, original]
         cli.artifacts = ["run": ["features": "artifacts/features/saved"]]
-        let model = PerformanceTraceViewModel(client: CLIProjectClient(cli: cli))
+        let model = PerformanceTraceViewModel(client: CLIProjectClient(cli: cli, traces: cli))
         await model.refresh(root: "/project", preferredRun: "run")
         XCTAssertNil(model.error)
         XCTAssertEqual(model.originalTimings["features"]?.milliseconds, 84_000)

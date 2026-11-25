@@ -2,9 +2,11 @@ import Foundation
 
 final class CLIProjectClient: ProjectClient {
     private let cli: CLIClient
+    private let traces: any PerformanceTraceReading
 
-    init(cli: CLIClient) {
+    init(cli: CLIClient, traces: any PerformanceTraceReading = PackedTraceReader()) {
         self.cli = cli
+        self.traces = traces
     }
 
     func pollFiles(root: String, selectedRun: String?, activeRun: String?) async -> WorkspacePollFiles? {
@@ -66,14 +68,11 @@ final class CLIProjectClient: ProjectClient {
     }
 
     func performanceTraces(root: String) async throws -> [PerformanceTraceSummary] {
-        let bytes = try await cli.execute(["--project", root, "trace", "list", "--all"], progress: { _ in })
-        return try JSONDecoder().decode([PerformanceTraceSummary].self, from: bytes)
+        try await traces.list(root: root)
     }
 
     func performanceTrace(root: String, run: String, attempt: String) async throws -> PerformanceTraceDocument {
-        let bytes = try await cli.execute(
-            ["--project", root, "trace", "show", attempt, "--run", run], progress: { _ in })
-        return try JSONDecoder().decode(PerformanceTraceDocument.self, from: bytes)
+        try await traces.document(root: root, run: run, attempt: attempt)
     }
 
     func runs(root: String) async throws -> [RunSummary] {
