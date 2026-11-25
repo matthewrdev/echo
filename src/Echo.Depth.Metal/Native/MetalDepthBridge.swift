@@ -52,20 +52,22 @@ public func echoMetalCreate(
     }
 }
 
-@_cdecl("echo_metal_calculate")
-public func echoMetalCalculate(
+@_cdecl("echo_metal_calculate_buffered")
+public func echoMetalCalculateBuffered(
     _ handle: UnsafeMutableRawPointer, _ jobs: UnsafePointer<Float>, _ sampleCount: Int32,
     _ depths: UnsafePointer<Float>, _ planeCount: Int32, _ output: UnsafeMutablePointer<Float>,
+    _ slot: Int32, _ gpuMilliseconds: UnsafeMutablePointer<Double>,
     _ details: UnsafeMutablePointer<CChar>?, _ capacity: Int32
 ) -> Int32 {
     autoreleasepool {
         do {
-            guard sampleCount > 0, planeCount > 0 else {
+            guard sampleCount > 0, planeCount > 0, (0..<2).contains(slot) else {
                 throw MetalDepthSession.failure("Empty Metal search batch")
             }
             let session = Unmanaged<MetalDepthSession>.fromOpaque(handle).takeUnretainedValue()
-            try session.calculate(
-                jobs: jobs, sampleCount: Int(sampleCount), depths: depths, planeCount: Int(planeCount), output: output)
+            gpuMilliseconds.pointee = try session.calculate(
+                jobs: jobs, sampleCount: Int(sampleCount), depths: depths, planeCount: Int(planeCount), output: output,
+                slot: Int(slot))
             return 0
         } catch {
             writeDetails(error.localizedDescription, to: details, capacity: capacity)
@@ -77,9 +79,4 @@ public func echoMetalCalculate(
 @_cdecl("echo_metal_destroy")
 public func echoMetalDestroy(_ handle: UnsafeMutableRawPointer) {
     Unmanaged<MetalDepthSession>.fromOpaque(handle).release()
-}
-
-@_cdecl("echo_metal_gpu_time")
-public func metalDepthGpuTime(_ handle: UnsafeMutableRawPointer) -> Double {
-    Unmanaged<MetalDepthSession>.fromOpaque(handle).takeUnretainedValue().gpuMilliseconds
 }

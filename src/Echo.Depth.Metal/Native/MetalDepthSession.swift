@@ -2,16 +2,13 @@ import Foundation
 import Metal
 
 final class MetalDepthSession {
-    var gpuMilliseconds = 0.0
     let device: MTLDevice
     let queue: MTLCommandQueue
     let pipeline: MTLComputePipelineState
     let views: MTLBuffer
     let gray: MTLBuffer
     let viewCount: Int
-    private var jobs: MTLBuffer?
-    private var depths: MTLBuffer?
-    private var costs: MTLBuffer?
+    private let batches = [MetalDepthBatch(), MetalDepthBatch()]
 
     init(
         program: MetalDepthPipeline, views: UnsafePointer<Float>, viewCount: Int, gray: UnsafePointer<Float>,
@@ -39,12 +36,13 @@ final class MetalDepthSession {
 
     func calculate(
         jobs: UnsafePointer<Float>, sampleCount: Int, depths: UnsafePointer<Float>, planeCount: Int,
-        output: UnsafeMutablePointer<Float>
-    ) throws {
+        output: UnsafeMutablePointer<Float>, slot: Int
+    ) throws -> Double {
+        let batch = batches[slot]
         let costCount = sampleCount * planeCount
-        let jobBuffer = try reusable(&self.jobs, bytes: sampleCount * 32 * 4)
-        let depthBuffer = try reusable(&self.depths, bytes: costCount * 4)
-        let costBuffer = try reusable(&self.costs, bytes: costCount * 4)
+        let jobBuffer = try reusable(&batch.jobs, bytes: sampleCount * 32 * 4)
+        let depthBuffer = try reusable(&batch.depths, bytes: costCount * 4)
+        let costBuffer = try reusable(&batch.costs, bytes: costCount * 4)
         memcpy(jobBuffer.contents(), jobs, sampleCount * 32 * 4)
         memcpy(depthBuffer.contents(), depths, costCount * 4)
         guard let command = queue.makeCommandBuffer(), let encoder = command.makeComputeCommandEncoder()
@@ -66,13 +64,14 @@ final class MetalDepthSession {
         encoder.endEncoding()
         command.commit()
         command.waitUntilCompleted()
-        if command.gpuStartTime > 0, command.gpuEndTime >= command.gpuStartTime {
-            gpuMilliseconds += (command.gpuEndTime - command.gpuStartTime) * 1000
-        }
         guard command.status == .completed else {
             throw command.error ?? Self.failure("Metal command did not complete")
         }
         output.update(from: costBuffer.contents().assumingMemoryBound(to: Float.self), count: costCount)
+        if command.gpuStartTime > 0, command.gpuEndTime >= command.gpuStartTime {
+            return (command.gpuEndTime - command.gpuStartTime) * 1000
+        }
+        return 0
     }
 
     private func reusable(_ buffer: inout MTLBuffer?, bytes: Int) throws -> MTLBuffer {

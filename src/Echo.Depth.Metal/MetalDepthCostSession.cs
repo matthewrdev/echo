@@ -12,8 +12,10 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
     private readonly MetalDepthHandle handle;
     private readonly V3 origin;
     private readonly IPerformanceTrace trace;
-    private readonly object gate = new();
-    private readonly StringBuilder error = new(2048);
+    private readonly SemaphoreSlim buffers = new(2, 2);
+    private readonly object bufferGate = new();
+    private readonly Stack<int> available = new([1, 0]);
+    private readonly StringBuilder[] errors = [new(2048), new(2048)];
 
     public MetalDepthCostSession(MetalDepthHandle handle, string device, string shaderHash, V3 origin, IPerformanceTrace trace)
     {
@@ -88,19 +90,34 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
             }
 
             packedAt = span == null ? 0 : Stopwatch.GetTimestamp();
-            lock (gate)
+            buffers.Wait(cancellation);
+            int slot;
+            lock (bufferGate)
+            {
+                slot = available.Pop();
+            }
+
+            try
             {
                 acquiredAt = span == null ? 0 : Stopwatch.GetTimestamp();
                 cancellation.ThrowIfCancellationRequested();
-                var before = MetalDepthNative.GpuTime(handle);
+                var error = errors[slot];
                 error.Clear();
-                if (MetalDepthNative.Calculate(handle, jobs, samples.Count, depths, planeCount, costs, error, error.Capacity) != 0)
+                if (MetalDepthNative.Calculate(handle, jobs, samples.Count, depths, planeCount, costs, slot, out gpu, error, error.Capacity) != 0)
                 {
                     throw new DepthAccelerationException(error.ToString());
                 }
 
-                gpu = MetalDepthNative.GpuTime(handle) - before;
                 finishedAt = span == null ? 0 : Stopwatch.GetTimestamp();
+            }
+            finally
+            {
+                lock (bufferGate)
+                {
+                    available.Push(slot);
+                }
+
+                buffers.Release();
             }
 
             cancellation.ThrowIfCancellationRequested();
@@ -124,7 +141,7 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
                 // Aggregate only: retaining three extra spans for every batch would
                 // add substantial allocation and journal overhead to the depth loop.
                 trace.Measurement("Depth batch input packing", Stopwatch.GetElapsedTime(packingStarted, packedAt).TotalMilliseconds, "ms");
-                trace.Measurement("Depth session lock wait", Stopwatch.GetElapsedTime(packedAt, acquiredAt).TotalMilliseconds, "ms");
+                trace.Measurement("Depth buffer queue wait", Stopwatch.GetElapsedTime(packedAt, acquiredAt).TotalMilliseconds, "ms");
                 trace.Measurement("Depth native execution and readback", Stopwatch.GetElapsedTime(acquiredAt, finishedAt).TotalMilliseconds, "ms");
                 trace.Measurement("Depth samples per batch", samples.Count, "samples");
             }
@@ -137,5 +154,6 @@ internal sealed class MetalDepthCostSession : IDepthCostSession
     public void Dispose()
     {
         handle.Dispose();
+        buffers.Dispose();
     }
 }

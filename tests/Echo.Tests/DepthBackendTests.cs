@@ -1,3 +1,4 @@
+using Echo.Storage.Journals;
 using System.Text.Json;
 using Echo.Depth;
 using Echo.Geometry;
@@ -189,12 +190,12 @@ public sealed class DepthBackendTests
                     var run = new RunData { Id = Guid.NewGuid().ToString("N"), Snapshot = project, Target = "depth" };
                     var context = contexts.Create(store, run, default, null);
                     context.Start();
-                    var alignment = context.Build("alignment", new
+                    var alignment = context.Build("alignment", new Dictionary<string, object?>
                     {
-                        fixture = "backend"
+                        ["fixture"] = "backend"
                     }, directory => files.AtomicData(Path.Combine(directory, "scene.json"), scene));
                     context.Publish("alignment", alignment);
-                    new DepthStage(files, json, composedEstimator, planner, semantics, recovery).Execute(context);
+                    new DepthStage(files, composedEstimator, planner, semantics, recovery).Execute(context);
                     context.Complete();
                     var unit = context.DepthUnits()[0];
                     var actual = json.Read<DepthMap>(store.PathFor(unit + "/depth.json"));
@@ -204,8 +205,9 @@ public sealed class DepthBackendTests
                     var execution = metadata.Executions.Where(item => item.Component == "stereo-depth-search").ToList();
                     Check(execution.All(item => item.AcceleratedSearches > 0), "GPU must execute at every level; fallback-only is not a GPU integration pass");
                     Check(execution.Count == 2 && metadata.MemoryBudgetBytes > 0, "Persist all levels and resolved scheduling resources");
-                    var saved = json.Read<RunProcessingMetadata>(store.PathFor($"runs/{run.Id}/processing.json"));
-                    Check(saved.Artifacts[unit].MetadataPath == unit + "/processing.json", "Run must index the actual Metal provenance");
+                    var saved = new ArtifactProcessingRecordCodec().ReadRecords(store.PathFor($"runs/{run.Id}/processing.bin"))
+                        .Last(record => record.Artifact == unit).Reference;
+                    Check(saved.MetadataPath == unit + "/processing.json", "Run must index the actual Metal provenance");
                     Check(reference.Depth.AsSpan().SequenceEqual(actual.Depth), "Metal depth must match CPU exactly");
                     Check(reference.Confidence.AsSpan().SequenceEqual(actual.Confidence), "Metal confidence must match CPU exactly");
                     Console.WriteLine($"Metal device: {execution[0].Device}; validated {execution.Sum(item => item.AcceleratedSearches)} searches, corrected {execution.Sum(item => item.CorrectedSearches)}");
@@ -217,8 +219,9 @@ public sealed class DepthBackendTests
                     Check(fastMetadata.AlgorithmVersion == "echo-depth-pyramid12-metal-overlap1-sky1-subject2", "Version the direct Metal numerical contract");
                     var fastExecution = fastMetadata.Executions.Where(item => item.Component == "stereo-depth-search").ToList();
                     Check(fastExecution.Count == 2 && fastExecution.All(item => item.ActualBackend == "metal" && item.CpuSearches == 0), "Persist actual direct GPU execution without duplicate CPU work");
-                    var fastRunMetadata = json.Read<RunProcessingMetadata>(store.PathFor($"runs/{accelerated.Run.Id}/processing.json"));
-                    Check(fastRunMetadata.Artifacts[fastUnit].MetadataPath == fastUnit + "/processing.json", "Run indexes fast Metal provenance");
+                    var fastRunMetadata = new ArtifactProcessingRecordCodec().ReadRecords(store.PathFor($"runs/{accelerated.Run.Id}/processing.bin"))
+                        .Last(record => record.Artifact == fastUnit).Reference;
+                    Check(fastRunMetadata.MetadataPath == fastUnit + "/processing.json", "Run indexes fast Metal provenance");
                     var originalMetadata = File.ReadAllText(store.PathFor(fastUnit + "/processing.json"));
                     project.Settings.DepthBackend = "metal";
                     var reusedFast = RunDepthStage(store, project, alignment);
@@ -243,7 +246,7 @@ public sealed class DepthBackendTests
         var context = contexts.Create(store, run, default, null);
         context.Start();
         context.Publish("alignment", alignment);
-        new DepthStage(files, json, composedEstimator, planner, semantics, recovery).Execute(context);
+        new DepthStage(files, composedEstimator, planner, semantics, recovery).Execute(context);
         context.Complete();
         return context;
     }

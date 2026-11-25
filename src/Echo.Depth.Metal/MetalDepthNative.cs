@@ -16,13 +16,10 @@ internal static class MetalDepthNative
     internal static extern IntPtr Create(MetalDepthPipelineHandle pipeline,
         float[] views, int viewCount, float[] gray, int grayCount, [Out] StringBuilder details, int capacity);
 
-    [DllImport("EchoDepthMetal", EntryPoint = "echo_metal_calculate", CallingConvention = CallingConvention.Cdecl)]
+    [DllImport("EchoDepthMetal", EntryPoint = "echo_metal_calculate_buffered", CallingConvention = CallingConvention.Cdecl)]
     internal static extern int Calculate(MetalDepthHandle session, float[] jobs, int sampleCount,
-        float[] depths, int planeCount, [Out] float[] output, [Out] StringBuilder error, int capacity);
+        float[] depths, int planeCount, [Out] float[] output, int slot, out double gpuMilliseconds, [Out] StringBuilder error, int capacity);
 
     [DllImport("EchoDepthMetal", EntryPoint = "echo_metal_destroy", CallingConvention = CallingConvention.Cdecl)]
     internal static extern void Destroy(IntPtr session);
-    [DllImport("EchoDepthMetal", EntryPoint = "echo_metal_gpu_time")]
-    internal static extern double GpuTime(MetalDepthHandle handle);
-
 }
