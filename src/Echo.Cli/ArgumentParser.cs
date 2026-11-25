@@ -46,6 +46,9 @@ public sealed class ArgumentParser : IArgumentParser
             "output",
             "format",
             "crs",
+            "resolution",
+            "relative-heights",
+            "max-seam-error",
             "size-mm",
             "width",
             "height",
@@ -93,7 +96,7 @@ public sealed class ArgumentParser : IArgumentParser
                 throw new EchoException("Unknown option: " + arg, 2);
             }
 
-            var flag = key is "help" or "json" or "copy" or "summary" or "headless" or "apply" or "all" or "unused";
+            var flag = key is "help" or "json" or "copy" or "summary" or "headless" or "apply" or "all" or "unused" or "relative-heights";
             var value = flag ? "true" : ++i < args.Length ? args[i] : throw new EchoException("Missing value for " + arg, 2);
             if (key == "events" && value is not ("ndjson" or "none"))
             {

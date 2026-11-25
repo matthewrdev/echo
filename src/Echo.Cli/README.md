@@ -32,3 +32,14 @@ Edit the exported settings file to set values for an experiment. `--settings` su
 On macOS, `export-gis` includes a GeoTIFF projection and PNG sidecars when a saved geographic mesh can be rendered. Read the export manifest for the produced files and any omissions. Use `geo-probe --lat DEGREES --lon DEGREES` on a saved geographic mesh to query its topmost surface. Pass `--alt METRES` to place a point in the run's altitude reference instead.
 
 Use `drone scan --source CARD_ROOT` on macOS to get proposed site groups and flight sets from a mounted or copied card. Each group's `photos` array is an `images import --manifest` input. Photos without GPS appear in the `Unassigned` group.
+
+
+### Drone mapping
+
+Run through Texture or Export, then use `export-map --crs EPSG:CODE --resolution METRES --output NEW_DIRECTORY` on macOS. The export uses local PDAL and GDAL, configurable through `ECHO_PDAL` and `ECHO_GDAL_BIN` (the GDAL executable directory). The orthophoto, DSM, and DTM share a projected grid. Elevation cells without support use no-data. The orthophoto derives from the textured mesh and its source render is capped at 4096 pixels per side. The classified LAZ and elevation rasters use WGS84 ellipsoidal heights when known. Pass `--relative-heights` to explicitly use heights relative to the scene origin.
+
+Import surveyed targets with `hints import FILE`. Each JSON hint has a distinct `id`, a `type` of `ground-control` or `survey-check`, a `position` with WGS84 latitude, longitude, ellipsoidal altitude, `altitudeDatum` set to `WGS84 ellipsoid`, and `uncertaintyMetres`. Specify two registered image IDs with `imageId` and `otherImageId`, and their normalized full-resolution observations as two-element arrays named `pixel` and `otherPixel`. Three or more consistent, non-collinear controls fit a geographic similarity transform and constrain the final bundle adjustment. Check points are held out of both. The alignment artifact and map package include `survey-control.json` with per-point residuals and horizontal and vertical check-point RMSE when measurable.
+
+For RTK or PPK camera positions, import `camera` hints with `position.uncertaintyMetres` for horizontal accuracy and `verticalUncertaintyMetres` for vertical accuracy, or set `--uncertainty` and `--vertical-uncertainty` on `hints camera`. Provide WGS84 ellipsoidal heights to use both accuracy terms during geographic bundle adjustment.
+
+Use `merge-maps MAP_DIRECTORY MAP_DIRECTORY --output NEW_DIRECTORY --max-seam-error METRES` to combine separately reconstructed overlapping parts of a survey. Export all parts to the same projected CRS, pixel grid, and WGS84 ellipsoidal height reference. The merge publishes the three raster products and classified LAZ after checking elevation disagreement in connected DSM overlaps. The mosaic manifest records the seam errors. Later input tiles take priority where data overlap.

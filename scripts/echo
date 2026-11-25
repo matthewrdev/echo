@@ -17,7 +17,7 @@ if [[ "$(uname -s)" == "Darwin" && -z "${ECHO_RENDERER:-}" ]]; then
       --help|-h|--json) continue ;;
       --*|-p) skip_value=true; continue ;;
     esac
-    if [[ "$argument" =~ ^(render|export-gis|geo-probe|drone)$ ]] ||
+    if [[ "$argument" =~ ^(render|export-gis|export-map|geo-probe|drone)$ ]] ||
       { $preview_action && [[ "$argument" =~ ^(mesh|texture|export)$ ]]; }; then
       swift build --package-path "$repo_dir/macos" -c release --product EchoRender >&2
       native_bin="$(swift build --package-path "$repo_dir/macos" -c release --show-bin-path)"
