@@ -8,6 +8,7 @@ using Echo.Export;
 using Echo.Features;
 using Echo.Fusion;
 using Echo.Imaging;
+using Echo.ImageProjection;
 using Echo.Infrastructure;
 using Echo.Lines;
 using Echo.Matching;
@@ -42,6 +43,7 @@ services
     .AddFeatures()
     .AddFusion()
     .AddImaging()
+    .AddImageProjection()
     .AddInfrastructure()
     .AddLines()
     .AddMatching()
@@ -86,6 +88,7 @@ if (args.Contains("--reconstruction", StringComparer.Ordinal))
 }
 var scaleTests = new TestSuite();
 provider.GetRequiredService<CommandHelpTests>().Run(scaleTests);
+provider.GetRequiredService<ImageProjectionTests>().Run(scaleTests);
 provider.GetRequiredService<RunScriptingTests>().Run(scaleTests);
 provider.GetRequiredService<ColourGradingTests>().Run(scaleTests);
 provider.GetRequiredService<ColourGradingPipelineTests>().Run(scaleTests);

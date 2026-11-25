@@ -16,6 +16,7 @@
     <Project Path="src/Echo.Features/Echo.Features.csproj" />
     <Project Path="src/Echo.Fusion/Echo.Fusion.csproj" />
     <Project Path="src/Echo.Geometry/Echo.Geometry.csproj" />
+    <Project Path="src/Echo.ImageProjection/Echo.ImageProjection.csproj" />
     <Project Path="src/Echo.Imaging/Echo.Imaging.csproj" />
     <Project Path="src/Echo.Lines/Echo.Lines.csproj" />
     <Project Path="src/Echo.Logging/Echo.Logging.csproj" />

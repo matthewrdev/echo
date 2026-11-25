@@ -43,3 +43,26 @@ Import surveyed targets with `hints import FILE`. Each JSON hint has a distinct 
 For RTK or PPK camera positions, import `camera` hints with `position.uncertaintyMetres` for horizontal accuracy and `verticalUncertaintyMetres` for vertical accuracy, or set `--uncertainty` and `--vertical-uncertainty` on `hints camera`. Provide WGS84 ellipsoidal heights to use both accuracy terms during geographic bundle adjustment.
 
 Use `merge-maps MAP_DIRECTORY MAP_DIRECTORY --output NEW_DIRECTORY --max-seam-error METRES` to combine separately reconstructed overlapping parts of a survey. Export all parts to the same projected CRS, pixel grid, and WGS84 ellipsoidal height reference. The merge publishes the three raster products and classified LAZ after checking elevation disagreement in connected DSM overlaps. The mosaic manifest records the seam errors. Later input tiles take priority where data overlap.
+
+### Project image geometry
+
+Run through Mesh or Export, then project marked image pixels onto the saved mesh.
+
+```bash
+"$ECHO_CLI" --project "$project" project-image-geometry --run "$run_id" \
+  --image-id "$capture_id" --geometry marks.json --output projected.json
+```
+
+```json
+{
+  "features": [
+    {"id": "pin", "geometry": "point", "pixels": [[620, 285]]},
+    {"id": "edge", "geometry": "polyline", "pixels": [[620, 285], [672, 310]]},
+    {"id": "outline", "geometry": "polygon", "pixels": [[620, 285], [672, 310], [650, 350]]}
+  ]
+}
+```
+
+Pixels use the full-resolution, orientation-corrected image, with the origin at its top left. Use `--image FILE` to fit an external photo against registered captures. Limit matching to overlapping captures with `--reference-image-ids ID,ID`, or supply at least six well-distributed `controlPoints` in the geometry document. Each control has a `pixel` pair and a model-frame `position` triple. Use `--focal-pixels` for controls on a plane.
+
+The sidecar contains model XYZ points, surface normals, breaks and review flags. Misses have a null position. Pass `--review-image-ids ID,ID` to include corresponding pixels and distance to the first mesh hit from other registered views.

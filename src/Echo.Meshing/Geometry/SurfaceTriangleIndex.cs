@@ -5,7 +5,7 @@ using Echo.Storage;
 
 namespace Echo.Meshing.Geometry;
 
-internal sealed class SurfaceTriangleIndex : IDisposable
+internal sealed class SurfaceTriangleIndex : IMeshRaycaster
 {
     private readonly SurfaceGeometryReader reader;
     private readonly SurfaceGeometrySnapshot geometry;
@@ -94,33 +94,9 @@ internal sealed class SurfaceTriangleIndex : IDisposable
     private bool HasOccluder(int index, V3 start, V3 end)
     {
         var node = Node(index);
-        var near = 0.0;
-        var far = 1.0;
-        var direction = end - start;
-        for (var axis = 0; axis < 3; axis++)
+        if (!RayOverlaps(node, start, end - start, 0, 1))
         {
-            var origin = axis == 0 ? start.X : axis == 1 ? start.Y : start.Z;
-            var delta = axis == 0 ? direction.X : axis == 1 ? direction.Y : direction.Z;
-            var low = axis == 0 ? node.Minimum.X : axis == 1 ? node.Minimum.Y : node.Minimum.Z;
-            var high = axis == 0 ? node.Maximum.X : axis == 1 ? node.Maximum.Y : node.Maximum.Z;
-            if (Math.Abs(delta) < 1e-12)
-            {
-                if (origin < low - 1e-8 || origin > high + 1e-8)
-                {
-                    return false;
-                }
-
-                continue;
-            }
-
-            var first = (low - origin) / delta;
-            var last = (high - origin) / delta;
-            near = Math.Max(near, Math.Min(first, last));
-            far = Math.Min(far, Math.Max(first, last));
-            if (near > far + 1e-8)
-            {
-                return false;
-            }
+            return false;
         }
 
         if (node.Left >= 0)
@@ -137,6 +113,65 @@ internal sealed class SurfaceTriangleIndex : IDisposable
         }
 
         return false;
+    }
+
+    public MeshRayHit? FirstHit(V3 origin, V3 direction, double minimumDepth = 1e-8)
+    {
+        MeshRayHit? hit = null;
+        if (nodes.Count > 0)
+        {
+            FindFirstHit(0, origin, direction, minimumDepth, ref hit);
+        }
+
+        return hit;
+    }
+
+    private void FindFirstHit(int index, V3 origin, V3 direction, double minimumDepth, ref MeshRayHit? hit)
+    {
+        var node = Node(index);
+        if (!RayOverlaps(node, origin, direction, minimumDepth, hit?.Depth ?? double.PositiveInfinity))
+        {
+            return;
+        }
+
+        if (node.Left >= 0)
+        {
+            FindFirstHit(node.Left, origin, direction, minimumDepth, ref hit);
+            FindFirstHit(node.Right, origin, direction, minimumDepth, ref hit);
+            return;
+        }
+
+        for (var offset = node.Start; offset < node.Start + node.Count; offset++)
+        {
+            var triangle = Triangle(Face(offset));
+            var depth = SurfaceTriangleIntersection.RayDepth(origin, direction, triangle);
+            if (depth is { } distance && distance > minimumDepth && distance < (hit?.Depth ?? double.PositiveInfinity))
+            {
+                var normal = (triangle.B - triangle.A).Cross(triangle.C - triangle.A).Unit;
+                hit = new MeshRayHit(origin + direction * distance, normal, distance);
+            }
+        }
+    }
+
+    private bool RayOverlaps(SurfaceSearchNode node, V3 origin, V3 direction, double minimumDepth, double maximumDepth)
+    {
+        return ClipRayAxis(origin.X, direction.X, node.Minimum.X, node.Maximum.X, ref minimumDepth, ref maximumDepth)
+            && ClipRayAxis(origin.Y, direction.Y, node.Minimum.Y, node.Maximum.Y, ref minimumDepth, ref maximumDepth)
+            && ClipRayAxis(origin.Z, direction.Z, node.Minimum.Z, node.Maximum.Z, ref minimumDepth, ref maximumDepth);
+    }
+
+    private bool ClipRayAxis(double origin, double direction, double minimum, double maximum, ref double near, ref double far)
+    {
+        if (Math.Abs(direction) < 1e-12)
+        {
+            return origin >= minimum - 1e-8 && origin <= maximum + 1e-8;
+        }
+
+        var first = (minimum - origin) / direction;
+        var last = (maximum - origin) / direction;
+        near = Math.Max(near, Math.Min(first, last));
+        far = Math.Min(far, Math.Max(first, last));
+        return near <= far + 1e-8;
     }
 
     public SurfaceClosestPoint Nearest(V3 point, double maximumDistance)

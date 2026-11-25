@@ -3,6 +3,7 @@ using Echo.Cli.Commands.Export;
 using Echo.Cli.Commands.Geography;
 using Echo.Cli.Commands.Hints;
 using Echo.Cli.Commands.Images;
+using Echo.Cli.Commands.ImageProjection;
 using Echo.Cli.Commands.Processing;
 using Echo.Cli.Commands.Previews;
 using Echo.Cli.Commands.Projects;
@@ -38,6 +39,7 @@ public static class CliServiceCollectionExtensions
         services.AddSingleton<ICliCommand, PipelineCommand>();
         services.AddSingleton<ICliCommand, PreviewCommand>();
         services.AddSingleton<ICliCommand, ProjectCommand>();
+        services.AddSingleton<ICliCommand, ProjectImageGeometryCommand>();
         services.AddSingleton<ICliCommand, RenderCommand>();
         services.AddSingleton<ICliCommand, RunCommand>();
         services.AddSingleton<ICliCommand, RuntimeInfoCommand>();

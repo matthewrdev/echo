@@ -43,6 +43,7 @@ public static class TestServiceCollectionExtensions
         services.AddSingleton<GuidedMatchingTests>();
         services.AddSingleton<HeifImportTests>();
         services.AddSingleton<ImageStageConcurrencyTests>();
+        services.AddSingleton<ImageProjectionTests>();
         services.AddSingleton<JsonDecodingTests>();
         services.AddSingleton<LineFeatureTests>();
         services.AddSingleton<MatchingMigrationTests>();

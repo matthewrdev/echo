@@ -27,6 +27,18 @@ public sealed class FeatureExtractor : IFeatureExtractor
         cancellation.ThrowIfCancellationRequested();
         using var original = SKBitmap.Decode(store.PathFor(photo.Source))
             ?? throw new EchoException("Cannot decode image: " + photo.Source);
+        return Extract(original, photo, settings, cancellation);
+    }
+
+    public FeatureSet ExtractImage(string path, Photo photo, Settings settings, CancellationToken cancellation)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        using var original = rasterImageService.Decode(path);
+        return Extract(original, photo, settings, cancellation);
+    }
+
+    private FeatureSet Extract(SKBitmap original, Photo photo, Settings settings, CancellationToken cancellation)
+    {
         var image = rasterImageService.ResizeGray(original, settings.FeatureWidth);
         var gray = image.Pixels;
         var width = image.Width;

@@ -100,22 +100,26 @@ internal static class SurfaceTriangleIntersection
 
     public static bool Crosses(V3 start, V3 end, SurfaceTriangle triangle)
     {
-        var direction = end - start;
+        var depth = RayDepth(start, end - start, triangle);
+        return depth is > 1e-8 and < 1 - 1e-8;
+    }
+
+    public static double? RayDepth(V3 origin, V3 direction, SurfaceTriangle triangle)
+    {
         var edgeA = triangle.B - triangle.A;
         var edgeB = triangle.C - triangle.A;
         var cross = direction.Cross(edgeB);
         var determinant = edgeA.Dot(cross);
         if (Math.Abs(determinant) < 1e-12)
         {
-            return false;
+            return null;
         }
 
-        var offset = start - triangle.A;
+        var offset = origin - triangle.A;
         var u = offset.Dot(cross) / determinant;
         var q = offset.Cross(edgeA);
         var v = direction.Dot(q) / determinant;
-        var t = edgeB.Dot(q) / determinant;
         var inside = u >= -1e-8 && v >= -1e-8 && u + v <= 1 + 1e-8;
-        return inside && t > 1e-8 && t < 1 - 1e-8;
+        return inside ? edgeB.Dot(q) / determinant : null;
     }
 }

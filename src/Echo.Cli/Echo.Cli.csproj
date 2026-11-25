@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>echo</AssemblyName></PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Echo.ImageProjection/Echo.ImageProjection.csproj" />
     <ProjectReference Include="../Echo.Pipeline/Echo.Pipeline.csproj" />
     <ProjectReference Include="../Echo.Rendering/Echo.Rendering.csproj" />
   </ItemGroup>

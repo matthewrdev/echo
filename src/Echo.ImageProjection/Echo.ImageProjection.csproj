@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Echo.Features/Echo.Features.csproj" />
+    <ProjectReference Include="../Echo.Imaging/Echo.Imaging.csproj" />
+    <ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" />
+    <ProjectReference Include="../Echo.Matching/Echo.Matching.csproj" />
+    <ProjectReference Include="../Echo.Meshing/Echo.Meshing.csproj" />
+    <ProjectReference Include="../Echo.Reconstruction/Echo.Reconstruction.csproj" />
+    <ProjectReference Include="../Echo.Texturing/Echo.Texturing.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+  </ItemGroup>
+</Project>
