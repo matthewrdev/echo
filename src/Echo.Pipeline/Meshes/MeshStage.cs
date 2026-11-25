@@ -23,6 +23,7 @@ public sealed class MeshStage : IPipelineStage
     private readonly IEdgeCollapse edgeCollapse;
     private readonly IPlyWriter plyWriter;
     private readonly ISurfaceReconstructor surfaceReconstructor;
+    private readonly ISurfaceDetailRefitter detailRefitter;
     private readonly IComputeService? compute;
 
     public MeshStage(IFileOperations fileOperations,
@@ -31,6 +32,7 @@ public sealed class MeshStage : IPipelineStage
         IEdgeCollapse edgeCollapse,
         IPlyWriter plyWriter,
         ISurfaceReconstructor surfaceReconstructor,
+        ISurfaceDetailRefitter detailRefitter,
         IComputeService? compute = null)
     {
         this.fileOperations = fileOperations;
@@ -39,6 +41,7 @@ public sealed class MeshStage : IPipelineStage
         this.edgeCollapse = edgeCollapse;
         this.plyWriter = plyWriter;
         this.surfaceReconstructor = surfaceReconstructor;
+        this.detailRefitter = detailRefitter;
         this.compute = compute;
     }
 
@@ -62,7 +65,7 @@ public sealed class MeshStage : IPipelineStage
             ["fusionPath"] = fusionPath,
             ["depthUnits"] = depthUnits,
             ["alignment"] = alignment,
-            ["completionVersion"] = (project.Settings.MeshCompleteSurface ? 14 : 10)
+            ["completionVersion"] = (project.Settings.MeshCompleteSurface ? 16 : 10)
                 + (project.Settings.ExclusionRegions.Any(region => region.Shape == ExclusionShape.ProjectedHull) ? 1 : 0),
             ["meshCompleteSurface"] = project.Settings.MeshCompleteSurface,
             ["closeHull"] = project.Settings.MeshCompleteSurface && project.Settings.MeshCloseHull,
@@ -135,6 +138,8 @@ public sealed class MeshStage : IPipelineStage
                             supported = completionBuffers.Replace(work => SurfaceSupportFilter.Filter(reconstructed, observed, volume.VoxelSize * 24, cancellation, work, progress.Report));
                         }
 
+                        context.ReportProgress(Name, "Restoring observed detail on the completed surface…");
+                        supported = completionBuffers.Replace(work => detailRefitter.Refit(supported, observed, volume.VoxelSize * 6.5, cancellation, work));
                         context.ReportProgress(Name, "Adapting the completed surface to its geometric detail…");
                         reduced = geometryBuffers.Replace(work => edgeCollapse.Reduce(supported, project.Settings.FaceLimit, cancellation, detailTolerance, work: work, progress: progress.Report));
                         if (!project.Settings.MeshCloseHull)

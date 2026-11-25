@@ -9,14 +9,39 @@ namespace Echo.Tests;
 public sealed class FinalHoleRepairTests
 {
     private readonly IMeshBuilder meshes;
+    private readonly ISurfaceDetailRefitter refitter;
 
-    public FinalHoleRepairTests(IMeshBuilder meshes)
+    public FinalHoleRepairTests(IMeshBuilder meshes, ISurfaceDetailRefitter refitter)
     {
         this.meshes = meshes;
+        this.refitter = refitter;
     }
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Detail refitting recovers an observed interior without moving the scan boundary", () =>
+        {
+            var mesh = new Surface
+            {
+                Vertices = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0], [0, 0, 0]],
+                Faces = [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]],
+                SourceImages = ["first", "second", "third", "fourth"]
+            };
+            var observed = new Surface
+            {
+                Vertices = mesh.Vertices.Select(point => new[] { point[0], point[1], .2 }).ToArray(),
+                Faces = mesh.Faces
+            };
+            var result = refitter.Refit(mesh, observed, .3, default);
+            Check(Math.Abs(result.Vertices[4][2] - .2) < 1e-8 && mesh.Vertices[4][2] == 0,
+                "Only the result's interior moves to the observed height");
+            Check(result.Vertices.Take(4).Zip(mesh.Vertices).All(pair => pair.First.SequenceEqual(pair.Second)),
+                "The scan boundary stays fixed");
+            Check(result.Faces.SequenceEqual(mesh.Faces) && result.SourceImages.SequenceEqual(mesh.SourceImages),
+                "Refitting preserves face connectivity and photograph assignments");
+            var tooFar = refitter.Refit(mesh, observed, .1, default);
+            Check(tooFar.Vertices[4][2] == 0, "An observation outside the distance limit leaves the coarse surface intact");
+        });
         tests.Run("Curved cave gaps use bounded inference without moving measured rock at different scales", () =>
         {
             foreach (var scale in new[] { .001, 1.0, 1000.0 })
