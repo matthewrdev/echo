@@ -47,7 +47,7 @@ public sealed class TextureStage : IPipelineStage
             ["meshPath"] = meshPath,
             ["alignment"] = alignment,
             ["textureSize"] = project.Settings.TextureSize,
-            ["textureVersion"] = 18,
+            ["textureVersion"] = 19,
             ["texturePriority"] = project.Settings.TexturePriority,
             ["computeBackend"] = project.Settings.ComputeBackend,
             ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Texture),
@@ -107,7 +107,7 @@ public sealed class TextureStage : IPipelineStage
                         layout = layoutPlanner.Plan(project, scene, surface, cancellation,
                             message => context.ReportProgress(Name, message), vegetation, context.Work, progress.Report);
                         layouts.Write(Path.Combine(directory, "layout.bin"), layout, cancellation);
-                    }, algorithmVersion: "echo-texture-layout-v1", sources: [meshPath, alignment]);
+                    }, algorithmVersion: "echo-texture-layout-v2", sources: [meshPath, alignment]);
                     if (layout == null)
                     {
                         progress.Report(new OperationProgress("UV charts", "Loading saved UV charts…") { Steps = [] });

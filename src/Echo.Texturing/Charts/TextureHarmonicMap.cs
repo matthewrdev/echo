@@ -10,7 +10,7 @@ internal static class TextureHarmonicMap
     // It is still rejected when stretch is excessive, even if it is injective.
     public static double[]? Solve(TextureChartMesh chart, CancellationToken cancellation, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto)
     {
-        if (chart.Boundary.Length < 3)
+        if (chart.BoundaryLoops.Length != 1)
         {
             return null;
         }

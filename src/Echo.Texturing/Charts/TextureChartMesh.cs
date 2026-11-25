@@ -31,7 +31,8 @@ internal sealed class TextureChartMesh
         }
 
         Points = points.ToArray();
-        Boundary = FindBoundary();
+        BoundaryLoops = FindBoundaryLoops();
+        Boundary = BoundaryLoops.SelectMany(loop => loop).ToArray();
     }
 
     public Dictionary<int, int> LocalVertices { get; } = [];
@@ -44,12 +45,16 @@ internal sealed class TextureChartMesh
     {
         get;
     }
+    public int[][] BoundaryLoops
+    {
+        get;
+    }
     public double Area
     {
         get;
     }
 
-    private int[] FindBoundary()
+    private int[][] FindBoundaryLoops()
     {
         var edges = new Dictionary<TextureEdge, int>();
         foreach (var triangle in Triangles)
@@ -70,13 +75,6 @@ internal sealed class TextureChartMesh
 
                 state = exists ? 2 : direction;
             }
-        }
-
-        // A single consistently oriented boundary and Euler characteristic one
-        // are required by the convex-boundary harmonic fallback.
-        if (Points.Length - edges.Count + Triangles.Count != 1)
-        {
-            return [];
         }
 
         var next = new Dictionary<int, int>();
@@ -100,18 +98,37 @@ internal sealed class TextureChartMesh
             return [];
         }
 
-        var boundary = new List<int>();
-        var first = next.Keys.Min();
-        var current = first;
-        do
+        var loops = new List<int[]>();
+        foreach (var start in next.Keys.Order().ToArray())
         {
-            boundary.Add(current);
-            if (!next.Remove(current, out current))
+            if (!next.ContainsKey(start))
+            {
+                continue;
+            }
+
+            var loop = new List<int>();
+            var current = start;
+            do
+            {
+                loop.Add(current);
+                if (!next.Remove(current, out current))
+                {
+                    return [];
+                }
+            }
+            while (current != start);
+
+            if (loop.Count < 3)
             {
                 return [];
             }
+
+            loops.Add(loop.ToArray());
         }
-        while (current != first);
-        return next.Count == 0 ? boundary.ToArray() : [];
+
+        // A planar chart may have holes. Euler characteristic rules out
+        // handles even when all boundary edges form individually valid loops.
+        var euler = Points.Length - edges.Count + Triangles.Count;
+        return euler == 2 - loops.Count ? loops.ToArray() : [];
     }
 }

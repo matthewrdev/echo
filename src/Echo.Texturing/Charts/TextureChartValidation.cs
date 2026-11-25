@@ -2,7 +2,7 @@ namespace Echo.Texturing.Charts;
 
 internal static class TextureChartValidation
 {
-    public static bool Accept(TextureChartMesh chart, double[] coordinates, CancellationToken cancellation)
+    public static bool Accept(TextureChartMesh chart, double[] coordinates, CancellationToken cancellation, bool compactAtlas = false)
     {
         if (coordinates.Any(value => !double.IsFinite(value)) || chart.Boundary.Length < 3)
         {
@@ -34,6 +34,8 @@ internal static class TextureChartValidation
         }
 
         var distortedArea = 0.0;
+        var severelyDistortedArea = 0.0;
+        var severelyDistortedUvArea = 0.0;
         foreach (var triangle in chart.Triangles)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -59,10 +61,16 @@ internal static class TextureChartValidation
             var trace = j00 * j00 + j01 * j01 + j10 * j10 + j11 * j11;
             var maximum = Math.Sqrt((trace + Math.Sqrt(Math.Max(0, trace * trace - 4 * determinant * determinant))) * .5);
             var minimum = determinant / maximum;
-            var severeStretch = minimum < .1 || maximum > 10 || maximum > minimum * 16;
-            if (severeStretch || !double.IsFinite(maximum))
+            if (!double.IsFinite(maximum) || !(minimum > 0))
             {
                 return false;
+            }
+
+            var severeStretch = minimum < .1 || maximum > 10 || maximum > minimum * 16;
+            if (severeStretch)
+            {
+                severelyDistortedArea += doubledArea * .5;
+                severelyDistortedUvArea += determinant * doubledArea * .5;
             }
 
             var appreciableStretch = minimum < .5 || maximum > 2 || maximum > minimum * 3;
@@ -72,7 +80,12 @@ internal static class TextureChartValidation
             }
         }
 
-        if (distortedArea > chart.Area * .05)
+        // Tiny charts consume a larger share of a compact atlas in gutters.
+        // Bound severe stretch in both surface and UV area to retain density.
+        var severeLimit = compactAtlas ? .02 : .005;
+        var appreciableLimit = compactAtlas ? .20 : .05;
+        var excessiveSevereStretch = Math.Max(severelyDistortedArea, severelyDistortedUvArea) > chart.Area * severeLimit;
+        if (excessiveSevereStretch || distortedArea > chart.Area * appreciableLimit)
         {
             return false;
         }
@@ -86,10 +99,8 @@ internal static class TextureChartValidation
         {
             return false;
         }
-        // For an oriented triangulated disk, positive triangle Jacobians plus a
-        // simple boundary imply a globally injective piecewise-linear map. Test
-        // boundary crossings AND touching; positive areas alone are insufficient.
-        var boundary = chart.Boundary;
+        // Positive triangle Jacobians and an oriented, simple boundary give
+        // the map degree one inside the chart and zero in each hole.
         var minimumX = double.PositiveInfinity;
         var minimumY = double.PositiveInfinity;
         var maximumX = double.NegativeInfinity;
@@ -104,18 +115,67 @@ internal static class TextureChartValidation
 
         var extent = Math.Max(maximumX - minimumX, maximumY - minimumY);
         var tolerance = extent * extent * 1e-14;
-        for (var first = 0; first < boundary.Length; first++)
+        var edges = new List<TextureEdge>(chart.Boundary.Length);
+        int[]? outer = null;
+        foreach (var loop in chart.BoundaryLoops)
         {
-            cancellation.ThrowIfCancellationRequested();
-            for (var second = first + 2; second < boundary.Length; second++)
+            var area = 0.0;
+            for (var index = 0; index < loop.Length; index++)
             {
-                if (first == 0 && second == boundary.Length - 1)
+                var a = loop[index];
+                var b = loop[(index + 1) % loop.Length];
+                edges.Add(new TextureEdge(a, b));
+                area += Cross(coordinates, loop[0], a, b);
+            }
+
+            if (Math.Abs(area) <= tolerance)
+            {
+                return false;
+            }
+
+            if (area > 0)
+            {
+                if (outer != null)
                 {
-                    continue;
+                    return false;
                 }
 
-                if (Intersects(coordinates, boundary[first], boundary[(first + 1) % boundary.Length],
-                    boundary[second], boundary[(second + 1) % boundary.Length], tolerance))
+                outer = loop;
+            }
+        }
+
+        if (outer == null)
+        {
+            return false;
+        }
+
+        var holes = chart.BoundaryLoops.Where(loop => loop != outer).ToArray();
+        foreach (var hole in holes)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            if (!Contains(coordinates, outer, hole[0]))
+            {
+                return false;
+            }
+
+            foreach (var other in holes)
+            {
+                if (hole != other && Contains(coordinates, other, hole[0]))
+                {
+                    return false;
+                }
+            }
+        }
+
+        for (var first = 0; first < edges.Count; first++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var a = edges[first];
+            for (var second = first + 1; second < edges.Count; second++)
+            {
+                var b = edges[second];
+                var adjacent = a.A == b.B || a.B == b.A;
+                if (!adjacent && Intersects(coordinates, a.A, a.B, b.A, b.B, tolerance))
                 {
                     return false;
                 }
@@ -123,6 +183,26 @@ internal static class TextureChartValidation
         }
 
         return true;
+    }
+
+    private static bool Contains(double[] uv, int[] loop, int vertex)
+    {
+        var x = uv[vertex * 2];
+        var y = uv[vertex * 2 + 1];
+        var inside = false;
+        for (var index = 0; index < loop.Length; index++)
+        {
+            var a = loop[index] * 2;
+            var b = loop[(index + 1) % loop.Length] * 2;
+            var ay = uv[a + 1];
+            var by = uv[b + 1];
+            if ((ay > y) != (by > y) && x < uv[a] + (y - ay) * (uv[b] - uv[a]) / (by - ay))
+            {
+                inside = !inside;
+            }
+        }
+
+        return inside;
     }
 
     private static bool Intersects(double[] uv, int a, int b, int c, int d, double tolerance)

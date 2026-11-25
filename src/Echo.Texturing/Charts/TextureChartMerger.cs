@@ -9,7 +9,8 @@ namespace Echo.Texturing.Charts;
 internal static class TextureChartMerger
 {
     public static List<TexturePatch> Merge(TextureChartGeometry geometry, List<TexturePatch> patches, int maximumFaces,
-        IReadOnlyList<int>? materials, CancellationToken cancellation, Action<string>? progress, IComputeService? compute = null, ComputeBackend backend = ComputeBackend.Auto, IPerformanceTrace? trace = null)
+        IReadOnlyList<int>? materials, CancellationToken cancellation, Action<string>? progress, IComputeService? compute = null,
+        ComputeBackend backend = ComputeBackend.Auto, IPerformanceTrace? trace = null, bool compactAtlas = false)
     {
         var owner = new int[geometry.Surface.Faces.Count];
         for (var index = 0; index < patches.Count; index++)
@@ -29,7 +30,8 @@ internal static class TextureChartMerger
         var validationTicks = 0L;
         var neighbours = new Dictionary<int, double>();
         var scratch = new TextureLinearSystem(0);
-        for (var pass = 0; pass < 4; pass++)
+        const int maximumPasses = 8;
+        for (var pass = 0; pass < maximumPasses; pass++)
         {
             var previous = merged;
             var order = Enumerable.Range(0, active.Length).Where(index => active[index] != null)
@@ -81,7 +83,13 @@ internal static class TextureChartMerger
                     var started = Stopwatch.GetTimestamp();
                     var coordinates = TextureConformalMap.Solve(chart, cancellation, compute, backend, scratch);
                     var solved = Stopwatch.GetTimestamp();
-                    var accepted = coordinates != null && TextureChartValidation.Accept(chart, coordinates, cancellation);
+                    var accepted = coordinates != null && TextureChartValidation.Accept(chart, coordinates, cancellation, compactAtlas);
+                    if (!accepted)
+                    {
+                        coordinates = TexturePlanarMap.Solve(chart, cancellation);
+                        accepted = coordinates != null && TextureChartValidation.Accept(chart, coordinates, cancellation, compactAtlas);
+                    }
+
                     solveTicks += solved - started;
                     validationTicks += Stopwatch.GetTimestamp() - solved;
                     if (!accepted)
@@ -103,7 +111,7 @@ internal static class TextureChartMerger
                 }
             }
 
-            progress?.Invoke($"Merging compatible UV charts: pass {pass + 1}/4, {patches.Count - merged:N0} charts remaining.");
+            progress?.Invoke($"Merging compatible UV charts: pass {pass + 1}/{maximumPasses}, {patches.Count - merged:N0} charts remaining.");
             if (merged == previous)
             {
                 break;

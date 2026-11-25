@@ -61,6 +61,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
 
         var patches = new List<TexturePatch>();
         var scratch = new TextureLinearSystem(0);
+        var compactAtlas = project.Settings.TextureSize <= 1024;
         progress?.Invoke($"Parameterizing {regions.Count:N0} connected surface regions…");
         var completed = 0;
         operationProgress?.Invoke(new OperationProgress("UV charts", "Parameterizing connected surface regions…", 0, regions.Count, "regions") { Steps = steps, StepIndex = 2 });
@@ -68,7 +69,7 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         {
             foreach (var region in regions)
             {
-                Unwrap(geometry, region, patches, cancellation, project.Settings.ComputeBackend, scratch);
+                Unwrap(geometry, region, patches, cancellation, project.Settings.ComputeBackend, scratch, compactAtlas);
                 completed++;
                 if (completed % 1000 == 0 || completed == regions.Count)
                 {
@@ -83,7 +84,8 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
         operationProgress?.Invoke(new OperationProgress("UV charts", "Merging compatible UV charts…") { Steps = steps, StepIndex = 3 });
         using (trace?.Begin("Merge texture charts", PerformanceSpanKind.Operation, PerformanceBackend.Mixed))
         {
-            patches = TextureChartMerger.Merge(geometry, patches, project.Settings.TextureChartFaces, groups, cancellation, progress, compute, project.Settings.ComputeBackend, trace);
+            patches = TextureChartMerger.Merge(geometry, patches, project.Settings.TextureChartFaces, groups, cancellation,
+                progress, compute, project.Settings.ComputeBackend, trace, compactAtlas);
         }
 
         operationProgress?.Invoke(new OperationProgress("UV charts", "Orienting UV charts…") { Steps = steps, StepIndex = 4 });
@@ -100,30 +102,41 @@ public sealed class TexturePatchBuilder : ITexturePatchBuilder
     }
 
     private void Unwrap(TextureChartGeometry geometry, List<int> faces, List<TexturePatch> patches,
-        CancellationToken cancellation, ComputeBackend backend, TextureLinearSystem scratch)
+        CancellationToken cancellation, ComputeBackend backend, TextureLinearSystem scratch, bool compactAtlas)
     {
         cancellation.ThrowIfCancellationRequested();
         var chart = new TextureChartMesh(geometry, faces);
-        var coordinates = TextureConformalMap.Solve(chart, cancellation, compute, backend, scratch);
-        if (coordinates == null || !TextureChartValidation.Accept(chart, coordinates, cancellation))
+        var conformal = TextureConformalMap.Solve(chart, cancellation, compute, backend, scratch);
+        var coordinates = conformal;
+        var accepted = coordinates != null && TextureChartValidation.Accept(chart, coordinates, cancellation, compactAtlas);
+        if (!accepted)
         {
-            coordinates = TextureHarmonicMap.Solve(chart, cancellation, compute, backend);
-            if (coordinates == null || !TextureChartValidation.Accept(chart, coordinates, cancellation))
-            {
-                if (faces.Count == 1)
-                {
-                    throw new EchoException("Cannot unwrap a degenerate surface triangle.", 5);
-                }
-
-                foreach (var part in TextureChartRegions.Split(geometry, faces, cancellation))
-                {
-                    Unwrap(geometry, part, patches, cancellation, backend, scratch);
-                }
-
-                return;
-            }
+            coordinates = TexturePlanarMap.Solve(chart, cancellation);
+            accepted = coordinates != null && TextureChartValidation.Accept(chart, coordinates, cancellation, compactAtlas);
         }
 
-        patches.Add(TextureChartPatch.Create(geometry, chart, faces, coordinates));
+        if (!accepted)
+        {
+            coordinates = TextureHarmonicMap.Solve(chart, cancellation, compute, backend);
+            accepted = coordinates != null && TextureChartValidation.Accept(chart, coordinates, cancellation, compactAtlas);
+        }
+
+        if (accepted)
+        {
+            patches.Add(TextureChartPatch.Create(geometry, chart, faces, coordinates!));
+            return;
+        }
+
+        if (faces.Count == 1)
+        {
+            throw new EchoException("Cannot unwrap a degenerate surface triangle.", 5);
+        }
+
+        var parts = TextureChartRegions.SplitLocalFold(geometry, chart, faces, conformal, cancellation)
+            ?? TextureChartRegions.Split(geometry, faces, cancellation);
+        foreach (var part in parts)
+        {
+            Unwrap(geometry, part, patches, cancellation, backend, scratch, compactAtlas);
+        }
     }
 }

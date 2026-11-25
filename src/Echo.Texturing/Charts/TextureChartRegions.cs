@@ -154,6 +154,47 @@ internal static class TextureChartRegions
         }
     }
 
+    public static List<List<int>>? SplitLocalFold(TextureChartGeometry geometry, TextureChartMesh chart,
+        List<int> faces, double[]? coordinates, CancellationToken cancellation)
+    {
+        if (coordinates == null || faces.Count < 16)
+        {
+            return null;
+        }
+
+        var folded = new HashSet<int>();
+        for (var index = 0; index < faces.Count; index++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var triangle = chart.Triangles[index];
+            var a = triangle[0] * 2;
+            var b = triangle[1] * 2;
+            var c = triangle[2] * 2;
+            var determinant = (coordinates[b] - coordinates[a]) * (coordinates[c + 1] - coordinates[a + 1])
+                - (coordinates[b + 1] - coordinates[a + 1]) * (coordinates[c] - coordinates[a]);
+            if (!(determinant > 0))
+            {
+                folded.Add(faces[index]);
+            }
+        }
+
+        var localDefect = folded.Count > 0 && folded.Count <= Math.Max(1, faces.Count / 20);
+        if (!localDefect)
+        {
+            return null;
+        }
+
+        var remaining = faces.Where(face => !folded.Contains(face)).ToHashSet();
+        var parts = ConnectedParts(geometry, faces, remaining, cancellation);
+        if (parts.Max(part => part.Count) < faces.Count * .9)
+        {
+            return null;
+        }
+
+        parts.AddRange(ConnectedParts(geometry, faces, folded, cancellation));
+        return parts;
+    }
+
     public static List<List<int>> Split(TextureChartGeometry geometry, List<int> faces, CancellationToken cancellation)
     {
         var centre = default(V3);
@@ -188,7 +229,15 @@ internal static class TextureChartRegions
         }
 
         var parts = new List<List<int>> { first };
-        pending.Clear();
+        parts.AddRange(ConnectedParts(geometry, faces, remaining, cancellation));
+        return parts;
+    }
+
+    private static List<List<int>> ConnectedParts(TextureChartGeometry geometry, List<int> faces, HashSet<int> remaining,
+        CancellationToken cancellation)
+    {
+        var parts = new List<List<int>>();
+        var pending = new Queue<int>();
         foreach (var start in faces)
         {
             if (!remaining.Contains(start))

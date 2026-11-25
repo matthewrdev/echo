@@ -63,6 +63,31 @@ public sealed class TextureParameterizationTests
             }).ToArray();
             Check(!TextureChartValidation.HasSimpleBoundary(wrappedChart, overlap, default), "Overlapping boundary is rejected even when local triangles can be positive");
         });
+        tests.Run("A planar surface with a hole unwraps in one chart", () =>
+        {
+            var mesh = new Surface
+            {
+                Vertices = [[0, 0, 0], [3, 0, 0], [3, 3, 0], [0, 3, 0], [1, 1, 0], [2, 1, 0], [2, 2, 0], [1, 2, 0]],
+                Faces = [[0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]]
+            };
+            var geometry = new TextureChartGeometry(mesh, default);
+            var chart = new TextureChartMesh(geometry, Enumerable.Range(0, mesh.Faces.Count).ToArray());
+            Check(chart.BoundaryLoops.Length == 2, "The ring retains both its outer boundary and its hole");
+            var coordinates = chart.Points.SelectMany(point => new[] { point.X, point.Y }).ToArray();
+            Check(TextureChartValidation.Accept(chart, coordinates, default), "A correctly wound hole is valid");
+            for (var vertex = 0; vertex < chart.Points.Length; vertex++)
+            {
+                if (chart.Points[vertex].X is 1 or 2)
+                {
+                    coordinates[vertex * 2] += 4;
+                }
+            }
+
+            Check(!TextureChartValidation.HasSimpleBoundary(chart, coordinates, default), "A hole outside the outer boundary is invalid");
+            var patches = builder.Build(new ProjectData(), new ReconstructionScene(), mesh, default);
+            Check(patches.Count == 1, "The hole does not create a separate chart");
+            Validate(geometry, patches);
+        });
         tests.Run("Conformal chart construction is invariant to model units and honours cancellation", () =>
         {
             foreach (var scale in new[] { 1e-4, 1e4 })
