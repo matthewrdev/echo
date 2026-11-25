@@ -1,5 +1,6 @@
 using Echo.Geometry;
 using Echo.Meshing.Geometry;
+using Echo.Meshing.Topology;
 using Echo.Models;
 using Echo.Storage.Pages;
 using Echo.Storage.Records;
@@ -11,7 +12,7 @@ namespace Echo.Meshing.Repair;
 internal static class SurfaceBoundaryLoops
 {
     public static IEnumerable<SurfaceBoundaryLoop> Find(Surface mesh, CancellationToken cancellation, WorkBuffers? work = null, Action<OperationProgress>? progress = null,
-        BinaryHashIndex<SurfaceEdge, BoundaryEdge>? repairEdges = null)
+        BinaryHashIndex<SurfaceEdge, BoundaryEdge>? repairEdges = null, SurfaceTopologyReport? topology = null)
     {
         using var scratch = work?.CreateScope();
         work = scratch;
@@ -20,80 +21,125 @@ internal static class SurfaceBoundaryLoops
         IList<int> twins = work?.Filled(checked(faceCount * 3), -1, new IntRecordCodec()) ?? Enumerable.Repeat(-1, checked(faceCount * 3)).ToArray();
         var edges = repairEdges == null ? new BinaryHashIndex<SurfaceEdge, int>(faceCount, new SurfaceEdgeRecordCodec(), new IntRecordCodec(), work, cancellation) : null;
         IList<V3> normals = work?.Filled(faceCount, default(V3), new V3RecordCodec()) ?? new V3[faceCount];
-        for (var index = 0; index < mesh.Faces.Count; index++)
+        var faceBatch = new SurfaceTriangleVertices[Math.Min(1024, faceCount)];
+        for (var first = 0; first < faceCount; first += faceBatch.Length)
         {
-            cancellation.ThrowIfCancellationRequested();
-            if (index % 10000 == 0)
+            var count = Math.Min(faceBatch.Length, faceCount - first);
+            reader.ReadFaces(first, faceBatch.AsSpan(0, count));
+            for (var relative = 0; relative < count; relative++)
             {
-                progress?.Invoke(new OperationProgress("Boundary detection", "Finding open surface boundaries…", index, faceCount, "triangles"));
-            }
-
-            var face = reader.Face(index);
-            var a = reader.Vertex(face.A);
-            normals[index] = (reader.Vertex(face.B) - a).Cross(reader.Vertex(face.C) - a).Unit;
-            for (var corner = 0; corner < 3; corner++)
-            {
-                var from = face[corner];
-                var to = face[(corner + 1) % 3];
-                var key = new SurfaceEdge(Math.Min(from, to), Math.Max(from, to));
-                var slot = index * 3 + corner;
-                var other = -1;
-                bool found;
-                if (repairEdges != null)
+                var index = first + relative;
+                cancellation.ThrowIfCancellationRequested();
+                if (index % 10000 == 0)
                 {
-                    found = repairEdges.TryGetValue(key, out var existing);
-                    other = existing.Halfedge;
-                    repairEdges[key] = found
-                        ? existing with
-                        {
-                            Count = existing.Count + 1
-                        }
-                        : new BoundaryEdge(from, to, normals[index], 1, slot);
+                    progress?.Invoke(new OperationProgress("Boundary detection", "Finding open surface boundaries…", index, faceCount, "triangles"));
                 }
-                else
+
+                var face = faceBatch[relative];
+                var a = reader.Vertex(face.A);
+                var normal = (reader.Vertex(face.B) - a).Cross(reader.Vertex(face.C) - a);
+                normals[index] = normal.Unit;
+                if (topology != null)
                 {
-                    found = edges!.TryGetValue(key, out other);
-                    if (!found)
+                    var area = normal.Length;
+                    if (!double.IsFinite(area) || area <= 0)
                     {
-                        edges.Add(key, slot);
+                        topology.DegenerateFaces++;
                     }
                 }
 
-                if (!found)
+                for (var corner = 0; corner < 3; corner++)
                 {
-                    continue;
-                }
-                else if (other >= 0 && twins[other] == -1)
-                {
-                    var opposite = reader.Face(other / 3)[other % 3] == to;
-                    twins[slot] = opposite ? other : -2;
-                    twins[other] = opposite ? slot : -2;
-                }
-                else
-                {
-                    if (other >= 0)
-                    {
-                        if (twins[other] >= 0)
-                        {
-                            twins[twins[other]] = -2;
-                        }
-
-                        twins[other] = -2;
-                    }
-
-                    twins[slot] = -2;
+                    var from = face[corner];
+                    var to = face[(corner + 1) % 3];
+                    var key = new SurfaceEdge(Math.Min(from, to), Math.Max(from, to));
+                    var slot = index * 3 + corner;
+                    var other = -1;
+                    bool found;
+                    var opposite = false;
                     if (repairEdges != null)
                     {
-                        repairEdges[key] = repairEdges[key] with
+                        found = repairEdges.TryGetValue(key, out var existing);
+                        other = existing.Halfedge;
+                        opposite = existing.From == to;
+                        if (topology != null && found && existing.Count == 1 && existing.From == from)
                         {
-                            Halfedge = -2
-                        };
+                            topology.WindingConflicts++;
+                        }
+
+                        repairEdges[key] = found
+                            ? existing with
+                            {
+                                Count = existing.Count + 1
+                            }
+                            : new BoundaryEdge(from, to, normals[index], 1, slot);
                     }
                     else
                     {
-                        edges![key] = -2;
+                        found = edges!.TryGetValue(key, out other);
+                        opposite = found && other >= 0 && reader.Face(other / 3)[other % 3] == to;
+                        if (!found)
+                        {
+                            edges.Add(key, slot);
+                        }
+                    }
+
+                    if (!found)
+                    {
+                        continue;
+                    }
+                    else if (other >= 0 && twins[other] == -1)
+                    {
+                        twins[slot] = opposite ? other : -2;
+                        twins[other] = opposite ? slot : -2;
+                    }
+                    else
+                    {
+                        if (other >= 0)
+                        {
+                            if (twins[other] >= 0)
+                            {
+                                twins[twins[other]] = -2;
+                            }
+
+                            twins[other] = -2;
+                        }
+
+                        twins[slot] = -2;
+                        if (repairEdges != null)
+                        {
+                            repairEdges[key] = repairEdges[key] with
+                            {
+                                Halfedge = -2
+                            };
+                        }
+                        else
+                        {
+                            edges![key] = -2;
+                        }
                     }
                 }
+            }
+        }
+
+        if (topology != null)
+        {
+            foreach (var edge in repairEdges!.Values)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                if (edge.Count == 1)
+                {
+                    topology.BoundaryEdges++;
+                }
+                else if (edge.Count > 2)
+                {
+                    topology.NonManifoldEdges++;
+                }
+            }
+
+            if (topology.BoundaryEdges == 0)
+            {
+                yield break;
             }
         }
 

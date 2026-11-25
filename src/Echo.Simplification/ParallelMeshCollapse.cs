@@ -126,7 +126,8 @@ internal static class ParallelMeshCollapse
         workers = Math.Min(workers, regionCount);
         var updates = new ParallelCollapseProgress(regionCount, workers, progress);
         progress?.Invoke(new OperationProgress("Parallel edge collapse", $"Simplifying {regionCount} independent regions with {workers} CPU workers…", 0, null, "candidates"));
-        Parallel.For(0, regionCount, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = workers }, index =>
+        var schedule = Enumerable.Range(0, regionCount).OrderByDescending(index => regions[index].Faces.Count).ToArray();
+        Parallel.ForEach(schedule, new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = workers }, index =>
         {
             var region = regions[index];
             // Error-limited local passes must not spend an equal face quota on

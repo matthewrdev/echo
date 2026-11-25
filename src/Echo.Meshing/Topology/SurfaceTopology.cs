@@ -17,63 +17,11 @@ public static class SurfaceTopology
         var main = SurfaceIslandTrimmer.Trim(source, IslandTrimMode.Main, 0, cancellation, scratch).Surface;
         var mesh = Weld(main, cancellation, scratch);
         var report = new SurfaceTopologyReport { MainHullFaces = mesh.Faces.Count };
-        var reader = new SurfaceGeometryReader(mesh);
         var edges = new BinaryHashIndex<SurfaceEdge, BoundaryEdge>(mesh.Faces.Count,
             new SurfaceEdgeRecordCodec(), new BoundaryEdgeRecordCodec(), scratch, cancellation);
-        for (var index = 0; index < mesh.Faces.Count; index++)
+        foreach (var boundary in SurfaceBoundaryLoops.Find(mesh, cancellation, scratch, repairEdges: edges, topology: report))
         {
-            cancellation.ThrowIfCancellationRequested();
-            var face = reader.Face(index);
-            var origin = reader.Vertex(face.A);
-            var area = (reader.Vertex(face.B) - origin).Cross(reader.Vertex(face.C) - origin).Length;
-            if (!double.IsFinite(area) || area <= 0)
-            {
-                report.DegenerateFaces++;
-            }
-
-            for (var corner = 0; corner < 3; corner++)
-            {
-                var from = face[corner];
-                var to = face[(corner + 1) % 3];
-                var key = new SurfaceEdge(Math.Min(from, to), Math.Max(from, to));
-                if (edges.TryGetValue(key, out var existing))
-                {
-                    if (existing.Count == 1 && existing.From == from)
-                    {
-                        report.WindingConflicts++;
-                    }
-
-                    edges[key] = existing with
-                    {
-                        Count = existing.Count + 1
-                    };
-                }
-                else
-                {
-                    edges.Add(key, new BoundaryEdge(from, to, default, 1));
-                }
-            }
-        }
-
-        foreach (var edge in edges.Values)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            if (edge.Count == 1)
-            {
-                report.BoundaryEdges++;
-            }
-            else if (edge.Count > 2)
-            {
-                report.NonManifoldEdges++;
-            }
-        }
-
-        if (report.BoundaryEdges > 0)
-        {
-            foreach (var boundary in SurfaceBoundaryLoops.Find(mesh, cancellation, scratch))
-            {
-                report.Boundaries.Add(Describe(mesh, boundary));
-            }
+            report.Boundaries.Add(Describe(mesh, boundary));
         }
 
         return report;
