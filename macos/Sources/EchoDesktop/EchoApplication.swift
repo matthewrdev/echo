@@ -35,7 +35,8 @@ struct EchoApplication: App {
             client: projects, project: options.project, logReader: RunLogReader(formatter: formatter),
             eventFormatter: formatter, recentProjectStore: UserDefaultsRecentProjectStore(defaults: .standard),
             clipboard: SystemTextClipboard(), commandLog: commandLog,
-            projectThumbnails: ProjectThumbnailLoader(scenes: NativeSceneFactory(), json: json, glb: GlbAssetReader()))
+            projectThumbnails: ProjectThumbnailLoader(scenes: NativeSceneFactory(), json: json, glb: GlbAssetReader()),
+            fileDialogLocations: FileDialogLocations(defaults: .standard))
         _workspace = StateObject(wrappedValue: workspace)
         _artifacts = StateObject(wrappedValue: ArtifactViewModel(reader: reader))
         appDelegate.isImportingDrone = { [weak droneImport] in droneImport?.busy == true }

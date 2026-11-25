@@ -46,8 +46,8 @@ struct DroneImportEntryPoint: View {
             onDismiss: { mountRevision += 1 },
             content: { source in
                 DroneImportView(
-                    model: model, source: source, didCreate: workspace.recordDroneProject,
-                    openProject: workspace.openDroneProject)
+                    model: model, source: source, fileDialogLocations: workspace.fileDialogLocations,
+                    didCreate: workspace.recordDroneProject, openProject: workspace.openDroneProject)
             })
     }
 }

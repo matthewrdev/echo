@@ -151,7 +151,7 @@ struct GeoreferenceView: View {
         panel.nameFieldStringValue = "Echo-GIS-\(run.id.prefix(8))"
         panel.message = "Exports GeoPackage, GeoJSON, GeoTIFF and available Redpoint, 3D Tiles and LAS data."
         panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        guard let destination = workspace.fileDialogLocations.choose(panel, for: .geographicExport) else { return }
         model.exporting = true
         model.exportMessage = nil
         let root = workspace.root

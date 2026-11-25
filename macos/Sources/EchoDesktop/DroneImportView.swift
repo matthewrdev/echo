@@ -4,6 +4,7 @@ import SwiftUI
 struct DroneImportView: View {
     @ObservedObject var model: DroneImportViewModel
     let source: DroneSource
+    let fileDialogLocations: FileDialogLocations
     let didCreate: (DroneImportProject) -> Void
     let openProject: (DroneImportProject) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -152,7 +153,7 @@ struct DroneImportView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = fileDialogLocations.choose(panel, for: .droneImportDestination) else { return }
         destination = url
         confirmsImport = true
     }

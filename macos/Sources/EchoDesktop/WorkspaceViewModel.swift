@@ -89,7 +89,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         self.logReader = logReader
         self.eventFormatter = eventFormatter
         self.client = client
-        performance = PerformanceTraceViewModel(client: client)
+        performance = PerformanceTraceViewModel(client: client, fileDialogLocations: fileDialogLocations)
         self.commandLog = commandLog
         self.projectThumbnails = projectThumbnails
         root = project
@@ -492,7 +492,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         panel.title = "Open Echo project"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = fileDialogLocations.choose(panel, for: .openProject) else { return }
         open(path: url.path)
     }
 
@@ -627,7 +627,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         let panel = NSSavePanel()
         panel.title = "Create Echo project"
         panel.nameFieldStringValue = "Cliff.echo"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = fileDialogLocations.choose(panel, for: .newProject) else { return }
         perform("Creating project…") {
             try await self.client.command(root: nil, arguments: ["project", "init", url.path], progress: { _ in })
             self.root = url.path
@@ -641,7 +641,7 @@ final class WorkspaceViewModel: ObservableObject, ApplicationWork {
         panel.title = "Import a photo folder"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = fileDialogLocations.choose(panel, for: .importPhotos) else { return }
         importPhotos(from: url)
     }
 

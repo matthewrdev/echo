@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 @MainActor
 final class PerformanceTraceViewModel: ObservableObject {
     private let client: ProjectClient
+    private let fileDialogLocations: FileDialogLocations
     private var root = ""
     private var historyStages: Set<String> = []
     @Published var attempts: [PerformanceTraceSummary] = []
@@ -15,7 +16,10 @@ final class PerformanceTraceViewModel: ObservableObject {
     @Published var originalTimings: [String: PerformanceStageTiming] = [:]
     @Published var error: String?
 
-    init(client: ProjectClient) { self.client = client }
+    init(client: ProjectClient, fileDialogLocations: FileDialogLocations) {
+        self.client = client
+        self.fileDialogLocations = fileDialogLocations
+    }
 
     func refresh(root: String, preferredRun: String?) async {
         if self.root != root {
@@ -79,7 +83,7 @@ final class PerformanceTraceViewModel: ObservableObject {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "echo-trace-\(document.summary.id).json"
-        guard panel.runModal() == .OK, let file = panel.url else { return }
+        guard let file = fileDialogLocations.choose(panel, for: .performanceTraceExport) else { return }
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

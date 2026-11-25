@@ -85,7 +85,9 @@ final class PerformanceStageHistoryTests: XCTestCase {
         let cli = TestPerformanceCLIClient()
         cli.documents = [current, original]
         cli.artifacts = ["run": ["features": "artifacts/features/saved"]]
-        let model = PerformanceTraceViewModel(client: CLIProjectClient(cli: cli, traces: cli))
+        let model = PerformanceTraceViewModel(
+            client: CLIProjectClient(cli: cli, traces: cli),
+            fileDialogLocations: FileDialogLocations(defaults: .standard))
         await model.refresh(root: "/project", preferredRun: "run")
         XCTAssertNil(model.error)
         XCTAssertEqual(model.originalTimings["features"]?.milliseconds, 84_000)
