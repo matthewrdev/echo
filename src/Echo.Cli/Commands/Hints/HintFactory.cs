@@ -29,6 +29,16 @@ public sealed class HintFactory : IHintFactory
                 };
             }
 
+            if (args.Options.ContainsKey("vertical-uncertainty"))
+            {
+                if (!args.Options.ContainsKey("uncertainty"))
+                {
+                    throw new EchoException("Specify horizontal --uncertainty when supplying --vertical-uncertainty.", 2);
+                }
+
+                hint.VerticalUncertaintyMetres = args.Number("vertical-uncertainty");
+            }
+
             if (args.Options.ContainsKey("yaw") || args.Options.ContainsKey("pitch"))
             {
                 hint.Attitude = new Attitude

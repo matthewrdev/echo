@@ -17,9 +17,14 @@ internal readonly record struct CameraPrior
             UncertaintyMetres = position.UncertaintyMetres
         };
         Attitude = photo.Attitude;
+        VerticalUncertaintyMetres = null;
     }
 
     public GeoPosition? Position
+    {
+        get; init;
+    }
+    public double? VerticalUncertaintyMetres
     {
         get; init;
     }

@@ -8,7 +8,11 @@ internal static class SceneGeoreferencer
     public static bool TryApply(ReconstructionScene scene, IReadOnlyDictionary<string, CameraPrior> priors,
         Random random, CancellationToken cancellation)
     {
-        var origin = priors.Values.Select(prior => prior.Position).FirstOrDefault(position => position != null);
+        var precise = scene.Cameras.Select(camera => priors[camera.ImageId]).Where(prior =>
+            prior.VerticalUncertaintyMetres.HasValue && prior.Position != null
+                && GeographicCoordinates.HasEllipsoidalHeight(prior.Position)).ToArray();
+        var usePrecise = precise.Length >= 3;
+        var origin = usePrecise ? precise[0].Position : priors.Values.Select(prior => prior.Position).FirstOrDefault(position => position != null);
         if (origin == null)
         {
             return false;
@@ -17,11 +21,20 @@ internal static class SceneGeoreferencer
         var positions = new List<PositionCorrespondence>();
         foreach (var camera in scene.Cameras)
         {
-            var position = priors[camera.ImageId].Position;
-            if (position != null)
+            var prior = priors[camera.ImageId];
+            var position = prior.Position;
+            if (position == null)
             {
+                continue;
+            }
+
+            var trusted = prior.VerticalUncertaintyMetres.HasValue && GeographicCoordinates.HasEllipsoidalHeight(position);
+            if (!usePrecise || trusted)
+            {
+                var tolerance = usePrecise ? Math.Max(1, 3 * Math.Max(position.UncertaintyMetres, prior.VerticalUncertaintyMetres!.Value))
+                    : position.UncertaintyMetres;
                 positions.Add(new PositionCorrespondence(new V3(camera.Centre),
-                    CameraGeometry.ToLocal(position, origin), position.UncertaintyMetres));
+                    CameraGeometry.ToLocal(position, origin), tolerance));
             }
         }
 

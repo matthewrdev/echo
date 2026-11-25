@@ -12,6 +12,16 @@ public static class CameraRegistrar
         return Register(photo, CollectObservations(photo.Id, pairs, points, cancellation), random, cancellation);
     }
 
+    public static CameraPose? FitPlanar(Photo photo, IReadOnlyList<CameraControlPoint> controls)
+    {
+        var observations = controls.Select(control => new Observation
+        {
+            Pixel = control.Pixel,
+            Point = control.Position.Array
+        }).ToArray();
+        return observations.Length >= 4 ? PlanarPoseEstimator.Fit(photo, observations) : null;
+    }
+
     private static List<Observation> CollectObservations(string imageId, List<ImagePair> pairs, IEnumerable<CloudPoint> points, CancellationToken cancellation)
     {
         var lookup = new Dictionary<string, double[]>();

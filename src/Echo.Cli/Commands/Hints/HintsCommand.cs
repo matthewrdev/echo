@@ -30,7 +30,7 @@ public sealed class HintsCommand : ICliCommand
             "--project PATH hints import FILE",
             "Add hints from a JSON file."),
         new("hints camera",
-            "--project PATH hints camera IMAGE_ID [--lat N --lon N --alt N --alt-datum TEXT] [--yaw N --pitch N --roll N] [--uncertainty N]",
+            "--project PATH hints camera IMAGE_ID [--lat N --lon N --alt N --alt-datum TEXT] [--yaw N --pitch N --roll N] [--uncertainty N --vertical-uncertainty N]",
             "Add a camera position or attitude hint."),
         new("hints overlap",
             "--project PATH hints overlap IMAGE_ID OTHER_ID",

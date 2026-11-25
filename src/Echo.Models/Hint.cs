@@ -25,6 +25,12 @@ public sealed class Hint
     {
         get; set;
     }
+    // For a surveyed camera position, Position.UncertaintyMetres is horizontal.
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public double? VerticalUncertaintyMetres
+    {
+        get; set;
+    }
     public bool Enabled { get; set; } = true;
     public string Note { get; set; } = "";
 }

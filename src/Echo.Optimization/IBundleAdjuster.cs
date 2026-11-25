@@ -9,5 +9,6 @@ public interface IBundleAdjuster
         IReadOnlyList<ImagePair> pairs,
         CancellationToken cancellation,
         Action<ReconstructionScene>? checkpoint = null,
-        Action<OperationProgress>? progress = null);
+        Action<OperationProgress>? progress = null,
+        IReadOnlySet<string>? groundControlIds = null);
 }

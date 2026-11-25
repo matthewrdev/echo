@@ -21,6 +21,74 @@ public sealed class Reconstructor : IReconstructor
         this.trace = trace;
     }
 
+    public ReconstructionScene? TryReconcileOverlaps(ProjectData project, ReconstructionScene established,
+        IReadOnlyList<ImagePair> pairs, CancellationToken cancellation, Action<OperationProgress>? progress = null)
+    {
+        var origin = established.Origin;
+        if (origin == null || established.Bundle == null)
+        {
+            return null;
+        }
+
+        var priors = CameraPriorBuilder.Build(project);
+        var positions = new V3[established.Cameras.Count];
+        var weights = new double[positions.Length];
+        for (var index = 0; index < positions.Length; index++)
+        {
+            var position = priors[established.Cameras[index].ImageId].Position;
+            if (position != null)
+            {
+                positions[index] = CameraGeometry.ToLocal(position, origin);
+                weights[index] = 2 * CameraGeometry.Square(10 / Math.Max(10, position.UncertaintyMetres));
+            }
+        }
+
+        // The position measurements stabilize scale while image matches constrain relative poses.
+        if (weights.Count(weight => weight > 0) < positions.Length * .75)
+        {
+            return null;
+        }
+
+        var photos = project.Images.Where(photo => photo.Enabled).ToDictionary(photo => photo.Id, StringComparer.Ordinal);
+        var verified = ImagePairVerifier.VerifyAll(photos, pairs, Math.Max(1, Environment.ProcessorCount - 2),
+            cancellation, compute, project.Settings.ComputeBackend);
+        var overlaps = CameraOverlapRefiner.Gather(established.Cameras, photos, verified, cancellation);
+        var previous = CameraOverlapRefiner.Errors(overlaps, established.Cameras);
+        if (!CameraOverlapRefiner.HasConflictingOverlaps(previous))
+        {
+            return null;
+        }
+
+        var candidate = new ReconstructionScene
+        {
+            Frame = established.Frame,
+            Origin = established.Origin,
+            Warnings = [.. established.Warnings],
+            Unplaced = [.. established.Unplaced],
+            Cameras = CameraOverlapRefiner.Refine(established.Cameras, overlaps, positions, weights, cancellation,
+                iteration => progress?.Invoke(new OperationProgress("Reconcile camera overlaps",
+                    $"Refining camera poses against verified photo overlaps · iteration {iteration + 1}")))
+        };
+        if (!CameraOverlapRefiner.ImprovesOverlaps(previous, CameraOverlapRefiner.Errors(overlaps, candidate.Cameras)))
+        {
+            return null;
+        }
+
+        try
+        {
+            // Rebuild tracks from the new camera poses so previously inconsistent observations can participate.
+            bundleAdjuster.Refine(project, candidate, verified, cancellation, progress: progress);
+        }
+        catch (EchoException error) when (error.ExitCode == 5)
+        {
+            return null;
+        }
+
+        var preservesSupport = candidate.Bundle!.Observations >= established.Bundle.Observations * .95;
+        var improvesOverlaps = CameraOverlapRefiner.ImprovesOverlaps(previous, CameraOverlapRefiner.Errors(overlaps, candidate.Cameras));
+        return preservesSupport && improvesOverlaps ? candidate : null;
+    }
+
     public ReconstructionScene Align(ProjectData project,
         List<ImagePair> pairs,
         CancellationToken cancellation,
@@ -37,12 +105,64 @@ public sealed class Reconstructor : IReconstructor
         pairs = ImagePairVerifier.VerifyAll(images, pairs, Math.Max(1, Environment.ProcessorCount - 2),
             cancellation, compute, project.Settings.ComputeBackend);
 
+        if (CanSeedNadirFromMetadata(priors))
+        {
+            reporting.Report(new OperationProgress("Initialize cameras", "Seeding near-nadir cameras from capture positions and attitudes"));
+            var nadir = TryAlignNadir(project, pairs, images, priors, cancellation, progress, reporting);
+            if (nadir != null)
+            {
+                checkpoint?.Invoke(nadir);
+                return nadir;
+            }
+        }
+
         var visual = visualReconstructor.TryAlignVerified(project, pairs, cancellation, checkpoint, progress);
         if (visual != null)
         {
             return visual;
         }
 
+        return AlignFromPriors(project, pairs, images, priors, cancellation, checkpoint, progress, reporting);
+    }
+
+    private bool CanSeedNadirFromMetadata(Dictionary<string, CameraPrior> priors)
+    {
+        var nearNadir = priors.Values.Count(prior =>
+        {
+            var hasHeight = prior.Position?.Altitude.HasValue == true;
+            var looksDown = prior.Attitude is { Pitch: <= -80 and >= -100 };
+            return hasHeight && looksDown;
+        });
+        return nearNadir >= 4 && nearNadir * 10 >= priors.Count * 9;
+    }
+
+    private ReconstructionScene? TryAlignNadir(ProjectData project, List<ImagePair> pairs, Dictionary<string, Photo> images,
+        Dictionary<string, CameraPrior> priors, CancellationToken cancellation, Action<OperationProgress>? progress,
+        ReconstructionProgress reporting)
+    {
+        try
+        {
+            var candidate = AlignFromPriors(project, pairs, images, priors, cancellation, null, progress, reporting);
+            var enoughSupport = candidate.Bundle is { FinalMedianError: <= 2.5 }
+                && candidate.Points.Count >= 20 * candidate.Cameras.Count;
+            if (enoughSupport)
+            {
+                candidate.Warnings.Add("Near-nadir camera alignment used image matches with GPS and attitude initialization.");
+                return candidate;
+            }
+        }
+        catch (EchoException error) when (error.ExitCode == 5)
+        {
+            reporting.Report(new OperationProgress("Initialize cameras", $"Near-nadir seed could not be verified: {error.Message}"));
+        }
+
+        return null;
+    }
+
+    private ReconstructionScene AlignFromPriors(ProjectData project, List<ImagePair> pairs, Dictionary<string, Photo> images,
+        Dictionary<string, CameraPrior> priors, CancellationToken cancellation, Action<ReconstructionScene>? checkpoint,
+        Action<OperationProgress>? progress, ReconstructionProgress reporting)
+    {
         reporting.Report(new OperationProgress("Initialize cameras", "Building initial poses"));
         var result = new ReconstructionScene();
         foreach (var image in images.Values)

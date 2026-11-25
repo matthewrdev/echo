@@ -365,12 +365,17 @@ public sealed class ProjectStore : IProjectStore
                     throw new EchoException("Hint references an unknown image.", 2);
                 }
 
-                if (hint.Type is not ("camera" or "overlap" or "tie"))
+                var surveyPoint = hint.Type is "ground-control" or "survey-check";
+                if (!surveyPoint && hint.Type is not ("camera" or "overlap" or "tie"))
                 {
-                    throw new EchoException("v0.1 hint types: camera, overlap, tie.", 2);
+                    throw new EchoException("Hint types: camera, overlap, tie, ground-control, survey-check.", 2);
                 }
 
                 hint.Position?.Validate();
+                if (surveyPoint && hint.Position?.Altitude == null)
+                {
+                    throw new EchoException("Survey points need a measured geographic position and ellipsoidal height.", 2);
+                }
                 if (hint.Attitude != null && !new[]
                 {
                     hint.Attitude.Yaw,
@@ -381,6 +386,16 @@ public sealed class ProjectStore : IProjectStore
                     throw new EchoException("Non-finite attitude.", 2);
                 }
 
+                if (hint.VerticalUncertaintyMetres is { } vertical)
+                {
+                    var hasPosition = hint.Type == "camera" && hint.Position?.Altitude != null;
+                    var hasAccuracy = double.IsFinite(vertical) && vertical > 0;
+                    if (!hasPosition || !hasAccuracy)
+                    {
+                        throw new EchoException("Vertical uncertainty requires a camera position with an altitude and a positive uncertainty.", 2);
+                    }
+                }
+
                 var emptyCameraHint = hint.Type == "camera"
                     && hint.Position == null
                     && hint.Attitude == null;
@@ -389,14 +404,14 @@ public sealed class ProjectStore : IProjectStore
                     throw new EchoException("Camera hint needs position or attitude.", 2);
                 }
 
-                if (hint.Type is "overlap" or "tie")
+                if (surveyPoint || hint.Type is "overlap" or "tie")
                 {
                     if (hint.OtherImageId == hint.ImageId || !p.Images.Any(i => i.Id == hint.OtherImageId))
                     {
                         throw new EchoException("Hint needs a different second image.", 2);
                     }
 
-                    if (hint.Type == "tie")
+                    if (surveyPoint || hint.Type == "tie")
                     {
                         ValidatePixel(hint.Pixel, p.Images.Single(i => i.Id == hint.ImageId));
                         ValidatePixel(hint.OtherPixel, p.Images.Single(i => i.Id == hint.OtherImageId));

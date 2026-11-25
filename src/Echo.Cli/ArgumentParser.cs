@@ -62,6 +62,7 @@ public sealed class ArgumentParser : IArgumentParser
             "pitch",
             "roll",
             "uncertainty",
+            "vertical-uncertainty",
             "ax",
             "ay",
             "bx",

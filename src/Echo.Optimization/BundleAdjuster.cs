@@ -19,7 +19,8 @@ public sealed class BundleAdjuster : IBundleAdjuster
         ReconstructionScene scene,
         IReadOnlyList<ImagePair> pairs,
         CancellationToken cancellation,
-        Action<ReconstructionScene>? checkpoint = null, Action<OperationProgress>? progress = null)
+        Action<ReconstructionScene>? checkpoint = null, Action<OperationProgress>? progress = null,
+        IReadOnlySet<string>? groundControlIds = null)
     {
         var reporting = new BundleProgress(progress, trace, project.Settings.BundleIterations);
         var cameras = scene.Cameras;
@@ -32,17 +33,20 @@ public sealed class BundleAdjuster : IBundleAdjuster
         var photos = new Photo[cameras.Count];
         var initial = new CameraState[cameras.Count];
         var oldCameras = new CameraState[cameras.Count];
+        var precisePositions = new BundlePositionAccuracy?[cameras.Count];
         for (var i = 0; i < cameras.Count; i++)
         {
             photos[i] = imageLookup[cameras[i].ImageId];
             initial[i] = new CameraState(cameras[i]);
             var position = photos[i].Gps;
+            double? verticalUncertainty = null;
             foreach (var hint in project.Hints)
             {
                 var applies = hint.Enabled && hint.Type == "camera" && hint.ImageId == photos[i].Id;
-                if (applies)
+                if (applies && hint.Position != null)
                 {
-                    position = hint.Position ?? position;
+                    position = hint.Position;
+                    verticalUncertainty = hint.VerticalUncertaintyMetres;
                 }
             }
 
@@ -52,6 +56,14 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 {
                     Centre = CameraGeometry.ToLocal(position, scene.Origin).Array
                 };
+                var ellipsoidalFrame = GeographicCoordinates.HasEllipsoidalHeight(scene.Origin)
+                    && GeographicCoordinates.HasEllipsoidalHeight(position);
+                if (ellipsoidalFrame && verticalUncertainty is > 0)
+                {
+                    precisePositions[i] = new BundlePositionAccuracy(
+                        1 / CameraGeometry.Square(Math.Max(.01, position.UncertaintyMetres)),
+                        1 / CameraGeometry.Square(Math.Max(.01, verticalUncertainty.Value)));
+                }
             }
         }
 
@@ -70,11 +82,13 @@ public sealed class BundleAdjuster : IBundleAdjuster
             throw new EchoException($"Only {tracks.Count} consistent multi-image tracks. More overlap or stronger features are needed for joint camera refinement.", 5);
         }
 
+        var control = BuildControlObservations(project, scene, groundControlIds);
         var report = new BundleReport
         {
             InitialMedianError = MedianError(tracks, photos, cameras)
         };
         scene.Bundle = report;
+        var hasPreciseReference = precisePositions.Count(position => position != null) >= 3;
         var parameter = 0;
         var cameraIndices = new int[cameras.Count][];
         for (var i = 0; i < cameras.Count; i++)
@@ -82,7 +96,9 @@ public sealed class BundleAdjuster : IBundleAdjuster
             cameraIndices[i] = new int[6];
             for (var j = 0; j < 6; j++)
             {
-                cameraIndices[i][j] = i == 0 || scene.Origin == null && i == 1 && j < 3 ? -1 : parameter++;
+                var fixedGauge = control.Count == 0 && (i == 0 && (!hasPreciseReference || j >= 3)
+                    || scene.Origin == null && i == 1 && j < 3);
+                cameraIndices[i][j] = fixedGauge ? -1 : parameter++;
             }
         }
 
@@ -122,15 +138,38 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 }
             }
 
-            if (scene.Origin != null)
+            if (scene.Origin != null && control.Count == 0)
             {
-                for (var i = 1; i < cameras.Count; i++)
+                for (var i = hasPreciseReference ? 0 : 1; i < cameras.Count; i++)
                 {
-                    if (photos[i].Gps != null)
+                    if (precisePositions[i] is { } accuracy)
+                    {
+                        var delta = new V3(cameras[i].Centre) - new V3(initial[i].Centre);
+                        cost += accuracy.HorizontalWeight * (delta.X * delta.X + delta.Z * delta.Z)
+                            + accuracy.VerticalWeight * delta.Y * delta.Y;
+                    }
+                    else if (photos[i].Gps != null && i > 0)
                     {
                         cost += (new V3(cameras[i].Centre) - new V3(initial[i].Centre)).Length * (new V3(cameras[i].Centre) - new V3(initial[i].Centre)).Length * priorWeight;
                     }
                 }
+            }
+
+            foreach (var observation in control)
+            {
+                var ci = observation.Camera;
+                var projected = CameraGeometry.ProjectPoint(photos[ci], cameras[ci], observation.Position);
+                if (projected == null)
+                {
+                    cost += 100000;
+                    continue;
+                }
+
+                var scale = 1000.0 / photos[ci].Width;
+                var dx = (observation.Pixel[0] - projected.Value.X) * scale;
+                var dy = (observation.Pixel[1] - projected.Value.Y) * scale;
+                var error = Math.Sqrt(dx * dx + dy * dy);
+                cost += 4 * (error < 3 ? error * error : 6 * error - 9);
             }
 
             foreach (var group in groups.Values)
@@ -232,12 +271,10 @@ public sealed class BundleAdjuster : IBundleAdjuster
                         }
 
                         b[row] += weight * (ju[j] * ru + jv[j] * rv);
-                        var cross = block.GetCross(row);
-
-                        for (var k = 0; k < 3; k++)
-                        {
-                            cross[k] += weight * (ju[j] * pu[k] + jv[j] * pv[k]);
-                        }
+                        ref var cross = ref block.GetCross(row);
+                        cross.X += weight * (ju[j] * pu[0] + jv[j] * pv[0]);
+                        cross.Y += weight * (ju[j] * pu[1] + jv[j] * pv[1]);
+                        cross.Z += weight * (ju[j] * pu[2] + jv[j] * pv[2]);
 
                         for (var k = 0; k < indices.Length; k++)
                         {
@@ -250,18 +287,60 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 }
             }
 
-            if (scene.Origin != null)
+            if (scene.Origin != null && control.Count == 0)
             {
-                for (var i = 1; i < cameras.Count; i++)
+                for (var i = hasPreciseReference ? 0 : 1; i < cameras.Count; i++)
                 {
-                    if (photos[i].Gps != null)
+                    var accuracy = precisePositions[i];
+                    if (accuracy == null && (photos[i].Gps == null || i == 0))
                     {
-                        for (var j = 0; j < 3; j++)
+                        continue;
+                    }
+
+                    for (var axis = 0; axis < 3; axis++)
+                    {
+                        var index = cameraIndices[i][axis];
+                        if (index < 0)
                         {
-                            var index = cameraIndices[i][j];
-                            h[index * parameter + index] += priorWeight;
-                            b[index] += (initial[i].Centre[j] - cameras[i].Centre[j]) * priorWeight;
+                            continue;
                         }
+
+                        var weight = (axis == 1 ? accuracy?.VerticalWeight : accuracy?.HorizontalWeight) ?? priorWeight;
+                        h[index * parameter + index] += weight;
+                        b[index] += (initial[i].Centre[axis] - cameras[i].Centre[axis]) * weight;
+                    }
+                }
+            }
+
+            foreach (var observation in control)
+            {
+                var ci = observation.Camera;
+                if (!Evaluate(photos[ci], cameras[ci], observation.Position, evaluation))
+                {
+                    continue;
+                }
+
+                var scale = 1000.0 / photos[ci].Width;
+                var ru = (observation.Pixel[0] - evaluation.U) * scale;
+                var rv = (observation.Pixel[1] - evaluation.V) * scale;
+                var weight = 4 * Math.Min(1, 3 / Math.Max(Math.Sqrt(ru * ru + rv * rv), 1e-9));
+                cameraIndices[ci].AsSpan().CopyTo(indices);
+                indices[6] = focalIndices[ci];
+                for (var j = 0; j < 6; j++)
+                {
+                    ju[j] = evaluation.CameraU[j] * scale;
+                    jv[j] = evaluation.CameraV[j] * scale;
+                }
+
+                ju[6] = evaluation.FocalU * scale;
+                jv[6] = evaluation.FocalV * scale;
+                for (var row = 0; row < indices.Length; row++)
+                {
+                    var index = indices[row];
+                    b[index] += weight * (ju[row] * ru + jv[row] * rv);
+                    for (var column = 0; column < indices.Length; column++)
+                    {
+                        h[indices[column] * parameter + index] += weight * (ju[row] * ju[column] + jv[row] * jv[column]);
                     }
                 }
             }
@@ -292,16 +371,23 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 {
                     var term = cross[row];
                     var transformed = transformedRows.AsSpan(row * 3, 3);
-                    Multiply(block.Inverse, term.Value, transformed);
+                    var inverse = block.Inverse;
+                    transformed[0] = inverse[0] * term.X + inverse[1] * term.Y + inverse[2] * term.Z;
+                    transformed[1] = inverse[3] * term.X + inverse[4] * term.Y + inverse[5] * term.Z;
+                    transformed[2] = inverse[6] * term.X + inverse[7] * term.Y + inverse[8] * term.Z;
                     b[term.Key] -= Dot(transformed, block.B);
                 }
 
                 foreach (var column in cross)
                 {
                     var offset = column.Key * parameter;
+                    var matrixColumn = h.AsSpan(offset, parameter);
+                    var transformed = transformedRows.AsSpan(0, cross.Length * 3);
                     for (var row = 0; row < cross.Length; row++)
                     {
-                        h[offset + cross[row].Key] -= Dot(transformedRows.AsSpan(row * 3, 3), column.Value);
+                        var index = row * 3;
+                        matrixColumn[cross[row].Key] -= transformed[index] * column.X
+                            + transformed[index + 1] * column.Y + transformed[index + 2] * column.Z;
                     }
                 }
             }
@@ -377,10 +463,10 @@ public sealed class BundleAdjuster : IBundleAdjuster
                 block.B.AsSpan().CopyTo(rhs);
                 foreach (var cross in block.Cross)
                 {
-                    for (var j = 0; j < 3; j++)
-                    {
-                        rhs[j] -= cross.Value[j] * delta[cross.Key];
-                    }
+                    var update = delta[cross.Key];
+                    rhs[0] -= cross.X * update;
+                    rhs[1] -= cross.Y * update;
+                    rhs[2] -= cross.Z * update;
                 }
 
                 Multiply(block.Inverse, rhs, pointStep);
@@ -454,6 +540,37 @@ public sealed class BundleAdjuster : IBundleAdjuster
 
         UpdateScene(scene, tracks, photos);
         checkpoint?.Invoke(scene);
+    }
+
+    private List<BundleControlObservation> BuildControlObservations(ProjectData project, ReconstructionScene scene,
+        IReadOnlySet<string>? groundControlIds)
+    {
+        if (groundControlIds is not { Count: > 0 } || scene.Origin == null)
+        {
+            return [];
+        }
+
+        var indices = new Dictionary<string, int>(scene.Cameras.Count, StringComparer.Ordinal);
+        for (var index = 0; index < scene.Cameras.Count; index++)
+        {
+            indices.Add(scene.Cameras[index].ImageId, index);
+        }
+
+        var result = new List<BundleControlObservation>();
+        foreach (var hint in project.Hints)
+        {
+            var selected = hint.Enabled && hint.Type == "ground-control" && groundControlIds.Contains(hint.Id);
+            if (!selected)
+            {
+                continue;
+            }
+
+            var position = CameraGeometry.ToLocal(hint.Position!, scene.Origin);
+            result.Add(new BundleControlObservation(indices[hint.ImageId], position, hint.Pixel!));
+            result.Add(new BundleControlObservation(indices[hint.OtherImageId!], position, hint.OtherPixel!));
+        }
+
+        return result;
     }
 
     private List<Track> BuildTracks(Photo[] photos, List<CameraPose> cameras, IReadOnlyList<ImagePair> pairs, CancellationToken cancellation)

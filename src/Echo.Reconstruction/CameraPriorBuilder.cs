@@ -34,6 +34,7 @@ internal static class CameraPriorBuilder
                     AltitudeDatum = position.AltitudeDatum,
                     UncertaintyMetres = position.UncertaintyMetres
                 },
+                VerticalUncertaintyMetres = position == null ? prior.VerticalUncertaintyMetres : hint.VerticalUncertaintyMetres,
                 Attitude = hint.Attitude ?? prior.Attitude
             };
         }

@@ -8,6 +8,7 @@ public sealed class ProjectSnapshotCodec
 {
     private const uint Magic = 0x31525045; // EPR1
     private const uint GpsPolygonMagic = 0x32525045; // EPR2
+    private const uint CameraAccuracyMagic = 0x33525045; // EPR3
     private readonly PhotoRecordCodec photos = new();
 
     public ProjectData Read(string path)
@@ -15,7 +16,7 @@ public sealed class ProjectSnapshotCodec
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
         using var reader = new BinaryReader(stream);
         var magic = reader.ReadUInt32();
-        if (magic != Magic && magic != GpsPolygonMagic)
+        if (magic is not (Magic or GpsPolygonMagic or CameraAccuracyMagic))
         {
             throw new InvalidDataException("Unsupported project snapshot.");
         }
@@ -36,9 +37,20 @@ public sealed class ProjectSnapshotCodec
             project.StageRevisions.Add(reader.ReadString(), reader.ReadString());
         }
 
-        if (magic == GpsPolygonMagic)
+        if (magic is GpsPolygonMagic or CameraAccuracyMagic)
         {
             project.Settings.GpsPolygons = GpsPolygonCodec.Read(reader);
+        }
+
+        if (magic == CameraAccuracyMagic)
+        {
+            var count = reader.ReadCount();
+            var hints = project.Hints.ToDictionary(hint => hint.Id, StringComparer.Ordinal);
+            for (var index = 0; index < count; index++)
+            {
+                var id = reader.ReadString();
+                hints[id].VerticalUncertaintyMetres = reader.ReadDouble();
+            }
         }
 
         if (stream.Position != stream.Length)
@@ -54,7 +66,8 @@ public sealed class ProjectSnapshotCodec
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
         var polygons = project.Settings.GpsPolygons;
         var hasPolygons = polygons is { Count: > 0 };
-        writer.Write(hasPolygons ? GpsPolygonMagic : Magic);
+        var accuracyHints = project.Hints.Where(hint => hint.VerticalUncertaintyMetres.HasValue).ToArray();
+        writer.Write(accuracyHints.Length > 0 ? CameraAccuracyMagic : hasPolygons ? GpsPolygonMagic : Magic);
         writer.Write(project.SchemaVersion);
         writer.Write(project.Id);
         writer.Write(project.Name);
@@ -69,9 +82,18 @@ public sealed class ProjectSnapshotCodec
             writer.Write(pair.Value);
         }
 
-        if (hasPolygons)
+        if (hasPolygons || accuracyHints.Length > 0)
         {
-            GpsPolygonCodec.Write(writer, polygons!);
+            GpsPolygonCodec.Write(writer, polygons ?? []);
+        }
+
+        if (accuracyHints.Length > 0)
+        {
+            writer.WriteCollection(accuracyHints, hint =>
+            {
+                writer.Write(hint.Id);
+                writer.Write(hint.VerticalUncertaintyMetres!.Value);
+            });
         }
     }
 }

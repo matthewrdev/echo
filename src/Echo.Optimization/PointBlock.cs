@@ -18,27 +18,23 @@ internal sealed class PointBlock
         crossIndices.Clear();
     }
 
-    public double[] GetCross(int row)
+    public ref BundleCrossTerm GetCross(int row)
     {
-        if (crossIndices.TryGetValue(row, out var existing))
+        ref var slot = ref CollectionsMarshal.GetValueRefOrAddDefault(crossIndices, row, out var exists);
+        if (!exists)
         {
-            return crossBuffers[existing].Value;
+            slot = crossIndices.Count - 1;
+            var term = new BundleCrossTerm(row);
+            if (slot == crossBuffers.Count)
+            {
+                crossBuffers.Add(term);
+            }
+            else
+            {
+                crossBuffers[slot] = term;
+            }
         }
 
-        var slot = crossIndices.Count;
-        if (slot == crossBuffers.Count)
-        {
-            crossBuffers.Add(new BundleCrossTerm(row, new double[3]));
-        }
-        else
-        {
-            var buffer = crossBuffers[slot].Value;
-            buffer.AsSpan().Clear();
-            crossBuffers[slot] = new BundleCrossTerm(row, buffer);
-        }
-
-        // The contiguous view follows the current observation order.
-        crossIndices.Add(row, slot);
-        return crossBuffers[slot].Value;
+        return ref CollectionsMarshal.AsSpan(crossBuffers)[slot];
     }
 }

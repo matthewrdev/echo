@@ -1,3 +1,27 @@
 namespace Echo.Optimization;
 
-internal readonly record struct BundleCrossTerm(int Key, double[] Value);
+internal struct BundleCrossTerm
+{
+    public BundleCrossTerm(int key)
+    {
+        Key = key;
+    }
+
+    public int Key
+    {
+        get;
+    }
+
+    public double X
+    {
+        get; set;
+    }
+    public double Y
+    {
+        get; set;
+    }
+    public double Z
+    {
+        get; set;
+    }
+}

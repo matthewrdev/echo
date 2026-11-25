@@ -86,7 +86,8 @@ public sealed class VisualReconstructor : IVisualReconstructor
 
             SparseTriangulator.Build(scene, photos, pairs, cancellation, working.Settings.ComputeBackend,
                 checkpoint, compute, trace, progress);
-            bundleAdjuster.Refine(working, scene, pairs, cancellation, checkpoint, progress);
+            // Registration gets the latest estimates, but bundle constraints always use imported calibration.
+            bundleAdjuster.Refine(project, scene, pairs, cancellation, checkpoint, progress);
             UpdateCalibrations(photos, calibrationGroups, scene.Cameras);
         }
 
@@ -95,7 +96,7 @@ public sealed class VisualReconstructor : IVisualReconstructor
             return null;
         }
 
-        bundleAdjuster.Refine(working, scene, pairs, cancellation, checkpoint, progress);
+        bundleAdjuster.Refine(project, scene, pairs, cancellation, checkpoint, progress);
         foreach (var id in photos.Keys)
         {
             if (!registered.Contains(id))
@@ -112,6 +113,13 @@ public sealed class VisualReconstructor : IVisualReconstructor
             // Preserve the metadata-based metric fallback instead of silently
             // feeding arbitrary visual units to metric depth settings.
             return null;
+        }
+
+        if (scene.Origin is { } origin && GeographicCoordinates.HasEllipsoidalHeight(origin)
+            && scene.Cameras.Count(camera => priors[camera.ImageId].VerticalUncertaintyMetres.HasValue) >= 3)
+        {
+            reporting.Report(new OperationProgress("Refine surveyed camera priors", "Applying horizontal and vertical camera accuracies"));
+            bundleAdjuster.Refine(project, scene, pairs, cancellation, checkpoint, progress);
         }
 
         checkpoint?.Invoke(scene);

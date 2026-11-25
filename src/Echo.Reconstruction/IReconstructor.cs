@@ -9,4 +9,7 @@ public interface IReconstructor
         CancellationToken cancellation,
         Action<ReconstructionScene>? checkpoint = null,
         Action<OperationProgress>? progress = null);
+
+    ReconstructionScene? TryReconcileOverlaps(ProjectData project, ReconstructionScene established,
+        IReadOnlyList<ImagePair> pairs, CancellationToken cancellation, Action<OperationProgress>? progress = null);
 }
