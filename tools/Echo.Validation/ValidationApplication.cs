@@ -94,7 +94,7 @@ public sealed class ValidationApplication
                 run = processor.Execute(store, "export", cancellation, output: value =>
                 {
                     events.WriteLine(System.Text.Json.JsonSerializer.Serialize(value, eventOptions));
-                });
+                }, headless: true);
             }
 
             result.ProcessingSeconds = watch.Elapsed.TotalSeconds;

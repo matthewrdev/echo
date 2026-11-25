@@ -52,7 +52,12 @@ def prepare(arguments):
         (output / "reference-validation-plan.json").write_text(json.dumps(plan, indent=2) + "\n")
         if arguments.run_stage:
             with (output / (name + ".ndjson")).open("w") as log:
-                subprocess.run([str(cli), "--project", str(project), "run", "start", "--target", arguments.run_stage, "--events", "ndjson"], stdout=log, check=True)
+                subprocess.run(
+                    [str(cli), "--project", str(project), "run", "start", "--target", arguments.run_stage,
+                     "--headless", "--events", "ndjson"],
+                    stdout=log,
+                    check=True,
+                )
 
 
 if __name__ == "__main__":
