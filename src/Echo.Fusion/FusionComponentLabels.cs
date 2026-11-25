@@ -10,6 +10,10 @@ public sealed class FusionComponentLabels
     {
         get; init;
     }
+    internal IReadOnlyList<int>? RegionSeeds
+    {
+        get; init;
+    }
     public int Largest
     {
         get; init;

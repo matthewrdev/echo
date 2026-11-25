@@ -1,4 +1,6 @@
+using System.Buffers;
 using Echo.Models;
+using Echo.Storage.Pages;
 using Echo.Storage.Records;
 using Echo.Storage.Resources;
 using Echo.Storage;
@@ -37,7 +39,9 @@ public static class FusionIslandTrimmer
         var largest = components.Largest;
         var threshold = sizes[largest] * minimumSizePercent / 100;
         bool Remove(int label) => label != largest && (mode == IslandTrimMode.Main || sizes[label] < threshold);
-        var removedRegions = Enumerable.Range(0, sizes.Count).Count(label => sizes[label] > 0 && Remove(label));
+        var removedRegions = components.RegionSeeds is { } seeds
+            ? seeds.Count(Remove)
+            : Enumerable.Range(0, sizes.Count).Count(label => sizes[label] > 0 && Remove(label));
         if (removedRegions == 0)
         {
             return new FusionIslandTrimResult { Volume = volume, InputRegions = components.RegionCount };
@@ -51,13 +55,46 @@ public static class FusionIslandTrimmer
             ConsistentSamples = volume.ConsistentSamples,
             Resolution = volume.Resolution
         };
-        for (var index = 0; index < labels.Count; index++)
+        var sampleBuffer = ArrayPool<VolumeSample>.Shared.Rent(4096);
+        var labelBuffer = ArrayPool<int>.Shared.Rent(4096);
+        try
         {
-            cancellation.ThrowIfCancellationRequested();
-            if (!Remove(labels[index]))
+            for (var start = 0; start < labels.Count;)
             {
-                result.Samples.Add(volume.Samples[index]);
+                cancellation.ThrowIfCancellationRequested();
+                var count = Math.Min(4096, labels.Count - start);
+                var samples = sampleBuffer.AsSpan(0, count);
+                var batchLabels = labelBuffer.AsSpan(0, count);
+                RecordListOperations.Read(volume.Samples, start, samples);
+                RecordListOperations.Read(labels, start, batchLabels);
+                var retained = 0;
+                for (var index = 0; index < count; index++)
+                {
+                    if (!Remove(batchLabels[index]))
+                    {
+                        samples[retained++] = samples[index];
+                    }
+                }
+
+                if (result.Samples is PagedList<VolumeSample> paged)
+                {
+                    paged.AddRange(samples[..retained]);
+                }
+                else
+                {
+                    for (var index = 0; index < retained; index++)
+                    {
+                        result.Samples.Add(samples[index]);
+                    }
+                }
+
+                start += count;
             }
+        }
+        finally
+        {
+            ArrayPool<VolumeSample>.Shared.Return(sampleBuffer);
+            ArrayPool<int>.Shared.Return(labelBuffer);
         }
 
         return new FusionIslandTrimResult

@@ -11,6 +11,14 @@ public static class FusionComponentLabeller
     public static FusionComponentLabels Build(IList<VolumeSample> samples, CancellationToken cancellation,
         WorkBuffers? work, Action<string>? progress)
     {
+        cancellation.ThrowIfCancellationRequested();
+        var intervals = new FusionIntervalLabeller().TryBuild(samples, cancellation, work, progress);
+        return intervals ?? BuildByVoxel(samples, cancellation, work, progress);
+    }
+
+    private static FusionComponentLabels BuildByVoxel(IList<VolumeSample> samples, CancellationToken cancellation,
+        WorkBuffers? work, Action<string>? progress)
+    {
         var lookup = new BinaryHashIndex<Grid, int>(samples.Count, new GridRecordCodec(), new IntRecordCodec(), work, cancellation);
         IList<int> parents = work?.Filled(samples.Count, 0, new IntRecordCodec(), cancellation) ?? new int[samples.Count];
         for (var index = 0; index < samples.Count; index++)

@@ -129,6 +129,29 @@ public sealed class FusionQualityTests
             {
             }
         });
+        tests.Run("Fusion row intervals preserve labels across unordered runs and tied islands", () =>
+        {
+            var samples = new List<VolumeSample>();
+            for (var row = 3; row >= 0; row--)
+            {
+                for (var island = 0; island < 2; island++)
+                {
+                    for (var x = 0; x < 16; x++)
+                    {
+                        samples.Add(new VolumeSample { X = island * 100 + row * 16 + x, Y = row, Z = row });
+                    }
+                }
+            }
+
+            var progress = new List<string>();
+            var labels = FusionComponentLabeller.Build(samples, default, null, progress.Add);
+            Check(progress.Count == 1 && progress[0].Contains("row intervals"),
+                "This fixture must exercise the interval labeller without the voxel fallback");
+            Check(labels.RegionCount == 2 && labels.Largest == 0 && labels.Sizes[0] == 64 && labels.Sizes[16] == 64,
+                "Diagonal interval endpoints connect and equal islands retain the earliest seed");
+            Check(labels.Labels.Select((label, index) => label == index / 16 % 2 * 16).All(matches => matches),
+                "Every voxel retains its input-order label");
+        });
         tests.Run("Fusion labels preserve first-seen ties and connectivity when scratch buffers spill", () =>
         {
             var directory = Path.Combine(Path.GetTempPath(), "echo-fusion-labels-" + Guid.NewGuid().ToString("N"));
