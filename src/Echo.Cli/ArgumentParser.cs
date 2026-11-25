@@ -58,6 +58,7 @@ public sealed class ArgumentParser : IArgumentParser
             "relative-heights",
             "max-seam-error",
             "size-mm",
+            "jpeg-quality",
             "width",
             "height",
             "view",

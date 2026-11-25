@@ -31,3 +31,7 @@ Hugging Face access is governed separately by its [service terms](https://huggin
 # Screened Poisson surface reconstruction
 
 Echo's C# surface-completion subsystem runs a bundled, isolated native worker built from [PoissonRecon](https://github.com/mkazhdan/PoissonRecon), version 18.76, commit `262b0f539d404057d1f36e1adc07fc9388678899`. The repository MIT license is included in `licenses/PoissonRecon-MIT.txt`; the source copyright and redistribution notices are reproduced in `licenses/PoissonRecon-source-notices.txt` and retained in the vendored headers. Both are included in the packaged app's Resources directory. No external installation or runtime download is required. The worker uses double precision and serial execution, with upstream `SANITIZED_PR` synchronization enabled.
+
+# Optional Draco mesh export
+
+Echo builds the mesh codec from the [Draco 1.5.7](https://github.com/google/draco/releases/tag/1.5.7) C++ source included under `src/Echo.Export/Native/Draco`. The upstream Apache 2.0 license is included in `licenses/Draco-Apache-2.0.txt` and in the packaged app. Encoding and verification run inside the Echo process.

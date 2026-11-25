@@ -10,5 +10,6 @@ public enum MeshExportFormat
     Fbx,
     Usdz,
     Ply,
-    ThreeMf
+    ThreeMf,
+    GlbDraco
 }

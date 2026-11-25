@@ -8,6 +8,7 @@ public static class ExportServiceCollectionExtensions
     {
         services.AddSingleton<IGeoPackageWriter, GeoPackageWriter>();
         services.AddSingleton<IGisWriter, GisWriter>();
+        services.AddSingleton<IGlbCompressor, GlbCompressor>();
         services.AddSingleton<IGlbWriter, GlbWriter>();
         services.AddSingleton<ILasWriter, LasWriter>();
         services.AddSingleton<IMappingTools, MappingTools>();

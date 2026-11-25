@@ -23,8 +23,8 @@ public sealed class ExchangeCommand : ICliCommand
     public IReadOnlyList<CommandUsage> Usage =>
     [
         new("export mesh",
-            "--project PATH export mesh --format glb|gltf|obj|stl|dae|fbx|usdz|ply|3mf --output NEW_DIRECTORY [--run RUN_ID] [--size-mm MILLIMETRES]",
-            "Export a saved mesh. 3MF uses a closed hull scaled to --size-mm along its longest axis. Other mesh exports include available georeference metadata."),
+            "--project PATH export mesh --format glb|glb-draco|gltf|obj|stl|dae|fbx|usdz|ply|3mf --output NEW_DIRECTORY [--run RUN_ID] [--size-mm MILLIMETRES]",
+            "Export a saved mesh. GLB Draco verifies decoded UV triangle counts. 3MF uses a closed hull scaled to --size-mm along its longest axis. Other mesh exports include available georeference metadata."),
         new("export cloud",
             "--project PATH export cloud --format ply|pts|xyz|dxf|las|geo-las|laz|copc|e57 --output NEW_DIRECTORY [--run RUN_ID] [--crs EPSG:CODE]",
             "Export the saved dense cloud. LAZ, COPC, E57 and projected CRS exports use PDAL. LAS/LAZ/COPC support --crs EPSG:4978 or a projected EPSG code when the run has WGS84 ellipsoidal height."),
@@ -67,6 +67,7 @@ public sealed class ExchangeCommand : ICliCommand
     private MeshExportFormat MeshFormat(string format) => format switch
     {
         "glb" => MeshExportFormat.Glb,
+        "glb-draco" => MeshExportFormat.GlbDraco,
         "gltf" => MeshExportFormat.Gltf,
         "obj" => MeshExportFormat.Obj,
         "stl" => MeshExportFormat.Stl,

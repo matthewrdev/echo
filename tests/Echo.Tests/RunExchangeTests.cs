@@ -120,6 +120,40 @@ public sealed class RunExchangeTests
 
     internal void RunHandoffTests(TestSuite tests)
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            tests.Run("Draco is opt-in and preserves a narrow UV triangle", () => WithRun((store, run) =>
+            {
+                files.AtomicData(store.PathFor("artifacts/mesh/draco/mesh.json"), new Surface
+                {
+                    Vertices = [[0, 0, 0], [2, 0, 0], [0, 2, 0], [3, 0, 0], [5, 0, 0], [3, 2, 0]],
+                    Faces = [[0, 1, 2], [3, 4, 5]]
+                });
+                files.AtomicData(store.PathFor("artifacts/texture/draco/uvs.json"), new TextureCoordinates
+                {
+                    Values = [[0, 0], [1, 0], [0, 1], [.6, .6], [.60001, .6], [.6, .60001]]
+                });
+                files.AtomicJson(store.PathFor("artifacts/texture/draco/texture.json"), new TextureResult());
+                File.Copy(store.PathFor("artifacts/texture/exchange/atlas.jpg"), store.PathFor("artifacts/texture/draco/atlas.jpg"));
+                run.Artifacts["mesh"] = "artifacts/mesh/draco";
+                run.Artifacts["texture"] = "artifacts/texture/draco";
+                store.SaveRun(run);
+                var ordinary = Export(store, run, "mesh", "glb");
+                var compressed = Export(store, run, "mesh", "glb-draco");
+                using var raw = OpenGlbJson(Path.Combine(ordinary, "cliff.glb"));
+                using var draco = OpenGlbJson(Path.Combine(compressed, "cliff.glb"));
+                Check(!raw.RootElement.TryGetProperty("extensionsRequired", out _), "Plain GLB needs no compression extension");
+                Check(draco.RootElement.GetProperty("extensionsRequired")[0].GetString() == "KHR_draco_mesh_compression"
+                    && draco.RootElement.GetProperty("accessors")[2].GetProperty("count").GetInt32() == 6,
+                    "The verified Draco export contains both triangles");
+                Check(File.Exists(Path.Combine(compressed, "cliff.geo.json"))
+                    && !File.Exists(Path.Combine(compressed, "source.glb")), "Draco packages retain georeference and no temporary GLB");
+                var recompressed = Path.Combine(store.Root, "recompressed.glb");
+                Check(cli.Run(["compress-glb", Path.Combine(ordinary, "cliff.glb"), recompressed, "--jpeg-quality", "76"]) == 0
+                    && File.Exists(recompressed), "An existing Echo GLB can be compressed with optional JPEG quality");
+            }));
+        }
+
         tests.Run("CLI exports triangle PLY, printable 3MF and saved-run photos", () => WithRun((store, run) =>
         {
             var ply = Export(store, run, "mesh", "ply");
@@ -338,6 +372,15 @@ public sealed class RunExchangeTests
         var code = cli.Run(["project", store.Root, "export", group, "--format", format, "--run", run.Id, "--output", output, .. options]);
         Check(code == 0, $"Exporting {format} succeeds");
         return output;
+    }
+
+    private JsonDocument OpenGlbJson(string path)
+    {
+        using var reader = new BinaryReader(File.OpenRead(path));
+        reader.BaseStream.Position = 12;
+        var length = reader.ReadInt32();
+        reader.ReadUInt32();
+        return JsonDocument.Parse(reader.ReadBytes(length));
     }
 
     private void Check(bool success, string message)

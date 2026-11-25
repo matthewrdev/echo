@@ -1,4 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <DracoSource Include="Native/**/*.h;Native/**/*.cc;Native/EchoDraco.cpp;Native/Draco/sources.txt" />
+    <Content Include="obj/$(Configuration)/native/libecho-draco.dylib" Link="libecho-draco.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+  </ItemGroup>
+  <Target Name="BuildDraco" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))" Inputs="@(DracoSource);../../scripts/build-draco.sh" Outputs="obj/$(Configuration)/native/libecho-draco.dylib">
+    <Exec Command="bash ../../scripts/build-draco.sh &quot;obj/$(Configuration)/native&quot;" />
+  </Target>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.10" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
@@ -9,6 +19,9 @@
     <ProjectReference Include="../Echo.Models/Echo.Models.csproj" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../Echo.Infrastructure/Echo.Infrastructure.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Echo.Imaging/Echo.Imaging.csproj" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
   </ItemGroup>

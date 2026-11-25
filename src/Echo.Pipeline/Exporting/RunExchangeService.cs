@@ -15,6 +15,7 @@ public sealed class RunExchangeService : IRunExchangeService
     private readonly IBulkArtifactStore bulk;
     private readonly ICloudBuilder clouds;
     private readonly IGlbWriter glb;
+    private readonly IGlbCompressor glbCompressor;
     private readonly IMeshExchangeWriter mesh;
     private readonly IFileOperations files;
     private readonly IPointCloudExchangeWriter cloud;
@@ -22,7 +23,7 @@ public sealed class RunExchangeService : IRunExchangeService
     private readonly ISurveyCloudWriter survey;
     private readonly IPrintMeshWriter print;
 
-    public RunExchangeService(IJsonCodec json, IBulkArtifactStore bulk, ICloudBuilder clouds, IGlbWriter glb,
+    public RunExchangeService(IJsonCodec json, IBulkArtifactStore bulk, ICloudBuilder clouds, IGlbWriter glb, IGlbCompressor glbCompressor,
         IMeshExchangeWriter mesh, IFileOperations files, IPointCloudExchangeWriter cloud, ILasWriter las,
         ISurveyCloudWriter survey, IPrintMeshWriter print)
     {
@@ -30,6 +31,7 @@ public sealed class RunExchangeService : IRunExchangeService
         this.bulk = bulk;
         this.clouds = clouds;
         this.glb = glb;
+        this.glbCompressor = glbCompressor;
         this.mesh = mesh;
         this.files = files;
         this.cloud = cloud;
@@ -159,7 +161,7 @@ public sealed class RunExchangeService : IRunExchangeService
             savedGlb = null;
         }
 
-        if (format is MeshExportFormat.Glb or MeshExportFormat.Gltf)
+        if (format is MeshExportFormat.Glb or MeshExportFormat.Gltf or MeshExportFormat.GlbDraco)
         {
             WriteFromGlb(store, run, directory, format, savedGlb);
             return;
@@ -193,7 +195,7 @@ public sealed class RunExchangeService : IRunExchangeService
 
     private void WriteFromGlb(IProjectStore store, RunData run, string directory, MeshExportFormat format, string? savedGlb)
     {
-        var output = Path.Combine(directory, "cliff." + format.ToString().ToLowerInvariant());
+        var output = Path.Combine(directory, format == MeshExportFormat.Gltf ? "cliff.gltf" : "cliff.glb");
         var temporary = savedGlb == null && format != MeshExportFormat.Glb;
         var source = savedGlb ?? (temporary ? Path.Combine(directory, "source.glb") : output);
         if (savedGlb == null)
@@ -207,6 +209,10 @@ public sealed class RunExchangeService : IRunExchangeService
         if (format == MeshExportFormat.Gltf)
         {
             mesh.WriteGltf(directory, source);
+        }
+        else if (format == MeshExportFormat.GlbDraco)
+        {
+            glbCompressor.Compress(source, output);
         }
         else if (savedGlb != null)
         {

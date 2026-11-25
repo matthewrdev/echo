@@ -14,6 +14,9 @@ struct ArtifactExportMenu: View {
 
                 Menu("Mesh") {
                     option("GLB", group: "mesh", format: "glb", stage: glbSource, available: hasGLB || hasTexture)
+                    option(
+                        "GLB (Draco)", group: "mesh", format: "glb-draco", stage: glbSource,
+                        available: hasGLB || hasTexture)
                     option("glTF", group: "mesh", format: "gltf", stage: glbSource, available: hasGLB || hasTexture)
                     option("OBJ", group: "mesh", format: "obj", stage: .texture, available: hasTexture)
                     option("STL", group: "mesh", format: "stl", stage: .mesh, available: hasMesh)
