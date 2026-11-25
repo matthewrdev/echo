@@ -11,6 +11,7 @@ public interface ICheckpointStore
         Action<string> action,
         CancellationToken cancellation,
         Action<string, Dictionary<string, object?>> progress,
+        out bool recordedProcessing,
         Func<ProcessingMetadata>? processing = null,
         string? algorithmVersion = null,
         IReadOnlyList<object>? compatibleInputs = null);

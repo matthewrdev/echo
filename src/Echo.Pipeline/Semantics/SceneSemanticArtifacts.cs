@@ -40,13 +40,13 @@ public sealed class SceneSemanticArtifacts : ISceneSemanticArtifacts
                 context.Cancellation.ThrowIfCancellationRequested();
                 var reused = true;
                 SemanticMap? detected = null;
-                var unit = context.Build("semantic-image", new
+                var unit = context.Build("semantic-image", new Dictionary<string, object?>
                 {
-                    photo.Id,
-                    photo.Hash,
-                    photo.SourceHash,
-                    modelProvider.Fingerprint,
-                    Implementation = implementation
+                    ["id"] = photo.Id,
+                    ["hash"] = photo.Hash,
+                    ["sourceHash"] = photo.SourceHash,
+                    ["fingerprint"] = modelProvider.Fingerprint,
+                    ["implementation"] = implementation
                 }, directory =>
                 {
                     lock (sessionGate)

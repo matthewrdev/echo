@@ -57,27 +57,27 @@ public sealed class MeshStage : IPipelineStage
         var semanticsPath = project.Settings.OptimiseVegetation ? context.Artifact("semantics") : null;
         var semanticUnits = semanticsPath == null ? new Dictionary<string, string>()
             : context.ReadArtifact<Dictionary<string, string>>("semantics", "units.json");
-        var meshInputs = new
+        var meshInputs = new Dictionary<string, object?>
         {
-            fusionPath,
-            depthUnits,
-            alignment,
-            completionVersion = (project.Settings.MeshCompleteSurface ? 14 : 10)
+            ["fusionPath"] = fusionPath,
+            ["depthUnits"] = depthUnits,
+            ["alignment"] = alignment,
+            ["completionVersion"] = (project.Settings.MeshCompleteSurface ? 14 : 10)
                 + (project.Settings.ExclusionRegions.Any(region => region.Shape == ExclusionShape.ProjectedHull) ? 1 : 0),
-            project.Settings.MeshCompleteSurface,
-            closeHull = project.Settings.MeshCompleteSurface && project.Settings.MeshCloseHull,
-            project.Settings.ExclusionRegions,
-            simplificationVersion = 5,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Mesh),
-            photographSelectionVersion = 2,
-            vegetationVersion = 2,
-            semanticsPath,
-            project.Settings.OptimiseVegetation,
-            project.Settings.VegetationMeshToleranceMultiplier,
-            project.Settings.FaceLimit,
-            project.Settings.MeshIslandMode,
-            project.Settings.MeshIslandMinimumAreaPercent
+            ["meshCompleteSurface"] = project.Settings.MeshCompleteSurface,
+            ["closeHull"] = project.Settings.MeshCompleteSurface && project.Settings.MeshCloseHull,
+            ["exclusionRegions"] = project.Settings.ExclusionRegions,
+            ["simplificationVersion"] = 5,
+            ["computeBackend"] = project.Settings.ComputeBackend,
+            ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Mesh),
+            ["photographSelectionVersion"] = 2,
+            ["vegetationVersion"] = 2,
+            ["semanticsPath"] = semanticsPath,
+            ["optimiseVegetation"] = project.Settings.OptimiseVegetation,
+            ["vegetationMeshToleranceMultiplier"] = project.Settings.VegetationMeshToleranceMultiplier,
+            ["faceLimit"] = project.Settings.FaceLimit,
+            ["meshIslandMode"] = project.Settings.MeshIslandMode,
+            ["meshIslandMinimumAreaPercent"] = project.Settings.MeshIslandMinimumAreaPercent
         };
         var meshPath = context.Build("mesh", GpsCropFingerprint.Apply(meshInputs, project.Settings.GpsPolygons), dir =>
                 {
@@ -257,7 +257,7 @@ public sealed class MeshStage : IPipelineStage
                                 : "Completed regions are inferred geometry. Distant extrapolation and surfaces contradicted by multiple visible depth rays are removed; missing and occluded depths remain neutral."
                             : "No inferred surface completion was applied. Small local holes may be repaired; missing and occluded depths remain neutral."
                     });
-                });
+                }, sources: [fusionPath, .. depthUnits, alignment, semanticsPath]);
         context.Publish("mesh", meshPath);
     }
 }

@@ -42,42 +42,42 @@ public sealed class TextureStage : IPipelineStage
         project.Settings.TexturePriority?.ValidateAlignment(alignment);
         var scene = context.Scene();
         var meshPath = context.Artifact("mesh");
-        var inputs = new
+        var inputs = new Dictionary<string, object?>
         {
-            meshPath,
-            alignment,
-            project.Settings.TextureSize,
-            textureVersion = 18,
-            project.Settings.TexturePriority,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Texture),
-            packingImplementation = project.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : string.Join(";", packingAccelerators.Select(accelerator => accelerator.Implementation)),
-            project.Settings.VegetationTextureScale,
-            project.Settings.TextureJpegQuality,
-            project.Settings.TextureChartFaces,
-            project.Settings.TextureChartAngle,
-            project.Settings.TextureGutter,
-            project.Settings.TextureSuppressSky,
-            project.Settings.TextureSkyMarginPixels
+            ["meshPath"] = meshPath,
+            ["alignment"] = alignment,
+            ["textureSize"] = project.Settings.TextureSize,
+            ["textureVersion"] = 18,
+            ["texturePriority"] = project.Settings.TexturePriority,
+            ["computeBackend"] = project.Settings.ComputeBackend,
+            ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Texture),
+            ["packingImplementation"] = project.Settings.ComputeBackend == ComputeBackend.Cpu ? "cpu" : string.Join(";", packingAccelerators.Select(accelerator => accelerator.Implementation)),
+            ["vegetationTextureScale"] = project.Settings.VegetationTextureScale,
+            ["textureJpegQuality"] = project.Settings.TextureJpegQuality,
+            ["textureChartFaces"] = project.Settings.TextureChartFaces,
+            ["textureChartAngle"] = project.Settings.TextureChartAngle,
+            ["textureGutter"] = project.Settings.TextureGutter,
+            ["textureSuppressSky"] = project.Settings.TextureSuppressSky,
+            ["textureSkyMarginPixels"] = project.Settings.TextureSkyMarginPixels
         };
         // Preserve the existing photographic checkpoint exactly when finishing is off.
         var originalPhotographicFinish = project.Settings.TextureColourEnhancement == 0 && project.Settings.TextureSeamBlendPixels == 0;
-        object fingerprint = originalPhotographicFinish ? inputs : new
+        object fingerprint = originalPhotographicFinish ? inputs : new Dictionary<string, object?>
         {
-            inputs,
-            colourFinishVersion = 2,
-            seamSofteningVersion = 1,
-            project.Settings.TextureSeamBlendPixels,
-            project.Settings.TextureColourEnhancement
+            ["inputs"] = inputs,
+            ["colourFinishVersion"] = 2,
+            ["seamSofteningVersion"] = 1,
+            ["textureSeamBlendPixels"] = project.Settings.TextureSeamBlendPixels,
+            ["textureColourEnhancement"] = project.Settings.TextureColourEnhancement
         };
         // Identity grades retain all existing checkpoints. A changed recipe only invalidates finishing.
         if (project.Settings.ColourGrade is { IsIdentity: false } grade)
         {
             grade.Validate();
-            fingerprint = new
+            fingerprint = new Dictionary<string, object?>
             {
-                photographic = fingerprint,
-                colourGrade = grade
+                ["photographic"] = fingerprint,
+                ["colourGrade"] = grade
             };
         }
 
@@ -86,20 +86,20 @@ public sealed class TextureStage : IPipelineStage
                 {
                     var surface = context.ReadData<Surface>(store.PathFor(meshPath + "/mesh.json"));
                     TextureLayout? layout = null;
-                    layoutArtifact = context.Build("texture-layout", new
+                    layoutArtifact = context.Build("texture-layout", new Dictionary<string, object?>
                     {
-                        meshPath,
-                        alignment,
-                        project.Settings.TextureSize,
-                        project.Settings.TexturePriority,
-                        project.Settings.ComputeBackend,
-                        inputs.computeImplementation,
-                        inputs.packingImplementation,
-                        project.Settings.OptimiseVegetation,
-                        project.Settings.VegetationTextureScale,
-                        project.Settings.TextureChartFaces,
-                        project.Settings.TextureChartAngle,
-                        project.Settings.TextureGutter
+                        ["meshPath"] = meshPath,
+                        ["alignment"] = alignment,
+                        ["textureSize"] = project.Settings.TextureSize,
+                        ["texturePriority"] = project.Settings.TexturePriority,
+                        ["computeBackend"] = project.Settings.ComputeBackend,
+                        ["computeImplementation"] = inputs["computeImplementation"],
+                        ["packingImplementation"] = inputs["packingImplementation"],
+                        ["optimiseVegetation"] = project.Settings.OptimiseVegetation,
+                        ["vegetationTextureScale"] = project.Settings.VegetationTextureScale,
+                        ["textureChartFaces"] = project.Settings.TextureChartFaces,
+                        ["textureChartAngle"] = project.Settings.TextureChartAngle,
+                        ["textureGutter"] = project.Settings.TextureGutter
                     }, directory =>
                     {
                         var vegetation = project.Settings.OptimiseVegetation
@@ -107,7 +107,7 @@ public sealed class TextureStage : IPipelineStage
                         layout = layoutPlanner.Plan(project, scene, surface, cancellation,
                             message => context.ReportProgress(Name, message), vegetation, context.Work, progress.Report);
                         layouts.Write(Path.Combine(directory, "layout.bin"), layout, cancellation);
-                    }, algorithmVersion: "echo-texture-layout-v1");
+                    }, algorithmVersion: "echo-texture-layout-v1", sources: [meshPath, alignment]);
                     if (layout == null)
                     {
                         progress.Report(new OperationProgress("UV charts", "Loading saved UV charts…") { Steps = [] });

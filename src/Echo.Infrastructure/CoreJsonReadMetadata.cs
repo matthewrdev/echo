@@ -21,6 +21,7 @@ public sealed class CoreJsonReadMetadata : IJsonReadMetadata
                 new JsonStringEnumConverter<PerformanceBackend>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<PerformanceStatus>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<PerformanceSpanKind>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
+                new JsonStringEnumConverter<ArtifactDeletionKind>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<ComputeBackend>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<SubjectDistanceMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
                 new JsonStringEnumConverter<CropRegionMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false),

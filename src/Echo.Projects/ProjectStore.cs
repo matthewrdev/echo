@@ -344,8 +344,8 @@ public sealed class ProjectStore : IProjectStore
         }
 
         image.Gps?.Validate();
-        rasterImageService.Save(bitmap, PathFor(image.Source), SKEncodedImageFormat.Jpeg);
-        image.SourceHash = fileOperations.HashFile(PathFor(image.Source));
+        var source = PathFor(image.Source);
+        image.SourceHash = rasterImageService.Save(bitmap, source, SKEncodedImageFormat.Jpeg) ?? fileOperations.HashFile(source);
         using var thumb = rasterImageService.Resize(bitmap, 480);
         rasterImageService.Save(thumb, PathFor(image.Preview), SKEncodedImageFormat.Jpeg);
         // Each imported photo is a complete, restartable unit. Original bytes are retained separately.

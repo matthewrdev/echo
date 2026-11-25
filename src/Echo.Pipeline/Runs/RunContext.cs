@@ -25,8 +25,7 @@ public sealed class RunContext : IDisposable
     private readonly OperationProgressFilter progressFilter = new();
     private readonly Stopwatch progressClock = Stopwatch.StartNew();
     private readonly HashSet<string> processingStages = new(StringComparer.Ordinal);
-    private readonly RunProcessingMetadata processing;
-    private bool processingDirty = true;
+    private readonly RunProcessingJournal processing;
     private long sequence;
     private readonly IBulkArtifactStore bulk;
     private readonly IProcessingResourcePlanner resourcePlanner;
@@ -35,6 +34,8 @@ public sealed class RunContext : IDisposable
     private string? scratchDirectory;
     private long lastResourceReport;
     private long lastProgressSave = long.MinValue;
+    private long lastEventFlush = long.MinValue;
+    private bool eventsPending;
     private BinaryJournal<RunEvent>? eventWriter;
     private WorkBuffers? work;
     private long diskReadBytes;
@@ -82,10 +83,12 @@ public sealed class RunContext : IDisposable
             .OrderBy(image => image.CapturedAt)
             .ThenBy(image => image.Name)
             .ToList();
-        var processingPath = store.PathFor($"runs/{run.Id}/processing.json");
-        processing = File.Exists(processingPath)
-            ? jsonCodec.Read<RunProcessingMetadata>(processingPath)
-            : new RunProcessingMetadata { RunId = run.Id, RequestedDepthBackend = run.Snapshot.Settings.DepthBackend };
+        if (run.ProcessingMetadataFile == "processing.json")
+        {
+            throw new EchoException($"Run {run.Id} uses legacy provenance. Run Echo.Migrate --run-provenance-only for this project.", 2);
+        }
+
+        processing = new RunProcessingJournal(store.PathFor($"runs/{run.Id}"));
         var eventReader = new BinaryJournalReader<RunEvent>(eventCodec);
         using var events = eventReader.OpenRead(store.PathFor($"runs/{run.Id}/events.bin"));
         if (events != null)
@@ -137,6 +140,7 @@ public sealed class RunContext : IDisposable
             Memory.Dispose();
             traceSession?.Dispose();
             eventWriter?.Dispose();
+            processing.Dispose();
         }
     }
 
@@ -210,6 +214,7 @@ public sealed class RunContext : IDisposable
     {
         lock (reportGate)
         {
+            FlushEventHistory(force: false);
             var usage = MeasureResources();
             if (usage.WorkingSetBytes > Resources.MemoryBytes)
             {
@@ -294,7 +299,7 @@ public sealed class RunContext : IDisposable
     }
 
     public string Build(string stage, object inputs, Action<string> action, Func<ProcessingMetadata>? metadata = null,
-        string? algorithmVersion = null, IReadOnlyList<object>? compatibleInputs = null)
+        string? algorithmVersion = null, IReadOnlyList<object>? compatibleInputs = null, IEnumerable<string?>? sources = null)
     {
         var owner = stage switch
         {
@@ -319,15 +324,15 @@ public sealed class RunContext : IDisposable
         };
         if (Run.Snapshot.StageRevisions.TryGetValue(owner, out var resetRevision))
         {
-            inputs = new
+            inputs = new Dictionary<string, object?>
             {
-                resetRevision,
-                inputs
+                ["resetRevision"] = resetRevision,
+                ["inputs"] = inputs
             };
-            compatibleInputs = compatibleInputs?.Select(compatible => (object)new
+            compatibleInputs = compatibleInputs?.Select(compatible => (object)new Dictionary<string, object?>
             {
-                resetRevision,
-                inputs = compatible
+                ["resetRevision"] = resetRevision,
+                ["inputs"] = compatible
             }).ToArray();
         }
 
@@ -338,7 +343,7 @@ public sealed class RunContext : IDisposable
         {
             metadata = () => new ProcessingMetadata
             {
-                SourceArtifacts = ProcessingArtifactReferences.Find(inputs, jsonCodec.Options),
+                SourceArtifacts = sources?.OfType<string>().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList() ?? [],
                 Executions = DescribeExecutions(stage, computeScope)
             };
         }
@@ -358,13 +363,14 @@ public sealed class RunContext : IDisposable
         }
 
         string artifact;
+        bool recorded;
         try
         {
             artifact = checkpoints.Build(Store, stage, inputs, directory =>
             {
                 reused = false;
                 action(directory);
-            }, Cancellation, Report, metadata, algorithmVersion, compatibleInputs);
+            }, Cancellation, Report, out recorded, metadata, algorithmVersion, compatibleInputs);
             performance?.Complete(reused ? PerformanceStatus.Reused : PerformanceStatus.Completed);
         }
         catch (OperationCanceledException)
@@ -381,21 +387,19 @@ public sealed class RunContext : IDisposable
         lock (reportGate)
         {
             var path = artifact + "/processing.json";
-            var manifest = jsonCodec.Read<Artifact>(Store.PathFor(artifact + "/manifest.json"));
-            var recorded = manifest.Files.ContainsKey("processing.json");
-            processing.Artifacts[artifact] = new ArtifactProcessingReference
+            var reference = new ArtifactProcessingReference
             {
                 Stage = stage,
                 Reused = reused,
                 MetadataPath = recorded ? path : null,
                 ProvenanceStatus = recorded ? "recorded" : "unknown-legacy"
             };
-            processingDirty = true;
+            processing.Append(artifact, reference);
             Report("artifactProcessing", new Dictionary<string, object?>
             {
                 ["stage"] = stage,
                 ["artifact"] = artifact,
-                ["processing"] = RunEventValues.Processing(processing.Artifacts[artifact])
+                ["processing"] = RunEventValues.Processing(reference)
             });
         }
 
@@ -555,8 +559,21 @@ public sealed class RunContext : IDisposable
             var record = new RunEvent(++sequence, DateTimeOffset.UtcNow, Run.Id, type, payload);
             eventWriter ??= new BinaryJournal<RunEvent>(Store.PathFor($"runs/{Run.Id}/events.bin"), eventCodec);
             eventWriter.Append(record, durable: false);
-            eventWriter.Flush(durable: false);
+            eventsPending = true;
+            FlushEventHistory(type is not ("stageProgress" or "resourceProgress"));
             output?.Invoke(record);
+        }
+    }
+
+    private void FlushEventHistory(bool force)
+    {
+        var now = Environment.TickCount64;
+        var due = lastEventFlush == long.MinValue || now - lastEventFlush >= 250;
+        if (eventsPending && (force || due))
+        {
+            eventWriter!.Flush(durable: false);
+            lastEventFlush = now;
+            eventsPending = false;
         }
     }
 
@@ -702,13 +719,8 @@ public sealed class RunContext : IDisposable
 
     private void SaveRun()
     {
-        Run.ProcessingMetadataFile = "processing.json";
-        if (processingDirty)
-        {
-            fileOperations.AtomicJson(Store.PathFor($"runs/{Run.Id}/processing.json"), processing);
-            processingDirty = false;
-        }
-
+        processing.Flush();
+        Run.ProcessingMetadataFile = processing.Exists ? RunProcessingJournal.FileName : null;
         Store.SaveRun(Run);
         File.Delete(Store.PathFor($"runs/{Run.Id}/progress.bin"));
         lastProgressSave = long.MinValue;

@@ -27,6 +27,7 @@ namespace Echo.Infrastructure;
 [JsonSerializable(typeof(RunSummary[]))]
 [JsonSerializable(typeof(WorkspaceInspection))]
 [JsonSerializable(typeof(Artifact))]
+[JsonSerializable(typeof(ArtifactDeletionFingerprint))]
 [JsonSerializable(typeof(ProcessingMetadata))]
 [JsonSerializable(typeof(RunProcessingMetadata))]
 [JsonSerializable(typeof(Settings))]

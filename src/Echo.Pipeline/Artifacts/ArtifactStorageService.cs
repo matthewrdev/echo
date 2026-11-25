@@ -5,6 +5,7 @@ using System.Text;
 using Echo.Infrastructure;
 using Echo.Models;
 using Echo.Projects;
+using Echo.Pipeline.Runs;
 using Echo.Storage.Matching;
 using Echo.Storage;
 
@@ -106,40 +107,22 @@ public sealed class ArtifactStorageService : IArtifactStorageService
             var path = store.PathFor(folder);
             if (Directory.Exists(path))
             {
-                result.Bytes += Scan(path, folder, hash);
+                result.Bytes += Scan(path, folder, hash, result.Artifacts);
             }
         }
 
         result.Token = Convert.ToHexString(hash.GetHashAndReset());
-        var artifactRoot = store.PathFor("artifacts");
-        if (Directory.Exists(artifactRoot))
+        foreach (var item in result.Artifacts)
         {
-            foreach (var stageFolder in Directory.GetDirectories(artifactRoot).Order(StringComparer.Ordinal))
+            var directory = store.PathFor(item.Path);
+            foreach (var name in new[] { "units.json", "recovery.json", "original-units.json", "processing.json" })
             {
-                foreach (var directory in Directory.GetDirectories(stageFolder).Order(StringComparer.Ordinal))
+                var index = Path.Combine(directory, name);
+                if (File.Exists(index))
                 {
-                    var item = new StoredArtifact
-                    {
-                        Path = Path.GetRelativePath(store.Root, directory),
-                        Stage = Path.GetFileName(stageFolder)
-                    };
-                    foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
-                    {
-                        item.Bytes += new FileInfo(file).Length;
-                        item.FileCount++;
-                    }
-
-                    foreach (var name in new[] { "units.json", "recovery.json", "original-units.json", "processing.json" })
-                    {
-                        var index = Path.Combine(directory, name);
-                        if (File.Exists(index))
-                        {
-                            using var document = JsonDocument.Parse(File.ReadAllBytes(index));
-                            References(document.RootElement, item.Dependencies);
-                        }
-                    }
-
-                    result.Artifacts.Add(item);
+                    using var stream = File.OpenRead(index);
+                    using var document = JsonDocument.Parse(stream);
+                    References(document.RootElement, item.Dependencies);
                 }
             }
         }
@@ -158,7 +141,7 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         return result;
     }
 
-    private long Scan(string path, string relative, IncrementalHash hash)
+    private long Scan(string path, string relative, IncrementalHash hash, List<StoredArtifact> artifacts, StoredArtifact? artifact = null)
     {
         var info = new DirectoryInfo(path);
         if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
@@ -178,12 +161,26 @@ public sealed class ArtifactStorageService : IArtifactStorageService
 
             if (entry is DirectoryInfo)
             {
-                bytes += Scan(entry.FullName, child, hash);
+                var childArtifact = artifact;
+                if (relative.StartsWith("artifacts/", StringComparison.Ordinal) && relative.IndexOf('/', "artifacts/".Length) < 0)
+                {
+                    childArtifact = new StoredArtifact { Path = child, Stage = info.Name };
+                    artifacts.Add(childArtifact);
+                }
+
+                bytes += Scan(entry.FullName, child, hash, artifacts, childArtifact);
             }
             else if (entry is FileInfo file)
             {
-                bytes += file.Length;
-                AddHash(hash, child + ":" + file.Length + ":" + file.LastWriteTimeUtc.Ticks);
+                var length = file.Length;
+                bytes += length;
+                if (artifact != null)
+                {
+                    artifact.Bytes += length;
+                    artifact.FileCount++;
+                }
+
+                AddHash(hash, child + ":" + length + ":" + file.LastWriteTimeUtc.Ticks);
             }
         }
 
@@ -275,16 +272,8 @@ public sealed class ArtifactStorageService : IArtifactStorageService
             }
         }
 
-        plan.Token = files.Hash(new
-        {
-            inventory.Token,
-            request.Kind,
-            artifact,
-            plan.Paths,
-            plan.AffectedRuns,
-            plan.RetainedRuns,
-            plan.RemovedRuns
-        });
+        plan.Token = files.HashGenerated(new ArtifactDeletionFingerprint(inventory.Token, request.Kind, artifact,
+            plan.Paths, plan.AffectedRuns, plan.RetainedRuns, plan.RemovedRuns));
         return plan;
     }
 
@@ -383,17 +372,20 @@ public sealed class ArtifactStorageService : IArtifactStorageService
         }
         // Completed child checkpoints can be resumable before their parent
         // stage has published an output, especially after cancellation.
-        var metadata = store.PathFor($"runs/{run.Id}/processing.json");
-        if (File.Exists(metadata))
+        if (run.ProcessingMetadataFile == "processing.json")
         {
-            using var document = JsonDocument.Parse(File.ReadAllBytes(metadata));
-            if (document.RootElement.TryGetProperty("artifacts", out var artifacts))
-            {
-                foreach (var property in artifacts.EnumerateObject())
-                {
-                    yield return property.Name;
-                }
-            }
+            throw new EchoException($"Run {run.Id} uses legacy provenance. Run Echo.Migrate --run-provenance-only for this project.", 2);
+        }
+
+        var journal = store.PathFor($"runs/{run.Id}/{RunProcessingJournal.FileName}");
+        if (run.ProcessingMetadataFile == RunProcessingJournal.FileName && !File.Exists(journal))
+        {
+            throw new EchoException($"Run {run.Id} is missing its packed provenance journal.");
+        }
+
+        foreach (var record in new ArtifactProcessingRecordCodec().ReadRecords(journal))
+        {
+            yield return record.Artifact;
         }
     }
 

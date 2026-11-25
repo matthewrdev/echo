@@ -1,6 +1,10 @@
+using Echo.Depth;
+using Echo.Pipeline.Artifacts;
+using Echo.Pipeline.Cloud;
 using Echo.Compute;
 using Echo.Infrastructure;
 using Echo.Models;
+using Echo.Storage.Journals;
 using Echo.Pipeline.Runs;
 using Echo.Pipeline;
 using Echo.Projects;
@@ -26,6 +30,59 @@ public sealed class ProcessingMetadataTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Generated checkpoint fingerprints preserve historical JSON bytes", () =>
+        {
+            var settings = new Settings { ComputeBackend = ComputeBackend.Metal };
+            var cloud = new DenseCloudInputs(["artifacts/depth-image/test"], "artifacts/alignment/test", settings, "Metal", cloudVersion: 6);
+            var exclusions = new List<ExclusionRegion> { new() { Id = "hull", Shape = ExclusionShape.Cylinder, Mode = CropRegionMode.Include } };
+            var crops = new List<GpsPolygon> { new() { Id = "crop", Vertices = [new(-33, 150), new(-33.01, 150.01), new(-33.01, 150)] } };
+            var photo = new Photo { Name = "Écho < test &\" example" };
+            var hints = new[] { new Hint { Type = "camera" } };
+            var subject = new SubjectDistancePlan();
+            var legacy = new
+            {
+                resetRevision = "test",
+                inputs = new
+                {
+                    cloud,
+                    exclusions,
+                    crops,
+                    cameras = new List<Photo> { photo },
+                    hints,
+                    subject,
+                    backend = ComputeBackend.Cpu,
+                    island = IslandTrimMode.Off,
+                    finish = new ColourGrade { Exposure = 0.3 },
+                    priority = new TexturePriorityPainting()
+                }
+            };
+            var current = new Dictionary<string, object?>
+            {
+                ["resetRevision"] = legacy.resetRevision,
+                ["inputs"] = new Dictionary<string, object?>
+                {
+                    ["cloud"] = cloud,
+                    ["exclusions"] = exclusions,
+                    ["crops"] = crops,
+                    ["cameras"] = legacy.inputs.cameras,
+                    ["hints"] = hints,
+                    ["subject"] = subject,
+                    ["backend"] = legacy.inputs.backend,
+                    ["island"] = legacy.inputs.island,
+                    ["finish"] = legacy.inputs.finish,
+                    ["priority"] = legacy.inputs.priority
+                }
+            };
+            var expected = files.Hash(new
+            {
+                storageVersion = 3,
+                version = "fixture",
+                stage = "fusion",
+                inputs = legacy
+            });
+            Check(new CheckpointFingerprint().Hash("fusion", "fixture", current) == expected,
+                "Generated fingerprint changed historical keys for nested inputs, enums, or escapes");
+        });
         tests.Run("Depth step progress survives checkpoint events and resets between steps and stages", () => WithProject(store =>
         {
             using var context = Context(store, "cpu");
@@ -34,9 +91,9 @@ public sealed class ProcessingMetadataTests
             context.ReportProgress("depth", "Classified", 5, 10);
             context.ReportProgress("depth", "Loading model");
             Check(context.Run.Progress!.Completed == 5 && context.Run.Progress.Total == 10, "Status messages preserve current step counters");
-            context.Build("semantic-image", new
+            context.Build("semantic-image", new Dictionary<string, object?>
             {
-                test = "step"
+                ["test"] = "step"
             }, SaveData);
             Check(context.Run.Progress!.StepIndex == 0 && context.Run.Progress.Steps.Length == 3, "Child checkpoints preserve the step plan");
             context.BeginStep("depth", ["Classification", "Stereo depth", "Save"], 1, 20);
@@ -51,9 +108,9 @@ public sealed class ProcessingMetadataTests
         {
             var first = Context(store, "metal-validated");
             first.Start();
-            var path = first.Build("depth-image", new
+            var path = first.Build("depth-image", new Dictionary<string, object?>
             {
-                image = "one"
+                ["image"] = "one"
             }, SaveData, () => new ProcessingMetadata
             {
                 Executions =
@@ -77,23 +134,25 @@ public sealed class ProcessingMetadataTests
             Check(manifest.Files["processing.json"] == files.HashFile(metadataPath), "Protect provenance with the checkpoint hash");
             var second = Context(store, "cpu");
             second.Start();
-            var reused = second.Build("depth-image", new
+            var reused = second.Build("depth-image", new Dictionary<string, object?>
             {
-                image = "one"
+                ["image"] = "one"
             }, _ => throw new InvalidOperationException("Should reuse"),
                 () => throw new InvalidOperationException("Should not replace existing provenance"));
             second.Complete();
             Check(path == reused && File.ReadAllText(metadataPath) == original, "Reuse cannot relabel or rewrite the producer");
-            var runMetadata = json.Read<RunProcessingMetadata>(store.PathFor($"runs/{second.Run.Id}/processing.json"));
-            Check(runMetadata.RequestedDepthBackend == "cpu", "Persist this run's requested backend separately");
-            Check(runMetadata.Artifacts[path].Reused && runMetadata.Artifacts[path].MetadataPath == path + "/processing.json", "Run metadata points to the original producer");
-            Check(store.GetRun(second.Run.Id).ProcessingMetadataFile == "processing.json", "Run manifest links the provenance index");
+            var provenance = new ArtifactProcessingRecordCodec().ReadRecords(store.PathFor($"runs/{second.Run.Id}/processing.bin"))
+                .Last(record => record.Artifact == path).Reference;
+            var savedRun = store.GetRun(second.Run.Id);
+            Check(savedRun.Snapshot.Settings.DepthBackend == "cpu", "Persist this run's requested backend separately");
+            Check(provenance.Reused && provenance.MetadataPath == path + "/processing.json", "Run metadata points to the original producer");
+            Check(savedRun.ProcessingMetadataFile == "processing.bin", "Run manifest links the provenance index");
             File.AppendAllText(metadataPath, " ");
             try
             {
-                second.Build("depth-image", new
+                second.Build("depth-image", new Dictionary<string, object?>
                 {
-                    image = "one"
+                    ["image"] = "one"
                 }, SaveData);
                 throw new InvalidOperationException("Tampering must invalidate the checkpoint");
             }
@@ -106,14 +165,14 @@ public sealed class ProcessingMetadataTests
             using var context = Context(store, "cpu");
             context.Start();
             string? child = null;
-            var parent = context.Build("texture", new
+            var parent = context.Build("texture", new Dictionary<string, object?>
             {
-                fixture = "packing-metadata"
+                ["fixture"] = "packing-metadata"
             }, directory =>
             {
-                child = context.Build("packing-fixture", new
+                child = context.Build("packing-fixture", new Dictionary<string, object?>
                 {
-                    fixture = "integer"
+                    ["fixture"] = "integer"
                 }, childDirectory =>
                 {
                     compute.RecordExecution(new ComputeExecution
@@ -142,9 +201,9 @@ public sealed class ProcessingMetadataTests
         {
             var context = Context(store, "cpu");
             context.Start();
-            var path = context.Build("feature-image", new
+            var path = context.Build("feature-image", new Dictionary<string, object?>
             {
-                image = "legacy"
+                ["image"] = "legacy"
             }, SaveData);
             var metadata = json.Read<ProcessingMetadata>(store.PathFor(path + "/processing.json"));
             Check(metadata.Executions.Single().ActualBackend == "cpu", "CPU processing is recorded too");
@@ -152,13 +211,14 @@ public sealed class ProcessingMetadataTests
             manifest.Files.Remove("processing.json");
             File.Delete(store.PathFor(path + "/processing.json"));
             files.AtomicJson(store.PathFor(path + "/manifest.json"), manifest);
-            context.Build("feature-image", new
+            context.Build("feature-image", new Dictionary<string, object?>
             {
-                image = "legacy"
+                ["image"] = "legacy"
             }, _ => throw new InvalidOperationException("Legacy checkpoint should reuse"));
             context.Complete();
-            var saved = json.Read<RunProcessingMetadata>(store.PathFor($"runs/{context.Run.Id}/processing.json"));
-            Check(saved.Artifacts[path].ProvenanceStatus == "unknown-legacy" && saved.Artifacts[path].MetadataPath == null, "Never invent provenance for legacy artifacts");
+            var saved = new ArtifactProcessingRecordCodec().ReadRecords(store.PathFor($"runs/{context.Run.Id}/processing.bin"))
+                .Last(record => record.Artifact == path).Reference;
+            Check(saved.ProvenanceStatus == "unknown-legacy" && saved.MetadataPath == null, "Never invent provenance for legacy artifacts");
             Check(!File.Exists(store.PathFor(path + "/processing.json")), "Do not mutate immutable old checkpoints");
         }));
     }

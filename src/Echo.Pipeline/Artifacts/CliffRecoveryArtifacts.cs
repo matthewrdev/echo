@@ -31,15 +31,15 @@ public sealed class CliffRecoveryArtifacts : ICliffRecoveryArtifacts
             context.Cancellation.ThrowIfCancellationRequested();
             var map = maps[index];
             var photo = photos[map.ImageId];
-            units[index] = context.Build("cliff-depth-image", new
+            units[index] = context.Build("cliff-depth-image", new Dictionary<string, object?>
             {
-                originalUnits,
-                map.ImageId,
-                alignment = context.Artifact("alignment"),
-                semantics = context.Artifact("semantics"),
-                context.Run.Snapshot.Settings.DepthNeighbours,
-                context.Run.Snapshot.Settings.DepthSuppressSky,
-                subjectDistance
+                ["originalUnits"] = originalUnits,
+                ["imageId"] = map.ImageId,
+                ["alignment"] = context.Artifact("alignment"),
+                ["semantics"] = context.Artifact("semantics"),
+                ["depthNeighbours"] = context.Run.Snapshot.Settings.DepthNeighbours,
+                ["depthSuppressSky"] = context.Run.Snapshot.Settings.DepthSuppressSky,
+                ["subjectDistance"] = subjectDistance
             }, directory =>
             {
                 var result = recovery.Recover(context.Store, context.Run.Snapshot, scene, map, maps, semantics[map.ImageId], context.Cancellation,

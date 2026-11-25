@@ -11,16 +11,14 @@ namespace Echo.Pipeline.DepthEstimation;
 public sealed class DepthStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
-    private readonly IJsonCodec jsonCodec;
     private readonly IDepthEstimator depthEstimator;
     private readonly IDepthExecutionPlanner executionPlanner;
     private readonly ISceneSemanticArtifacts semanticArtifacts;
     private readonly ICliffRecoveryArtifacts cliffRecovery;
 
-    public DepthStage(IFileOperations fileOperations, IJsonCodec jsonCodec, IDepthEstimator depthEstimator, IDepthExecutionPlanner executionPlanner, ISceneSemanticArtifacts semanticArtifacts, ICliffRecoveryArtifacts cliffRecovery)
+    public DepthStage(IFileOperations fileOperations, IDepthEstimator depthEstimator, IDepthExecutionPlanner executionPlanner, ISceneSemanticArtifacts semanticArtifacts, ICliffRecoveryArtifacts cliffRecovery)
     {
         this.fileOperations = fileOperations;
-        this.jsonCodec = jsonCodec;
         this.depthEstimator = depthEstimator;
         this.executionPlanner = executionPlanner;
         this.semanticArtifacts = semanticArtifacts;
@@ -78,26 +76,27 @@ public sealed class DepthStage : IPipelineStage
         context.ReportProgress(Name, $"Depth: {plan.ConcurrentImages} images concurrently, {plan.WorkersPerImage} CPU workers per image; estimated {plan.EstimatedBytesPerImage / 1024 / 1024:N0} MB per job; {budgetMode} memory budget {plan.MemoryBudgetBytes / 1024 / 1024:N0} MB.", 0, scene.Cameras.Count);
         using var decodedImages = new DepthDecodedImageCache(plan.DecodedImageCacheBytes);
         var options = new ParallelOptions { CancellationToken = cancellation, MaxDegreeOfParallelism = plan.ConcurrentImages };
+        var progressData = context.Data;
         Parallel.For(0, scene.Cameras.Count, options, index =>
         {
             var camera = scene.Cameras[index];
             var photo = project.Images.Single(image => image.Id == camera.ImageId);
-            var inputs = new
+            var inputs = new Dictionary<string, object?>
             {
-                alignment,
-                camera.ImageId,
-                project.Settings.ComputeBackend,
-                computeImplementation = context.ComputeImplementation(ComputeOperation.Depth),
-                project.Settings.DepthSuppressSky,
-                skySemantics = project.Settings.DepthSuppressSky ? context.Artifact("semantics") : null,
-                project.Settings.DepthWidth,
-                project.Settings.DepthPlanes,
-                project.Settings.DepthRefinementSamples,
-                project.Settings.DepthNeighbours,
-                project.Settings.DepthRangeAutomatic,
-                project.Settings.DepthNear,
-                project.Settings.DepthFar,
-                subjectDistance
+                ["alignment"] = alignment,
+                ["imageId"] = camera.ImageId,
+                ["computeBackend"] = project.Settings.ComputeBackend,
+                ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Depth),
+                ["depthSuppressSky"] = project.Settings.DepthSuppressSky,
+                ["skySemantics"] = project.Settings.DepthSuppressSky ? context.Artifact("semantics") : null,
+                ["depthWidth"] = project.Settings.DepthWidth,
+                ["depthPlanes"] = project.Settings.DepthPlanes,
+                ["depthRefinementSamples"] = project.Settings.DepthRefinementSamples,
+                ["depthNeighbours"] = project.Settings.DepthNeighbours,
+                ["depthRangeAutomatic"] = project.Settings.DepthRangeAutomatic,
+                ["depthNear"] = project.Settings.DepthNear,
+                ["depthFar"] = project.Settings.DepthFar,
+                ["subjectDistance"] = subjectDistance
             };
             DepthMap? detected = null;
             var processing = new ProcessingMetadata
@@ -140,9 +139,9 @@ public sealed class DepthStage : IPipelineStage
             }, () => processing, algorithmVersion);
             depthUnits[index] = depth;
             var reused = detected == null;
-            var savedMap = detected ?? jsonCodec.Read<DepthMap>(store.PathFor(depth + "/depth.json"));
-            var validSamples = savedMap.Depth.Count(value => float.IsFinite(value) && value > 0);
-            var sampleCount = savedMap.Depth.Length;
+            var savedMap = detected ?? progressData.Read<DepthMap>(store.PathFor(depth + "/depth.json"));
+            var validSamples = CountValidSamples(savedMap, cancellation);
+            var sampleCount = savedMap.SampleCount;
             lock (progressGate)
             {
                 completed++;
@@ -183,5 +182,42 @@ public sealed class DepthStage : IPipelineStage
         }, () => new ProcessingMetadata { SourceArtifacts = depthUnits.ToList() });
         context.Publish("depth", artifact);
         context.ReportOperation(Name, new OperationProgress("Save depth result", "Depth result saved. All depth steps are complete.", 1, 1, "results"));
+    }
+
+    private int CountValidSamples(DepthMap map, CancellationToken cancellation)
+    {
+        if (map.Samples == null)
+        {
+            return CountValid(map.Depth);
+        }
+
+        // Reused checkpoints need only depth statistics for their progress event.
+        // Read contiguous depth records without materialising either full plane.
+        var valid = 0;
+        Span<float> buffer = stackalloc float[4096];
+        for (var start = 0; start < map.SampleCount;)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var batch = buffer[..Math.Min(buffer.Length, map.SampleCount - start)];
+            map.ReadDepth(start, batch);
+            valid += CountValid(batch);
+            start += batch.Length;
+        }
+
+        return valid;
+    }
+
+    private int CountValid(ReadOnlySpan<float> values)
+    {
+        var count = 0;
+        foreach (var value in values)
+        {
+            if (float.IsFinite(value) && value > 0)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 }

@@ -10,13 +10,15 @@ public sealed class FusionGridCheckpoints : IFusionGridStore
 {
     private readonly RunContext context;
     private readonly object inputs;
+    private readonly IReadOnlyList<string> sources;
     private readonly IFileOperations files;
     private readonly IJsonCodec json;
 
-    public FusionGridCheckpoints(RunContext context, object inputs, IFileOperations files, IJsonCodec json)
+    public FusionGridCheckpoints(RunContext context, object inputs, IFileOperations files, IJsonCodec json, IReadOnlyList<string> sources)
     {
         this.context = context;
         this.inputs = inputs;
+        this.sources = sources;
         this.files = files;
         this.json = json;
     }
@@ -31,7 +33,7 @@ public sealed class FusionGridCheckpoints : IFusionGridStore
             files.AtomicWrite(Path.Combine(directory, "ranges.bin"), stream => WriteRanges(stream, keys.Spans));
             files.AtomicJson(Path.Combine(directory, "grid.json"), new FusionGridMetadata(generated.PixelFootprint,
                 generated.RequestedVoxelSize, generated.VoxelSize, keys.Count, keys.Spans.Count, keys.Axis));
-        }, algorithmVersion: "echo-fusion-grid1");
+        }, algorithmVersion: "echo-fusion-grid1", sources: sources);
         if (generated != null)
         {
             return generated;

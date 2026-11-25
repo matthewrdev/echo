@@ -7,11 +7,11 @@ internal static class GpsCropFingerprint
     public static object Apply(object inputs, IReadOnlyList<GpsPolygon>? polygons)
     {
         return polygons is { Count: > 0 }
-            ? new
+            ? new Dictionary<string, object?>
             {
-                inputs,
-                gpsCropVersion = 1,
-                gpsPolygons = polygons
+                ["inputs"] = inputs,
+                ["gpsCropVersion"] = 1,
+                ["gpsPolygons"] = polygons
             }
             : inputs;
     }

@@ -39,46 +39,47 @@ public sealed class FusionStage : IPipelineStage
         var depthUnits = context.DepthUnits();
         var cloudPath = context.Artifact("cloud");
         var resources = resourcePlanner.Plan(project.Settings, context.WorkingMemoryBytes);
-        var inputs = new
+        var inputs = new Dictionary<string, object?>
         {
-            cloudPath,
-            depthUnits,
-            alignment,
-            maximumGridSamples = context.Paged && project.Settings.FusionVoxelSize > 0 ? 0 : resources.MaximumGridSamples,
-            fusionVersion = project.Settings.ExclusionRegions.Any(region => region.Shape == ExclusionShape.ProjectedHull) ? 16 : 15,
-            project.Settings.ExclusionRegions,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Fusion),
-            project.Settings.CloudDepthTolerance,
-            project.Settings.FusionDetailMultiplier,
-            project.Settings.FusionVoxelSize,
-            project.Settings.FusionAllowCoarserResolution,
-            project.Settings.FusionIslandMode,
-            project.Settings.FusionIslandMinimumSizePercent
+            ["cloudPath"] = cloudPath,
+            ["depthUnits"] = depthUnits,
+            ["alignment"] = alignment,
+            ["maximumGridSamples"] = context.Paged && project.Settings.FusionVoxelSize > 0 ? 0 : resources.MaximumGridSamples,
+            ["fusionVersion"] = project.Settings.ExclusionRegions.Any(region => region.Shape == ExclusionShape.ProjectedHull) ? 16 : 15,
+            ["exclusionRegions"] = project.Settings.ExclusionRegions,
+            ["computeBackend"] = project.Settings.ComputeBackend,
+            ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Fusion),
+            ["cloudDepthTolerance"] = project.Settings.CloudDepthTolerance,
+            ["fusionDetailMultiplier"] = project.Settings.FusionDetailMultiplier,
+            ["fusionVoxelSize"] = project.Settings.FusionVoxelSize,
+            ["fusionAllowCoarserResolution"] = project.Settings.FusionAllowCoarserResolution,
+            ["fusionIslandMode"] = project.Settings.FusionIslandMode,
+            ["fusionIslandMinimumSizePercent"] = project.Settings.FusionIslandMinimumSizePercent
         };
-        var gridInputs = new
+        var gridInputs = new Dictionary<string, object?>
         {
-            cloudPath,
-            depthUnits,
-            alignment,
-            inputs.maximumGridSamples,
-            inputs.fusionVersion,
-            project.Settings.ExclusionRegions,
-            project.Settings.CloudDepthTolerance,
-            project.Settings.FusionDetailMultiplier,
-            project.Settings.FusionVoxelSize,
-            project.Settings.FusionAllowCoarserResolution
+            ["cloudPath"] = cloudPath,
+            ["depthUnits"] = depthUnits,
+            ["alignment"] = alignment,
+            ["maximumGridSamples"] = inputs["maximumGridSamples"],
+            ["fusionVersion"] = inputs["fusionVersion"],
+            ["exclusionRegions"] = project.Settings.ExclusionRegions,
+            ["cloudDepthTolerance"] = project.Settings.CloudDepthTolerance,
+            ["fusionDetailMultiplier"] = project.Settings.FusionDetailMultiplier,
+            ["fusionVoxelSize"] = project.Settings.FusionVoxelSize,
+            ["fusionAllowCoarserResolution"] = project.Settings.FusionAllowCoarserResolution
         };
         var cropGridInputs = GpsCropFingerprint.Apply(gridInputs, project.Settings.GpsPolygons);
-        var integrationInputs = new
+        var integrationInputs = new Dictionary<string, object?>
         {
-            gridInputs = cropGridInputs,
-            project.Settings.ComputeBackend,
-            inputs.computeImplementation,
+            ["gridInputs"] = cropGridInputs,
+            ["computeBackend"] = project.Settings.ComputeBackend,
+            ["computeImplementation"] = inputs["computeImplementation"],
             // Auto backend selection and checkpoint boundaries depend on budgets.
-            resources.MemoryBudgetBytes,
-            computeBudget = context.WorkingMemoryBytes / 4
+            ["memoryBudgetBytes"] = resources.MemoryBudgetBytes,
+            ["computeBudget"] = context.WorkingMemoryBytes / 4
         };
+        string[] sources = [cloudPath, .. depthUnits, alignment];
         var fusionPath = context.Build("fusion", GpsCropFingerprint.Apply(inputs, project.Settings.GpsPolygons), dir =>
                 {
                     var previews = context.Headless ? null : new RunPreviewPublisher(context, fileOperations, RunPreviewStage.Fusion);
@@ -87,7 +88,7 @@ public sealed class FusionStage : IPipelineStage
                     context.ReportProgress(Name, $"Processing RAM budget: {context.Resources.MemoryBytes / 1073741824.0:G4} GiB; shared page cache {context.Resources.CacheBytes / 1048576:N0} MiB. Storage mode: {context.Resources.Mode}.");
                     var volume = depthFusion.Fuse(project, scene, maps, cloud, resources, cancellation,
                         message => context.ReportProgress(Name, message), context.Work,
-                        context.Paged ? new FusionChunkCheckpoints(context, integrationInputs, fileOperations) : null,
+                        context.Paged ? new FusionChunkCheckpoints(context, integrationInputs, fileOperations, sources) : null,
                         update => context.ReportOperation(Name, update),
                         previews == null ? null : preview =>
                         {
@@ -96,7 +97,7 @@ public sealed class FusionStage : IPipelineStage
                                 previews.PublishFusion(preview);
                             }
                         },
-                        context.Paged ? new FusionGridCheckpoints(context, cropGridInputs, fileOperations, jsonCodec) : null);
+                        context.Paged ? new FusionGridCheckpoints(context, cropGridInputs, fileOperations, jsonCodec, sources) : null);
                     if (project.Settings.FusionIslandMode != IslandTrimMode.Off)
                     {
                         context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Cleanup, true, "Removing disconnected fusion regions before meshing…"));
@@ -140,7 +141,7 @@ public sealed class FusionStage : IPipelineStage
                     });
                     context.ReportOperation(Name, FusionProgressPlan.Create(FusionPhase.Save,
                         project.Settings.FusionIslandMode != IslandTrimMode.Off, "Integrated volume saved.", 1, 1, "volumes"));
-                });
+                }, sources: sources);
         context.Publish("fusion", fusionPath);
     }
 }

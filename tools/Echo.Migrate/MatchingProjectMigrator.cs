@@ -34,6 +34,14 @@ public sealed class MatchingProjectMigrator
         Console.WriteLine($"Completed {root}: {count:N0} alignment previews packed.");
     }
 
+    public void MigrateRunProvenance(string root)
+    {
+        var store = stores.Open(root);
+        using var runLock = store.Lock("run");
+        var count = packed.MigrateRunProvenance(store);
+        Console.WriteLine($"Completed {root}: {count:N0} run provenance journals packed.");
+    }
+
     public void Migrate(string root)
     {
         var store = stores.Open(root);
@@ -86,6 +94,8 @@ public sealed class MatchingProjectMigrator
         {
             MigrateRun(store, path);
         }
+
+        packed.MigrateRunProvenance(store);
 
         var previews = store.PathFor("artifacts/matching-preview");
         if (Directory.Exists(previews))

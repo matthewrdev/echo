@@ -48,7 +48,7 @@ public sealed class InspectCommand : ICliCommand
         var projectToken = FormattableString.Invariant($"{inspection.Project.Id}:{inspection.Project.Revision}");
         var run = inspection.Run;
         // A run may apply temporary settings without changing its project revision.
-        var snapshotToken = run == null ? "" : $"{run.Id}:{files.Hash(run.Snapshot.Settings)}";
+        var snapshotToken = run == null ? "" : $"{run.Id}:{files.HashGenerated(run.Snapshot.Settings)}";
         output.Write(new WorkspaceInspection
         {
             SchemaVersion = inspection.SchemaVersion,

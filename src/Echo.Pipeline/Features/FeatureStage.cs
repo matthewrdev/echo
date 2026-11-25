@@ -3,6 +3,7 @@ using Echo.Features;
 using Echo.Infrastructure;
 using Echo.Models;
 using Echo.Pipeline.Runs;
+using Echo.Storage.Matching;
 
 namespace Echo.Pipeline.Features;
 
@@ -10,15 +11,15 @@ public sealed class FeatureStage : IPipelineStage
 {
     private readonly IFileOperations fileOperations;
     private readonly IFeatureExtractor featureExtractor;
-    private readonly IJsonCodec jsonCodec;
+    private readonly IFeatureArtifactStore featureArtifacts;
     private readonly IImageWorkPlanner workPlanner;
     private readonly IOrderedWorkExecutor workExecutor;
 
-    public FeatureStage(IFileOperations fileOperations, IFeatureExtractor featureExtractor, IJsonCodec jsonCodec, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor)
+    public FeatureStage(IFileOperations fileOperations, IFeatureExtractor featureExtractor, IFeatureArtifactStore featureArtifacts, IImageWorkPlanner workPlanner, IOrderedWorkExecutor workExecutor)
     {
         this.fileOperations = fileOperations;
         this.featureExtractor = featureExtractor;
-        this.jsonCodec = jsonCodec;
+        this.featureArtifacts = featureArtifacts;
         this.workPlanner = workPlanner;
         this.workExecutor = workExecutor;
     }
@@ -58,28 +59,28 @@ public sealed class FeatureStage : IPipelineStage
         var artifact = context.Build("features", featureUnits, directory =>
         {
             fileOperations.AtomicJson(Path.Combine(directory, "units.json"), featureUnits);
-        });
+        }, sources: featureUnits.Values);
         context.Publish("features", artifact);
     }
 
     private FeatureImageCheckpoint BuildImage(RunContext context, Photo image)
     {
         var settings = context.Run.Snapshot.Settings;
-        var inputs = new
+        var inputs = new Dictionary<string, object?>
         {
-            image.Id,
-            image.SourceHash,
-            detectorVersion = 7,
-            settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Features),
-            settings.ScaleInvariantFeatures,
-            settings.DetectLines,
-            settings.LineLimit,
-            settings.LineMinimumLength,
-            settings.LineGradientThreshold,
-            settings.LineSplitRegions,
-            settings.FeatureWidth,
-            settings.FeatureLimit
+            ["id"] = image.Id,
+            ["sourceHash"] = image.SourceHash,
+            ["detectorVersion"] = 7,
+            ["computeBackend"] = settings.ComputeBackend,
+            ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Features),
+            ["scaleInvariantFeatures"] = settings.ScaleInvariantFeatures,
+            ["detectLines"] = settings.DetectLines,
+            ["lineLimit"] = settings.LineLimit,
+            ["lineMinimumLength"] = settings.LineMinimumLength,
+            ["lineGradientThreshold"] = settings.LineGradientThreshold,
+            ["lineSplitRegions"] = settings.LineSplitRegions,
+            ["featureWidth"] = settings.FeatureWidth,
+            ["featureLimit"] = settings.FeatureLimit
         };
         FeatureSet? detected = null;
         var unit = context.Build("feature-image", inputs, directory =>
@@ -89,7 +90,12 @@ public sealed class FeatureStage : IPipelineStage
             context.Trace.Operation(new OperationProgress("Save feature descriptors", image.Name, detected.Features.Count, detected.Features.Count, "features"));
             fileOperations.AtomicJson(Path.Combine(directory, "features.json"), detected);
         });
-        var features = detected ?? jsonCodec.Read<FeatureSet>(context.Store.PathFor(unit + "/features.json"));
-        return new FeatureImageCheckpoint(unit, features.Features.Count, features.Lines.Count, detected == null);
+        if (detected != null)
+        {
+            return new FeatureImageCheckpoint(unit, detected.Features.Count, detected.Lines.Count, Reused: false);
+        }
+
+        var header = featureArtifacts.Header(context.Store.PathFor(unit + "/features.json"));
+        return new FeatureImageCheckpoint(unit, header.PointCount, header.LineCount, Reused: true);
     }
 }

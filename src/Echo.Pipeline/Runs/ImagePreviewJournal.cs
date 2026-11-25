@@ -12,6 +12,8 @@ internal sealed class ImagePreviewJournal : IDisposable
     private readonly ImagePreviewRecordCodec codec = new();
     private readonly Dictionary<string, string> units;
     private BinaryJournal<ImagePreviewRecord>? journal;
+    private long lastFlush = long.MinValue;
+    private bool pendingDurability;
 
     public ImagePreviewJournal(RunContext context, string stage)
     {
@@ -38,7 +40,21 @@ internal sealed class ImagePreviewJournal : IDisposable
             }
 
             journal ??= new BinaryJournal<ImagePreviewRecord>(path, codec);
-            journal.Append(new ImagePreviewRecord(imageId, artifact));
+            journal.Append(new ImagePreviewRecord(imageId, artifact), durable: false);
+            var now = Environment.TickCount64;
+            if (lastFlush == long.MinValue || now - lastFlush >= 1000)
+            {
+                journal.Flush();
+                lastFlush = now;
+                pendingDurability = false;
+            }
+            else
+            {
+                // The corresponding image checkpoint event promises that this entry is readable.
+                journal.Flush(durable: false);
+                pendingDurability = true;
+            }
+
             units[imageId] = artifact;
         }
 
@@ -48,5 +64,17 @@ internal sealed class ImagePreviewJournal : IDisposable
         }
     }
 
-    public void Dispose() => journal?.Dispose();
+    public void Dispose()
+    {
+        if (journal != null)
+        {
+            using (journal)
+            {
+                if (pendingDurability)
+                {
+                    journal.Flush();
+                }
+            }
+        }
+    }
 }

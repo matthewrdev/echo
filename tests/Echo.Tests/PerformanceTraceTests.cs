@@ -123,9 +123,9 @@ public sealed class PerformanceTraceTests
             using (var context = contexts.Create(store, run, default, null))
             {
                 context.Start();
-                context.Build("features", new
+                context.Build("features", new Dictionary<string, object?>
                 {
-                    input = 1
+                    ["input"] = 1
                 }, directory => files.AtomicBytes(Path.Combine(directory, "sample"), [1]));
                 context.Complete();
             }
@@ -133,15 +133,15 @@ public sealed class PerformanceTraceTests
             using (var context = contexts.Create(store, run, default, null))
             {
                 context.Start();
-                context.Build("features", new
+                context.Build("features", new Dictionary<string, object?>
                 {
-                    input = 1
+                    ["input"] = 1
                 }, _ => throw new InvalidOperationException("Cache miss"));
                 try
                 {
-                    context.Build("features", new
+                    context.Build("features", new Dictionary<string, object?>
                     {
-                        input = 2
+                        ["input"] = 2
                     }, _ => throw new OperationCanceledException());
                 }
                 catch (OperationCanceledException)

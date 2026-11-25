@@ -33,13 +33,13 @@ public sealed class ExportStage : IPipelineStage
         var texture = context.Artifact("texture");
         var cloudPath = context.Artifact("cloud");
         var fusionPath = context.Artifact("fusion");
-        var export = context.Build("export", new
+        var export = context.Build("export", new Dictionary<string, object?>
         {
-            descriptionVersion = 4,
-            texture,
-            meshPath,
-            alignment,
-            project.Settings.ExportValidate
+            ["descriptionVersion"] = 4,
+            ["texture"] = texture,
+            ["meshPath"] = meshPath,
+            ["alignment"] = alignment,
+            ["exportValidate"] = project.Settings.ExportValidate
         }, dir =>
                 {
                     var tex = jsonCodec.Read<TextureResult>(store.PathFor(texture + "/texture.json"));
@@ -81,7 +81,7 @@ public sealed class ExportStage : IPipelineStage
                     {
                         glbWriter.Inspect(Path.Combine(dir, "cliff.glb"));
                     }
-                });
+                }, sources: [texture, meshPath, alignment, cloudPath, fusionPath]);
         context.Publish("export", export);
     }
 

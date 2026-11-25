@@ -1,3 +1,4 @@
+using Echo.Storage.Journals;
 using Echo.Infrastructure;
 using Echo.Models;
 using Echo.Pipeline.Artifacts;
@@ -112,10 +113,10 @@ public sealed class ArtifactStorageTests
             latest.Artifacts.Remove("cloud");
             store.SaveRun(latest);
             var partial = SaveArtifact(store, "fusion-chunk", "resumable");
-            files.AtomicJson(store.PathFor($"runs/{latest.Id}/processing.json"), new
+            using (var journal = new BinaryJournal<ArtifactProcessingRecord>(store.PathFor($"runs/{latest.Id}/processing.bin"), new ArtifactProcessingRecordCodec()))
             {
-                artifacts = new Dictionary<string, object> { [partial] = new { status = "completed" } }
-            });
+                journal.Append(new ArtifactProcessingRecord(partial, new ArtifactProcessingReference()));
+            }
             var orphan = SaveArtifact(store, "depth-image", "orphan");
             foreach (var run in new[] { support, old, latest })
             {

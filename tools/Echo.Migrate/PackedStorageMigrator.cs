@@ -45,6 +45,71 @@ public sealed class PackedStorageMigrator
         }
     }
 
+    public int MigrateRunProvenance(IProjectStore store)
+    {
+        var root = store.PathFor("runs");
+        if (!Directory.Exists(root))
+        {
+            return 0;
+        }
+
+        var codec = new ArtifactProcessingRecordCodec();
+        var migrated = 0;
+        foreach (var directory in Directory.EnumerateDirectories(root))
+        {
+            var source = Path.Combine(directory, "processing.json");
+            var runFile = Path.Combine(directory, "run.json");
+            if (!File.Exists(source) || !File.Exists(runFile))
+            {
+                continue;
+            }
+
+            var data = json.Read<RunProcessingMetadata>(source);
+            var target = Path.Combine(directory, "processing.bin");
+            if (!File.Exists(target))
+            {
+                var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    using (var journal = new BinaryJournal<ArtifactProcessingRecord>(temporary, codec))
+                    {
+                        foreach (var pair in data.Artifacts)
+                        {
+                            journal.Append(new ArtifactProcessingRecord(pair.Key, pair.Value), durable: false);
+                        }
+
+                        journal.Flush();
+                    }
+
+                    File.Move(temporary, target);
+                }
+                finally
+                {
+                    File.Delete(temporary);
+                }
+            }
+
+            var saved = codec.ReadRecords(target).ToDictionary(record => record.Artifact, record => record.Reference);
+            if (saved.Count != data.Artifacts.Count || data.Artifacts.Any(pair =>
+                !saved.TryGetValue(pair.Key, out var reference) || reference.Stage != pair.Value.Stage
+                || reference.MetadataPath != pair.Value.MetadataPath || reference.Reused != pair.Value.Reused
+                || reference.ProvenanceStatus != pair.Value.ProvenanceStatus))
+            {
+                throw new InvalidDataException($"Packed run provenance differs from {source}.");
+            }
+
+            var run = store.GetRun(Path.GetFileName(directory));
+            var updated = File.GetLastWriteTimeUtc(runFile);
+            run.ProcessingMetadataFile = "processing.bin";
+            store.SaveRun(run);
+            File.SetLastWriteTimeUtc(runFile, updated);
+            File.Delete(source);
+            migrated++;
+        }
+
+        return migrated;
+    }
+
     public RunData ReadRun(IProjectStore store, string path, out bool legacy)
     {
         using var input = File.OpenRead(path);

@@ -78,7 +78,9 @@ public sealed class MatchingStage : IPipelineStage
 
         var plan = workPlanner.Matching(project.Settings, wanted.Count);
         using var cache = cacheFactory.Create(plan.FeatureCacheBytes);
-        workExecutor.Run(wanted.Count, plan.Workers, index => BuildPair(context, wanted[index], photos, featureUnits, cache), (index, unit) =>
+        var useDescriptorQueue = OperatingSystem.IsMacOS() && compute != null && project.Settings.ComputeBackend != ComputeBackend.Cpu;
+        using var descriptors = useDescriptorQueue && plan.Workers > 2 ? new MatchingDescriptorQueue(featureMatcher) : null;
+        workExecutor.Run(wanted.Count, plan.Workers, index => BuildPair(context, wanted[index], photos, featureUnits, cache, descriptors), (index, unit) =>
         {
             var pair = wanted[index];
             pairUnits.Add(unit);
@@ -94,15 +96,15 @@ public sealed class MatchingStage : IPipelineStage
             });
         }, cancellation);
 
-        object matchingInputs = maskVegetation ? new
+        object matchingInputs = maskVegetation ? new Dictionary<string, object?>
         {
-            selectionVersion = 2,
-            pairUnits,
-            featureUnits
-        } : new
+            ["selectionVersion"] = 2,
+            ["pairUnits"] = pairUnits,
+            ["featureUnits"] = featureUnits
+        } : new Dictionary<string, object?>
         {
-            selectionVersion = 2,
-            pairUnits
+            ["selectionVersion"] = 2,
+            ["pairUnits"] = pairUnits
         };
         context.Publish("matching", context.Build("matching", matchingInputs, directory =>
         {
@@ -129,7 +131,7 @@ public sealed class MatchingStage : IPipelineStage
                 project.Settings.PairSearchDistance,
                 pairs = wanted
             });
-        }));
+        }, sources: maskVegetation ? pairUnits.Concat(featureUnits.Values) : pairUnits));
     }
 
     private void WriteFinalIndex(string root, string path, IReadOnlyList<string> units)
@@ -149,12 +151,12 @@ public sealed class MatchingStage : IPipelineStage
         foreach (var photo in context.Images)
         {
             var original = originalUnits[photo.Id];
-            var filtered = context.Build("matching-feature-image", new
+            var filtered = context.Build("matching-feature-image", new Dictionary<string, object?>
             {
-                original,
-                photo.Width,
-                photo.Height,
-                mask = masks[photo.Id]
+                ["original"] = original,
+                ["width"] = photo.Width,
+                ["height"] = photo.Height,
+                ["mask"] = masks[photo.Id]
             }, directory =>
             {
                 var source = context.ReadData<FeatureSet>(context.Store.PathFor(original + "/features.json"));
@@ -162,35 +164,37 @@ public sealed class MatchingStage : IPipelineStage
                 fileOperations.AtomicJson(Path.Combine(directory, "features.json"), result);
                 context.ReportProgress(Name,
                     $"{photo.Name} · Excluded {source.Features.Count - result.Features.Count:N0} vegetation keypoints");
-            }, algorithmVersion: "echo-matching-vegetation1");
+            }, algorithmVersion: "echo-matching-vegetation1", sources: [original, masks[photo.Id]]);
             units.Add(photo.Id, filtered);
         }
 
         return units;
     }
 
-    private string BuildPair(RunContext context, PairIdentity pair, IReadOnlyDictionary<string, Photo> photos, IReadOnlyDictionary<string, string> featureUnits, FeatureSetCache cache)
+    private string BuildPair(RunContext context, PairIdentity pair, IReadOnlyDictionary<string, Photo> photos, IReadOnlyDictionary<string, string> featureUnits, FeatureSetCache cache,
+        MatchingDescriptorQueue? descriptors)
     {
         var project = context.Run.Snapshot;
         var cancellation = context.Cancellation;
         var hints = project.Hints.Where(hint => AppliesToPair(hint, pair)).ToArray();
-        return context.Build("match-pair", new
+        return context.Build("match-pair", new Dictionary<string, object?>
         {
-            a = featureUnits[pair.A],
-            b = featureUnits[pair.B],
-            hints,
-            matcherVersion = 6,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Matching),
-            project.Settings.MatchRatioThreshold,
-            project.Settings.MatchDistanceThreshold
+            ["a"] = featureUnits[pair.A],
+            ["b"] = featureUnits[pair.B],
+            ["hints"] = hints,
+            ["matcherVersion"] = 6,
+            ["computeBackend"] = project.Settings.ComputeBackend,
+            ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Matching),
+            ["matchRatioThreshold"] = project.Settings.MatchRatioThreshold,
+            ["matchDistanceThreshold"] = project.Settings.MatchDistanceThreshold
         }, directory =>
         {
             context.Trace.Operation(new OperationProgress("Load feature descriptors", "Reading pair inputs"));
             var a = cache.Read(context.Store.PathFor(featureUnits[pair.A] + "/features.json"), cancellation);
             var b = cache.Read(context.Store.PathFor(featureUnits[pair.B] + "/features.json"), cancellation);
             context.Trace.Operation(new OperationProgress("Descriptor matching", "Matching image pair"));
-            var matches = featureMatcher.Match(a, b, project.Settings, cancellation);
+            var matches = descriptors?.Match(a, b, project.Settings, cancellation)
+                ?? featureMatcher.Match(a, b, project.Settings, cancellation);
             foreach (var hint in hints)
             {
                 matches.Matches.Add(new Match
@@ -205,7 +209,7 @@ public sealed class MatchingStage : IPipelineStage
             ImagePairVerifier.Verify(photos[pair.A], photos[pair.B], matches, cancellation, compute, project.Settings.ComputeBackend);
             context.Trace.Operation(new OperationProgress("Save matched pair", "Saving verified correspondences", matches.Matches.Count, matches.Matches.Count, "matches"));
             fileOperations.AtomicJson(Path.Combine(directory, "pair.json"), matches);
-        });
+        }, sources: [featureUnits[pair.A], featureUnits[pair.B]]);
     }
 
     private bool AppliesToPair(Hint hint, PairIdentity pair)

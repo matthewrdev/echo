@@ -8,10 +8,11 @@ using Echo.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 
 var alignmentOnly = args.FirstOrDefault() == "--alignment-previews-only";
-var projects = alignmentOnly ? args.Skip(1).ToArray() : args;
+var runProvenanceOnly = args.FirstOrDefault() == "--run-provenance-only";
+var projects = alignmentOnly || runProvenanceOnly ? args.Skip(1).ToArray() : args;
 if (projects.Length == 0)
 {
-    Console.Error.WriteLine("Usage: Echo.Migrate [--alignment-previews-only] PROJECT [PROJECT ...]");
+    Console.Error.WriteLine("Usage: Echo.Migrate [--alignment-previews-only | --run-provenance-only] PROJECT [PROJECT ...]");
     return 2;
 }
 var services = new ServiceCollection();
@@ -36,6 +37,10 @@ foreach (var path in projects)
         if (alignmentOnly)
         {
             migrator.MigrateAlignmentPreviews(root);
+        }
+        else if (runProvenanceOnly)
+        {
+            migrator.MigrateRunProvenance(root);
         }
         else
         {

@@ -278,11 +278,11 @@ public sealed class RasterImageService : IRasterImageService
             (byte)((swapRedBlue ? red : blue) / count));
     }
 
-    public void Save(SKBitmap bitmap, string path, SKEncodedImageFormat format, int quality = 92)
+    public string? Save(SKBitmap bitmap, string path, SKEncodedImageFormat format, int quality = 92)
     {
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(format, quality);
-        fileOperations.AtomicWrite(path, data.SaveTo);
+        return fileOperations.AtomicWrite(path, data.SaveTo);
     }
 
     public float[] Gray(SKBitmap bitmap)

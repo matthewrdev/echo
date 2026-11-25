@@ -319,7 +319,7 @@ public sealed class CropPipelineTests
         var depthUnits = context.DepthUnits();
         var alignment = context.Artifact("alignment");
         // Independent historical payloads verify exact serialized key compatibility.
-        object inputs = version is 4 or >= 8 ? new
+        object legacy = version is 4 or >= 8 ? new
         {
             depthUnits,
             alignment,
@@ -336,7 +336,7 @@ public sealed class CropPipelineTests
             depthUnits,
             alignment,
             cloudVersion = version,
-            ExclusionRegions = cropped ? new[] { new ExclusionRegion() } : Array.Empty<ExclusionRegion>(),
+            ExclusionRegions = cropped ? new[] { new ExclusionRegion { Id = "fixture" } } : Array.Empty<ExclusionRegion>(),
             settings.ComputeBackend,
             computeImplementation = "cpu",
             settings.CloudNeighbours,
@@ -345,12 +345,38 @@ public sealed class CropPipelineTests
             settings.CloudReprojectionTolerancePixels,
             settings.CloudMinimumParallaxDegrees
         };
+        var inputs = new Dictionary<string, object?>
+        {
+            ["depthUnits"] = depthUnits,
+            ["alignment"] = alignment,
+            ["cloudVersion"] = version
+        };
+        if (version is >= 5 and <= 7)
+        {
+            inputs["exclusionRegions"] = cropped ? new[] { new ExclusionRegion { Id = "fixture" } } : Array.Empty<ExclusionRegion>();
+        }
+
+        inputs["computeBackend"] = settings.ComputeBackend;
+        inputs["computeImplementation"] = "cpu";
+        inputs["cloudNeighbours"] = settings.CloudNeighbours;
+        inputs["cloudMinimumSupport"] = settings.CloudMinimumSupport;
+        inputs["cloudDepthTolerance"] = settings.CloudDepthTolerance;
+        inputs["cloudReprojectionTolerancePixels"] = settings.CloudReprojectionTolerancePixels;
+        inputs["cloudMinimumParallaxDegrees"] = settings.CloudMinimumParallaxDegrees;
         var artifact = context.Build("cloud", inputs, directory =>
         {
             var cloud = new FusionFixture().Cloud;
             clouds.Write(Path.Combine(directory, "cloud.ply"), cloud);
             PackedTestFiles.WriteCloud(Path.Combine(directory, "cloud.bin"), clouds.Report(cloud));
         });
+        var expected = files.Hash(new
+        {
+            storageVersion = 3,
+            version = "echo-0.1.0",
+            stage = "cloud",
+            inputs = legacy
+        });
+        Check(artifact == "artifacts/cloud/" + expected, "Historical cloud checkpoint bytes changed.");
         context.Complete();
         return artifact;
     }

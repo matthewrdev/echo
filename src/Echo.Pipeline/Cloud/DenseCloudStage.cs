@@ -54,7 +54,7 @@ public sealed class DenseCloudStage : IPipelineStage
                 new DenseCloudReportCodec().Write(writer, cloudBuilder.Report(cloud));
             });
             context.ReportProgress(Name, $"Saved {cloud.Samples.Count:N0} points from {maps.Count:N0} images.", maps.Count, maps.Count);
-        });
+        }, sources: [alignment, .. depthUnits]);
         context.Publish(Name, cloudPath);
     }
 

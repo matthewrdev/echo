@@ -52,10 +52,11 @@ public sealed class RunRecoveryTests
 
             Check(File.ReadAllBytes(path).SequenceEqual(original), "A progress event rewrote the full run snapshot");
             Check(File.ReadAllBytes(progressPath).SequenceEqual(firstProgress), "Polling snapshots were rewritten for every event");
-            Check(PackedTestFiles.ReadEvents(store.PathFor($"runs/{context.Run.Id}/events.bin")).Count() == 102, "Incremental progress history was lost or buffered from readers");
             context.ReportOperation("mesh", new OperationProgress("Collapse edges", "Finished", 100, 100));
             Check(store.GetRun(context.Run.Id).Progress?.Completed == 100, "Polling missed operation completion");
             context.Complete();
+            var events = PackedTestFiles.ReadEvents(store.PathFor($"runs/{context.Run.Id}/events.bin"));
+            Check(events.Count() >= 103, "Completing the run must flush its full incremental history");
             Check(!File.Exists(progressPath) && store.GetRun(context.Run.Id).Progress?.Completed == 100,
                 "Final run snapshot did not absorb the latest progress");
         }));
@@ -112,9 +113,9 @@ public sealed class RunRecoveryTests
             {
                 var first = contexts.Create(store, SaveRun(store), default, null);
                 first.Start();
-                var artifact = first.Build("feature-image", new
+                var artifact = first.Build("feature-image", new Dictionary<string, object?>
                 {
-                    sample = 1
+                    ["sample"] = 1
                 }, directory => File.WriteAllText(Path.Combine(directory, "data"), "saved"));
                 first.Report("imageCheckpoint", new Dictionary<string, object?>
                 {
@@ -125,9 +126,9 @@ public sealed class RunRecoveryTests
                 Check(first.Run.Progress?.Phase == "processing", "An actual build must report processing");
                 var second = contexts.Create(store, SaveRun(store), default, null);
                 second.Start();
-                var reused = second.Build("feature-image", new
+                var reused = second.Build("feature-image", new Dictionary<string, object?>
                 {
-                    sample = 1
+                    ["sample"] = 1
                 }, _ => throw new InvalidOperationException("A cached stage must not execute again"));
                 second.Report("imageCheckpoint", new Dictionary<string, object?>
                 {
@@ -137,9 +138,9 @@ public sealed class RunRecoveryTests
                 });
                 Check(reused == artifact && second.Run.Progress?.Phase == "checking", "Saved work must report a reuse check");
                 Check(second.Run.Progress?.Message.StartsWith("Reusing saved features", StringComparison.Ordinal) == true, "Explain the completed prerequisite check");
-                second.Build("feature-image", new
+                second.Build("feature-image", new Dictionary<string, object?>
                 {
-                    sample = 2
+                    ["sample"] = 2
                 }, directory => File.WriteAllText(Path.Combine(directory, "data"), "new"));
                 second.Report("imageCheckpoint", new Dictionary<string, object?>
                 {

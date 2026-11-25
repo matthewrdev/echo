@@ -14,7 +14,7 @@ public interface IRasterImageService
     SKBitmap Decode(string path);
     SKBitmap Resize(SKBitmap source, int width);
     RasterPixels ResizePixels(SKBitmap source, int width);
-    void Save(SKBitmap bitmap, string path, SKEncodedImageFormat format, int quality = 92);
+    string? Save(SKBitmap bitmap, string path, SKEncodedImageFormat format, int quality = 92);
     float[] Gray(SKBitmap bitmap);
     float Sample(float[] pixels, int width, int height, double x, double y);
 }

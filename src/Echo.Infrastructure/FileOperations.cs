@@ -34,6 +34,15 @@ public sealed class FileOperations : IFileOperations
         return Convert.ToHexStringLower(hash.Hash!);
     }
 
+    public string HashGenerated<T>(T value)
+    {
+        using var hash = SHA256.Create();
+        using var stream = new CryptoStream(Stream.Null, hash, CryptoStreamMode.Write);
+        jsonCodec.WriteGenerated(stream, value);
+        stream.FlushFinalBlock();
+        return Convert.ToHexStringLower(hash.Hash!);
+    }
+
     public void AtomicData<T>(string path, T value, CancellationToken cancellation = default)
     {
         if (bulk.CanStore(value))
@@ -57,9 +66,31 @@ public sealed class FileOperations : IFileOperations
         AtomicWrite(path, stream => jsonCodec.Write(stream, value));
     }
 
+    public void CopyVerified(string source, string destination, string checksum)
+    {
+        if (OperatingSystem.IsMacOS() && MacFileClone.Copy(source, destination, 0) == 0)
+        {
+            using var cloned = new FileStream(destination, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+            cloned.Flush(true);
+            writes.Record(destination, checksum);
+            return;
+        }
+
+        var copied = AtomicWrite(destination, stream =>
+        {
+            using var input = File.OpenRead(source);
+            input.CopyTo(stream);
+        });
+        if (copied != checksum)
+        {
+            File.Delete(destination);
+            throw new IOException($"Verified artifact changed while copying {source}.");
+        }
+    }
+
     public void AtomicBytes(string path, byte[] bytes) => AtomicWrite(path, stream => stream.Write(bytes));
 
-    public void AtomicWrite(string path, Action<Stream> write)
+    public string? AtomicWrite(string path, Action<Stream> write)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -79,6 +110,8 @@ public sealed class FileOperations : IFileOperations
             {
                 writes.Record(path, checksum);
             }
+
+            return checksum;
         }
         finally
         {

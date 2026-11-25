@@ -63,33 +63,33 @@ public sealed class AlignmentStage : IPipelineStage
             pairs.Add(jsonCodec.Read<ImagePair>(context.Store.PathFor(unit + "/pair.json")));
         }
 
-        var initial = context.Build("alignment-initial", new
+        var initial = context.Build("alignment-initial", new Dictionary<string, object?>
         {
-            algorithmVersion = 6,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
-            pairUnits,
-            cameras = context.Images,
-            project.Settings.BundleIterations,
-            hints = project.Hints
+            ["algorithmVersion"] = 6,
+            ["computeBackend"] = project.Settings.ComputeBackend,
+            ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Alignment),
+            ["pairUnits"] = pairUnits,
+            ["cameras"] = context.Images,
+            ["bundleIterations"] = project.Settings.BundleIterations,
+            ["hints"] = project.Hints
         }, directory =>
         {
             progress.Begin(AlignmentPhase.InitialSolve, "Initial alignment: verifying image geometry and refining camera poses.");
             var scene = reconstructor.Align(project, pairs, context.Cancellation, context.Headless ? null : Preview, progress.Report);
             progress.Begin(AlignmentPhase.SaveInitial, "Saving initial cameras and sparse points…");
             fileOperations.AtomicData(Path.Combine(directory, "scene.json"), scene);
-        });
+        }, sources: pairUnits);
 
         var recoveryUnits = project.Settings.GuidedAlignmentPass ? RecoverPairs(context, pairUnits, pairs, progress) : [];
-        var alignment = context.Build(Name, new
+        var alignment = context.Build(Name, new Dictionary<string, object?>
         {
-            algorithmVersion = 6,
-            project.Settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
-            initial,
-            recoveryUnits,
-            project.Settings.GuidedAlignmentPass,
-            project.Settings.BundleIterations
+            ["algorithmVersion"] = 6,
+            ["computeBackend"] = project.Settings.ComputeBackend,
+            ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Alignment),
+            ["initial"] = initial,
+            ["recoveryUnits"] = recoveryUnits,
+            ["guidedAlignmentPass"] = project.Settings.GuidedAlignmentPass,
+            ["bundleIterations"] = project.Settings.BundleIterations
         }, directory =>
         {
             if (project.Settings.GuidedAlignmentPass)
@@ -152,7 +152,7 @@ public sealed class AlignmentStage : IPipelineStage
 
             plyWriter.Write(Path.Combine(directory, "points.ply"), positions);
             progress.Report(new OperationProgress("Save alignment", "Cameras and sparse points saved.", 3, 3, "files"));
-        });
+        }, sources: [initial, .. recoveryUnits]);
         context.Publish(Name, alignment);
     }
 
@@ -187,24 +187,24 @@ public sealed class AlignmentStage : IPipelineStage
     {
         var settings = context.Run.Snapshot.Settings;
         var threshold = Math.Max(photos[pair.A].Width, photos[pair.B].Width) / 1000.0;
-        return context.Build("alignment-guided-pair", new
+        return context.Build("alignment-guided-pair", new Dictionary<string, object?>
         {
-            algorithmVersion = 2,
-            settings.ComputeBackend,
-            computeImplementation = context.ComputeImplementation(ComputeOperation.Alignment),
-            initialPair,
-            left = features[pair.A],
-            right = features[pair.B],
-            threshold,
-            settings.MatchRatioThreshold,
-            settings.MatchDistanceThreshold
+            ["algorithmVersion"] = 2,
+            ["computeBackend"] = settings.ComputeBackend,
+            ["computeImplementation"] = context.ComputeImplementation(ComputeOperation.Alignment),
+            ["initialPair"] = initialPair,
+            ["left"] = features[pair.A],
+            ["right"] = features[pair.B],
+            ["threshold"] = threshold,
+            ["matchRatioThreshold"] = settings.MatchRatioThreshold,
+            ["matchDistanceThreshold"] = settings.MatchDistanceThreshold
         }, directory =>
         {
             var left = cache.Read(context.Store.PathFor(features[pair.A] + "/features.json"), context.Cancellation);
             var right = cache.Read(context.Store.PathFor(features[pair.B] + "/features.json"), context.Cancellation);
             var recovered = guidedMatcher.Recover(left, right, pair.Matches, settings, threshold, context.Cancellation);
             fileOperations.AtomicJson(Path.Combine(directory, "pair.json"), recovered ?? new ImagePair { A = pair.A, B = pair.B });
-        });
+        }, sources: [initialPair, features[pair.A], features[pair.B]]);
     }
 
     private int ApplyRecoveredPairs(RunContext context, List<ImagePair> pairs, List<string> units)

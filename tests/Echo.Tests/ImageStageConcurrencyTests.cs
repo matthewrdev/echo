@@ -25,6 +25,7 @@ public sealed class ImageStageConcurrencyTests
     private readonly IJsonCodec json;
     private readonly IRasterImageService images;
     private readonly IFeatureExtractor extractor;
+    private readonly IFeatureArtifactStore featureArtifacts;
     private readonly IFeatureMatcher matcher;
     private readonly IImagePairSelector selector;
     private readonly IOrderedWorkExecutor executor;
@@ -32,7 +33,7 @@ public sealed class ImageStageConcurrencyTests
     private readonly ISceneSemanticArtifacts semantics;
 
     public ImageStageConcurrencyTests(IProjectStoreFactory stores, IRunContextFactory contexts, IFileOperations files,
-        IJsonCodec json, IRasterImageService images, IFeatureExtractor extractor, IFeatureMatcher matcher,
+        IJsonCodec json, IRasterImageService images, IFeatureExtractor extractor, IFeatureArtifactStore featureArtifacts, IFeatureMatcher matcher,
         IImagePairSelector selector, IOrderedWorkExecutor executor, IMatchingIndexStore indexes, ISceneSemanticArtifacts semantics)
     {
         this.stores = stores;
@@ -41,6 +42,7 @@ public sealed class ImageStageConcurrencyTests
         this.json = json;
         this.images = images;
         this.extractor = extractor;
+        this.featureArtifacts = featureArtifacts;
         this.matcher = matcher;
         this.selector = selector;
         this.executor = executor;
@@ -88,7 +90,7 @@ public sealed class ImageStageConcurrencyTests
             Directory.Delete(store.PathFor("artifacts"), true);
             var run = NewRun(store);
             var plan = new FixedImageWorkPlanner(2, 16 * 1024 * 1024);
-            var features = new FeatureStage(files, extractor, json, plan, executor);
+            var features = new FeatureStage(files, extractor, featureArtifacts, plan, executor);
             using (var cancelled = new CancellationTokenSource())
             {
                 var context = contexts.Create(store, run, cancelled.Token, record =>
@@ -189,7 +191,7 @@ public sealed class ImageStageConcurrencyTests
         }, headless);
         context.Start();
         var plan = new FixedImageWorkPlanner(workers, cacheBytes);
-        new FeatureStage(files, extractor, json, plan, executor).Execute(context);
+        new FeatureStage(files, extractor, featureArtifacts, plan, executor).Execute(context);
         new MatchingStage(selector, files, matcher, plan, executor, new FeatureSetCacheFactory(cacheJson ?? json), indexes,
             semanticArtifacts ?? semantics).Execute(context);
         return run;

@@ -13,6 +13,8 @@ public sealed class CheckpointStore : ICheckpointStore
     private readonly IFileOperations fileOperations;
     private readonly IJsonCodec jsonCodec;
     private readonly IArtifactWriteObserver writes;
+    private readonly CheckpointFingerprint fingerprint = new();
+    private readonly string softwareVersion = typeof(CheckpointStore).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
 
     public CheckpointStore(IFileOperations fileOperations, IJsonCodec jsonCodec, IArtifactWriteObserver writes)
     {
@@ -27,6 +29,7 @@ public sealed class CheckpointStore : ICheckpointStore
         Action<string> action,
         CancellationToken cancellation,
         Action<string, Dictionary<string, object?>> progress,
+        out bool recordedProcessing,
         Func<ProcessingMetadata>? processing = null,
         string? algorithmVersion = null,
         IReadOnlyList<object>? compatibleInputs = null)
@@ -44,16 +47,10 @@ public sealed class CheckpointStore : ICheckpointStore
             "depth-image" => "echo-0.1.0-pyramid7",
             _ => "echo-0.1.0"
         };
-        var key = fileOperations.Hash(new
-        {
-            storageVersion = 3,
-            version,
-            stage,
-            inputs
-        });
+        var key = fingerprint.Hash(stage, version, inputs);
         var relative = $"artifacts/{stage}/{key}";
         var final = store.PathFor(relative);
-        var reused = TryReuse(store, stage, key, progress);
+        var reused = TryReuse(store, stage, key, progress, out recordedProcessing);
         if (reused != null)
         {
             return reused;
@@ -63,14 +60,8 @@ public sealed class CheckpointStore : ICheckpointStore
         foreach (var compatible in compatibleInputs ?? [])
         {
             cancellation.ThrowIfCancellationRequested();
-            var compatibleKey = fileOperations.Hash(new
-            {
-                storageVersion = 3,
-                version,
-                stage,
-                inputs = compatible
-            });
-            reused = TryReuse(store, stage, compatibleKey, progress);
+            var compatibleKey = fingerprint.Hash(stage, version, compatible);
+            reused = TryReuse(store, stage, compatibleKey, progress, out recordedProcessing);
             if (reused != null)
             {
                 return reused;
@@ -97,7 +88,7 @@ public sealed class CheckpointStore : ICheckpointStore
             metadata.OperatingSystem = RuntimeInformation.OSDescription;
             metadata.Architecture = RuntimeInformation.ProcessArchitecture.ToString();
             metadata.Runtime = RuntimeInformation.FrameworkDescription;
-            metadata.SoftwareVersion = typeof(CheckpointStore).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+            metadata.SoftwareVersion = softwareVersion;
             fileOperations.AtomicJson(Path.Combine(temp, "processing.json"), metadata);
             var files = Directory.GetFiles(temp, "*", SearchOption.AllDirectories).ToDictionary(p => Path.GetRelativePath(temp, p), p => written.TryGetChecksum(p, out var checksum) ? checksum : fileOperations.HashFile(p));
             fileOperations.AtomicJson(Path.Combine(temp, "manifest.json"), new Artifact
@@ -109,6 +100,7 @@ public sealed class CheckpointStore : ICheckpointStore
             });
             Directory.CreateDirectory(Path.GetDirectoryName(final)!);
             Directory.Move(temp, final);
+            recordedProcessing = true;
             progress("artifactCommitted", new Dictionary<string, object?>
             {
                 ["stage"] = stage,
@@ -125,10 +117,11 @@ public sealed class CheckpointStore : ICheckpointStore
         }
     }
 
-    private string? TryReuse(IProjectStore store, string stage, string key, Action<string, Dictionary<string, object?>> progress)
+    private string? TryReuse(IProjectStore store, string stage, string key, Action<string, Dictionary<string, object?>> progress, out bool recordedProcessing)
     {
         var relative = $"artifacts/{stage}/{key}";
         var final = store.PathFor(relative);
+        recordedProcessing = false;
         var manifestPath = Path.Combine(final, "manifest.json");
         if (File.Exists(manifestPath))
         {
@@ -139,6 +132,7 @@ public sealed class CheckpointStore : ICheckpointStore
                 throw new EchoException($"Corrupt checkpoint: {relative}. Preserve it for diagnosis and remove this artifact directory before retrying.");
             }
 
+            recordedProcessing = manifest.Files.ContainsKey("processing.json");
             progress("artifactReused", new Dictionary<string, object?>
             {
                 ["stage"] = stage,

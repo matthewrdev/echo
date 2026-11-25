@@ -47,10 +47,14 @@ public sealed class JsonCodec : IJsonCodec
         }
         else
         {
-            // Anonymous command/event payloads have no persisted domain contract.
-            // Fingerprinting retains its existing canonical serializer separately.
+            // Diagnostic reports and anonymous command output permit ad-hoc shapes.
             JsonSerializer.Serialize(stream, value, Options);
         }
+    }
+
+    public void WriteGenerated<T>(Stream stream, T value)
+    {
+        JsonSerializer.Serialize(stream, value, ReadType<T>());
     }
 
     private JsonTypeInfo? FindType(Type type)
@@ -90,6 +94,6 @@ public sealed class JsonCodec : IJsonCodec
             }
         }
 
-        throw new EchoException($"No generated JSON read contract for {typeof(T).FullName}.");
+        throw new EchoException($"No generated JSON contract for {typeof(T).FullName}.");
     }
 }
