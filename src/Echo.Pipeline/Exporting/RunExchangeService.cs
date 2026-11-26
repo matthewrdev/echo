@@ -22,10 +22,11 @@ public sealed class RunExchangeService : IRunExchangeService
     private readonly ILasWriter las;
     private readonly ISurveyCloudWriter survey;
     private readonly IPrintMeshWriter print;
+    private readonly IGuideTileExporter guideTiles;
 
     public RunExchangeService(IJsonCodec json, IBulkArtifactStore bulk, ICloudBuilder clouds, IGlbWriter glb, IGlbCompressor glbCompressor,
         IMeshExchangeWriter mesh, IFileOperations files, IPointCloudExchangeWriter cloud, ILasWriter las,
-        ISurveyCloudWriter survey, IPrintMeshWriter print)
+        ISurveyCloudWriter survey, IPrintMeshWriter print, IGuideTileExporter guideTiles)
     {
         this.json = json;
         this.bulk = bulk;
@@ -38,6 +39,22 @@ public sealed class RunExchangeService : IRunExchangeService
         this.las = las;
         this.survey = survey;
         this.print = print;
+        this.guideTiles = guideTiles;
+    }
+
+    public RunExchangeResult ExportGuideTiles(IProjectStore store, string runId, string destination, int depth, string? detailTile, int leafTextureSize,
+        CancellationToken cancellation)
+    {
+        var run = store.GetRun(runId);
+        return WritePackage(store, run, destination, directory =>
+        {
+            using var session = OpenSession();
+            var textured = ReadTexturedMesh(store, run, session);
+            var metadata = json.Read<TextureResult>(Artifact(store, run, "texture", "texture.json", "Texture"));
+            guideTiles.Write(store, run, directory, textured, metadata, session, depth, detailTile, leafTextureSize, cancellation);
+            cancellation.ThrowIfCancellationRequested();
+            WriteGeoreference(store, run, directory);
+        });
     }
 
     public RunExchangeResult ExportMesh(IProjectStore store, string runId, string destination, MeshExportFormat format, double? sizeMillimetres = null)

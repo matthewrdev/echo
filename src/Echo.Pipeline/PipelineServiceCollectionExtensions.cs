@@ -27,6 +27,7 @@ public static class PipelineServiceCollectionExtensions
         services.AddSingleton<ICliffRecoveryArtifacts, CliffRecoveryArtifacts>();
         services.AddSingleton<IFeatureSetCacheFactory, FeatureSetCacheFactory>();
         services.AddSingleton<IGisExportService, GisExportService>();
+        services.AddSingleton<IGuideTileExporter, GuideTileExporter>();
         services.AddSingleton<IImagePairSelector, ImagePairSelector>();
         services.AddSingleton<IImageWorkPlanner, ImageWorkPlanner>();
         services.AddSingleton<IOrderedWorkExecutor, OrderedWorkExecutor>();
