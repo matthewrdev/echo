@@ -36,6 +36,9 @@ internal static class TextureChartValidation
         var distortedArea = 0.0;
         var severelyDistortedArea = 0.0;
         var severelyDistortedUvArea = 0.0;
+        // The accumulated areas can only increase, so a failed limit is final.
+        var severeLimit = chart.Area * (compactAtlas ? .02 : .005);
+        var appreciableLimit = chart.Area * (compactAtlas ? .20 : .05);
         foreach (var triangle in chart.Triangles)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -78,16 +81,12 @@ internal static class TextureChartValidation
             {
                 distortedArea += doubledArea * .5;
             }
-        }
 
-        // Tiny charts consume a larger share of a compact atlas in gutters.
-        // Bound severe stretch in both surface and UV area to retain density.
-        var severeLimit = compactAtlas ? .02 : .005;
-        var appreciableLimit = compactAtlas ? .20 : .05;
-        var excessiveSevereStretch = Math.Max(severelyDistortedArea, severelyDistortedUvArea) > chart.Area * severeLimit;
-        if (excessiveSevereStretch || distortedArea > chart.Area * appreciableLimit)
-        {
-            return false;
+            var excessiveSevereStretch = Math.Max(severelyDistortedArea, severelyDistortedUvArea) > severeLimit;
+            if (excessiveSevereStretch || distortedArea > appreciableLimit)
+            {
+                return false;
+            }
         }
 
         return HasSimpleBoundary(chart, coordinates, cancellation);
@@ -115,7 +114,8 @@ internal static class TextureChartValidation
 
         var extent = Math.Max(maximumX - minimumX, maximumY - minimumY);
         var tolerance = extent * extent * 1e-14;
-        var edges = new List<TextureEdge>(chart.Boundary.Length);
+        var axis = maximumX - minimumX >= maximumY - minimumY ? 0 : 1;
+        var edges = new List<TextureBoundarySegment>(chart.Boundary.Length);
         int[]? outer = null;
         foreach (var loop in chart.BoundaryLoops)
         {
@@ -124,7 +124,9 @@ internal static class TextureChartValidation
             {
                 var a = loop[index];
                 var b = loop[(index + 1) % loop.Length];
-                edges.Add(new TextureEdge(a, b));
+                var first = coordinates[2 * a + axis];
+                var second = coordinates[2 * b + axis];
+                edges.Add(new TextureBoundarySegment(a, b, Math.Min(first, second), Math.Max(first, second)));
                 area += Cross(coordinates, loop[0], a, b);
             }
 
@@ -167,6 +169,7 @@ internal static class TextureChartValidation
             }
         }
 
+        edges.Sort(static (first, second) => first.Minimum.CompareTo(second.Minimum));
         for (var first = 0; first < edges.Count; first++)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -174,6 +177,11 @@ internal static class TextureChartValidation
             for (var second = first + 1; second < edges.Count; second++)
             {
                 var b = edges[second];
+                if (b.Minimum > a.Maximum)
+                {
+                    break;
+                }
+
                 var adjacent = a.A == b.B || a.B == b.A;
                 if (!adjacent && Intersects(coordinates, a.A, a.B, b.A, b.B, tolerance))
                 {
