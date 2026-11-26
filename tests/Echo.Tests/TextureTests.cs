@@ -1,3 +1,4 @@
+using Echo.Geometry;
 using Echo.Imaging;
 using Echo.Models;
 using Echo.Projects;
@@ -86,6 +87,50 @@ public sealed class TextureTests
             Check(same.SequenceEqual(before), "UV packing boundaries alone do not trigger photographic softening");
             Expect<OperationCanceledException>(() => TextureSeamSoftener.Apply(same, size, mesh, uvs, 4, new CancellationToken(true)));
             Expect<ArgumentOutOfRangeException>(() => TextureSeamSoftener.Apply(same, size, mesh, uvs, 17, default));
+        });
+        tests.Run("Tile bakes preserve input corner corrections when UV charts reorder the faces", () =>
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "echo-tile-seams-" + Guid.NewGuid().ToString("N"));
+            var store = stores.Open(directory);
+            store.Init("tile seam test");
+            try
+            {
+                using var photo = new SKBitmap(128, 128);
+                photo.Erase(new SKColor(110, 105, 100));
+                images.Save(photo, store.PathFor("photo.png"), SKEncodedImageFormat.Png);
+                var project = new ProjectData
+                {
+                    Images = [new Photo { Id = "a", Source = "photo.png", Width = 128, Height = 128, FocalPixels = 64 }],
+                    Settings = new Settings { TextureSuppressSky = false, TextureSize = 256 }
+                };
+                var scene = new ReconstructionScene { Cameras = [new CameraPose { ImageId = "a" }] };
+                var mesh = new Surface
+                {
+                    Vertices = [[-1, -1, 10], [1, -1, 10], [1, 1, 10], [-1, 1, 10]],
+                    Faces = [[0, 1, 2], [0, 2, 3]],
+                    SourceImages = ["a", "a"]
+                };
+                var chart = new TexturePatch { Bounds = new SKRect(0, 0, 2, 2), AtlasBounds = new SKRect(16, 16, 80, 80) };
+                chart.Coordinates.Add(0, [0, 0]);
+                chart.Coordinates.Add(1, [2, 0]);
+                chart.Coordinates.Add(2, [2, 2]);
+                chart.Coordinates.Add(3, [0, 2]);
+                chart.Faces.AddRange([1, 0]);
+                chart.Triangles.AddRange(mesh.Faces.Reverse());
+                var layout = new TextureLayout { Patches = [chart], TexelsPerWorldUnit = 32, MinimumAtlasSize = 128, GutterPixels = 4 };
+                var offsets = Enumerable.Range(1, 6).Select(index => new V3(index * .01, 0, 0)).ToArray();
+
+                var result = baker.Bake(store, project, scene, mesh, store.PathFor("tile.jpg"), default,
+                    preparedLayout: layout, correctionForCorner: corner => offsets[corner], writeAtlasVariants: false);
+
+                Check(result.Corrections!.CornerOffsets.SequenceEqual(offsets.Skip(3).Concat(offsets.Take(3))),
+                    "Global corrections followed the corresponding face and corner into the atlas");
+                Check(result.Variants.Count == 0 && File.Exists(store.PathFor("tile.jpg")), "A tile emits only its own atlas");
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
         });
         tests.Run("Sky suppression changes baked skyline colour without changing the surface or source image", () =>
         {

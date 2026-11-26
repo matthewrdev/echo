@@ -1,3 +1,4 @@
+using Echo.Geometry;
 using Echo.Models;
 using Echo.Texturing.Layout;
 using Echo.Projects;
@@ -13,5 +14,6 @@ public interface ITextureBaker
         ReconstructionScene scene,
         Surface mesh,
         string output,
-        CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null, TextureLayout? preparedLayout = null);
+        CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null, TextureLayout? preparedLayout = null,
+        Func<int, V3>? correctionForCorner = null, bool writeAtlasVariants = true);
 }

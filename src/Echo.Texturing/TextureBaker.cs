@@ -1,4 +1,5 @@
 using Echo.Imaging;
+using Echo.Geometry;
 using Echo.Models;
 using Echo.Projects;
 using Echo.Storage.Records;
@@ -28,7 +29,8 @@ public sealed class TextureBaker : ITextureBaker
     }
 
     public TextureResult Bake(IProjectStore store, ProjectData project, ReconstructionScene scene, Surface mesh,
-        string output, CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null, TextureLayout? preparedLayout = null)
+        string output, CancellationToken cancellation, Action<string>? progress = null, IReadOnlyList<bool>? vegetationFaces = null, Action<OperationProgress>? operationProgress = null, WorkBuffers? work = null, TextureLayout? preparedLayout = null,
+        Func<int, V3>? correctionForCorner = null, bool writeAtlasVariants = true)
     {
         var layout = preparedLayout ?? layoutPlanner.Plan(project, scene, mesh, cancellation, progress, vegetationFaces, work, operationProgress);
         var patches = layout.Patches;
@@ -52,6 +54,7 @@ public sealed class TextureBaker : ITextureBaker
         };
         operationProgress?.Invoke(new OperationProgress("UV mesh", "Building the textured mesh and UV coordinates…", 0, patches.Count, "charts"));
         var completedCharts = 0;
+        var cornerOffsets = correctionForCorner == null ? null : new V3[mesh.Faces.Count * 3];
         foreach (var patch in patches)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -68,6 +71,15 @@ public sealed class TextureBaker : ITextureBaker
             foreach (var index in patch.Faces)
             {
                 var face = mesh.Faces[index];
+                if (cornerOffsets != null && correctionForCorner != null)
+                {
+                    var outputCorner = surface.Faces.Count * 3;
+                    for (var corner = 0; corner < 3; corner++)
+                    {
+                        cornerOffsets[outputCorner + corner] = correctionForCorner(index * 3 + corner);
+                    }
+                }
+
                 surface.Faces.Add([lookup[face[0]], lookup[face[1]], lookup[face[2]]]);
                 surface.SourceImages.Add(mesh.SourceImages[index]);
             }
@@ -80,7 +92,9 @@ public sealed class TextureBaker : ITextureBaker
         }
 
         progress?.Invoke("Levelling exposure and colour differences along photographic seams…");
-        result.Corrections = seamLeveler.Compute(store, project, scene, surface, cancellation, operationProgress, work);
+        result.Corrections = cornerOffsets == null
+            ? seamLeveler.Compute(store, project, scene, surface, cancellation, operationProgress, work)
+            : new TextureSeamCorrections { CornerOffsets = cornerOffsets };
         result.SeamEdges = result.Corrections.SeamEdges;
         result.MeanSeamDifferenceBefore = result.Corrections.MeanDifferenceBefore;
         result.MeanSeamDifferenceAfter = result.Corrections.MeanDifferenceAfter;
@@ -106,7 +120,11 @@ public sealed class TextureBaker : ITextureBaker
         progress?.Invoke("Encoding the photographic texture atlas…");
         images.Save(atlas, output, SKEncodedImageFormat.Jpeg, project.Settings.TextureJpegQuality);
         operationProgress?.Invoke(new OperationProgress("Atlas encoding", "Photographic atlas encoded.", 1, 1, "atlases"));
-        SaveVariants(atlas, result, output, project.Settings.TextureJpegQuality, cancellation, progress, operationProgress);
+        if (writeAtlasVariants)
+        {
+            SaveVariants(atlas, result, output, project.Settings.TextureJpegQuality, cancellation, progress, operationProgress);
+        }
+
         return result;
     }
 
