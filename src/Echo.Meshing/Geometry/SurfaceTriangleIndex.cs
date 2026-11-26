@@ -179,16 +179,16 @@ internal sealed class SurfaceTriangleIndex : IMeshRaycaster
         var result = new SurfaceClosestPoint(default, default, maximumDistance * maximumDistance);
         if (nodes.Count > 0)
         {
-            Nearest(0, point, ref result);
+            var root = Node(0);
+            Nearest(root, DistanceSquared(point, root.Minimum, root.Maximum), point, ref result);
         }
 
         return result;
     }
 
-    private void Nearest(int index, V3 point, ref SurfaceClosestPoint result)
+    private void Nearest(SurfaceSearchNode node, double bound, V3 point, ref SurfaceClosestPoint result)
     {
-        var node = Node(index);
-        if (DistanceSquared(point, node.Minimum, node.Maximum) >= result.DistanceSquared)
+        if (bound >= result.DistanceSquared)
         {
             return;
         }
@@ -197,9 +197,19 @@ internal sealed class SurfaceTriangleIndex : IMeshRaycaster
         {
             var left = Node(node.Left);
             var right = Node(node.Right);
-            var leftFirst = DistanceSquared(point, left.Minimum, left.Maximum) <= DistanceSquared(point, right.Minimum, right.Maximum);
-            Nearest(leftFirst ? node.Left : node.Right, point, ref result);
-            Nearest(leftFirst ? node.Right : node.Left, point, ref result);
+            var leftBound = DistanceSquared(point, left.Minimum, left.Maximum);
+            var rightBound = DistanceSquared(point, right.Minimum, right.Maximum);
+            if (leftBound <= rightBound)
+            {
+                Nearest(left, leftBound, point, ref result);
+                Nearest(right, rightBound, point, ref result);
+            }
+            else
+            {
+                Nearest(right, rightBound, point, ref result);
+                Nearest(left, leftBound, point, ref result);
+            }
+
             return;
         }
 
