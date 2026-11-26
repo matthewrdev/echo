@@ -56,6 +56,16 @@ public sealed class SkyGuardTests
             var wide = TextureSkyGuardBuilder.Build(pixels, 128, 128, false, 8, default)!;
             Check(wide.Adjust(64, 63).Y > narrow.Adjust(64, 63).Y, "The margin is a real sampling control");
         });
+        tests.Run("Sky guard keeps row-order ties when extending colour into the unsafe band", () =>
+        {
+            var sky = new SKColor(100, 170, 230);
+            var foreground = new SKColor(80, 110, 60);
+            var pixels = Enumerable.Range(0, 128 * 128).Select(index => index % 128 is >= 60 and <= 68 ? sky : foreground).ToArray();
+            var guard = TextureSkyGuardBuilder.Build(pixels, 128, 128, false, 2, default)!;
+
+            Check(guard.Adjust(64, 64).X == 56.5, "The earlier safe cell wins at equal distance");
+            Check(guard.Adjust(65, 64).X == 72.5, "The closer safe cell wins on the other side");
+        });
     }
 
     private SKColor[] Picture(SKColor sky)

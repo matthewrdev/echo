@@ -17,9 +17,47 @@ internal static class TextureSkyGuardBuilder
         var cellSize = Math.Max(1, (int)Math.Ceiling(Math.Max(width, height) / 1024d));
         var columns = (width + cellSize - 1) / cellSize;
         var rows = (height + cellSize - 1) / cellSize;
-        var colours = new V3[columns * rows];
+        var seedRows = Math.Min(3, rows);
+        var colours = new V3[columns * seedRows];
         var eligible = new bool[colours.Length];
-        for (var row = 0; row < rows; row++)
+        ClassifyRows(pixels, width, height, swapRedBlue, cellSize, columns, colours, eligible, 0, seedRows, cancellation);
+        var seeds = new Queue<int>();
+        for (var column = 0; column < columns; column++)
+        {
+            if (IsSkySeed(colours, eligible, columns, column))
+            {
+                seeds.Enqueue(column);
+            }
+        }
+
+        // A photo without a top-border seed cannot contribute to the mask.
+        if (seeds.Count == 0)
+        {
+            return null;
+        }
+
+        Array.Resize(ref colours, columns * rows);
+        Array.Resize(ref eligible, colours.Length);
+        ClassifyRows(pixels, width, height, swapRedBlue, cellSize, columns, colours, eligible, seedRows, rows, cancellation);
+        var sky = FloodSky(colours, eligible, columns, seeds, cancellation);
+        if (sky.All(value => value))
+        {
+            return null;
+        }
+        // Include one analysis cell for bilinear footprints and mask rounding.
+        var radius = (int)Math.Ceiling((double)marginPixels / cellSize) + 1;
+        var firstSafeDistance = radius + 1;
+        var distance = Distances(sky, columns, firstSafeDistance, cancellation);
+        // Limit colour extension to a narrow band. Large projection errors or
+        // invented geometry must not be concealed by unlimited edge stretching.
+        var nearest = NearestSafe(distance, columns, firstSafeDistance, radius * 4, cancellation);
+        return new TextureSkyGuard(columns, cellSize, nearest);
+    }
+
+    private static void ClassifyRows(ReadOnlySpan<SKColor> pixels, int width, int height, bool swapRedBlue,
+        int cellSize, int columns, V3[] colours, bool[] eligible, int firstRow, int endRow, CancellationToken cancellation)
+    {
+        for (var row = firstRow; row < endRow; row++)
         {
             cancellation.ThrowIfCancellationRequested();
             for (var column = 0; column < columns; column++)
@@ -52,33 +90,14 @@ internal static class TextureSkyGuardBuilder
                 eligible[index] = smooth && (blueSky || paleSky);
             }
         }
-
-        var sky = FloodSky(colours, eligible, columns, cancellation);
-        if (!sky.Any(value => value) || sky.All(value => value))
-        {
-            return null;
-        }
-        // Include one analysis cell for bilinear footprints and mask rounding.
-        var radius = (int)Math.Ceiling((double)marginPixels / cellSize) + 1;
-        var distance = Distances(sky, columns, radius, cancellation);
-        var safe = distance.Select(value => value > radius).ToArray();
-        // Limit colour extension to a narrow band. Large projection errors or
-        // invented geometry must not be concealed by unlimited edge stretching.
-        var nearest = NearestSafe(safe, columns, radius * 4, cancellation);
-        return new TextureSkyGuard(columns, cellSize, nearest);
     }
 
-    private static bool[] FloodSky(V3[] colours, bool[] eligible, int width, CancellationToken cancellation)
+    private static bool[] FloodSky(V3[] colours, bool[] eligible, int width, Queue<int> pending, CancellationToken cancellation)
     {
         var sky = new bool[colours.Length];
-        var pending = new Queue<int>();
-        for (var x = 0; x < width; x++)
+        foreach (var seed in pending)
         {
-            if (IsSkySeed(colours, eligible, width, x))
-            {
-                sky[x] = true;
-                pending.Enqueue(x);
-            }
+            sky[seed] = true;
         }
 
         Span<int> neighbours = stackalloc int[4];
@@ -176,16 +195,18 @@ internal static class TextureSkyGuardBuilder
         return distance;
     }
 
-    private static int[] NearestSafe(bool[] safe, int width, int limit, CancellationToken cancellation)
+    private static int[] NearestSafe(int[] fromSky, int width, int firstSafeDistance, int limit, CancellationToken cancellation)
     {
-        var nearest = Enumerable.Repeat(-1, safe.Length).ToArray();
-        var distance = new int[safe.Length];
+        var nearest = new int[fromSky.Length];
+        var distance = new int[fromSky.Length];
         var pending = new Queue<int>();
-        for (var index = 0; index < safe.Length; index++)
+        for (var index = 0; index < fromSky.Length; index++)
         {
-            if (safe[index])
+            nearest[index] = fromSky[index] >= firstSafeDistance ? index : -1;
+            // Only safe cells touching the unsafe band can extend into it.
+            // Seed them in row order to keep equal-distance choices stable.
+            if (fromSky[index] == firstSafeDistance)
             {
-                nearest[index] = index;
                 pending.Enqueue(index);
             }
         }
@@ -199,7 +220,7 @@ internal static class TextureSkyGuardBuilder
                 continue;
             }
 
-            var count = Neighbours(index, width, safe.Length, neighbours);
+            var count = Neighbours(index, width, nearest.Length, neighbours);
             foreach (var other in neighbours[..count])
             {
                 if (nearest[other] < 0)
