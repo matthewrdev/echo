@@ -1,3 +1,4 @@
+using Echo.Export.Terrain;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Echo.Export;
@@ -20,6 +21,11 @@ public static class ExportServiceCollectionExtensions
         services.AddSingleton<ISurveyCloudWriter, PdalSurveyCloudWriter>();
         services.AddSingleton<IRedpointGeoreferenceWriter, RedpointGeoreferenceWriter>();
         services.AddSingleton<ITilesetWriter, TilesetWriter>();
+        services.AddSingleton<TerrainRasterReader>();
+        services.AddSingleton<TerrainWallReader>();
+        services.AddSingleton<TerrainTextureBlender>();
+        services.AddSingleton<TerrainTexturedGlbWriter>();
+        services.AddSingleton<ITerrainStitchWriter, TerrainStitchWriter>();
 
         return services;
     }

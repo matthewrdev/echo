@@ -97,10 +97,17 @@ if (args.Contains("--validation", StringComparer.Ordinal))
 {
     return scaleTests.Finish();
 }
+if (args.Contains("--terrain-stitch", StringComparer.Ordinal))
+{
+    provider.GetRequiredService<TerrainStitchTests>().Run(scaleTests);
+    return scaleTests.Finish();
+}
+
 if (args.Contains("--gis", StringComparer.Ordinal))
 {
     provider.GetRequiredService<GisExportTests>().Run(scaleTests);
     provider.GetRequiredService<GisCommandTests>().Run(scaleTests);
+    provider.GetRequiredService<TerrainStitchTests>().Run(scaleTests);
     provider.GetRequiredService<GeographicFormatTests>().Run(scaleTests);
     provider.GetRequiredService<RunExchangeTests>().Run(scaleTests);
     provider.GetRequiredService<RunExchangeTests>().RunHandoffTests(scaleTests);

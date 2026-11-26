@@ -46,6 +46,7 @@ public static class CliServiceCollectionExtensions
         services.AddSingleton<IRuntimeInfoProvider, RuntimeInfoProvider>();
         services.AddSingleton<ICliCommand, SetsCommand>();
         services.AddSingleton<ICliCommand, StorageCommand>();
+        services.AddSingleton<ICliCommand, StitchTerrainCommand>();
         services.AddSingleton<ICliCommand, TraceCommand>();
 
         return services;

@@ -44,6 +44,32 @@ For RTK or PPK camera positions, import `camera` hints with `position.uncertaint
 
 Use `merge-maps MAP_DIRECTORY MAP_DIRECTORY --output NEW_DIRECTORY --max-seam-error METRES` to combine separately reconstructed overlapping parts of a survey. Export all parts to the same projected CRS, pixel grid, and WGS84 ellipsoidal height reference. The merge publishes the three raster products and classified LAZ after checking elevation disagreement in connected DSM overlaps. The mosaic manifest records the seam errors. Later input tiles take priority where data overlap.
 
+### Stitch textured walls into terrain
+
+Use GDAL-readable elevation and RGB imagery rasters that cover the same area, plus the exact run ID of each geographically aligned, textured ECHO wall. Each wall needs one connected crop with one open rim. Give adjacent crops room for their terrain transitions.
+
+```bash
+"$ECHO_CLI" stitch-terrain terrain.json --output new-guide
+```
+
+```json
+{
+  "elevation": "elevation.tif",
+  "imagery": "ortho.tif",
+  "verticalDatum": "NAVD88",
+  "gridLongEdge": 512,
+  "terrainTextureSize": 8192,
+  "maxSeamErrorMetres": 5,
+  "walls": [
+    { "project": "wall.echo", "run": "SAVED_RUN_ID", "heightOffsetMetres": 22.1 }
+  ]
+}
+```
+
+Paths are relative to the manifest. A height offset is added to the saved wall's elevation before fitting and must be supplied if the wall and elevation raster have different or unknown height references. Determine that offset from aligned terrain or surveyed evidence. The command checks the maximum difference along each rim, removes the terrain beneath the crop, and fills the transition collar. It blends the collar texture and keeps the original wall geometry and atlases, including 8K originals. Terrain image detail still depends on the source imagery.
+
+The output directory contains `cliff.glb`, `cliff.geo.json`, and `terrain-stitch.json`. A failed seam leaves the destination absent.
+
 ### Project image geometry
 
 Run through Mesh or Export, then project marked image pixels onto the saved mesh.

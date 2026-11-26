@@ -41,6 +41,7 @@ public static class PipelineServiceCollectionExtensions
         services.AddSingleton<ISceneSemanticArtifacts, SceneSemanticArtifacts>();
         services.AddSingleton<IStagePreviewArtifacts, StagePreviewArtifacts>();
         services.AddSingleton<IStageResetService, StageResetService>();
+        services.AddSingleton<ITerrainStitchService, TerrainStitchService>();
         services.AddSingleton<ITextureLayoutStore, TextureLayoutStore>();
 
         services.AddSingleton<IPipelineStage, FeatureStage>();

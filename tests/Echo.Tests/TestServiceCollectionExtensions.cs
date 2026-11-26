@@ -38,6 +38,7 @@ public static class TestServiceCollectionExtensions
         services.AddSingleton<GeographicFormatTests>();
         services.AddSingleton<GisCommandTests>();
         services.AddSingleton<RunExchangeTests>();
+        services.AddSingleton<TerrainStitchTests>();
         services.AddSingleton<GisExportTests>();
         services.AddSingleton<GrayscaleSamplerTests>();
         services.AddSingleton<GuidedMatchingTests>();
