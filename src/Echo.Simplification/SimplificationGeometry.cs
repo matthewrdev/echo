@@ -93,4 +93,16 @@ internal static class SimplificationGeometry
 
         return result;
     }
+
+    public static bool PreservesUvOrientation(IList<double[]> uvs, int[] textureVertices,
+        FaceVertices face, int a, int b, int replacement)
+    {
+        static double Area(double[] p, double[] q, double[] r) =>
+            (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+
+        int Next(int vertex) => vertex == a || vertex == b ? replacement : textureVertices[vertex];
+        var before = Area(uvs[textureVertices[face[0]]], uvs[textureVertices[face[1]]], uvs[textureVertices[face[2]]]);
+        var after = Area(uvs[Next(face[0])], uvs[Next(face[1])], uvs[Next(face[2])]);
+        return Math.Abs(before) < 1e-15 || Math.Abs(after) >= 1e-15 && Math.Sign(before) == Math.Sign(after);
+    }
 }

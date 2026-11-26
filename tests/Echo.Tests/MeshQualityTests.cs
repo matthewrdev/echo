@@ -57,6 +57,37 @@ public sealed class MeshQualityTests
                     }
                 }, 4, 4));
         });
+        tests.Run("Textured collapse preserves shared borders and retains matching endpoint UVs", () =>
+        {
+            var source = DetailSurface();
+            var uvs = source.Vertices.Select(point => new double[] { point[0] / 30, point[1] / 20 }).ToList();
+            var maximumX = source.Vertices.Max(point => point[0]);
+            var maximumY = source.Vertices.Max(point => point[1]);
+            var locked = source.Vertices.Select(point =>
+                point[0] == 0 || point[1] == 0 || point[0] == maximumX || point[1] == maximumY).ToArray();
+            var exportedUvs = new List<double[]>();
+            var reduced = simplifier.ReduceTextured(source, 300, uvs, locked, exportedUvs, default);
+            Check(reduced.Faces.Count < source.Faces.Count, "Textured export did not reduce the mesh");
+            Check(reduced.Vertices.Count == exportedUvs.Count, "Textured reduction lost UVs");
+            var remaining = reduced.Vertices.Select(point => new V3(point)).ToHashSet();
+            for (var index = 0; index < source.Vertices.Count; index++)
+            {
+                if (locked[index])
+                {
+                    Check(remaining.Contains(new V3(source.Vertices[index])), "A locked border vertex moved");
+                }
+            }
+
+            for (var index = 0; index < reduced.Vertices.Count; index++)
+            {
+                var point = reduced.Vertices[index];
+                Check(exportedUvs[index][0] == point[0] / 30 && exportedUvs[index][1] == point[1] / 20,
+                    "An endpoint retained the other endpoint's UV");
+            }
+
+            Check(EulerCharacteristic(reduced) == 1 && reduced.Faces.All(face => Normal(reduced, face).Z > 0),
+                "Textured reduction introduced holes or inverted faces");
+        });
         tests.Run("Triangle search index agrees with direct geometry queries", () =>
         {
             var mesh = new Surface();

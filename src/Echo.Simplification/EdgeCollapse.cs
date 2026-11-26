@@ -25,10 +25,25 @@ public sealed class EdgeCollapse : IEdgeCollapse
         return ReduceCore(sourceMesh, targetFaceCount, cancellation, detailTolerance, vertexTolerances, work, progress);
     }
 
+    public Surface ReduceTextured(Surface sourceMesh, int targetFaceCount, IList<double[]> uvs,
+        IReadOnlyList<bool> lockedVertices, IList<double[]> outputUvs, CancellationToken cancellation)
+    {
+        var outputVertices = new List<int>();
+        var reduced = ReduceCore(sourceMesh, targetFaceCount, cancellation,
+            lockedVertices: lockedVertices, outputVertices: outputVertices, textureCoordinates: uvs);
+        foreach (var vertex in outputVertices)
+        {
+            outputUvs.Add(uvs[vertex]);
+        }
+
+        return reduced;
+    }
+
     internal Surface ReduceCore(Surface sourceMesh, int targetFaceCount, CancellationToken cancellation, double detailTolerance = 0,
         IReadOnlyList<double>? vertexTolerances = null, WorkBuffers? work = null, Action<OperationProgress>? progress = null,
         IReadOnlyList<bool>? lockedVertices = null, IList<int>? outputVertices = null, IList<double>? outputTolerances = null,
-        IReadOnlyList<Vertex>? initialVertices = null, IList<Vertex>? outputStates = null)
+        IReadOnlyList<Vertex>? initialVertices = null, IList<Vertex>? outputStates = null,
+        IList<double[]>? textureCoordinates = null)
     {
         cancellation.ThrowIfCancellationRequested();
         if (!double.IsFinite(detailTolerance) || detailTolerance < 0)
@@ -42,6 +57,9 @@ public sealed class EdgeCollapse : IEdgeCollapse
             throw new ArgumentException("Expected a finite nonnegative tolerance per source vertex.", nameof(vertexTolerances));
         }
 
+        // For textured reductions the surviving endpoint keeps its original UV.
+        // Lock chart and tile borders in the caller, and reject UV flips below.
+        var textureVertices = textureCoordinates == null ? null : Enumerable.Range(0, sourceMesh.Vertices.Count).ToArray();
         var outputWork = work;
         using var scratch = work?.CreateScope(preferResident: true);
         work = scratch;
@@ -235,7 +253,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 options[0] = va.Position;
                 options[1] = vb.Position;
                 options[2] = (va.Position + vb.Position) * .5;
-                optionCount = 3;
+                optionCount = textureVertices == null ? 3 : 2;
             }
 
             var best = double.PositiveInfinity;
@@ -466,6 +484,8 @@ public sealed class EdgeCollapse : IEdgeCollapse
                 }
             }
 
+            var replacementTextureVertex = textureVertices == null ? -1 :
+                textureVertices[edge.Position == b.Position ? edge.B : edge.A];
             var valid = true;
             survivingTriangles.Clear();
             foreach (var fi in affected)
@@ -486,6 +506,13 @@ public sealed class EdgeCollapse : IEdgeCollapse
 
                 triangle.Sort();
                 if (!survivingTriangles.Add(new TriangleKey(triangle[0], triangle[1], triangle[2])))
+                {
+                    valid = false;
+                    break;
+                }
+
+                if (textureCoordinates != null && textureVertices != null &&
+                    !SimplificationGeometry.PreservesUvOrientation(textureCoordinates, textureVertices, face, edge.A, edge.B, replacementTextureVertex))
                 {
                     valid = false;
                     break;
@@ -544,6 +571,11 @@ public sealed class EdgeCollapse : IEdgeCollapse
             if (tolerances != null)
             {
                 tolerances[edge.A] = Math.Min(tolerances[edge.A], tolerances[edge.B]);
+            }
+
+            if (textureVertices != null)
+            {
+                textureVertices[edge.A] = replacementTextureVertex;
             }
 
             a.Position = edge.Position;
@@ -645,7 +677,7 @@ public sealed class EdgeCollapse : IEdgeCollapse
                         index = result.Vertices.Count;
                         remap[v] = index;
                         result.Vertices.Add(vertices[v].Position.Array);
-                        outputVertices?.Add(v);
+                        outputVertices?.Add(textureVertices == null ? v : textureVertices[v]);
                         outputStates?.Add(vertices[v]);
                         if (outputTolerances != null)
                         {
