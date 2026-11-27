@@ -9,6 +9,8 @@ struct EchoApplication: App {
     @StateObject private var artifacts: ArtifactViewModel
     @StateObject private var runtimeInfo: RuntimeInfoViewModel
     @StateObject private var droneImport: DroneImportViewModel
+    private let terrainCLI: CLIClient
+    @State private var showsTerrainInput = false
     @State private var showsRuntimeInfo = false
     @State private var showsAttribution = false
 
@@ -16,6 +18,7 @@ struct EchoApplication: App {
         let options = LaunchOptions(arguments: CommandLine.arguments, bundle: .main)
         let commandLog = CLICommandLog()
         let cli = ProcessCLIClient(executable: options.cli, commandLog: commandLog)
+        terrainCLI = cli
         let projects = CLIProjectClient(cli: cli, traces: PackedTraceReader())
         let droneImport = DroneImportViewModel(
             service: DroneImportService(cli: cli, reader: DroneSourceReader(), grouping: DroneImportGrouping()))
@@ -52,6 +55,7 @@ struct EchoApplication: App {
             )
             .disclosureGroupStyle(ClickableDisclosureStyle())
             .sheet(isPresented: $showsRuntimeInfo) { RuntimeInfoView(model: runtimeInfo) }
+            .sheet(isPresented: $showsTerrainInput) { TerrainInputView(cli: terrainCLI) }
             .sheet(isPresented: $showsAttribution) { AttributionView() }
         }
         .defaultSize(width: 1500, height: 960)
@@ -63,6 +67,7 @@ struct EchoApplication: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Project…") { workspace.createProject() }.keyboardShortcut("n")
                 Button("Open Project…") { workspace.openProject() }.keyboardShortcut("o")
+                Button("Build Terrain from Input…") { showsTerrainInput = true }
             }
         }
     }

@@ -46,7 +46,7 @@ Use `merge-maps MAP_DIRECTORY MAP_DIRECTORY --output NEW_DIRECTORY --max-seam-er
 
 ### Stitch textured walls into terrain
 
-Use GDAL-readable elevation and RGB imagery rasters that cover the same area, plus the exact run ID of each geographically aligned, textured ECHO wall. Each wall needs one connected crop with one open rim. Give adjacent crops room for their terrain transitions.
+In the macOS app choose **File → Build Terrain from Input…**, or run the command below. Use a saved terrain input with GDAL-readable elevation and RGB imagery covering the same area. Add geographically aligned, textured ECHO walls by their exact saved run IDs. Each wall needs one connected crop with one open rim. Give adjacent crops room for their terrain transitions.
 
 ```bash
 "$ECHO_CLI" stitch-terrain terrain.json --output new-guide
