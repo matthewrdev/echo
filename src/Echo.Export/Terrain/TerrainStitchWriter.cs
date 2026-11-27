@@ -23,10 +23,10 @@ internal sealed class TerrainStitchWriter : ITerrainStitchWriter
         this.files = files;
     }
 
-    public void Write(string elevation, string imagery, string altitudeDatum, IReadOnlyList<TerrainWallInput> walls,
+    public void Write(string elevation, string imagery, string altitudeDatum, IReadOnlyList<TerrainWallInput> walls, TerrainRasterLayers layers,
         string output, string work, int gridLongEdge, int textureSize, double maxSeamError, CancellationToken cancellation)
     {
-        var grid = raster.Read(elevation, imagery, altitudeDatum, gridLongEdge, textureSize, work);
+        var grid = raster.Read(elevation, imagery, altitudeDatum, gridLongEdge, textureSize, work, layers);
         var positions = new List<V3>(grid.Heights.Length);
         var terrainUvs = new List<double[]>(grid.Heights.Length);
         var wallUvs = new List<double[]>(grid.Heights.Length);
@@ -62,6 +62,11 @@ internal sealed class TerrainStitchWriter : ITerrainStitchWriter
             {
                 for (var column = wall.Window.Left; column < wall.Window.Right; column++)
                 {
+                    if (!grid.InFootprint(column, row))
+                    {
+                        throw new EchoException($"{wall.Name} extends outside the terrain footprint.", 2);
+                    }
+
                     removed[row * (grid.Columns - 1) + column] = true;
                 }
             }
@@ -83,7 +88,7 @@ internal sealed class TerrainStitchWriter : ITerrainStitchWriter
             cancellation.ThrowIfCancellationRequested();
             for (var column = 0; column < grid.Columns - 1; column++)
             {
-                if (removed[row * (grid.Columns - 1) + column])
+                if (removed[row * (grid.Columns - 1) + column] || !grid.InFootprint(column, row))
                 {
                     continue;
                 }
@@ -103,7 +108,8 @@ internal sealed class TerrainStitchWriter : ITerrainStitchWriter
 
         using var texture = terrainTexture.Encode(SKEncodedImageFormat.Jpeg, 92);
         materials.Insert(0, new TerrainMaterial("Terrain and transitions", terrainTriangles.ToArray(), texture.ToArray(), 0));
-        glb.Write(Path.Combine(output, "cliff.glb"), new TerrainMeshAsset(positions, terrainUvs, wallUvs, materials));
+        var mesh = new TerrainMeshAsset(positions, terrainUvs, wallUvs, materials);
+        glb.Write(Path.Combine(output, "cliff.glb"), layers.Footprint == null ? mesh : mesh.Compact(), layers.Attribution);
         var origin = grid.Origin;
         files.AtomicJson(Path.Combine(output, "cliff.geo.json"), new
         {
@@ -123,6 +129,8 @@ internal sealed class TerrainStitchWriter : ITerrainStitchWriter
             grid.Rows,
             terrainTexturePixels = textureSize,
             maxSeamErrorMetres = maxSeamError,
+            photoOverlayCount = layers.PhotoOverlays.Count,
+            clippedToFootprint = layers.Footprint != null,
             walls = report
         });
     }

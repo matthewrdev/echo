@@ -27,6 +27,51 @@ public sealed class TerrainStitchTests
 
     internal void Run(TestSuite tests)
     {
+        tests.Run("Builds a clipped terrain input with registered photo imagery before there are any wall runs", () =>
+        {
+            var root = Directory.CreateTempSubdirectory("echo-terrain-input-").FullName;
+            try
+            {
+                CreateRasters(root);
+                var polygon = Path.Combine(root, "area.geojson");
+                File.WriteAllText(polygon, """{"type":"Polygon","coordinates":[[[-0.002,-0.002],[0,-0.002],[0,0.002],[-0.002,0.002],[-0.002,-0.002]]]}""");
+                var overlay = Path.Combine(root, "overlay.tif");
+                mapping.Run("gdal_create", "-of", "GTiff", "-outsize", "16", "16", "-ot", "Byte", "-bands", "4",
+                    "-burn", "200", "-burn", "10", "-burn", "10", "-burn", "128", "-a_srs", "EPSG:4326",
+                    "-a_ullr", "-0.0015", "0.0015", "0.0015", "-0.0015", overlay);
+                var input = Path.Combine(root, "terrain.json");
+                File.WriteAllBytes(input, JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    elevation = "terrain.tif",
+                    imagery = "ortho.tif",
+                    verticalDatum = "AHD",
+                    footprint = "area.geojson",
+                    photoOverlays = new[] { "overlay.tif" },
+                    attribution = "Terrain source credit",
+                    gridLongEdge = 32,
+                    terrainTextureSize = 128
+                }));
+                var output = Path.Combine(root, "export");
+                Check(cli.Run(["stitch-terrain", input, "--output", output]) == 0, "A raster-only input builds");
+                var bytes = File.ReadAllBytes(Path.Combine(output, "cliff.glb"));
+                var length = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(12, 4));
+                using var doc = JsonDocument.Parse(bytes.AsMemory(20, length));
+                var glb = doc.RootElement;
+                Check(glb.GetProperty("asset").GetProperty("copyright").GetString() == "Terrain source credit", "Keeps attribution");
+                var primitive = glb.GetProperty("meshes")[0].GetProperty("primitives")[0];
+                var count = glb.GetProperty("accessors")[primitive.GetProperty("indices").GetInt32()].GetProperty("count").GetInt32();
+                Check(count > 2500 && count < 3200, "Only the western half of the grid has triangles");
+                var view = glb.GetProperty("bufferViews")[glb.GetProperty("images")[0].GetProperty("bufferView").GetInt32()];
+                var start = 28 + length + view.GetProperty("byteOffset").GetInt32();
+                using var image = SKBitmap.Decode(bytes.AsSpan(start, view.GetProperty("byteLength").GetInt32()).ToArray());
+                var color = image.GetPixel(64, 64);
+                Check(color.Red is > 100 and < 140 && color.Green is > 50 and < 90, "Partial alpha blends both images");
+            }
+            finally
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        });
         tests.Run("Stitch terrain keeps two original wall atlases and joins the source triangles to one ground mesh", () =>
         {
             var root = Directory.CreateTempSubdirectory("echo-stitch-test-").FullName;

@@ -57,6 +57,8 @@ Use GDAL-readable elevation and RGB imagery rasters that cover the same area, pl
   "elevation": "elevation.tif",
   "imagery": "ortho.tif",
   "verticalDatum": "NAVD88",
+  "footprint": "area.geojson",
+  "photoOverlays": ["registered-faces.tif"],
   "gridLongEdge": 512,
   "terrainTextureSize": 8192,
   "maxSeamErrorMetres": 5,
@@ -66,7 +68,7 @@ Use GDAL-readable elevation and RGB imagery rasters that cover the same area, pl
 }
 ```
 
-Paths are relative to the manifest. A height offset is added to the saved wall's elevation before fitting and must be supplied if the wall and elevation raster have different or unknown height references. Determine that offset from aligned terrain or surveyed evidence. The command checks the maximum difference along each rim, removes the terrain beneath the crop, and fills the transition collar. It blends the collar texture and keeps the original wall geometry and atlases, including 8K originals. Terrain image detail still depends on the source imagery.
+Paths are relative to the manifest. You can omit `walls` until textured reconstructions are ready. An optional WGS84 GeoJSON polygon selects terrain by grid cell centre. Optional `photoOverlays` are georeferenced RGBA rasters blended over the aerial image in list order. Fit ground photographs to the terrain before supplying them as overlays. Use `attribution` to include source credits in the exported GLB. A height offset is added to the saved wall's elevation before fitting and must be supplied if the wall and elevation raster have different or unknown height references. Determine that offset from aligned terrain or surveyed evidence. The command checks the maximum difference along each rim, removes the terrain beneath the crop, and fills the transition collar. It blends the collar texture and keeps the original wall geometry and atlases, including 8K originals. Terrain image detail still depends on the source imagery.
 
 The output directory contains `cliff.glb`, `cliff.geo.json`, and `terrain-stitch.json`. A failed seam leaves the destination absent.
 

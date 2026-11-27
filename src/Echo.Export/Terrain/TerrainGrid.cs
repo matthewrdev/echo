@@ -4,8 +4,10 @@ using Echo.Models;
 namespace Echo.Export.Terrain;
 
 internal sealed record TerrainGrid(int Columns, int Rows, double West, double North, double LongitudeStep,
-    double LatitudeStep, float[] Heights, string Imagery, GeoPosition Origin)
+    double LatitudeStep, float[] Heights, string Imagery, GeoPosition Origin, byte[]? CellMask)
 {
+    public bool InFootprint(int column, int row) => CellMask == null || CellMask[row * (Columns - 1) + column] != 0;
+
     public double Column(double longitude) => (longitude - West) / LongitudeStep - .5;
     public double Row(double latitude) => (North - latitude) / LatitudeStep - .5;
 

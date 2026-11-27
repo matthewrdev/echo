@@ -43,10 +43,11 @@ public sealed class TerrainStitchService : ITerrainStitchService
         try
         {
             var inputs = new List<TerrainWallInput>();
-            for (var index = 0; index < manifest.Walls.Count; index++)
+            var walls = manifest.Walls ?? [];
+            for (var index = 0; index < walls.Count; index++)
             {
                 cancellation.ThrowIfCancellationRequested();
-                var wall = manifest.Walls[index];
+                var wall = walls[index];
                 var source = projects.Open(Path.GetFullPath(wall.Project, root));
                 var package = Path.Combine(work, $"wall-{index + 1}");
                 exchange.ExportMesh(source, wall.Run, package, MeshExportFormat.Glb);
@@ -54,7 +55,9 @@ public sealed class TerrainStitchService : ITerrainStitchService
                 inputs.Add(new TerrainWallInput(package, wall.HeightOffsetMetres, name));
             }
 
-            writer.Write(Path.GetFullPath(manifest.Elevation, root), Path.GetFullPath(manifest.Imagery, root), manifest.VerticalDatum, inputs,
+            var layers = new TerrainRasterLayers((manifest.PhotoOverlays ?? []).Select(path => Path.GetFullPath(path, root)).ToArray(),
+                manifest.Footprint == null ? null : Path.GetFullPath(manifest.Footprint, root), manifest.Attribution);
+            writer.Write(Path.GetFullPath(manifest.Elevation, root), Path.GetFullPath(manifest.Imagery, root), manifest.VerticalDatum, inputs, layers,
                 result, work, manifest.GridLongEdge, manifest.TerrainTextureSize, manifest.MaxSeamErrorMetres, cancellation);
             cancellation.ThrowIfCancellationRequested();
             Directory.Move(result, destination);
@@ -71,12 +74,15 @@ public sealed class TerrainStitchService : ITerrainStitchService
             && !string.IsNullOrWhiteSpace(manifest.VerticalDatum);
         var validSettings = manifest.GridLongEdge is >= 8 and <= 2048 && manifest.TerrainTextureSize is >= 64 and <= 8192
             && double.IsFinite(manifest.MaxSeamErrorMetres) && manifest.MaxSeamErrorMetres > 0;
-        var validWalls = manifest.Walls is { Count: > 0 } && manifest.Walls.All(wall => wall != null
+        var validWalls = (manifest.Walls ?? []).All(wall => wall != null
             && !string.IsNullOrWhiteSpace(wall.Project) && !string.IsNullOrWhiteSpace(wall.Run)
             && !wall.Run.Equals("latest", StringComparison.OrdinalIgnoreCase));
-        if (!hasSources || !validSettings || !validWalls)
+        var validLayers = !(manifest.PhotoOverlays ?? []).Any(string.IsNullOrWhiteSpace)
+            && (manifest.Footprint == null || !string.IsNullOrWhiteSpace(manifest.Footprint));
+        var validInputs = hasSources && validWalls && validLayers;
+        if (!validInputs || !validSettings)
         {
-            throw new EchoException("Specify elevation and imagery rasters, a vertical datum, one or more saved wall run IDs, and valid terrain settings.", 2);
+            throw new EchoException("Specify elevation and imagery rasters, a vertical datum, valid terrain settings and valid paths or saved run IDs for any optional layers.", 2);
         }
     }
 }

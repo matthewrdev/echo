@@ -15,7 +15,7 @@ internal sealed class TerrainRasterReader
         this.tools = tools;
     }
 
-    public TerrainGrid Read(string elevation, string imagery, string datum, int gridLongEdge, int textureSize, string work)
+    public TerrainGrid Read(string elevation, string imagery, string datum, int gridLongEdge, int textureSize, string work, TerrainRasterLayers layers)
     {
         using var sourceInfo = JsonDocument.Parse(tools.Run("gdalinfo", "-json", elevation));
         if (!sourceInfo.RootElement.TryGetProperty("wgs84Extent", out var extent))
@@ -78,6 +78,19 @@ internal sealed class TerrainRasterReader
         var jpeg = Path.Combine(work, "imagery.jpg");
         tools.Run("gdalwarp", "-t_srs", "EPSG:4326", "-te", Number(west), Number(south), Number(east), Number(north),
             "-ts", Integer(textureSize), Integer(textureSize), "-r", "bilinear", imagery, ortho);
+        foreach (var overlay in layers.PhotoOverlays)
+        {
+            using var info = JsonDocument.Parse(tools.Run("gdalinfo", "-json", overlay));
+            var bands = info.RootElement.GetProperty("bands");
+            var isRgba = bands.GetArrayLength() == 4 && bands[3].GetProperty("colorInterpretation").GetString() == "Alpha";
+            if (!isRgba || !info.RootElement.TryGetProperty("wgs84Extent", out _))
+            {
+                throw new EchoException($"Photo overlay needs a georeferenced RGBA raster: {overlay}", 2);
+            }
+
+            tools.Run("gdalwarp", "-srcalpha", "-r", "bilinear", overlay, ortho);
+        }
+
         tools.Run("gdal_translate", "-q", "-of", "JPEG", "-b", "1", "-b", "2", "-b", "3", ortho, jpeg);
         var origin = new GeoPosition
         {
@@ -86,7 +99,25 @@ internal sealed class TerrainRasterReader
             Altitude = cropped[cropped.Length / 2],
             AltitudeDatum = datum
         };
-        return new TerrainGrid(window.Width, window.Height, west, north, longitudeStep, latitudeStep, cropped, jpeg, origin);
+        byte[]? mask = null;
+        if (layers.Footprint != null)
+        {
+            // Faces span the spaces between elevation samples. Rasterize at the face centres.
+            var path = Path.Combine(work, "footprint.bin");
+            var coverage = Path.Combine(work, "footprint.tif");
+            tools.Run("gdal_rasterize", "-of", "GTiff", "-ot", "Byte", "-burn", "1", "-init", "0", "-a_srs", "EPSG:4326",
+                "-te", Number(west + longitudeStep / 2), Number(south + latitudeStep / 2),
+                Number(east - longitudeStep / 2), Number(north - latitudeStep / 2),
+                "-ts", Integer(window.Width - 1), Integer(window.Height - 1), layers.Footprint, coverage);
+            tools.Run("gdal_translate", "-q", "-of", "ENVI", coverage, path);
+            mask = File.ReadAllBytes(path);
+            if (mask.Length != (window.Width - 1) * (window.Height - 1) || !mask.Contains((byte)1))
+            {
+                throw new EchoException("The footprint contains no terrain cells at this grid resolution.", 2);
+            }
+        }
+
+        return new TerrainGrid(window.Width, window.Height, west, north, longitudeStep, latitudeStep, cropped, jpeg, origin, mask);
     }
 
     private static TerrainGridWindow Trim(float[] heights, int columns, int rows)

@@ -19,7 +19,7 @@ internal sealed class StitchTerrainCommand : ICliCommand
     public IReadOnlyList<CommandUsage> Usage =>
     [
         new("stitch-terrain", "stitch-terrain MANIFEST --output NEW_DIRECTORY",
-            "Join georeferenced, textured Echo wall runs to elevation and aerial imagery. Reports measured alignment error at the seams.")
+            "Build terrain from elevation and imagery, with optional registered photo overlays, a footprint and textured Echo wall runs.")
     ];
 
     public int Execute(Arguments arguments)

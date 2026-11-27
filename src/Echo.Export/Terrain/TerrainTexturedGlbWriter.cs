@@ -5,7 +5,7 @@ namespace Echo.Export.Terrain;
 
 internal sealed class TerrainTexturedGlbWriter
 {
-    public void Write(string output, TerrainMeshAsset mesh)
+    public void Write(string output, TerrainMeshAsset mesh, string? attribution)
     {
         var views = new List<object>();
         var accessors = new List<object>();
@@ -72,9 +72,15 @@ internal sealed class TerrainTexturedGlbWriter
             primitives.Add(new { attributes, indices = indexView, material });
         }
 
+        var asset = new Dictionary<string, string> { ["version"] = "2.0", ["generator"] = "Echo terrain stitch" };
+        if (!string.IsNullOrWhiteSpace(attribution))
+        {
+            asset["copyright"] = attribution;
+        }
+
         var root = new
         {
-            asset = new { version = "2.0", generator = "Echo terrain stitch" },
+            asset,
             scene = 0,
             scenes = new[] { new { nodes = new[] { 0 } } },
             nodes = new[] { new { mesh = 0, name = "Echo stitched terrain" } },
